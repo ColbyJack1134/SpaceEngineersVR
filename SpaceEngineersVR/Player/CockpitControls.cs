@@ -1,0 +1,207 @@
+using System;
+using System.Linq;
+using SpaceEngineersVR.Config;
+using Sandbox.Game.Entities;
+using Sandbox.Game.Entities.Character;
+using Sandbox.Game.World;
+using SpaceEngineersVR.Player.Control;
+using SpaceEngineersVR.Plugin;
+using VRage.Game;
+using VRage.Utils;
+using VRageMath;
+
+namespace SpaceEngineersVR.Player
+{
+    internal static class CockpitControls
+    {
+        private static MyCockpit seat;
+        private static readonly GripCapture left=new GripCapture(),right=new GripCapture();
+        private static Matrix leftNeutral,rightNeutral,origin;
+        private static Matrix leftVisual=Matrix.Identity,rightVisual=Matrix.Identity;
+        private static int leftDetents,rightDetents;
+        private static DateTime leftPulse,rightPulse,grabLeft,grabRight;
+        private static Vector3 translation,rotation;
+        private static bool leftNear,rightNear;
+        private static readonly StickPlacement placement=new StickPlacement();
+        private static Vector3 leftStartOffset,rightStartOffset,fit;
+        public static bool Adjusting => placement.Unlocked;
+        public static bool CanAdjust => seat!=null && Eligible(seat) && CockpitRender.Ready && InputRouter.Mode==InputMode.Piloting && !Main.MenuOpen;
+        public static bool RotationOwned => Adjusting || right.Consumed;
+        public static bool Held(Controller hand) => hand==Player.HandL ? left.Held : right.Held;
+        public static string Status => seat==null ? null : Adjusting ? "STICKS UNLOCKED: grip to move; padlock saves" : CockpitRender.Status+(left.Held ? " | LEFT: translation" : "")+(right.Held ? " | RIGHT: rotation" : "");
+
+        public static void Reset()
+        {
+            Release(); seat=null; CockpitRender.Reset();
+        }
+        public static void Release()
+        {
+            if (Adjusting)
+            {
+                placement.Cancel(); BlockTranslation(); BlockRotation(); Controls.Static.Primary.BlockUntilRelease();
+            }
+            if (left.Consumed) BlockTranslation();
+            if (right.Consumed) BlockRotation();
+            left.Release(); right.Release();
+            translation=rotation=Vector3.Zero;
+            SetVisuals();
+        }
+        private static void SetVisuals()
+        {
+            leftVisual=StickPlacement.Visual(CockpitStickMath.LeftVisual(translation),placement.Left);
+            rightVisual=StickPlacement.Visual(CockpitStickMath.RightVisual(rotation),placement.Right);
+        }
+        public static void ToggleAdjustment()
+        {
+            if (!CanAdjust) return;
+            bool locking=Adjusting;
+            if (locking) { placement.Lock(); SavePlacement(); }
+            Release();
+            if (!locking) placement.Unlock();
+            Controls.Static.BlockUntilRelease();
+        }
+        public static void ResetPlacement()
+        {
+            if (!CanAdjust) return;
+            Release(); placement.Load(Vector3.Zero,Vector3.Zero); SetVisuals(); SavePlacement();
+            Controls.Static.BlockUntilRelease();
+        }
+        private static void SavePlacement()
+        {
+            var value=new StickPlacementSetting { Subtype=FighterProfile.Subtype,LeftX=placement.Left.X,LeftY=placement.Left.Y,LeftZ=placement.Left.Z,
+                RightX=placement.Right.X,RightY=placement.Right.Y,RightZ=placement.Right.Z };
+            Common.Config.StickPlacements=Common.Config.StickPlacements.Where(s=>s!=null && s.Subtype!=FighterProfile.Subtype).Concat(new[] {value}).ToArray();
+        }
+        private static void BlockTranslation()
+        {
+            var c=Controls.Static;
+            c.ThrustLRFB.BlockUntilRelease(); c.ThrustLRUD.BlockUntilRelease();
+            c.ThrustUp.BlockUntilRelease(); c.ThrustDown.BlockUntilRelease();
+            c.ThrustForward.BlockUntilRelease(); c.ThrustBackward.BlockUntilRelease();
+        }
+        private static void BlockRotation()
+        {
+            Controls.Static.ThrustRotate.BlockUntilRelease(); Controls.Static.ThrustRoll.BlockUntilRelease();
+            Controls.Static.Secondary.BlockUntilRelease();
+        }
+        private static bool Eligible(MyCockpit cockpit) => cockpit!=null && !cockpit.Closed && !cockpit.MarkedForClose &&
+            cockpit.BlockDefinition.Id.SubtypeName==FighterProfile.Subtype &&
+            cockpit.BlockDefinition.InteriorModel.Replace('\\','/').EndsWith(FighterProfile.Model,StringComparison.OrdinalIgnoreCase) &&
+            cockpit.Pilot==MySession.Static?.LocalCharacter && cockpit.Pilot!=null && !cockpit.Pilot.IsDead &&
+            MySession.Static.CameraController==cockpit && (cockpit.IsInFirstPersonView || cockpit.ForceFirstPersonCamera);
+
+        public static bool HasTrackedSeat(MyCharacter character) => Main.VrActive && seat!=null &&
+            character==seat.Pilot && Eligible(seat) && CockpitRender.Ready && Common.Config.FighterCockpitSticks;
+        public static Matrix HandLocal(Controller hand)
+        {
+            // Cancel ship motion before narrowing to float; never subtract world hand positions across ticks.
+            MatrixD headLocal=seat.GetHeadMatrix(true,true)*seat.PositionComp.WorldMatrixNormalizedInv;
+            return (Matrix)((MatrixD)VrMath.Affine(hand.GripTracking*Player.PlayerToAbsolute.inverted)*headLocal);
+        }
+        public static MatrixD WristWorld(Controller hand)
+        {
+            Matrix local=Matrix.CreateTranslation(0,0.02f,0.04f)*HandLocal(hand);
+            if (Held(hand))
+            {
+                bool isLeft=hand==Player.HandL;
+                Matrix attached=TrackedArms.WristForPalm(hand,CockpitStickMath.GripPalm(isLeft)*(isLeft ? leftVisual : rightVisual));
+                float t=MathHelper.Clamp((float)(DateTime.UtcNow-(isLeft ? grabLeft : grabRight)).TotalSeconds/0.12f,0,1);
+                Quaternion q=Quaternion.Slerp(Quaternion.CreateFromRotationMatrix(local),Quaternion.CreateFromRotationMatrix(attached),t);
+                Matrix blended=Matrix.CreateFromQuaternion(q);
+                blended.Translation=Vector3.Lerp(local.Translation,attached.Translation,t);
+                local=blended;
+            }
+            return (MatrixD)local*seat.WorldMatrix;
+        }
+        public static void Update()
+        {
+            var next=MySession.Static?.ControlledEntity as MyCockpit;
+            if (!Main.VrActive || !Common.Config.FighterCockpitSticks || !Eligible(next))
+            { if (seat!=null) Reset(); return; }
+            if (seat!=next)
+            {
+                Reset(); seat=next; origin=Player.PlayerToAbsolute.matrix; fit=SeatFit.Offset;
+                var saved=Common.Config.StickPlacements.FirstOrDefault(s=>s!=null && s.Subtype==FighterProfile.Subtype);
+                placement.Load(saved==null ? Vector3.Zero : new Vector3(saved.LeftX,saved.LeftY,saved.LeftZ),
+                    saved==null ? Vector3.Zero : new Vector3(saved.RightX,saved.RightY,saved.RightZ));
+                SetVisuals();
+            }
+            if (origin!=Player.PlayerToAbsolute.matrix || fit!=SeatFit.Offset) { Release(); origin=Player.PlayerToAbsolute.matrix; fit=SeatFit.Offset; }
+            RefreshVisuals();
+            bool available=CockpitRender.Ready && InputRouter.Mode==InputMode.Piloting && !Main.MenuOpen && !TouchScreenBridge.OwnsInput &&
+                Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;
+            if (!available && Adjusting) Release();
+            var c=Controls.Static;
+            bool leftDown=left.AnalogDown(c.ThrustDown.Position.X,c.ThrustDown.RawPosition.X);
+            bool rightDown=right.Consumed ? c.ThrustRoll.RawPressed : c.ThrustRoll.IsPressed;
+            Matrix l=available ? HandLocal(Player.HandL) : Matrix.Identity;
+            Matrix r=available ? HandLocal(Player.HandR) : Matrix.Identity;
+            Vector3 lp=WeaponPose.Palm(l),rp=WeaponPose.Palm(r);
+            leftNear=available && Vector3.Distance(lp,Vector3.Transform(FighterProfile.LeftContact,leftVisual))<FighterProfile.CaptureRadius;
+            rightNear=available && Vector3.Distance(rp,Vector3.Transform(FighterProfile.RightContact,rightVisual))<FighterProfile.CaptureRadius;
+            bool leftWas=left.Held,rightWas=right.Held;
+            if (left.Update(available,leftDown,leftNear,!left.Held || Vector3.Distance(lp,WeaponPose.Palm(leftNeutral))<0.45f))
+            {
+                grabLeft=DateTime.UtcNow; leftDetents=0;
+                leftStartOffset=placement.Left;
+                leftNeutral=l; BlockTranslation(); Player.HandL.Vibrate(0,0.055f,110,0.5f);
+            }
+            if (right.Update(available,rightDown,rightNear,!right.Held || Vector3.Distance(rp,WeaponPose.Palm(rightNeutral))<0.45f))
+            {
+                grabRight=DateTime.UtcNow; rightDetents=0;
+                rightStartOffset=placement.Right;
+                rightNeutral=r; BlockRotation(); Player.HandR.Vibrate(0,0.055f,110,0.5f);
+            }
+            if (leftWas && !left.Held) BlockTranslation();
+            if (rightWas && !right.Held) BlockRotation();
+            float deadzone=Common.Config.PhysicalStickDeadzone;
+            if (Adjusting)
+            {
+                if (left.Held) placement.Move(true,leftStartOffset,WeaponPose.Palm(leftNeutral),lp);
+                if (right.Held) placement.Move(false,rightStartOffset,WeaponPose.Palm(rightNeutral),rp);
+                Controls.Static.Primary.BlockUntilRelease(); Controls.Static.Secondary.BlockUntilRelease();
+            }
+            translation=left.Held && !Adjusting ? CockpitStickMath.Translation(leftNeutral,l,deadzone) : Vector3.Zero;
+            rotation=right.Held && !Adjusting ? CockpitStickMath.Rotation(rightNeutral,r,deadzone) : Vector3.Zero;
+            SetVisuals();
+            Feedback(Player.HandL,left.Held,translation,ref leftDetents,ref leftPulse);
+            Feedback(Player.HandR,right.Held,rotation,ref rightDetents,ref rightPulse);
+            if (leftWas && !left.Held) Player.HandL.Vibrate(0,0.025f,75,0.2f);
+            if (rightWas && !right.Held) Player.HandR.Vibrate(0,0.025f,75,0.2f);
+            RefreshVisuals();
+        }
+        private static void Feedback(Controller hand,bool held,Vector3 axes,ref int previous,ref DateTime next)
+        {
+            int current=CockpitStickMath.Detents(axes);
+            bool limit=(current & ~previous & 56)!=0, center=(previous & ~current & 7)!=0;
+            previous=current;
+            if (!held || (!limit && !center) || DateTime.UtcNow<next) return;
+            hand.Vibrate(0,limit ? 0.04f : 0.018f,limit ? 85 : 140,limit ? 0.35f : 0.15f);
+            next=DateTime.UtcNow.AddMilliseconds(130);
+        }
+        public static void RefreshVisuals()
+        {
+            if (seat==null || !Eligible(seat)) return;
+            CockpitRender.Update(seat,leftVisual,rightVisual,left.Held,right.Held,placement.Left,placement.Right);
+        }
+        public static void ApplyFlight(float speed,ref Vector3 move,ref Vector2 rotate,ref float roll)
+        {
+            if (seat==null || !Eligible(seat) || !CockpitRender.Ready || InputRouter.Mode!=InputMode.Piloting) return;
+            if (Adjusting) { move=Vector3.Zero; rotate=Vector2.Zero; roll=0; return; }
+            CockpitStickMath.ApplyFlight(left.Consumed,right.Consumed,left.Held ? translation : Vector3.Zero,right.Held ? rotation : Vector3.Zero,
+                speed,Common.Config.PhysicalStickSensitivity,Common.Config.ShipRollSensitivity,ref move,ref rotate,ref roll);
+        }
+        public static void Draw()
+        {
+            if (!Common.Config.DeveloperTools || seat==null || !CockpitRender.Ready || InputRouter.Mode!=InputMode.Piloting) return;
+            DrawContact(Vector3.Transform(FighterProfile.LeftContact,leftVisual),left.Held,leftNear);
+            DrawContact(Vector3.Transform(FighterProfile.RightContact,rightVisual),right.Held,rightNear);
+        }
+        private static void DrawContact(Vector3 local,bool held,bool near)
+        {
+            Vector3D p=Vector3D.Transform(local,seat.WorldMatrix);
+            var color=(held ? new Color(70,255,130) : near ? new Color(255,215,75) : new Color(80,160,200)).ToVector4();
+            MySimpleObjectDraw.DrawLine(p-seat.WorldMatrix.Right*0.02,p+seat.WorldMatrix.Right*0.02,MyStringId.GetOrCompute("Square"),ref color,0.008f);
+        }
+    }
+}

@@ -1,0 +1,126 @@
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using Sandbox.Game.Gui;
+using Sandbox.Game.Screens.Helpers;
+using SpaceEngineersVR.Plugin;
+using VRageMath;
+
+namespace SpaceEngineersVR.Player
+{
+    internal static class MenuPointer
+    {
+        [StructLayout(LayoutKind.Sequential)] private struct Point { public int X,Y; }
+        [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left,Top,Right,Bottom; }
+        [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window,out uint process);
+        [DllImport("user32.dll")] private static extern bool GetClientRect(IntPtr window,out Rect rect);
+        [DllImport("user32.dll")] private static extern bool ClientToScreen(IntPtr window,ref Point point);
+        [DllImport("user32.dll")] private static extern bool SetCursorPos(int x,int y);
+        [DllImport("user32.dll")] private static extern bool GetCursorPos(out Point point);
+        [DllImport("user32.dll")] private static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
+        private static readonly uint ProcessId=(uint)Process.GetCurrentProcess().Id;
+        [DllImport("user32.dll")] private static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
+        private static bool held, secondaryHeld;
+        private static bool checkTextFocus;
+        private static byte pulseKey;
+        private static int pulseTicks;
+        private static DateTime scrollAfter;
+        public static void Key(byte key)
+        {
+            if (!GameFocused || pulseKey != 0) return;
+            keybd_event(key, 0, 0, UIntPtr.Zero);
+            pulseKey = key;
+            pulseTicks = 2;
+        }
+        private static void ReleaseKey()
+        {
+            if (pulseKey != 0) keybd_event(pulseKey, 0, 2, UIntPtr.Zero);
+            pulseKey = 0;
+        }
+
+        private static Point lastCursor;
+        private static bool haveCursor;
+        private static DateTime mouseUntil;
+        public static bool GameFocused
+        {
+            get
+            {
+                GetWindowThreadProcessId(GetForegroundWindow(), out uint process);
+                return process == ProcessId;
+            }
+        }
+        public static void Release() { ReleaseMouse(); ReleaseKey(); }
+        private static void ReleaseMouse()
+        {
+            if (held) mouse_event(4,0,0,0,UIntPtr.Zero);
+            if (secondaryHeld) mouse_event(16,0,0,0,UIntPtr.Zero);
+            held = secondaryHeld = false;
+        }
+        public static void Update()
+        {
+            if (pulseKey != 0 && --pulseTicks <= 0) ReleaseKey();
+            MenuKeyboard.Update();
+            if(checkTextFocus)
+            {
+                checkTextFocus=false;
+                var focused=Components.VRGUIManager.TopScreen?.FocusedControl;
+                // A grid/category click may leave the search box focused. Require
+                // the pointer to have actually reached the text field as well.
+                if((focused is Sandbox.Graphics.GUI.MyGuiControlTextbox box && box.IsMouseOver) ||
+                    (focused is MyGuiControlSearchBox search && search.TextBox.IsMouseOver))
+                    MenuKeyboard.Open();
+            }
+            var controls = Controls.Static;
+            if (InputRouter.Mode == InputMode.Menu && GameFocused)
+            {
+                if (controls.Unequip.HasPressed)
+                {
+                    if (MenuKeyboard.IsOpen) MenuKeyboard.Close();
+                    else Key(27);
+                }
+                if (controls.Jetpack.HasPressed) MenuKeyboard.Open();
+                if (controls.MenuKeyboardFallback.HasPressed) MenuKeyboard.Open(true);
+                if (controls.Interact.HasPressed && !MenuKeyboard.IsOpen) Key(13);
+                if (!MenuKeyboard.IsOpen && Components.VRGUIManager.TopScreen is MyGuiScreenToolbarConfigBase)
+                {
+                    int delta=(controls.WheelNextPage.HasPressed ? 1 : 0)-(controls.WheelPreviousPage.HasPressed ? 1 : 0);
+                    var toolbar=MyToolbarComponent.CurrentToolbar;
+                    if (delta!=0 && toolbar!=null && toolbar.PageCount>0)
+                        toolbar.SwitchToPage((toolbar.CurrentPage+toolbar.PageCount+delta)%toolbar.PageCount);
+                }
+            }
+            if (InputRouter.Mode != InputMode.Menu) { Release(); return; }
+            if (!Common.Config.ControllerMenuPointer || !Player.HandR.pose.isTracked || MenuKeyboard.IsOpen || FloatingMenu.OwnsInput)
+            { ReleaseMouse(); return; }
+            IntPtr window=GetForegroundWindow();
+            GetWindowThreadProcessId(window,out uint process);
+            if (process!=ProcessId) { Release(); return; }
+            if(GetCursorPos(out Point current))
+            {
+                if(haveCursor && (Math.Abs(current.X-lastCursor.X)>3 || Math.Abs(current.Y-lastCursor.Y)>3) && !held)
+                    mouseUntil=DateTime.UtcNow.AddSeconds(2);
+                lastCursor=current; haveCursor=true;
+            }
+            if(!held && DateTime.UtcNow<mouseUntil && !Controls.Static.Primary.HasPressed) return;
+            if (!Components.VRGUIManager.TryPanelHit(Player.HandR.AimTracking,out Vector2 uv))
+            { ReleaseMouse(); return; }
+            if (!GetClientRect(window,out Rect rect)) { ReleaseMouse(); return; }
+            var point=new Point { X=(int)(uv.X*(rect.Right-rect.Left-1)),Y=(int)(uv.Y*(rect.Bottom-rect.Top-1)) };
+            if (!ClientToScreen(window,ref point)) { ReleaseMouse(); return; }
+            SetCursorPos(point.X,point.Y);
+            lastCursor=point;
+            // Only a new trigger press over the panel starts a click. Hold supports dragging sliders.
+            if (Controls.Static.Primary.HasPressed && !held) { mouse_event(2,0,0,0,UIntPtr.Zero); held=true; }
+            if (!controls.Primary.IsPressed && held) { mouse_event(4,0,0,0,UIntPtr.Zero); held=false; checkTextFocus=true; }
+            if (controls.Secondary.HasPressed && !secondaryHeld) { mouse_event(8,0,0,0,UIntPtr.Zero); secondaryHeld=true; }
+            if (!controls.Secondary.IsPressed && secondaryHeld) { mouse_event(16,0,0,0,UIntPtr.Zero); secondaryHeld=false; }
+            float scroll = controls.MenuNavigate.Position.Y;
+            if (System.Math.Abs(scroll) > 0.45f && DateTime.UtcNow >= scrollAfter)
+            {
+                mouse_event(0x0800, 0, 0, unchecked((uint)(scroll > 0 ? 120 : -120)), UIntPtr.Zero);
+                scrollAfter = DateTime.UtcNow.AddSeconds(0.13);
+            }
+        }
+    }
+}

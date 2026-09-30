@@ -1,0 +1,4 @@
+glcontext==3.0.0
+moderngl==5.12.0
+numpy==2.5.3
+pillow==12.3.0

@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <GameBinPath Condition="'$(GameBinPath)' == '' and '$(OS)' == 'Windows_NT'">C:\Program Files (x86)\Steam\steamapps\common\SpaceEngineers\Bin64</GameBinPath>
+    <GameBinPath Condition="'$(GameBinPath)' == ''">/mnt/c/Program Files (x86)/Steam/steamapps/common/SpaceEngineers/Bin64</GameBinPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Lib.Harmony" Version="2.4.2" />
+    <PackageReference Include="System.Drawing.Common" Version="6.0.0" />
+    <PackageReference Include="OVRSharp" Version="1.2.0" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="Sandbox.Common"><HintPath>$(GameBinPath)/Sandbox.Common.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Sandbox.Game"><HintPath>$(GameBinPath)/Sandbox.Game.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Sandbox.Graphics"><HintPath>$(GameBinPath)/Sandbox.Graphics.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="SpaceEngineers.ObjectBuilders"><HintPath>$(GameBinPath)/SpaceEngineers.ObjectBuilders.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="SpaceEngineers.Game"><HintPath>$(GameBinPath)/SpaceEngineers.Game.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage"><HintPath>$(GameBinPath)/VRage.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Game"><HintPath>$(GameBinPath)/VRage.Game.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Input"><HintPath>$(GameBinPath)/VRage.Input.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Library"><HintPath>$(GameBinPath)/VRage.Library.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Math"><HintPath>$(GameBinPath)/VRage.Math.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Render"><HintPath>$(GameBinPath)/VRage.Render.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Render11"><HintPath>$(GameBinPath)/VRage.Render11.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.NativeWrapper"><HintPath>$(GameBinPath)/VRage.NativeWrapper.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VRage.Network"><HintPath>$(GameBinPath)/VRage.Network.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="SharpDX"><HintPath>$(GameBinPath)/SharpDX.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="SharpDX.Direct3D11"><HintPath>$(GameBinPath)/SharpDX.Direct3D11.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="SharpDX.D3DCompiler"><HintPath>$(GameBinPath)/SharpDX.D3DCompiler.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="SharpDX.DXGI"><HintPath>$(GameBinPath)/SharpDX.DXGI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="HavokWrapper"><HintPath>$(GameBinPath)/HavokWrapper.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="ProtoBuf.Net"><HintPath>$(GameBinPath)/ProtoBuf.Net.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="ProtoBuf.Net.Core"><HintPath>$(GameBinPath)/ProtoBuf.Net.Core.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="Assets/**/*" />
+    <Content Include="Assets/**/*" CopyToOutputDirectory="PreserveNewest" TargetPath="SEVRAssets/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+  <Target Name="CheckGameReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(GameBinPath)/Sandbox.Game.dll')" Text="Space Engineers binaries not found. Set -p:GameBinPath=.../SpaceEngineers/Bin64" />
+  </Target>
+</Project>

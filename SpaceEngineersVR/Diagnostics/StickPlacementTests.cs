@@ -1,0 +1,65 @@
+using System;
+using System.IO;
+using System.Xml.Serialization;
+using SpaceEngineersVR.Config;
+using SpaceEngineersVR.Player;
+using SpaceEngineersVR.Player.Control;
+using VRageMath;
+
+namespace SpaceEngineersVR.Diagnostics
+{
+    internal static class StickPlacementTests
+    {
+        private static void Require(bool value,string message) { if (!value) throw new Exception(message); }
+        private static void Near(Vector3 a,Vector3 b,string message) => Require(Vector3.Distance(a,b)<.0002f,message);
+        public static void Run(Action<string> log)
+        {
+            var placement=new StickPlacement(); var offset=new Vector3(.12f,.15f,.24f);
+            placement.Load(Vector3.Zero,Vector3.Zero);
+            placement.Move(true,Vector3.Zero,Vector3.Zero,offset);
+            Near(placement.Left,Vector3.Zero,"Locked stick moved");
+            placement.Unlock(); placement.Move(true,Vector3.Zero,Vector3.Zero,offset);
+            Near(placement.Left,offset,"Unlocked translation failed");
+            Near(placement.Right,Vector3.Zero,"Left adjustment moved right stick");
+            placement.Lock(); placement.Unlock(); placement.Move(true,offset,Vector3.Zero,-offset); placement.Cancel();
+            Require(!placement.Unlocked,"Interrupted adjustment stayed unlocked"); Near(placement.Left,offset,"Interruption failed to restore saved position");
+            placement.Load(new Vector3(float.NaN),new Vector3(float.PositiveInfinity));
+            Near(placement.Left,Vector3.Zero,"Invalid saved position accepted"); Near(placement.Right,Vector3.Zero,"Invalid right position accepted");
+            Near(StickPlacement.Limit(new Vector3(999),true),new Vector3(.20f,.25f,.30f),"Left placement upper bounds");
+            Near(StickPlacement.Limit(new Vector3(-999),false),new Vector3(-.20f,-.10f,-.20f),"Right placement lower bounds");
+            for(int i=0;i<300;i++)
+            foreach(bool left in new[] {false,true})
+            {
+                Vector3 shift=StickPlacement.Limit(new Vector3((float)Math.Sin(i)*.2f,(float)Math.Cos(i)*.2f,(float)Math.Sin(i*.3f)*.3f),left);
+                var pivot=left ? FighterProfile.LeftPivot : FighterProfile.RightPivot;
+                var contact=left ? FighterProfile.LeftContact : FighterProfile.RightContact;
+                var axes=new Vector3(.4f,-.3f,.6f);
+                Matrix articulation=left ? CockpitStickMath.LeftVisual(axes) : CockpitStickMath.RightVisual(axes);
+                Matrix visual=StickPlacement.Visual(articulation,shift);
+                Near(Vector3.Transform(pivot,visual),pivot+shift,"Adjusted articulated pivot separated from base");
+                Near(Vector3.Transform(contact,visual),Vector3.Transform(contact,articulation)+shift,"Grab target separated from moved mesh");
+                Matrix grip=Matrix.CreateFromYawPitchRoll(.3f,.1f,-.2f);
+                Matrix attached=CockpitStickMath.GripPalm(left);
+                Matrix wrist=attached*visual;
+                Near(Vector3.Transform(new Vector3(-.105f,-.035f,0),wrist),Vector3.Transform(contact,visual),"Attached palm left moved handle");
+                MatrixD ship=MatrixD.CreateFromYawPitchRoll(i*.02,i*.03,i*.01); ship.Translation=new Vector3D(2e6+i*40,-3e6,4e6);
+                Near((Vector3)Vector3D.Transform(Vector3D.Transform(contact,(MatrixD)visual*ship),MatrixD.Invert(ship)),Vector3.Transform(contact,visual),"Moving ship corrupted placement");
+            }
+            var gripGate=new GripCapture(); gripGate.Update(true,false,true,true); gripGate.Update(true,true,true,true); gripGate.Release();
+            Require(!gripGate.Update(true,true,true,true) && !gripGate.Held && gripGate.Consumed,"Lock/interrupt turned adjustment grab into flight");
+            gripGate.Update(true,false,true,true); Require(gripGate.Update(true,true,true,true),"Lock prevented fresh flight grab");
+            var config=new PluginConfig { JetpackRollSensitivity=.33f,ShipRollSensitivity=.77f,
+                SeatFits=new[] { new SeatFitSetting { Subtype=FighterProfile.Subtype,Y=.1f } },
+                StickPlacements=new[] { new StickPlacementSetting { Subtype=FighterProfile.Subtype,LeftX=.12f,RightZ=.24f } } };
+            var serializer=new XmlSerializer(typeof(PluginConfig));
+            using(var writer=new StringWriter())
+            {
+                serializer.Serialize(writer,config);
+                var restored=(PluginConfig)serializer.Deserialize(new StringReader(writer.ToString()));
+                Require(restored.StickPlacements[0].LeftX==.12f && restored.StickPlacements[0].RightZ==.24f && restored.SeatFits[0].Y==.1f &&
+                    restored.JetpackRollSensitivity==.33f && restored.ShipRollSensitivity==.77f,"Placement persistence corrupts seat/roll settings");
+            }
+            log("PASS repositionable sticks: explicit unlock/lock/cancel, independent offsets and bounds, invalid config, 600 moved pivot/contact/palm and large-coordinate ship checks, held-grip release gate and config round trip preserving seat/roll.");
+        }
+    }
+}

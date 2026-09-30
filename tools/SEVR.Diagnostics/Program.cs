@@ -1,0 +1,44 @@
+using System;
+using System.IO;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using SpaceEngineersVR.Diagnostics;
+
+internal static class Program
+{
+    private static int Main(string[] args)
+    {
+        if (args.Length < 1 || !Directory.Exists(args[0]))
+        {
+            Console.Error.WriteLine("Usage: SEVR.Diagnostics.exe <SpaceEngineers/Bin64> [--vr]");
+            return 1;
+        }
+        string game = Path.GetFullPath(args[0]);
+        AppDomain.CurrentDomain.AssemblyResolve += (sender, e) =>
+        {
+            string path = Path.Combine(game, new AssemblyName(e.Name).Name + ".dll");
+            return File.Exists(path) ? Assembly.LoadFrom(path) : null;
+        };
+        try
+        {
+            if(args.Length==4 && args[1]=="--export-model") { ModelInspection.Export(game,args[2],args[3]); return 0; }
+            return Run(game, Array.IndexOf(args, "--vr") >= 0, Array.IndexOf(args,"--self-test") >= 0, Array.IndexOf(args,"--ui-test") >= 0);
+        }
+        catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int Run(string game, bool vr, bool selfTest, bool uiTest)
+    {
+        Console.WriteLine("SEVR preflight " + DateTime.UtcNow.ToString("O"));
+        Console.WriteLine("Game: " + game);
+        Assembly.LoadFrom(Path.Combine(game, "VRage.Render11.dll"));
+        Assembly.LoadFrom(Path.Combine(game, "Sandbox.Game.dll"));
+        if (uiTest) UiTests.Run(game,Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"SEVRPrototype","Reports","ui-preview"),Console.WriteLine);
+        if (selfTest) RegressionTests.Run(Console.WriteLine);
+        bool compatible = CompatibilityProbe.Run(Console.WriteLine);
+        bool vrReady = !vr || VrProbe.Run(Console.WriteLine);
+        Console.WriteLine("Metadata checks do not validate rendering or in-game interaction.");
+        return !compatible ? 2 : (vrReady ? 0 : 3);
+    }
+}

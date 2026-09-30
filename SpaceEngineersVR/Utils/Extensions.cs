@@ -1,0 +1,55 @@
+using SpaceEngineersVR.Player.Components;
+using Sandbox.Game.Entities.Character;
+using Valve.VR;
+using VRageMath;
+
+namespace SpaceEngineersVR.Util
+{
+    internal static class Extensions
+    {
+
+        public static Vector3 ToVector(this HmdVector3_t v)
+        {
+            return new Vector3(v.v0, v.v1, v.v2);
+        }
+
+        public static Vector3D ToVector(this HmdVector3d_t v)
+        {
+            return new Vector3D(v.v0, v.v1, v.v2);
+        }
+
+        public static VRMovementComponent VRMovement(this MyCharacter c)
+        {
+            return c.Components.Get<VRMovementComponent>();
+        }
+        //Matrix
+        //11 12 13 right
+        //21 22 23 up
+        //31 32 33 backward
+        //41 42 43 translation
+
+        //HmdMatrix34_t
+        //0 4  8 right
+        //1 5  9 up
+        //2 6 10 backward
+        //3 7 11 translation
+
+        public static Matrix ToMatrix(this HmdMatrix34_t hmd)
+        {
+            return new Matrix(
+                hmd.m0, hmd.m4, hmd.m8,  0f,
+                hmd.m1, hmd.m5, hmd.m9,  0f,
+                hmd.m2, hmd.m6, hmd.m10, 0f,
+                hmd.m3, hmd.m7, hmd.m11, 1f);
+        }
+
+        public static Matrix ToMatrix(this HmdMatrix44_t hmd)
+        {
+            return new Matrix(
+                hmd.m0, hmd.m4, hmd.m8,  hmd.m12,
+                hmd.m1, hmd.m5, hmd.m9,  hmd.m13,
+                hmd.m2, hmd.m6, hmd.m10, hmd.m14,
+                hmd.m3, hmd.m7, hmd.m11, hmd.m15);
+        }
+    }
+}
