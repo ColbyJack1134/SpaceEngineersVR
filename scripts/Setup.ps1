@@ -50,22 +50,6 @@ New-Item -ItemType Directory -Force (Join-Path $pulsar 'Legacy\Sources'), (Join-
 '@ | Set-Content (Join-Path $pulsar 'Legacy\Profiles\sevr.xml') -Encoding UTF8
 @{ GameBinPath = $GameBinPath; PrototypeRoot = $PrototypeRoot; SourceRoot = $repo; PulsarVersion = '2.4.2' } |
     ConvertTo-Json | Set-Content (Join-Path $PrototypeRoot 'settings.json') -Encoding UTF8
-Copy-Item (Join-Path $PSScriptRoot 'Launch.ps1'), (Join-Path $PSScriptRoot 'Preflight.ps1') $PrototypeRoot -Force
-@'
-@echo off
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Preflight.ps1" -VR
-pause
-'@ | Set-Content (Join-Path $PrototypeRoot 'Check VR.cmd') -Encoding ASCII
-@'
-@echo off
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Launch.ps1"
-pause
-'@ | Set-Content (Join-Path $PrototypeRoot 'Launch Diagnostics.cmd') -Encoding ASCII
-@'
-@echo off
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Launch.ps1" -ExperimentalVR
-if errorlevel 1 pause
-'@ | Set-Content (Join-Path $PrototypeRoot 'Launch VR.cmd') -Encoding ASCII
 $desktop = [Environment]::GetFolderPath('Desktop')
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut((Join-Path $desktop 'Space Engineers VR Prototype.lnk'))

@@ -70,14 +70,15 @@ namespace SpaceEngineersVR.Plugin
                     throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(), "Cannot load " + nativePath);
 
                 bool compatible = CompatibilityProbe.Run(line => Logger.Info(line));
-                if (Environment.GetEnvironmentVariable("SEVR_MODE") == "physicaltest")
+                string mode=Environment.GetEnvironmentVariable("SEVR_MODE")?.Trim().ToLowerInvariant();
+                if (mode == "physicaltest")
                 {
                     Harmony=new Harmony(Common.Name);
                     Harmony.PatchAll(Assembly.GetExecutingAssembly());
                     PhysicalRendererProbe.Start(Harmony);
                     return;
                 }
-                if (Environment.GetEnvironmentVariable("SEVR_MODE") == "patchtest")
+                if (mode == "patchtest")
                 {
                     Harmony = new Harmony(Common.Name);
                     try
@@ -89,7 +90,7 @@ namespace SpaceEngineersVR.Plugin
                     finally { Harmony.UnpatchAll(Common.Name); }
                     return;
                 }
-                if (!string.Equals(Environment.GetEnvironmentVariable("SEVR_MODE"), "render", StringComparison.OrdinalIgnoreCase))
+                if (mode == "diagnostics")
                 {
                     VrProbe.Run(line => Logger.Info(line));
                     Logger.Info("Diagnostic mode complete. Rendering and motion-control patches are disabled.");
