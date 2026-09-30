@@ -10,14 +10,14 @@ namespace SpaceEngineersVR.Player
         public static int Count(string subtype) => subtype==FighterProfile.Subtype ? CockpitCoverGeometry.Count : 4;
 
         // Centers measured from connected lever/key meshes in the installed MWM.
-        // The hit plane sits just above the lever; the model remains visible.
+        // The fighter cap is about 7 mm above its mesh center.
         public static MatrixD Control(string subtype,int index,out float size)
         {
             Vector3D p,normal,up;
             if(subtype==FighterProfile.Subtype)
             {
                 p=CockpitSwitchGeometry.Centers[index]; normal=CockpitSwitchGeometry.Normal; up=CockpitSwitchGeometry.Up;
-                size=.018f; p+=normal*.002;
+                size=.018f; p+=normal*.007;
             }
             else
             {

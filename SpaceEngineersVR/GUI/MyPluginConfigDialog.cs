@@ -35,9 +35,10 @@ namespace SpaceEngineersVR.GUI
                 "Track controller grips on foot and in supported seats. Uses vanilla arms during reload, ladder use, or tracking loss.");
             AddToggle(0.25f,"Legacy hand-tilt ship steering",config.LegacyShipTilt,v=>config.LegacyShipTilt=v,
                 "Off: stick pitch/yaw, grip + stick horizontal roll. On: held grip lets hand tilt override the stick in ships. Jetpack controls are unchanged.");
-            Controls.Add(new MyGuiControlButton(position:new Vector2(-0.25f,0.35f),text:new System.Text.StringBuilder("Controls"),onButtonClick:b=>MyGuiSandbox.AddScreen(new BindingHelp())));
-            Controls.Add(new MyGuiControlButton(position:new Vector2(0,0.35f),text:new System.Text.StringBuilder("Flight"),onButtonClick:b=>MyGuiSandbox.AddScreen(new FlightOptions())));
-            Controls.Add(new MyGuiControlButton(position:new Vector2(0.25f,0.35f),text:new System.Text.StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
+            Controls.Add(new MyGuiControlButton(position:new Vector2(-.285f,.35f),size:new Vector2(.18f,.055f),text:new System.Text.StringBuilder("Controls"),onButtonClick:b=>MyGuiSandbox.AddScreen(new BindingHelp())));
+            Controls.Add(new MyGuiControlButton(position:new Vector2(-.095f,.35f),size:new Vector2(.18f,.055f),text:new System.Text.StringBuilder("Flight"),onButtonClick:b=>MyGuiSandbox.AddScreen(new FlightOptions())));
+            Controls.Add(new MyGuiControlButton(position:new Vector2(.095f,.35f),size:new Vector2(.18f,.055f),text:new System.Text.StringBuilder("Rendering"),onButtonClick:b=>MyGuiSandbox.AddScreen(new RenderingOptions())));
+            Controls.Add(new MyGuiControlButton(position:new Vector2(.285f,.35f),size:new Vector2(.18f,.055f),text:new System.Text.StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
         }
         private void AddToggle(float y,string text,bool value,Action<bool> store,string tooltip)
         {

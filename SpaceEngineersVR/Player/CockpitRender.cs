@@ -62,7 +62,7 @@ namespace SpaceEngineersVR.Player
             if (render==null || render.RenderObjectIDs.Length<2 || render.InteriorRenderId==uint.MaxValue) return;
             UpdateScene(render.InteriorRenderId,cockpit.WorldMatrix,left,right,leftHeld,rightHeld,leftOffset,rightOffset,colorMask:cockpit.SlimBlock.ColorMaskHSV);
         }
-        internal static void UpdateScene(uint interior,MatrixD world,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3),float? switchPreview=null,float? coverPreview=null,Vector3? colorMask=null)
+        internal static void UpdateScene(uint interior,MatrixD world,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3),float? switchPreview=null,float? coverPreview=null,Vector3? colorMask=null,int previewHover=-1,int previewHeld=-1,bool previewCover=false)
         {
             if (failed) return;
             try
@@ -118,9 +118,17 @@ namespace SpaceEngineersVR.Player
                 MyRenderProxy.UpdateRenderObject(check.Actors[20],world);
                 for(int i=0;i<CockpitCoverGeometry.Count;i++) MyRenderProxy.UpdateRenderObject(check.Actors[21+i],
                     (MatrixD)CockpitCoverGeometry.Visual(i,coverPreview ?? CockpitButtons.CoverPosition(i))*world);
-                // Tint only captured handles; native geometry keeps normal scene depth.
-                SetFeedback(check.Actors[1],leftHeld);
-                SetFeedback(check.Actors[3],rightHeld);
+                SetFeedback(check.Actors[1],FighterProfile.Material,leftHeld ? 2 : 0);
+                SetFeedback(check.Actors[3],FighterProfile.Material,rightHeld ? 2 : 0);
+                for(int i=0;i<CockpitCoverGeometry.Count;i++)
+                {
+                    var lever=CockpitTouch.Read("CockpitControl"+i);
+                    var cover=CockpitTouch.Read("CockpitCover"+i);
+                    SetFeedback(check.Actors[7+i],CockpitSwitchGeometry.Material,
+                        !previewCover && i==previewHeld || lever.Held>=0 ? 2 : !previewCover && i==previewHover || lever.Hover>=0 ? 1 : 0);
+                    SetFeedback(check.Actors[21+i],CockpitCoverGeometry.Material,
+                        previewCover && i==previewHeld || cover.Held>=0 ? 2 : previewCover && i==previewHover || cover.Hover>=0 ? 1 : 0);
+                }
             }
             catch(Exception ex)
             {
@@ -128,13 +136,13 @@ namespace SpaceEngineersVR.Player
                 Logger.Warning(ex,"FIGHTER STICKS disabled; native interior and button flight restored");
             }
         }
-        private static readonly System.Collections.Generic.Dictionary<uint,bool> feedback=new System.Collections.Generic.Dictionary<uint,bool>();
-        private static void SetFeedback(uint id,bool held)
+        private static readonly System.Collections.Generic.Dictionary<uint,int> feedback=new System.Collections.Generic.Dictionary<uint,int>();
+        private static void SetFeedback(uint id,string material,int state)
         {
-            if (feedback.TryGetValue(id,out bool prior) && prior==held) return;
-            feedback[id]=held;
-            MyRenderProxy.UpdateModelProperties(id,FighterProfile.Material,RenderFlags.Visible,RenderFlags.Visible,
-                held ? new Color(160,255,190) : Color.White,held ? 0.10f : 0f);
+            if (feedback.TryGetValue(id,out int prior) && prior==state) return;
+            feedback[id]=state;
+            MyRenderProxy.UpdateModelProperties(id,material,RenderFlags.Visible,RenderFlags.Visible,
+                state==2 ? new Color(160,255,190) : state==1 ? new Color(160,220,255) : Color.White,state==2 ? .10f : state==1 ? .05f : 0f);
         }
 
         internal static void InitializeRuntimeSections(object mesh)

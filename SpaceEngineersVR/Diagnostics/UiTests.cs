@@ -51,10 +51,24 @@ namespace SpaceEngineersVR.Diagnostics
                         Enabled=Enumerable.Repeat(true,9).ToArray(),SubIcons=new string[9],ItemText=new string[9],Selected=0 };
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
                     Save(wheel.Texture,Path.Combine(output,"wheel-actions-preview.png"));
+                    var third=GameActions.Quick.Skip(18).ToArray();
+                    model.Title="Actions 3/3"; model.Page=2; model.Selected=2;
+                    model.Labels=Enumerable.Range(0,9).Select(i=>i<third.Length ? third[i].Label : "").ToArray();
+                    model.Icons=Enumerable.Range(0,9).Select(i=>i<third.Length ? new[] { third[i].Icon } : new string[0]).ToArray();
+                    model.Enabled=Enumerable.Range(0,9).Select(i=>i<third.Length).ToArray();
+                    Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
+                    Save(wheel.Texture,Path.Combine(output,"wheel-third-person-preview.png"));
+                    model.Selected=4;
+                    foreach(Player.Control.ObserverMode mode in Enum.GetValues(typeof(Player.Control.ObserverMode)))
+                    {
+                        model.Labels[4]=ThirdPersonView.Label(mode);
+                        Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
+                        Save(wheel.Texture,Path.Combine(output,"wheel-camera-"+mode+".png"));
+                    }
                     string[] tools={ "WeaponWelder","WeaponGrinder","WeaponDrill","WeaponAutomaticRifle","WeaponWelder_1","WeaponGrinder_1","WeaponDrill_1","WeaponWelder_2","WeaponGrinder_2" };
                     model.Title="Toolbar 1/9"; model.Group=0; model.Pages=9; model.Labels=new[] { "Welder","Grinder","Drill","Automatic rifle","Enhanced welder","Enhanced grinder","Enhanced drill","Proficient welder","Proficient grinder" };
                     model.Icons=tools.Select(t=>new[] { @"Textures\GUI\Icons\"+t+".dds" }).ToArray();
-                    model.Enabled[5]=false;
+                    model.Enabled=Enumerable.Repeat(true,9).ToArray(); model.Enabled[5]=false;
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
                     Save(wheel.Texture,Path.Combine(output,"wheel-toolbar-preview.png"));
                     model.Labels[2]="Assign slot"; model.Icons[2]=new[] { GameActions.ConfigureToolbarAction.Icon };
@@ -85,6 +99,7 @@ namespace SpaceEngineersVR.Diagnostics
                 }
                 MarkerPreviews(device,output);
                 SurfacePreviews(device,output,log);
+                CockpitHandTests.Preview(output);
                 using(var menu=new OverlayCanvas("menu frame preview",1600,1100,1,false,device))
                 {
                     FloatingMenu.Paint(menu,new FloatingMenu.Snapshot { Width=1.5f,Height=.84375f,Hover=1 });
@@ -140,13 +155,13 @@ namespace SpaceEngineersVR.Diagnostics
                         Save(face.Texture,Path.Combine(output,"seat-face-"+subtype+".png"));
                     }
                 }
-                using(var badge=new OverlayCanvas("switch action preview",512,512,1,false,device))
+                using(var badge=new OverlayCanvas("switch action preview",768,154,1,false,device))
                 {
                     foreach(bool assigned in new[] {false,true})
                     {
-                        var view=new SurfaceView { Style=SurfaceStyle.Label,Title="10",Icons=assigned ? new[] { NativeSprites.Hud("GridPowerOn") } : new string[0],Levels=assigned ? new[] {1f} : null };
+                        var view=new SurfaceView { Style=SurfaceStyle.Label,Title=assigned ? "Power · Reactor" : "Assign · 10",Text=assigned ? null : "+",Icons=assigned ? new[] { NativeSprites.Hud("GridPowerOn") } : new string[0],Levels=assigned ? new[] {1f} : null };
                         Render(badge,()=>PhysicalSurface.Paint(badge,view));
-                        Save(badge.Texture,Path.Combine(output,"switch-badge-"+(assigned ? "assigned" : "empty")+".png"));
+                        Save(badge.Texture,Path.Combine(output,"switch-label-"+(assigned ? "assigned" : "empty")+".png"));
                     }
                 }
                 var wrist=new SurfaceView { Id="Wrist preview",Style=SurfaceStyle.WristStatus,Width=.133f,Height=.07f,Levels=new[] { .8f,.7f,.6f,.5f } };

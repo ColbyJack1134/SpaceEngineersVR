@@ -7,6 +7,24 @@
       "sources": [
         {
           "inputs": {
+            "pull": {
+              "output": "/actions/common/in/LeftGripPressure"
+            }
+          },
+          "mode": "trigger",
+          "path": "/user/hand/left/input/grip"
+        },
+        {
+          "inputs": {
+            "pull": {
+              "output": "/actions/common/in/RightGripPressure"
+            }
+          },
+          "mode": "trigger",
+          "path": "/user/hand/right/input/grip"
+        },
+        {
+          "inputs": {
             "click": {
               "output": "/actions/common/in/interact"
             }
@@ -86,6 +104,15 @@
           },
           "mode": "trigger",
           "path": "/user/hand/right/input/trigger"
+        },
+        {
+          "inputs": {
+            "pull": {
+              "output": "/actions/common/in/LeftTriggerPressure"
+            }
+          },
+          "mode": "trigger",
+          "path": "/user/hand/left/input/trigger"
         }
       ]
     },

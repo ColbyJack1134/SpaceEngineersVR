@@ -49,6 +49,8 @@ namespace SpaceEngineersVR.Player
         // Tool
         public readonly Button Primary;
         public readonly Analog PointerPressure;
+        public readonly Analog LeftTriggerPressure;
+        public readonly Analog LeftGripPressure,RightGripPressure;
         public readonly Button Secondary;
         public readonly Button Reload;
         public readonly Button Unequip;
@@ -134,6 +136,9 @@ namespace SpaceEngineersVR.Player
             SeatTerminal = new Button("/actions/flying/in/SeatTerminal");
             Primary = new Button("/actions/common/in/Primary");
             PointerPressure = new Analog("/actions/common/in/PointerPressure");
+            LeftTriggerPressure = new Analog("/actions/common/in/LeftTriggerPressure");
+            LeftGripPressure = new Analog("/actions/common/in/LeftGripPressure");
+            RightGripPressure = new Analog("/actions/common/in/RightGripPressure");
             Secondary = new Button("/actions/common/in/Secondary");
             Reload = new Button("/actions/common/in/Reload");
             Unequip = new Button("/actions/common/in/Unequip");

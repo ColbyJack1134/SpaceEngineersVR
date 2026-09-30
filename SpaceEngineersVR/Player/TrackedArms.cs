@@ -27,6 +27,7 @@ namespace SpaceEngineersVR.Player
         {
             public SavedBone Upper,Lower,Palm;
             public SavedBone[] Fingers,Twists;
+            public MyCharacterBone IndexTip,ThumbTip;
             public Matrix PalmOffset;
             public Vector3 Hint;
             public bool Applied;
@@ -80,6 +81,7 @@ namespace SpaceEngineersVR.Player
                 }
             return new Arm {
                 Fingers=fingers.ToArray(),Twists=twists.ToArray(),
+                IndexTip=animation.FindBone(prefix+"Index_3",out _),ThumbTip=animation.FindBone(prefix+"Thumb_3",out _),
                 Upper=new SavedBone { Bone=upper },Lower=new SavedBone { Bone=lower },Palm=new SavedBone { Bone=palm },
                 PalmOffset=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),side),
                 Hint=new Vector3(side*0.55f,-1,0.3f) };
@@ -136,14 +138,10 @@ namespace SpaceEngineersVR.Player
             arm.Applied=true;
             if(!ArmMath.ApplyPose(arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone,target,arm.PalmOffset,arm.Hint,Common.Config.AdaptiveArms))
             { arm.Restore(true); return false; }
-            if(CockpitControls.Held(hand) || (hand==Player.HandL ? CockpitTouch.LeftPointing : CockpitTouch.RightPointing || SpatialUi.Pointing || TouchScreenBridge.Pointing))
+            if(CockpitControls.Held(hand) || CockpitTouch.Attached(hand) || (hand==Player.HandL ? CockpitTouch.LeftPointing : CockpitTouch.RightPointing || SpatialUi.Pointing || TouchScreenBridge.Pointing))
                 foreach(var finger in arm.Fingers)
                 {
-                    bool thumb=finger.Bone.Name.Contains("Thumb");
-                    // Both hands' phalanges extend along local -X; +Z curls toward the palm (-Y).
-                    float curl=thumb ? .35f : .85f;
-                    if(!CockpitControls.Held(hand) && finger.Bone.Name.Contains("Index")) curl=0;
-                    finger.Bone.Rotation=Quaternion.CreateFromAxisAngle(Vector3.Backward,curl);
+                    finger.Bone.Rotation=CockpitHandPose.Rotation(finger.Bone.Name,CockpitTouch.Pinching(hand),CockpitControls.Held(hand));
                     finger.Bone.ComputeAbsoluteTransform(true,true);
                 }
             Diagnostics.ArmPoseCapture.Record(character,hand,arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone);
@@ -157,7 +155,29 @@ namespace SpaceEngineersVR.Player
         {
             Matrix tracking=Matrix.CreateTranslation(0,.02f,.04f)*hand.GripTracking;
             MatrixD world=CockpitControls.HasTrackedSeat(character) ? CockpitControls.WristWorld(hand) : SpatialUi.DeviceWorld(tracking);
-            return Alignment.Apply(Alignment.HandKey(hand),world);
+            world=Alignment.Apply(Alignment.HandKey(hand),world);
+            var arm=hand==Player.HandL ? left : right;
+            if(arm?.IndexTip!=null && CockpitTouch.TryAttachment(hand,out var attached,out var contact,out float blend))
+            {
+                var point=CockpitHandPose.Contact(arm.Palm.Bone,arm.IndexTip,arm.ThumbTip,CockpitTouch.Pinching(hand));
+                attached=CockpitHandPose.Attach(attached,arm.PalmOffset,point,contact);
+                var rotation=Quaternion.Slerp(Quaternion.CreateFromRotationMatrix(world),Quaternion.CreateFromRotationMatrix(attached),blend);
+                var result=MatrixD.CreateFromQuaternion(rotation);
+                result.Translation=Vector3D.Lerp(world.Translation,attached.Translation,blend);
+                return result;
+            }
+            return world;
+        }
+        internal static MatrixD FreeWristWorld(Controller hand) => Alignment.Apply(Alignment.HandKey(hand),
+            SpatialUi.DeviceWorld(Matrix.CreateTranslation(0,.02f,.04f)*hand.GripTracking));
+        internal static bool TryFreeFingertip(Controller hand,out Vector3D point)
+        {
+            point=Vector3D.Zero;
+            var arm=hand==Player.HandL ? left : right;
+            if(disabled || arm?.IndexTip==null || owner!=MySession.Static?.LocalCharacter || !hand.pose.isTracked) return false;
+            point=Vector3D.Transform(CockpitHandPose.Contact(arm.Palm.Bone,arm.IndexTip,arm.ThumbTip,false),
+                (MatrixD)arm.PalmOffset*FreeWristWorld(hand));
+            return point.IsValid();
         }
         internal static Matrix WristForPalm(Controller hand,Matrix palm)
         {

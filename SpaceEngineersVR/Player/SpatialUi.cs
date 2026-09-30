@@ -11,8 +11,6 @@ namespace SpaceEngineersVR.Player
     internal static class SpatialUi
     {
         private static readonly SurfaceTouch wristTouch=new SurfaceTouch();
-        private static readonly CockpitTouch seatInput=new CockpitTouch();
-        internal static int SeatNearKey(SurfaceView surface,int hand) => seatInput.NearKey(surface,hand);
         private static volatile SurfaceView[] current=new SurfaceView[0];
         public static SurfaceView[] Current => current;
         private static SurfaceView wrist,seat;
@@ -38,7 +36,7 @@ namespace SpaceEngineersVR.Player
         public static void Expand() { expanded=true; }
         public static void ReleaseInput()
         {
-            wristTouch.Reset(); seatInput.Reset(); Pointing=false;
+            wristTouch.Reset(); CockpitTouch.Reset(); Pointing=false;
             FloatingKeyboard.ReleaseInput();
             wristHover=wristPressed=seatHover=seatPressed=-1;
             current=new SurfaceView[0];
@@ -51,9 +49,9 @@ namespace SpaceEngineersVR.Player
         }
         public static void Update()
         {
-            if(failed || !Player.Headset.pose.isTracked || !Player.HandR.pose.isTracked || !Player.HandL.pose.isTracked ||
+            if(ThirdPersonView.Active || failed || !Player.Headset.pose.isTracked || !Player.HandR.pose.isTracked || !Player.HandL.pose.isTracked ||
                 !MenuPointer.GameFocused || (!InputRouter.Gameplay && InputRouter.Mode!=InputMode.Menu))
-            { current=new SurfaceView[0]; wristTouch.Reset(); seatInput.Reset(); wrist=seat=null; Pointing=false; return; }
+            { current=new SurfaceView[0]; wristTouch.Reset(); CockpitTouch.Reset(); wrist=seat=null; Pointing=false; return; }
             var now=DateTime.UtcNow;
             float dt=(float)Math.Min(.05,Math.Max(0,(now-lastUpdate).TotalSeconds)); lastUpdate=now;
             fold=MathHelper.Clamp(fold+(expanded && !refolding ? 1 : -1)*dt*4,0,1);
@@ -97,16 +95,16 @@ namespace SpaceEngineersVR.Player
             if(seat!=null && !Main.MenuOpen)
             {
                 bool holding=CockpitControls.Held(Player.HandR) || CockpitControls.Held(Player.HandL);
-                bool available=!WeaponHandling.ConsumesLeftGrip;
-                int clicked=seatInput.Update(seat,available,wristHover>=0);
-                seatHover=seatInput.Hover; seatPressed=seatInput.Held;
+                var input=CockpitTouch.Read("Seat");
+                int clicked=input.Pressed ? input.Held : -1;
+                seatHover=input.Hover; seatPressed=input.Held;
+                if(clicked>=0) CockpitFeedback.Click(input.Actor);
                 if(clicked==7) CockpitControls.ToggleAdjustment();
                 else if(clicked==8 && CockpitControls.Adjusting) CockpitControls.ResetPlacement();
                 else if(clicked>=9) SeatPanel.Activate(clicked);
-                int held=seatInput.Held;
+                int held=input.Held;
                 if(!holding && held>=0 && held<seatDirections.Length) SeatFit.Move(seatDirections[held],held==4);
             }
-            else seatInput.Reset();
             // A touch owns its input while the finger is on a surface, preventing tool use.
             if(wristPressed>=0 || seatPressed>=0 || (wristHover>=0 && trigger)) c.Primary.BlockUntilRelease();
             Publish();
@@ -135,7 +133,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Publish()
         {
-            if(!Main.WorldAvailable)
+            if(!Main.WorldAvailable || ThirdPersonView.Active)
             { wrist=seat=null; current=new SurfaceView[0]; return; }
             if(failed || (!InputRouter.Gameplay && InputRouter.Mode!=InputMode.Menu) || !Player.HandL.pose.isTracked || !Player.Headset.pose.isTracked)
             { current=new SurfaceView[0]; return; }
@@ -186,7 +184,7 @@ namespace SpaceEngineersVR.Player
             }
             var point=touchPoint;
             output.AddRange(CockpitButtons.Views);
-            output.AddRange(CockpitTouch.RayViews());
+            output.AddRange(CockpitTouch.Labels());
             if(Main.WorldAvailable && Pointing && TrackedArms.TryFingertip(out var latest)) point=latest;
             foreach(var s in output)
             {

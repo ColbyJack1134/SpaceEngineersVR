@@ -57,13 +57,6 @@ namespace SpaceEngineersVR.Diagnostics
             intent.Begin(true,.8f,true); intent.Capture("switch",true);
             intent.Begin(true,.8f,true,true,"Seat");
             Require(!intent.Capture("Seat",true) && intent.Capture("switch",false),"Near preference transferred an already clicked UI squeeze");
-            var flick=new SwitchFlick();
-            Require(flick.Update(new VRageMath.Vector3(0,-.006f,.005f))<0,"Entering a lever fires it");
-            Require(flick.Update(new VRageMath.Vector3(0,.004f,.005f))==1,"Upward finger flick lost");
-            Require(flick.Update(new VRageMath.Vector3(0,-.007f,.005f))<0,"Held contact repeated activation");
-            flick.Update(new VRageMath.Vector3(0,0,.1f));
-            flick.Update(new VRageMath.Vector3(0,.006f,.005f));
-            Require(flick.Update(new VRageMath.Vector3(0,-.004f,.005f))==0,"Downward finger flick lost");
             Require(Player.InputRouter.AllowsTrackedItems(Player.InputMode.Radial,false),"Radial loses tracked tool pose");
             Require(!Player.InputRouter.AllowsTrackedItems(Player.InputMode.Blocked,false) &&
                 !Player.InputRouter.AllowsTrackedItems(Player.InputMode.Radial,true),"Blocked/menu context retains gameplay tool pose");

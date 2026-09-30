@@ -18,7 +18,12 @@ namespace SpaceEngineersVR.Player
             public readonly MatrixD Anchor;
             public readonly Matrix OriginInverse;
             public readonly int Epoch;
-            public Frame(MatrixD anchor,Matrix originInverse, int epoch = 0) { Anchor=anchor; OriginInverse=originInverse; Epoch=epoch; }
+            public readonly double UnitsPerMeter;
+            public readonly bool ThirdPerson;
+            public readonly Control.Diorama.Scene Observer;
+            public Frame(MatrixD anchor,Matrix originInverse, int epoch = 0,double unitsPerMeter=1,bool thirdPerson=false,Control.Diorama.Scene observer=null)
+            { Anchor=anchor; OriginInverse=originInverse; Epoch=epoch; UnitsPerMeter=unitsPerMeter; ThirdPerson=thirdPerson; Observer=observer; }
+            public MatrixD TrackingToWorld => (MatrixD)OriginInverse*MatrixD.CreateScale(UnitsPerMeter)*Anchor;
         }
         private static Frame frame;
         private static int epoch;
@@ -31,7 +36,7 @@ namespace SpaceEngineersVR.Player
         private static readonly System.Reflection.FieldInfo bagField=AccessTools.Field(typeof(MyCharacter),"m_enableBag");
         private static readonly System.Reflection.FieldInfo headField=AccessTools.Field(typeof(MyCharacter),"m_headRenderingEnabled");
         private static readonly Action<MyCharacter> refreshDepth=AccessTools.MethodDelegate<Action<MyCharacter>>(AccessTools.Method(typeof(MyCharacter),"UpdateNearFlag"));
-        public static Frame Current => Volatile.Read(ref frame);
+        public static Frame Current => ThirdPersonView.Current ?? Volatile.Read(ref frame);
         public static void Reset(bool forgetHeight=false)
         {
             epoch++;
@@ -122,7 +127,7 @@ namespace SpaceEngineersVR.Player
         {
             var state=Current;
             if(state==null) return (MatrixD)VrMath.Affine(device*Player.PlayerToAbsolute.inverted)*MySector.MainCamera.WorldMatrix;
-            return (MatrixD)VrMath.Affine(device*state.OriginInverse)*state.Anchor;
+            return MatrixD.Invert(VrMath.EyeView(MatrixD.Invert(state.Anchor),device,state.OriginInverse,Matrix.Identity,state.UnitsPerMeter));
         }
     }
 }

@@ -269,6 +269,7 @@ namespace SpaceEngineersVR.Player
             if (!Headset.pose.isTracked) return;
             Matrix floor = VrMath.TrackingOrigin(Headset.pose.deviceToAbsolute.matrix);
             CameraRig.Recenter(PlayerToAbsolute.matrix,floor);
+            ThirdPersonView.Recenter(PlayerToAbsolute.matrix,floor);
             Logger.Info("Recentered tracking origin at current seated/standing head position.");
 
             PlayerToAbsolute = new MatrixAndInvert(floor);

@@ -40,7 +40,7 @@ namespace SpaceEngineersVR.Player.Components
             if (Character != MySession.Static?.LocalCharacter) { StopInput(); return; }
             active = this;
             if (firstMovementTick) { Logger.Info("MOVEMENT component is receiving simulation ticks"); firstMovementTick = false; }
-            if (!Main.VrActive || !InputRouter.Gameplay || Main.MenuOpen || MySandboxGame.IsPaused || Character.IsDead)
+            if (!Main.VrActive || !InputRouter.Gameplay || Main.MenuOpen || MySandboxGame.IsPaused || Character.IsDead || ThirdPersonView.Manipulating)
             {
                 StopInput();
                 return;
@@ -121,7 +121,7 @@ namespace SpaceEngineersVR.Player.Components
 
             ReadFlightInput(true, out Vector3 move, out Vector2 rotate, out float roll);
 
-            if (!CockpitControls.RotationOwned && Common.Config.LegacyShipTilt && controls.ThrustRoll.IsPressed && Player.HandR.pose.isTracked)
+            if (!ThirdPersonView.Active && !CockpitControls.RotationOwned && Common.Config.LegacyShipTilt && controls.ThrustRoll.IsPressed && Player.HandR.pose.isTracked)
             {
                 Matrix hand = Player.HandR.deviceToPlayer;
                 hand.Translation = Vector3.Zero;

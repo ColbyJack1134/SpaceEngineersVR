@@ -73,10 +73,11 @@ namespace SpaceEngineersVR.Player
             return uv.X>=0 && uv.X<=1 && uv.Y>=0 && uv.Y<=1;
         }
         // All tracking translations stay in small, local coordinates. World-space camera math is double precision.
-        public static MatrixD EyeView(MatrixD gameView, Matrix trackingHead, Matrix trackingOriginInverse, Matrix eyeToHead)
+        public static MatrixD EyeView(MatrixD gameView, Matrix trackingHead, Matrix trackingOriginInverse, Matrix eyeToHead,double unitsPerMeter=1)
         {
-            MatrixD headWorld = (MatrixD)Affine(trackingHead * trackingOriginInverse) * MatrixD.Invert(gameView);
-            return MatrixD.Invert((MatrixD)eyeToHead * headWorld);
+            MatrixD local=Affine(eyeToHead*trackingHead*trackingOriginInverse);
+            local.Translation*=unitsPerMeter;
+            return MatrixD.Invert(local*MatrixD.Invert(gameView));
         }
 
         public static MatrixD Projection(float left, float right, float top, float bottom, double near, double far = 0)

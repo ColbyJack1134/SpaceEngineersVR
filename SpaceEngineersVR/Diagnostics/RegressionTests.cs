@@ -21,7 +21,9 @@ namespace SpaceEngineersVR.Diagnostics
             var frameA = new CameraRig.Frame(MatrixD.CreateTranslation(100, 0, 0), Matrix.Identity);
             var frameB = new CameraRig.Frame(MatrixD.CreateTranslation(101, 0, 0), Matrix.CreateTranslation(0.1f, 0, 0));
             RenderFrameBridge.Capture(cameraMessageA, frameA);
+            RenderFrameBridge.Commit();
             RenderFrameBridge.Capture(cameraMessageB, frameB);
+            RenderFrameBridge.Commit();
             RenderFrameBridge.Consume(cameraMessageA);
             if (!ReferenceEquals(RenderFrameBridge.Current, frameA)) throw new Exception("Renderer picked a newer simulation pose than its body batch");
             if (!ReferenceEquals(RenderFrameBridge.ForCurrentOwner(frameB),frameA)) throw new Exception("Same-owner render handoff reverted to latest simulation");
@@ -31,6 +33,7 @@ namespace SpaceEngineersVR.Diagnostics
             RenderFrameBridge.Consume(cameraMessageB);
             if (!ReferenceEquals(RenderFrameBridge.Current, frameB)) throw new Exception("Camera batch lost paired roomscale origin");
             RenderFrameBridge.Capture(cameraMessageA, null);
+            RenderFrameBridge.Commit();
             RenderFrameBridge.Consume(cameraMessageA);
             if (RenderFrameBridge.Current != null) throw new Exception("Pooled message retained prior character camera");
             log("PASS render camera handoff: delayed batches, paired origin and pooled message reset");
@@ -76,6 +79,8 @@ namespace SpaceEngineersVR.Diagnostics
             StereoStateTests.Run(log);
             AlignmentTests.Run(log);
             RenderingPatchTests.Run(log);
+            ThirdPersonTests.Run(log);
+            ResolutionTests.Run(log);
             PlacementTests.Run(log);
             StickPlacementTests.Run(log);
             InteractionTests.Run(log);

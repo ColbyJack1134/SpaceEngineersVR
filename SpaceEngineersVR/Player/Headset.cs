@@ -16,7 +16,6 @@ namespace SpaceEngineersVR.Player
         private VRTextureBounds_t bounds = new VRTextureBounds_t { uMax = 1, vMax = 1 };
         private int submittedFrames;
         private bool recenterPending = true;
-        private bool reportedMirrorFallback;
         public bool MirroredDesktop { get; private set; }
 
         public Headset() : base(actionName: "")
@@ -24,14 +23,15 @@ namespace SpaceEngineersVR.Player
             deviceId = OpenVR.k_unTrackedDeviceIndex_Hmd;
             uint width = 0, height = 0;
             OpenVR.System.GetRecommendedRenderTargetSize(ref width, ref height);
-            Logger.Info($"SteamVR recommends {width}x{height} per eye. Prototype uses the game window resolution to avoid unsafe swapchain resizing.");
+            EyeResolution.Recommend(width,height);
+            Logger.Info($"SteamVR recommends {width}x{height} per eye; headset targets are independent of the desktop.");
         }
 
         public bool RenderUpdate()
         {
             MirroredDesktop=false;
             if (!MyRender11.m_DrawScene || !renderPose.isTracked) return false;
-            Vector2I size = MyRender11.Resolution;
+            Vector2I size = EyeResolution.Update();
             if (size.X < 1 || size.Y < 1) return false;
             ReleaseTextures();
             leftTexture = MyManagers.RwTexturesPool.BorrowRtv("SEVR.Left", size.X, size.Y, Format.R8G8B8A8_UNorm_SRgb);
@@ -41,36 +41,45 @@ namespace SpaceEngineersVR.Player
             MatrixD gameView = matrices.ViewD;
             // Match the body/animation command batch, not a newer simulation tick.
             var rig=RenderFrameBridge.ForCurrentOwner(CameraRig.Current);
+            var markers=ReferenceEquals(rig,RenderFrameBridge.Current) ? RenderFrameBridge.Markers : null;
+            rig=ThirdPersonView.RenderFrame(rig);
             Matrix originInverse=rig?.OriginInverse ?? Player.RenderPlayerToAbsolute.inverted;
+            double scale=rig?.UnitsPerMeter ?? 1;
             if(rig!=null) gameView=MatrixD.Invert(rig.Anchor);
             SceneCamera sceneCamera = SceneCamera.Current();
             Vector3D originalCamera = sceneCamera.Position;
             object leftAmbient=null,rightAmbient=null;
+            var resources=new EyeResolution.Scene(size);
             try
             {
-                StereoRenderState.Begin(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity),Math.Max(.03,matrices.NearClipping),matrices.LargeDistanceFarClipping);
-                WorldMarkers.BeginFrame(MatrixD.Invert(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity)));
-                RenderEye(EVREye.Eye_Left, leftTexture, matrices, gameView, sceneCamera, originInverse,out leftAmbient);
+                StereoRenderState.Begin(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale),
+                    rig?.ThirdPerson==true ? .005*scale : Math.Max(.03,matrices.NearClipping),matrices.LargeDistanceFarClipping);
+                ThirdPersonView.RecordTrace(rig);
+                WorldMarkers.BeginFrame(MatrixD.Invert(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale)),markers);
+                RenderEye(EVREye.Eye_Left, leftTexture, matrices, gameView, sceneCamera, originInverse,rig,out leftAmbient);
                 if(leftAmbient!=null) { new BorrowedRtvTexture(leftAmbient).Release(); leftAmbient=null; }
-                RenderEye(EVREye.Eye_Right, rightTexture, matrices, gameView, sceneCamera, originInverse,out rightAmbient);
-                if(Common.Config.MirrorDesktop)
+                RenderEye(EVREye.Eye_Right, rightTexture, matrices, gameView, sceneCamera, originInverse,rig,out rightAmbient);
+                var source=(SharpDX.Direct3D11.Texture2D)leftTexture.GetResource();
+                var destination=(SharpDX.Direct3D11.Texture2D)MyRender11.GetBackbuffer().GetResource();
+                if(!Common.Config.MirrorDesktop)
                 {
-                    var source=(SharpDX.Direct3D11.Texture2D)leftTexture.GetResource();
-                    var destination=(SharpDX.Direct3D11.Texture2D)MyRender11.GetBackbuffer().GetResource();
-                    var a=source.Description; var b=destination.Description;
-                    bool format=b.Format==a.Format || b.Format==Format.R8G8B8A8_UNorm || b.Format==Format.R8G8B8A8_Typeless;
-                    if(format && a.Width==b.Width && a.Height==b.Height && a.SampleDescription.Count==b.SampleDescription.Count &&
-                        a.SampleDescription.Quality==b.SampleDescription.Quality && a.MipLevels==b.MipLevels && a.ArraySize==b.ArraySize)
+                    // The optional diagnostic desktop view is a separate scene pass.
+                    matrices.Restore(snapshot); sceneCamera.Position=originalCamera; StereoRenderState.View=-1;
+                    var desktop=MyManagers.RwTexturesPool.BorrowRtv("SEVR.Desktop",size.X,size.Y,Format.R8G8B8A8_UNorm_SRgb);
+                    object ambient=null;
+                    try
                     {
-                        MyRender11.DeviceInstance.ImmediateContext.CopyResource(source,destination);
-                        matrices.Restore(snapshot); sceneCamera.Position=originalCamera; StereoRenderState.View=-1;
-                        object debug=rightAmbient; rightAmbient=null;
-                        MyRender11.DrawDebugScene(debug);
-                        MirroredDesktop=true;
+                        MyRender11.DrawGameScene(desktop,out ambient);
+                        EyeResolution.Mirror((SharpDX.Direct3D11.Texture2D)desktop.GetResource(),destination,false);
                     }
-                    else if(!reportedMirrorFallback)
-                    { reportedMirrorFallback=true; Logger.Info("Desktop texture cannot copy the VR eye; retaining the native desktop render"); }
+                    finally { if(ambient!=null) new BorrowedRtvTexture(ambient).Release(); desktop.Release(); }
                 }
+                else EyeResolution.Mirror(source,destination);
+                matrices.Restore(snapshot); sceneCamera.Position=originalCamera; StereoRenderState.View=-1;
+                resources.Dispose();
+                object debug=rightAmbient; rightAmbient=null;
+                MyRender11.DrawDebugScene(debug);
+                MirroredDesktop=true;
                 if (++submittedFrames == 1) Logger.Info($"FIRST STEREO FRAME submitted: {size.X}x{size.Y} per eye");
             }
             finally
@@ -80,21 +89,22 @@ namespace SpaceEngineersVR.Player
                 matrices.Restore(snapshot);
                 sceneCamera.Position = originalCamera;
                 StereoRenderState.View=-1;
+                resources.Dispose();
             }
             return true;
         }
 
         private void RenderEye(EVREye eye, BorrowedRtvTexture target, EnvironmentMatrices env,
-            MatrixD gameView, SceneCamera sceneCamera, Matrix originInverse,out object ambientOcclusion)
+            MatrixD gameView, SceneCamera sceneCamera, Matrix originInverse,CameraRig.Frame rig,out object ambientOcclusion)
         {
             StereoRenderState.View=(int)eye;
             var timing=System.Diagnostics.Stopwatch.StartNew();
             MatrixD view = VrMath.EyeView(gameView, renderPose.deviceToAbsolute.matrix,
-                originInverse, OpenVR.System.GetEyeToHeadTransform(eye).ToMatrix());
+                originInverse, OpenVR.System.GetEyeToHeadTransform(eye).ToMatrix(),rig?.UnitsPerMeter ?? 1);
             MatrixD world = MatrixD.Invert(view);
             float l=0,r=0,t=0,b=0;
             OpenVR.System.GetProjectionRaw(eye, ref l, ref r, ref t, ref b);
-            double near = Math.Max(0.03, env.NearClipping);
+            double near = rig?.ThirdPerson==true ? .005*rig.UnitsPerMeter : Math.Max(0.03, env.NearClipping);
             MatrixD projection = VrMath.Projection(l,r,t,b,near);
             MatrixD atZero = view; atZero.Translation = Vector3D.Zero;
             env.CameraPosition = world.Translation;
@@ -113,10 +123,11 @@ namespace SpaceEngineersVR.Player
             sceneCamera.Position = world.Translation;
             MyRender11.DrawGameScene(target, out ambientOcclusion);
             WorldMarkers.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection);
-            if (Main.MenuOpen) MenuHands.DrawInWorld((SharpDX.Direct3D11.Texture2D)target.GetResource(), eye);
+            if (Main.MenuOpen || rig?.ThirdPerson==true) MenuHands.DrawInWorld((SharpDX.Direct3D11.Texture2D)target.GetResource(),eye,Main.MenuOpen);
             SpatialUi.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,RenderFrameBridge.Surfaces);
             FloatingKeyboard.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),eye);
-            ToolbarWheel.DrawWorld((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,(MatrixD)originInverse*MatrixD.Invert(gameView));
+            ToolbarWheel.DrawWorld((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,
+                rig?.TrackingToWorld ?? (MatrixD)originInverse*MatrixD.Invert(gameView));
             var input = new Texture_t { eColorSpace=EColorSpace.Auto, eType=ETextureType.DirectX, handle=target.GetResource().NativePointer };
             var error = OpenVR.Compositor.Submit(eye,ref input,ref bounds,EVRSubmitFlags.Submit_Default);
             StereoRenderState.Record("eye",timing.Elapsed.TotalMilliseconds,world.Translation.X,world.Translation.Y,world.Translation.Z,projection.M11,projection.M22,projection.M31,projection.M32);

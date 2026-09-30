@@ -356,6 +356,21 @@
       "name": "/actions/flying/in/SeatTerminal",
       "type": "boolean",
       "requirement": "optional"
+    },
+    {
+      "name": "/actions/common/in/LeftTriggerPressure",
+      "requirement": "optional",
+      "type": "vector1"
+    },
+    {
+      "name": "/actions/common/in/LeftGripPressure",
+      "type": "vector1",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/common/in/RightGripPressure",
+      "type": "vector1",
+      "requirement": "optional"
     }
   ],
   "action_sets": [
@@ -449,7 +464,10 @@
       "/actions/menu/in/WheelNextPage": "Wheel next page",
       "/actions/menu/in/WheelPreviousPage": "Wheel previous page",
       "/actions/common/in/PointerPressure": "Show aiming ray (light trigger)",
-      "/actions/flying/in/SeatTerminal": "Terminal (seated)"
+      "/actions/flying/in/SeatTerminal": "Terminal (seated)",
+      "/actions/common/in/LeftTriggerPressure": "Left trigger pressure",
+      "/actions/common/in/LeftGripPressure": "Left grip pressure",
+      "/actions/common/in/RightGripPressure": "Right grip pressure"
     }
   ]
 }

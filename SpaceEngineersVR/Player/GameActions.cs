@@ -16,14 +16,17 @@ namespace SpaceEngineersVR.Player
 {
     internal sealed class ActionChoice
     {
-        public readonly string Label;
+        private readonly string label;
+        private readonly Func<string> labelProvider;
+        public string Label => labelProvider?.Invoke() ?? label;
         public readonly Action Run;
         public readonly bool OpensMenu;
         public string Icon => NativeSprites.Hud(IconName());
-        public ActionChoice(string label, Action run, bool opensMenu = false) { Label = label; Run = run; OpensMenu = opensMenu; }
+        public ActionChoice(string label, Action run, bool opensMenu = false) { this.label=label; Run=run; OpensMenu=opensMenu; }
+        public ActionChoice(Func<string> label,Action run) { labelProvider=label; Run=run; }
         private string IconName()
         {
-            if (Label.StartsWith("Yaw") || Label.StartsWith("Pitch") || Label.StartsWith("Roll")) return "BlockRotate";
+            if (Label.StartsWith("Yaw") || Label.StartsWith("Pitch") || Label.StartsWith("Roll") || Label.StartsWith("Camera:")) return "BlockRotate";
             switch (Label)
             {
                 case "Inventory": case "Planner / deposit UI": return "OpenInventory";
@@ -99,7 +102,10 @@ namespace SpaceEngineersVR.Player
             PowerAction,
             new ActionChoice("Toggle trigger action", () => { AlternateTrigger = !AlternateTrigger; EssentialHud.Notify("Right trigger: " + (AlternateTrigger ? "SECONDARY" : "PRIMARY")); }),
             new ActionChoice("Signal visibility", () => new MyActionToggleSignals().ExecuteAction()),
-            BlueprintsAction
+            BlueprintsAction,
+            new ActionChoice("Switch view",ThirdPersonView.Toggle),
+            new ActionChoice("Reset ship view",ThirdPersonView.ResetView),
+            new ActionChoice(()=>ThirdPersonView.ModeLabel,ThirdPersonView.CycleMode)
         };
         public static readonly ActionChoice[] Developer = {
             new ActionChoice("Developer options", () => MyGuiSandbox.AddScreen(new GUI.DeveloperOptions()), true),
@@ -207,7 +213,7 @@ namespace SpaceEngineersVR.Player
             if (c.SymmetrySetup.HasPressed) Execute(SymmetrySetupAction);
             if (c.PlacementMode.HasPressed) Execute(PlacementAction);
             if (c.ToggleSignals.HasPressed) new MyActionToggleSignals().ExecuteAction();
-            if (c.ToggleView.HasPressed) new MyActionViewMode().ExecuteAction();
+            if (c.ToggleView.HasPressed) ThirdPersonView.Toggle();
             if (c.CutGrid.HasPressed) new MyActionCutGrid().ExecuteAction();
             if (c.CopyGrid.HasPressed) new MyActionCopyGrid().ExecuteAction();
             if (c.PasteGrid.HasPressed) new MyActionPasteGrid().ExecuteAction();

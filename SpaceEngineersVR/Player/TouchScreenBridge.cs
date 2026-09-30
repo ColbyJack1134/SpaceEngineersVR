@@ -163,7 +163,7 @@ namespace SpaceEngineersVR.Player
                 var list=((IEnumerable)listField.GetValue(manager)).Cast<object>().ToArray();
                 foreach(var stale in screens.Keys.Where(k=>!list.Contains(k)).ToArray()) screens.Remove(stale);
                 foreach(var value in list) if(!screens.ContainsKey(value)) screens.Add(value,new Screen(value));
-                bool allowed=(bool)enabledProperty.GetValue(session) && Main.VrActive && InputRouter.Gameplay && !Main.MenuOpen && MenuPointer.GameFocused &&
+                bool allowed=(bool)enabledProperty.GetValue(session) && Main.VrActive && !ThirdPersonView.Active && InputRouter.Gameplay && !Main.MenuOpen && MenuPointer.GameFocused &&
                     MySession.Static?.LocalCharacter?.IsDead==false && MySession.Static.LocalCharacter.CurrentWeapon==null &&
                     Player.Headset.pose.isTracked && Player.HandR.pose.isTracked && Player.HandL.pose.isTracked &&
                     !CockpitControls.Adjusting && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandL) && !CockpitControls.Held(Player.HandR) && !PlacementControls.OwnsTools;

@@ -50,6 +50,10 @@ namespace SpaceEngineersVR.Config
         public bool StableShadows { get => stableShadows; set => SetValue(ref stableShadows,value); }
         public bool DistantFlares { get => distantFlares; set => SetValue(ref distantFlares,value); }
         public bool MirrorDesktop { get => mirrorDesktop; set => SetValue(ref mirrorDesktop,value); }
+        private float eyeRenderScale=1;
+        public float EyeRenderScale { get => eyeRenderScale; set => SetValue(ref eyeRenderScale,Bound(value,.5f,1.5f,1)); }
+        private int thirdPersonMode;
+        public int ThirdPersonMode { get => thirdPersonMode; set => SetValue(ref thirdPersonMode,value>=0 && value<=2 ? value : 0); }
         private AnchorOffsetSetting[] anchorOffsets=new AnchorOffsetSetting[0];
         public AnchorOffsetSetting[] AnchorOffsets { get => anchorOffsets; set => SetValue(ref anchorOffsets,value ?? new AnchorOffsetSetting[0]); }
         public bool LegacyShipTilt { get => legacyShipTilt; set => SetValue(ref legacyShipTilt, value); }

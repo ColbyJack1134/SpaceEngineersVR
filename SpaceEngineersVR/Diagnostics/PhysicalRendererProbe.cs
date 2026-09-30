@@ -20,6 +20,7 @@ namespace SpaceEngineersVR.Diagnostics
         private static uint native=uint.MaxValue;
         private static int phase;
         private static AssignmentPreview assignment;
+        private static Sandbox.Graphics.GUI.MyGuiScreenBase options;
         private static bool rotationPreviewsSaved;
         private static readonly Vector3 neutralPaint=new Vector3(0,-.8f,-.13f);
         private static DateTime next,deadline;
@@ -32,7 +33,7 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Start(Harmony harmony)
         {
             harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),"DrawScene"),new HarmonyMethod(typeof(PhysicalRendererProbe),nameof(Render)));
-            Active=true; phase=0; next=DateTime.UtcNow.AddSeconds(10); deadline=DateTime.UtcNow.AddSeconds(80);
+            Active=true; phase=0; next=DateTime.UtcNow.AddSeconds(10); deadline=DateTime.UtcNow.AddSeconds(115);
             Directory.CreateDirectory(output);
             foreach (string file in new[] {"native-left.png","rest-left.png","rest-right.png","articulated-left.png","articulated-right.png","restored-left.png","regrab-left.png"})
                 if (File.Exists(Path.Combine(output,file))) File.Delete(Path.Combine(output,file));
@@ -60,12 +61,49 @@ namespace SpaceEngineersVR.Diagnostics
                 bool right=phase==4 || phase==6 || phase==11 || phase==13;
                 Vector3D eye=new Vector3D(0.00577+(right ? 0.032 : -0.032),0.43444,0.73861);
                 MatrixD view=MatrixD.CreateLookAt(eye,eye+new Vector3D(0,-1.3,-1),Vector3D.Up);
+                if(phase>=16)
+                {
+                    eye=new Vector3D(-.2,.04,.26);
+                    view=MatrixD.CreateLookAt(eye,new Vector3D(-.374,-.393,.12),Vector3D.Up);
+                }
                 var size=Wrappers.MyRender11.Resolution;
                 float aspect=size.Y>0 ? (float)size.X/size.Y : 1.77f;
-                Matrix projection=(Matrix)VrMath.Projection(-aspect*0.72f,aspect*0.72f,-0.72f,0.72f,0.03,100);
-                MyRenderProxy.SetCameraViewMatrix(view,projection,projection,1.3f,1.3f,0.03f,100,100,eye,smooth:false);
+                float fov=phase>=16 ? .23f : .72f;
+                float near=.03f;
+                MatrixD modelWorld=MatrixD.Identity;
+                if(phase>=20)
+                {
+                    var model=VRage.Game.Models.MyModels.GetModelOnlyData(FighterProfile.Model);
+                    var miniature=new Player.Control.Diorama();
+                    miniature.Fit(model.BoundingBox.Size.Length(),MatrixD.CreateRotationY(.3),new Vector3D(0,-.15,-1.15));
+                    if(phase>=22)
+                    {
+                        var l=new Vector3D(-.15,-.2,-.6); var r=new Vector3D(.15,-.2,-.6);
+                        miniature.Input(true,0,0); miniature.Input(true,1,1);
+                        miniature.Move(MatrixD.CreateTranslation(l),MatrixD.CreateTranslation(r),0);
+                        miniature.Move(MatrixD.CreateTranslation(l-new Vector3D(.1,0,0)),MatrixD.CreateTranslation(r+new Vector3D(.1,0,0)),0);
+                    }
+                    MatrixD reference=MatrixD.Identity;
+                    if(phase>=26)
+                    {
+                        var follow=new Player.Control.ObserverFollow(); follow.Reset(MatrixD.Identity,Vector3D.Up);
+                        var ship=MatrixD.CreateFromYawPitchRoll(.4,.3,-.25); follow.Advance(ship);
+                        reference=follow.Reference((Player.Control.ObserverMode)(phase-26));
+                        modelWorld=MatrixD.CreateTranslation(-model.BoundingBox.Center)*ship*MatrixD.CreateTranslation(model.BoundingBox.Center);
+                        var l=MatrixD.CreateTranslation(-.2,-.1,-.5); var r=MatrixD.CreateTranslation(.2,-.1,-.5);
+                        miniature.Input(true,0,0); miniature.Input(true,1,1); miniature.Move(l,r,0);
+                        var turn=MatrixD.CreateRotationX(.2)*MatrixD.CreateRotationZ(.15);
+                        var pivot=MatrixD.CreateTranslation(0,-.1,-.5);
+                        miniature.Move(l*MatrixD.Invert(pivot)*turn*pivot,r*MatrixD.Invert(pivot)*turn*pivot,0);
+                    }
+                    view=VrMath.EyeView(MatrixD.Invert(miniature.Anchor(model.BoundingBox.Center,reference)),Matrix.Identity,Matrix.Identity,
+                        Matrix.CreateTranslation(phase>=26 || phase%2==0 ? -.032f : .032f,0,0),miniature.UnitsPerMeter);
+                    eye=MatrixD.Invert(view).Translation; near=(float)(.005*miniature.UnitsPerMeter); fov=.7f;
+                }
+                Matrix projection=(Matrix)VrMath.Projection(-aspect*fov,aspect*fov,-fov,fov,near,100);
+                MyRenderProxy.SetCameraViewMatrix(view,projection,projection,1.3f,1.3f,near,100,100,eye,smooth:false);
                 camera=new MyRenderMessageSetCameraViewMatrix { ViewMatrix=view,ProjectionMatrix=projection,ProjectionFarMatrix=projection,
-                    FOV=1.3f,FOVForSkybox=1.3f,NearPlane=0.03f,FarPlane=100,FarFarPlane=100,CameraPosition=eye,Smooth=false };
+                    FOV=1.3f,FOVForSkybox=1.3f,NearPlane=near,FarPlane=100,FarFarPlane=100,CameraPosition=eye,Smooth=false };
                 if (phase>=2 && phase!=7 && phase!=15)
                 {
                     bool moved=phase==5 || phase==6 || phase==12 || phase==13;
@@ -73,10 +111,11 @@ namespace SpaceEngineersVR.Diagnostics
                     Matrix r=moved ? CockpitStickMath.RightVisual(new Vector3(0.5f,0.4f,0.6f)) : Matrix.Identity;
                     Vector3 lo=phase>=10 && phase<14 ? new Vector3(.07f,.10f,.10f) : Vector3.Zero;
                     Vector3 ro=phase>=10 && phase<14 ? new Vector3(-.07f,.12f,.08f) : Vector3.Zero;
-                    CockpitRender.UpdateScene(native,MatrixD.Identity,StickPlacement.Visual(l,lo),StickPlacement.Visual(r,ro),moved,moved,lo,ro,moved ? 1f : 0f,moved ? 1f : (float?)null,colorMask:phase>=14 ? new Vector3(.58f,0,.02f) : neutralPaint);
+                    CockpitRender.UpdateScene(native,modelWorld,StickPlacement.Visual(l,lo),StickPlacement.Visual(r,ro),moved,moved,lo,ro,moved ? 1f : 0f,moved ? 1f : (float?)null,colorMask:phase>=14 ? new Vector3(.58f,0,.02f) : neutralPaint,
+                        previewHover:phase==17 ? 0 : phase==18 ? 9 : -1,previewHeld:phase==17 ? 1 : phase==18 ? 10 : -1,previewCover:phase==18);
                 }
                 if(phase>=14) MyRenderProxy.UpdateRenderEntity(native,null,new Vector3(.58f,0,.02f));
-                MyRenderProxy.UpdateRenderObject(native,MatrixD.Identity);
+                MyRenderProxy.UpdateRenderObject(native,modelWorld);
                 MyRenderProxy.Draw3DScene();
                 if (DateTime.UtcNow<next) return;
                 if (pending!=null)
@@ -88,7 +127,17 @@ namespace SpaceEngineersVR.Diagnostics
                     if(phase==2) assignment.VerifyAndPage();
                     if(phase==4) { assignment.Finish(); assignment=null; }
                     if (phase==7 || phase==15) CockpitRender.Reset();
-                    if (phase==16)
+                    if(phase==24)
+                    {
+                        options=new GUI.MyPluginConfigDialog(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
+                    }
+                    if(phase==25)
+                    {
+                        options.CloseScreenNow(); EyeResolution.Recommend(2112,2304);
+                        options=new GUI.RenderingOptions(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
+                    }
+                    if(phase==26) { options.CloseScreenNow(); options=null; }
+                    if (phase==29)
                     {
                         if(!rotationPreviewsSaved) throw new InvalidOperationException("Native rotation previews not rendered");
                         ValidateImages();
@@ -103,8 +152,11 @@ namespace SpaceEngineersVR.Diagnostics
                 }
                 string name=phase==1 ? "native-left" : phase==3 ? "rest-left" : phase==4 ? "rest-right" : phase==5 ? "articulated-left" :
                     phase==6 ? "articulated-right" : phase==7 ? "restored-left" : phase==9 ? "regrab-left" :
-                    phase==10 ? "relocated-left" : phase==11 ? "relocated-right" : phase==12 ? "relocated-articulated-left" : phase==13 ? "relocated-articulated-right" : phase==14 ? "repainted-left" : "repainted-native-left";
+                    phase==10 ? "relocated-left" : phase==11 ? "relocated-right" : phase==12 ? "relocated-articulated-left" : phase==13 ? "relocated-articulated-right" : phase==14 ? "repainted-left" : phase==15 ? "repainted-native-left" : phase==16 ? "controls-rest" : phase==17 ? "controls-levers" : phase==18 ? "controls-covers" : phase==19 ? "controls-restored" :
+                    phase==20 ? "miniature-left" : phase==21 ? "miniature-right" : phase==22 ? "miniature-enlarged-left" : phase==23 ? "miniature-enlarged-right" :
+                    phase>=26 ? "camera-"+(Player.Control.ObserverMode)(phase-26) : "rendering-scene-"+phase;
                 if(phase==1 || phase==3) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"assignment-page-"+(phase==1 ? "1" : "2")+".png"),false,false,false);
+                if(phase==24 || phase==25) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,phase==24 ? "options-native.png" : "rendering-options-native.png"),false,false,false);
                 pending=Path.Combine(output,name+".png");
                 next=DateTime.UtcNow.AddSeconds(1);
             }
@@ -125,6 +177,7 @@ namespace SpaceEngineersVR.Diagnostics
                 object data=dataField.GetValue(environment);
                 AccessTools.Field(data.GetType(),"TextureMultipliers").SetValue(data,MyTextureDebugMultipliers.Defaults);
                 dataField.SetValue(environment,data);
+                if(phase==24) ResolutionTests.RunNative(output,camera);
                 var target=Wrappers.MyManagers.RwTexturesPool.BorrowRtv("SEVR physical probe",size.X,size.Y,SharpDX.DXGI.Format.R8G8B8A8_UNorm_SRgb);
                 try
                 {
@@ -217,6 +270,13 @@ namespace SpaceEngineersVR.Diagnostics
         }
         private static void ValidateImages()
         {
+            if(Difference("camera-Ship","camera-Heading")<100 || Difference("camera-Heading","camera-Fixed")<100)
+                throw new InvalidOperationException("Observer modes lost their distinct native orientations");
+            if(Difference("miniature-left","miniature-right")<100 || Difference("miniature-left","miniature-enlarged-left")<100)
+                throw new InvalidOperationException("Miniature scale or stereo disparity missing from native render");
+            if(Difference("controls-rest","controls-levers")<2 || Difference("controls-rest","controls-covers")<2 ||
+                Difference("controls-rest","controls-restored")>2)
+                throw new InvalidOperationException("Control geometry highlights are missing or did not restore");
             if(Difference("repainted-left","repainted-native-left")>10 || Difference("native-left","repainted-native-left")<100)
                 throw new InvalidOperationException("Replacement paint does not match live native repaint");
             foreach(string restored in new[] {"rest-left","restored-left","regrab-left"})
@@ -246,6 +306,7 @@ namespace SpaceEngineersVR.Diagnostics
         }
         private static void Stop()
         {
+            options?.CloseScreenNow(); options=null;
             if(assignment!=null) { assignment.Finish(); assignment=null; }
             CockpitRender.Reset();
             if (native!=uint.MaxValue) MyRenderProxy.RemoveRenderObject(native,MyRenderProxy.ObjectType.Entity);

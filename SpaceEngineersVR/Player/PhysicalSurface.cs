@@ -26,13 +26,13 @@ namespace SpaceEngineersVR.Player
         public float Width,Height;
         public SurfaceKey[] Keys=new SurfaceKey[0];
         public int Hover=-1,Pressed=-1;
-        public bool TrackingSpace;
+        public bool TrackingSpace,GeometryFeedback;
         public SurfaceStyle Style;
         public float[] Levels;
         public int Handle;
         public Vector3? TouchPoint;
         public string ContentKey => Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Hover+"|"+Pressed+"|"+string.Join("|",Keys.Select(k=>k.Label))+
-            "|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+
+            "|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
         public int KeyAt(Vector2 uv)
         {
@@ -86,11 +86,10 @@ namespace SpaceEngineersVR.Player
             if(s.Style==SurfaceStyle.ModelControl)
             {
                 target.Clear(Color.Transparent);
-                if(s.Hover>=0 || s.Pressed>=0 || s.Handle==1)
+                if(!s.GeometryFeedback && (s.Hover>=0 || s.Pressed>=0 || s.Handle==1))
                 {
-                    using(var pen=new Pen(s.Pressed>=0 ? Color.Lime : Color.LightCyan,14)) target.Graphics.DrawRectangle(pen,14,14,996,612);
-                    using(var font=new Font("Segoe UI",150,FontStyle.Regular,GraphicsUnit.Pixel))
-                        target.Graphics.DrawString(s.Title ?? "",font,Brushes.LightCyan,new System.Drawing.RectangleF(0,0,1024,640),centered);
+                    using(var brush=new SolidBrush(s.Pressed>=0 ? Color.FromArgb(100,120,255,160) : Color.FromArgb(75,135,215,240)))
+                        target.Graphics.FillEllipse(brush,96,60,832,520);
                 }
                 return;
             }
@@ -125,25 +124,25 @@ namespace SpaceEngineersVR.Player
             target.Clear(Color.Transparent);
             var g=target.Graphics;
             var saved=g.Save();
-            g.ScaleTransform(target.Width/512f,target.Height/512f);
-            using(var shape=Rounded(new System.Drawing.RectangleF(8,8,496,496),28))
-            using(var fill=new SolidBrush(Color.FromArgb(235,12,24,33)))
-            using(var edge=new Pen(Color.FromArgb(105,171,192),5))
-            { g.FillPath(fill,shape); g.DrawPath(edge,shape); }
-            using(var number=new Font("Segoe UI",65,FontStyle.Regular,GraphicsUnit.Pixel))
-                g.DrawString(s.Title ?? "",number,Brushes.LightCyan,32,18);
-            if(s.Icons.Length==0)
-                using(var pen=new Pen(Color.LightCyan,14))
-                { g.DrawLine(pen,196,272,316,272); g.DrawLine(pen,256,212,256,332); }
+            g.ScaleTransform(target.Width/768f,target.Height/154f);
+            using(var shape=Rounded(new System.Drawing.RectangleF(2,2,764,150),15))
+            using(var fill=new SolidBrush(Color.FromArgb(230,12,24,33))) g.FillPath(fill,shape);
+            using(var font=new Font("Segoe UI",39,FontStyle.Regular,GraphicsUnit.Pixel))
+            using(var format=new StringFormat { LineAlignment=StringAlignment.Center,Trimming=StringTrimming.EllipsisCharacter,FormatFlags=StringFormatFlags.NoWrap })
+                g.DrawString(s.Title ?? "",font,s.Enabled ? Brushes.White : Brushes.Gray,new System.Drawing.RectangleF(153,8,568,138),format);
+            if(s.Icons.Length==0 && !string.IsNullOrEmpty(s.Text))
+                using(var symbol=new Font("Segoe UI",90,FontStyle.Regular,GraphicsUnit.Pixel))
+                    g.DrawString(s.Text,symbol,Brushes.LightCyan,new System.Drawing.RectangleF(12,5,130,139),centered);
             if(s.Levels?.Length>0)
                 using(var state=new SolidBrush(s.Levels[0]>.99f ? Color.LightGreen : s.Levels[0]>.01f ? Color.Orange : Color.FromArgb(83,103,111)))
-                    g.FillEllipse(state,418,40,40,40);
+                    g.FillEllipse(state,735,64,20,20);
             g.Restore(saved);
             foreach(string icon in s.Icons)
-                target.Icon(icon,target.Width*.17f,target.Height*.25f,target.Width*.66f,target.Height*.66f,new Vector4(0,0,1,1),s.Enabled ? Color.White : Color.Gray);
+                target.Icon(icon,target.Width*12f/768,target.Height*12f/154,target.Width*130f/768,target.Height*130f/154,new Vector4(0,0,1,1),s.Enabled ? Color.White : Color.Gray);
             if(!string.IsNullOrEmpty(s.SubIcon))
-                target.Icon(s.SubIcon,target.Width*.69f,target.Height*.70f,target.Width*.25f,target.Height*.25f,new Vector4(0,0,1,1),Color.White);
+                target.Icon(s.SubIcon,target.Width*91f/768,target.Height*91f/154,target.Width*51f/768,target.Height*51f/154,new Vector4(0,0,1,1),Color.White);
         }
+
         private static void DrawLock(Graphics g,System.Drawing.RectangleF r,bool unlocked)
         {
             var state=g.Save();
@@ -296,7 +295,7 @@ namespace SpaceEngineersVR.Player
             {
                 if(!cache.TryGetValue(s.Id,out var c))
                 {
-                    var canvas=new OverlayCanvas(s.Id,s.Style==SurfaceStyle.Label ? 512 : 1024,s.Style==SurfaceStyle.Label ? 512 : 640,1,false,target.Device,mipMaps:true);
+                    var canvas=new OverlayCanvas(s.Id,s.Style==SurfaceStyle.Label ? 768 : 1024,s.Style==SurfaceStyle.Label ? 154 : 640,1,false,target.Device,mipMaps:true);
                     cache[s.Id]=c=new Cache { Canvas=canvas,Texture=new ShaderResourceView(target.Device,canvas.Texture) };
                 }
                 string content=s.ContentKey;

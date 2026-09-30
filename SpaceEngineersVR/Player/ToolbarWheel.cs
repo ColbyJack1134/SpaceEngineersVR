@@ -269,7 +269,7 @@ namespace SpaceEngineersVR.Player
                 if (current.SubIcons[i] != null) target.Icon(current.SubIcons[i], x+24, y+10, 40, current.Enabled[i]);
                 g.DrawString((i+1).ToString(),font,Brushes.LightGray,x-72,y-64);
                 if(i==current.Selected) g.DrawString(current.Labels[i],font,current.Enabled[i] ? Brushes.White : Brushes.Gray,
-                    new System.Drawing.RectangleF(x-88,y+54,176,56),centered);
+                    new System.Drawing.RectangleF(x-88,y+38,176,44),centered);
                 if(!string.IsNullOrEmpty(current.ItemText[i])) g.DrawString(current.ItemText[i],font,Brushes.Cyan,x-40,y+16);
             }
             // Instruction text belongs in controller help, not below the wheel.

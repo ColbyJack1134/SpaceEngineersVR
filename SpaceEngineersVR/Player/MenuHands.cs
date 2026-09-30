@@ -137,7 +137,7 @@ float4 PS(P p):SV_TARGET { return p.c; }";
             context.InputAssembler.SetIndexBuffer(mesh.Indices,Format.R16_UInt,0);
             context.DrawIndexed(mesh.Count,0,0);
         }
-        public static void DrawInWorld(Texture2D texture, EVREye eye)
+        public static void DrawInWorld(Texture2D texture, EVREye eye,bool menu=true)
         {
             if (failed) return;
             try
@@ -146,14 +146,14 @@ float4 PS(P p):SV_TARGET { return p.c; }";
                 var hands = new[] { Player.HandL, Player.HandR };
                 var meshes = new Mesh[2];
                 for (int h = 0; h < 2; h++) if (hands[h].renderPose.isTracked) meshes[h] = GetModel(hands[h]);
-                Components.VRGUIManager.DrawStereo(texture,eye);
+                if(menu) Components.VRGUIManager.DrawStereo(texture,eye);
                 using (var target = new RenderTargetView(MyRender11.DeviceInstance, texture))
-                    DrawEye(target, eye, size, hands, meshes, false);
+                    DrawEye(target, eye, size, hands, meshes, false,menu);
             }
             catch (Exception ex) { failed = true; Logger.Warning(ex, "World-menu controller rendering disabled"); }
         }
 
-        private static void DrawEye(RenderTargetView target, EVREye eye, Vector2I size, Controller[] hands, Mesh[] meshes, bool clear)
+        private static void DrawEye(RenderTargetView target, EVREye eye, Vector2I size, Controller[] hands, Mesh[] meshes, bool clear,bool pointer=true)
         {
             context.ClearState();
             if (clear) context.ClearRenderTargetView(target,new RawColor4(0,0,0,1));
@@ -174,12 +174,12 @@ float4 PS(P p):SV_TARGET { return p.c; }";
             {
                 var hand=hands[h]; if(!hand.renderPose.isTracked) continue;
                 Matrix raw=hand.renderPose.deviceToAbsolute.matrix;
-                if(!Main.WorldAvailable || MenuKeyboard.IsOpen || !TrackedArms.Applied)
+                if(!Main.WorldAvailable || MenuKeyboard.IsOpen || !TrackedArms.Applied || !pointer)
                 {
                     if(meshes[h]!=null) DrawMesh(meshes[h],raw,vp,new Vector4(0.8f,0.85f,0.9f,1));
                     else DrawMesh(box,Matrix.CreateScale(0.035f,0.075f,0.04f)*raw,vp,new Vector4(0.6f,0.7f,0.8f,1));
                 }
-                if(h==1 && Common.Config.ControllerMenuPointer)
+                if(pointer && h==1 && Common.Config.ControllerMenuPointer)
                 {
                     Matrix tip=hand.RenderAimTracking;
                     float distance=MenuKeyboard.IsOpen ? FloatingKeyboard.PointerDistance(tip) : Components.VRGUIManager.PointerDistance(tip);
@@ -196,7 +196,7 @@ float4 PS(P p):SV_TARGET { return p.c; }";
             if(failed || !Player.Headset.renderPose.isTracked) return false;
             try
             {
-                Init(); var size=MyRender11.Resolution; Resize(size);
+                Init(); var size=EyeResolution.Update(); Resize(size);
                 var hands=new[] { Player.HandL,Player.HandR };
                 var meshes=new Mesh[2];
                 for(int h=0;h<2;h++) if(hands[h].renderPose.isTracked) meshes[h]=GetModel(hands[h]);

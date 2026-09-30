@@ -43,6 +43,9 @@ namespace SpaceEngineersVR.GUI
                 lines.Add("Each grab captures neutral. Center/release button controls for flight fallback.");
                 lines.Add("Flight > Physical sticks: response, deadzone and enable/disable.");
                 lines.Add("Wheel > Actions > page 2 toggles primary/secondary trigger for flight tools.");
+                lines.Add("Actions page 3: Switch view; Reset ship view. Flight uses thumbsticks/triggers.");
+                lines.Add("Third person: hold both grips to move/scale/turn the view; one remaining grip drags.");
+                lines.Add("Release both grips to resume flight. Right-stick click recenters and fits the ship.");
             }
             else
             {

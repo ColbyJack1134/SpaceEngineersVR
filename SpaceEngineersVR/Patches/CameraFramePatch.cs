@@ -15,4 +15,10 @@ namespace SpaceEngineersVR.Patches
                 RenderFrameBridge.Capture(message, CameraRig.Current);
         }
     }
+
+    [HarmonyPatch(typeof(MyRenderProxy), nameof(MyRenderProxy.AfterUpdate))]
+    internal static class CameraFrameCommitPatch
+    {
+        private static void Prefix() => RenderFrameBridge.Commit();
+    }
 }

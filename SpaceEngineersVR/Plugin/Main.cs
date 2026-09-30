@@ -111,6 +111,7 @@ namespace SpaceEngineersVR.Plugin
 
         public void Dispose()
         {
+            Player.ThirdPersonView.Reset();
             Player.MenuPointer.Release();
             Player.TouchScreenBridge.Reset();
             Player.CockpitButtons.Reset();
@@ -150,6 +151,7 @@ namespace SpaceEngineersVR.Plugin
                     Player.CockpitControls.Reset();
                     Player.TouchScreenBridge.Reset();
                     Player.CockpitButtons.Reset();
+                    Player.ThirdPersonView.Reset();
                     VRGUIManager.Hide();
                     Player.EssentialHud.Hide();
                     Player.BuildOrientationHud.Hide();
@@ -235,6 +237,7 @@ namespace SpaceEngineersVR.Plugin
             Player.Player.MainUpdate();
             Player.InputRouter.Update();
             Player.Controls.Static.Poll(Player.InputRouter.Mode);
+            Player.ThirdPersonView.Update();
             Player.SeatFit.Update();
             Player.HelmetHud.Update();
             if(MenuOpen && MySession.Static?.LocalCharacter!=null)
@@ -263,6 +266,7 @@ namespace SpaceEngineersVR.Plugin
             if (Player.InputRouter.Gameplay) { Player.HandInteraction.Update(); Player.WeaponHandling.Draw(); Player.CockpitControls.Draw(); }
             Player.TouchScreenBridge.Draw();
             Player.EssentialHud.Update();
+            Player.HelmetLight.Publish();
             Player.SpatialUi.Publish();
         }
 
@@ -290,6 +294,7 @@ namespace SpaceEngineersVR.Plugin
             Player.TouchScreenBridge.Reset();
             Player.CockpitButtons.Reset();
             Player.CameraRig.Reset(forgetHeight:true);
+            Player.ThirdPersonView.Reset();
         }
 
         public void AfterLoadedWorld()

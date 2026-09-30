@@ -1,4 +1,10 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Runtime.Serialization;
+using System.Text;
+using HarmonyLib;
+using Sandbox.Game.GUI.HudViewers;
 using SpaceEngineersVR.Player;
 using VRageMath;
 
@@ -14,6 +20,7 @@ namespace SpaceEngineersVR.Diagnostics
 
         public static void Run(Action<string> log)
         {
+            Motion(log);
             int count=0;
             foreach (double roll in new[] { 0.0,0.5,-0.8 })
             foreach (double yaw in new[] { -1.15,-0.6,0,0.6,1.15 })
@@ -51,6 +58,74 @@ namespace SpaceEngineersVR.Diagnostics
             if (!MarkerBillboard.TryCreate(Vector3D.Up,MatrixD.Identity,out var pole) || !pole.Right.IsValid() || !pole.Up.IsValid())
                 throw new Exception("Vertical marker billboard singularity");
             log("PASS marker billboards: "+count+" peripheral/tilted/distant poses, viewer-facing normals, equal angular dimensions, shared stereo corners and perspective depth");
+        }
+
+        private static void Motion(Action<string> log)
+        {
+            var type=AccessTools.Inner(typeof(MyHudMarkerRender),"PointOfInterest");
+            var field=AccessTools.Field(typeof(MyHudMarkerRender),"m_pointsOfInterest");
+            var renderer=(MyHudMarkerRender)FormatterServices.GetUninitializedObject(typeof(MyHudMarkerRender));
+            var points=(IList)Activator.CreateInstance(field.FieldType);
+            field.SetValue(renderer,points);
+            var position=AccessTools.Property(type,"WorldPosition");
+            object moving=Activator.CreateInstance(type,true),gps=Activator.CreateInstance(type,true);
+            foreach(var poi in new[] { moving,gps })
+            {
+                var kind=AccessTools.Property(type,"POIType");
+                kind.SetValue(poi,Enum.Parse(kind.PropertyType,poi==moving ? "SmallEntity" : "GPS"));
+                ((StringBuilder)AccessTools.Property(type,"Text").GetValue(poi)).Append(poi==moving ? "Moving ship" : "Fixed GPS");
+                points.Add(poi);
+            }
+            var origin=new Vector3D(1000000,2000000,3000000);
+            var offset=new Vector3D(10,0,-100);
+            position.SetValue(gps,origin+new Vector3D(-30,0,-1000));
+            var packets=new Queue<Tuple<object,Vector3D>>();
+            var now=DateTime.UtcNow;
+            double oldLag=0;
+            for(int tick=0;tick<180;tick++)
+            {
+                var head=origin+new Vector3D(tick*5,0,0); // 300 m/s at 60 Hz.
+                position.SetValue(moving,head+offset);
+                object message=new object();
+                RenderFrameBridge.Capture(message,new CameraRig.Frame(MatrixD.CreateTranslation(head),Matrix.Identity));
+                var view=WorldMarkers.Read(renderer,MyHudMarkerRender.SignalMode.FullDisplay,head,now.AddSeconds(tick/60.0));
+                RenderFrameBridge.CaptureMarkers(view);
+                RenderFrameBridge.Commit();
+                packets.Enqueue(Tuple.Create(message,head));
+                oldLag=Math.Max(oldLag,tick%6*5);
+                if(packets.Count<=2) continue;
+                var delayed=packets.Dequeue();
+                RenderFrameBridge.Consume(delayed.Item1);
+                var paired=RenderFrameBridge.Markers;
+                Near(Vector3D.Distance(RenderFrameBridge.Current.Anchor.Translation,delayed.Item2),0,"Camera batch pairing");
+                foreach(var marker in paired.Markers)
+                {
+                    var expected=marker.Name=="Moving ship" ? delayed.Item2+offset : origin+new Vector3D(-30,0,-1000);
+                    Near(Vector3D.Distance(marker.Position,expected),0,"POI capture lag or pooled mutation");
+                    foreach(float eye in new[] { -.032f,.032f })
+                    {
+                        var camera=MatrixD.Invert(MatrixD.CreateTranslation(delayed.Item2+new Vector3D(eye,0,0)));
+                        var projection=VrMath.Projection(-1,1,-1,1,.05);
+                        if(!WorldMarkers.Project(marker.Position,camera,projection,out var actual) ||
+                           !WorldMarkers.Project(expected,camera,projection,out var target)) throw new Exception("Moving marker projection lost");
+                        Near(Vector2.Distance(actual,target),0,"Moving marker detached from scene");
+                    }
+                }
+            }
+            if(WorldMarkers.Read(renderer,MyHudMarkerRender.SignalMode.Off,origin,now)!=null)
+                throw new Exception("Signals-off retained markers");
+            var recycled=new object();
+            RenderFrameBridge.Capture(recycled,null);
+            RenderFrameBridge.CaptureMarkers(WorldMarkers.Read(renderer,MyHudMarkerRender.SignalMode.FullDisplay,origin,now));
+            RenderFrameBridge.Commit(); RenderFrameBridge.Consume(recycled);
+            if(RenderFrameBridge.Markers==null) throw new Exception("Native camera without independent rig lost markers");
+            RenderFrameBridge.Capture(recycled,null);
+            RenderFrameBridge.Commit(); RenderFrameBridge.Consume(recycled);
+            if(RenderFrameBridge.Markers!=null) throw new Exception("Frame without HUD retained pooled marker snapshot");
+            points.Clear();
+            if(WorldMarkers.Read(renderer,MyHudMarkerRender.SignalMode.FullDisplay,origin,now).Markers.Length!=0)
+                throw new Exception("Removed marker retained");
+            log("PASS native POI motion: 180 ticks at 300 m/s, delayed render batches, pooled POIs/camera messages, fixed GPS and stereo. Old 10 Hz capture lag: "+oldLag+" m; paired per-frame capture: 0 m.");
         }
     }
 }

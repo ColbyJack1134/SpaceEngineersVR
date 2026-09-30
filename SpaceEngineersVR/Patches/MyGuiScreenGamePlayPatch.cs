@@ -18,6 +18,7 @@ namespace SpaceEngineersVR.Patches
         public static bool Prefix()
         {
             if (!Main.VrActive || Main.MenuOpen) return true;
+            if (ThirdPersonView.Manipulating) return false;
             if (VRMovementComponent.UsingControllerMovement)
                 return false;
 

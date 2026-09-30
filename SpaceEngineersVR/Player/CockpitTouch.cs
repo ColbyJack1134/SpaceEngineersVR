@@ -3,224 +3,247 @@ using System.Collections.Generic;
 using System.Linq;
 using SpaceEngineersVR.Player.Control;
 using SpaceEngineersVR.Plugin;
-using VRage.Game;
-using VRage.Utils;
 using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
-    // Independent state per hand and panel. A finger must retract; a ray needs a
-    // fresh trigger, including after owner/origin/menu/tracking transitions.
-    internal sealed class CockpitTouch
+    internal static class CockpitTouch
     {
+        internal sealed class Target
+        {
+            public SurfaceView Surface;
+            public bool Lever,Cover;
+            public int Slot=-1;
+            public float Position,Travel;
+            public Vector3 Pivot,Axis;
+            public bool Hinged => Lever || Cover;
+        }
         internal sealed class Hand
         {
             private readonly InputGate press=new InputGate();
-            private readonly SurfaceTouch touch=new SurfaceTouch();
-            private int capture=-1;
-            private bool nearCapture;
-            private Vector3 contactMotion;
-            private readonly SwitchFlick flick=new SwitchFlick();
-            public bool? FlickState { get; private set; }
-            public int Hover { get; private set; }=-1;
+            private readonly PointerIntent pointer=new PointerIntent();
+            public string Surface { get; private set; }
             public int Held { get; private set; }=-1;
-            public void Reset() { press.Block(); touch.Reset(); flick.Reset(); FlickState=null; nearCapture=false; capture=Hover=Held=-1; }
-            internal static int NearKey(Vector3 point,int key) => point.Z>=-.018f && point.Z<.07f ? key : -1;
-            internal static int SeatTarget(Vector3 point,int key,int rayKey)
+            public bool Pressed { get; private set; }
+            public bool Consumed { get; private set; }
+            public void Reset()
             {
-                int nearby=NearKey(point,key);
-                return nearby>=0 ? nearby : rayKey;
+                press.Block(); pointer.Reset(); Surface=null; Held=-1; Pressed=false;
             }
-            public Vector3 ContactPoint(Vector3 point,Vector3 seatMotion) =>
-                (touch.Held>=0 && touch.Held<7) || nearCapture ? point-(seatMotion-contactMotion) : point;
-            public int Sample(bool available,bool raw,string surface,Vector3 point,int key,int rayKey,bool isSwitch=false,int hoverKey=-1,bool triggerOnly=false,Vector3 seatMotion=default(Vector3))
+            public void Sample(bool available,float pressure,bool down,string target,int key,bool canAcquire=true,bool reachable=true)
             {
-                if(!available) { Reset(); return -1; }
-                press.Update(true,raw);
-                FlickState=null;
-                int direction=isSwitch ? flick.Update(point) : -1;
-                bool seatDirection=surface=="Seat" && key>=0 && key<7;
-                if(triggerOnly) touch.Reset();
-                int tap=triggerOnly ? -1 : isSwitch ? direction>=0 ? 0 : -1 : touch.Update(surface,point,key,seatDirection);
-                if(surface=="Seat" && raw && capture>=0 && tap==capture) tap=-1;
-                if(tap>=0 && seatDirection) contactMotion=seatMotion;
-                if(direction>=0) FlickState=direction==1;
-                Hover=NearKey(point,Math.Max(key,hoverKey));
-                if(Hover<0) Hover=rayKey;
-                if(!raw) { capture=-1; nearCapture=false; }
-                int pressKey=rayKey>=0 ? rayKey : triggerOnly && point.Z>=-.035f && point.Z<.055f ? key : -1;
-                if(pressKey>=0 && press.Pressed)
-                {
-                    bool alreadyTouched=surface=="Seat" && touch.Held==pressKey;
-                    if(!alreadyTouched || tap>=0) tap=pressKey;
-                    capture=pressKey; FlickState=null;
-                    nearCapture=surface=="Seat" && pressKey<7 && pressKey==NearKey(point,key);
-                    if(nearCapture && !alreadyTouched) contactMotion=seatMotion;
-                }
-                Held=touch.Held>=0 ? touch.Held : capture==Hover ? capture : -1;
-                return tap;
+                Pressed=false;
+                if(pressure<=.025f && !down) Consumed=false;
+                if(!available) { Reset(); return; }
+                press.Update(true,down);
+                pointer.Begin(true,pressure,down,target!=null);
+                if(!down || !reachable) { Surface=null; Held=-1; }
+                if(Surface==null && !Consumed && press.Pressed && canAcquire && target!=null && key>=0 && pointer.Capture(target,true))
+                { Surface=target; Held=key; Pressed=true; Consumed=true; }
             }
         }
-        private readonly Hand[] hands={new Hand(),new Hand()};
-        private object owner;
-        private Matrix origin;
-        public int Hover { get; private set; }=-1;
-        public int Held { get; private set; }=-1;
-        public Controller Actor { get; private set; }
-        public bool? RequestedState { get; private set; }
+        internal struct Result
+        {
+            public int Hover,Held;
+            public bool Pressed;
+            public bool? Requested;
+            public float? Position;
+            public Controller Actor;
+        }
+        private sealed class Contact
+        {
+            public readonly Hand Input=new Hand();
+            public readonly HingeDrag Drag=new HingeDrag();
+            public Target Target,Hover;
+            public int HoverKey=-1,Change=-1;
+            public Vector3 StartHand,FitAtGrab,Anchor;
+            public Matrix Wrist;
+            public DateTime Grabbed;
+            public float StartPosition;
+        }
+        private static readonly Contact[] hands={new Contact(),new Contact()};
+        private static object owner;
+        private static Matrix origin;
         public static bool LeftPointing { get; private set; }
         public static bool RightPointing { get; private set; }
-        private static readonly PointerIntent[] pointers={new PointerIntent(),new PointerIntent()};
-        private static readonly Vector3D?[] rayHit=new Vector3D?[2];
-        private static readonly bool[] showRay=new bool[2];
-        private static object pointerOwner;
-        private static Matrix pointerOrigin;
-        public static bool OwnsRight => pointers[0].Owned;
+        public static bool OwnsRight => hands[0].Input.Consumed;
+        public static bool Owns(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Input.Consumed;
+        public static bool Attached(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Input.Surface!=null;
+        public static bool Pinching(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Target?.Hinged==true && Attached(hand);
+        private static Controller Controller(int i) => i==0 ? Player.HandR : Player.HandL;
+        private static void Consume(int i)
+        {
+            var c=Controls.Static;
+            if(i==0) c.Primary.BlockUntilRelease();
+            else
+            {
+                c.ThrustUp.BlockUntilRelease(); c.ThrustForward.BlockUntilRelease();
+                c.JumpOrClimbUp.BlockUntilRelease();
+            }
+        }
+        public static void Reset()
+        {
+            foreach(var h in hands) { h.Input.Reset(); h.Target=h.Hover=null; h.HoverKey=-1; }
+            LeftPointing=RightPointing=false; owner=null; origin=Matrix.Identity;
+        }
+        internal static Vector3 Compensate(Vector3 hand,Vector3 fit,Vector3 startFit) => hand-(fit-startFit);
+        internal static int NearKey(SurfaceView s,Vector3 point,out float distance)
+        {
+            distance=float.MaxValue;
+            if(!point.IsValid() || point.Z<-.014f || point.Z>.045f) return -1;
+            var uv=PhysicalSurface.UV(s,point);
+            int key=s.KeyAt(uv);
+            if(key<0 && s.Style==SurfaceStyle.ModelControl && Math.Abs(point.X)<s.Width/2+.003f && Math.Abs(point.Y)<s.Height/2+.003f) key=0;
+            if(key<0) return -1;
+            var b=s.Keys[key].Bounds;
+            var center=new Vector3((b.Center.X-.5f)*s.Width,(.5f-b.Center.Y)*s.Height,0);
+            distance=Vector3.Distance(point,center);
+            return key;
+        }
         public static void BeginFrame()
         {
+            CockpitButtons.Prepare();
             LeftPointing=RightPointing=false;
-            // The main menu has tracking, but no world camera or cockpit.
-            if(!SeatFit.Eligible(SeatFit.Seat))
+            var seat=SeatFit.Seat;
+            bool eligible=SeatFit.Eligible(seat);
+            if(!eligible)
             {
-                pointerOwner=null; pointerOrigin=Matrix.Identity;
-                for(int i=0;i<2;i++)
+                for(int i=0;i<2;i++) if(hands[i].Input.Consumed)
                 {
-                    bool consumed=pointers[i].Owned;
-                    pointers[i].Reset(); showRay[i]=false; rayHit[i]=null;
-                    if(consumed) Consume(i);
+                    var c=Controls.Static;
+                    float pressure=i==0 ? c.PointerPressure.RawPosition.X : c.LeftTriggerPressure.RawPosition.X;
+                    hands[i].Input.Sample(false,pressure,i==0 ? c.Primary.RawPressed : pressure>.55f,null,-1);
+                    if(hands[i].Input.Consumed) Consume(i);
                 }
+                Reset();
                 return;
             }
-            bool changed=!ReferenceEquals(pointerOwner,SeatFit.Seat) || pointerOrigin!=Player.PlayerToAbsolute.matrix;
-            pointerOwner=SeatFit.Seat; pointerOrigin=Player.PlayerToAbsolute.matrix;
-            bool available=!changed && SeatFit.Eligible(SeatFit.Seat) && InputRouter.Mode==InputMode.Piloting && !Main.MenuOpen && MenuPointer.GameFocused;
-            var seat=available && !WeaponHandling.ConsumesLeftGrip ? SeatPanel.View() : null;
+            bool changed=!ReferenceEquals(owner,seat) || origin!=Player.PlayerToAbsolute.matrix;
+            owner=seat; origin=Player.PlayerToAbsolute.matrix;
+            bool available=eligible && !changed && InputRouter.Mode==InputMode.Piloting && !Main.MenuOpen &&
+                Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked && MenuPointer.GameFocused;
+            var targets=new List<Target>(CockpitButtons.Targets);
+            var panel=available && !WeaponHandling.ConsumesLeftGrip ? SeatPanel.View() : null;
+            if(panel!=null) targets.Add(new Target { Surface=panel });
             for(int i=0;i<2;i++)
             {
-                showRay[i]=false;
-                rayHit[i]=null;
-                var hand=i==0 ? Player.HandR : Player.HandL;
-                bool consumed=pointers[i].Owned;
-                float pressure=i==0 ? Controls.Static.PointerPressure.RawPosition.X : Controls.Static.ThrustUp.RawPosition.X;
-                bool clicked=i==0 ? Controls.Static.Primary.RawPressed : pressure>.55f;
-                var c=Controls.Static;
+                var h=hands[i]; var hand=Controller(i); var c=Controls.Static;
+                float pressure=i==0 ? c.PointerPressure.RawPosition.X : c.LeftTriggerPressure.RawPosition.X;
+                bool down=i==0 ? c.Primary.RawPressed : pressure>.55f;
                 bool flying=i==0 ? c.ThrustRotate.RawPosition.LengthSquared()>.04f :
                     c.ThrustLRUD.RawPosition.LengthSquared()>.04f || c.ThrustLRFB.RawPosition.LengthSquared()>.04f;
-                bool free=available && hand.pose.isTracked && !CockpitControls.Held(hand) && !flying;
-                bool pointing=false;
-                if(free)
+                bool free=available && !CockpitControls.Held(hand) && !flying && !HelmetHud.Consumes(hand);
+                h.Change=-1;
+                if(!free)
                 {
-                    var aim=SpatialUi.DeviceWorld(hand.AimTracking);
-                    pointing=SpatialUi.Current.Any(s=>s.Style!=SurfaceStyle.Pointer && s.Keys.Length>0 &&
-                        Vector3D.Distance(aim.Translation+aim.Forward*.025,s.Pose.Translation)<.4);
+                    h.Input.Sample(false,pressure,down,null,-1); h.Target=h.Hover=null; h.HoverKey=-1;
+                    if(h.Input.Consumed) Consume(i);
+                    continue;
                 }
-                if(i==0) RightPointing=pointing; else LeftPointing=pointing;
-                bool nearSeat=free && SpatialUi.SeatNearKey(seat,i)>=0;
-                pointers[i].Begin(free,pressure,clicked,pointing || nearSeat,nearSeat ? "Seat" : null);
-                if(consumed || pointers[i].Owned) Consume(i);
-                if(pointers[i].Preview && !nearSeat)
-                {
-                    showRay[i]=true;
-                }
-            }
-        }
-        private static void Consume(int hand)
-        {
-            if(hand==0) Controls.Static.Primary.BlockUntilRelease();
-            else Controls.Static.ThrustUp.BlockUntilRelease();
-        }
-        public void Reset()
-        {
-            foreach(var h in hands) h.Reset();
-            Hover=Held=-1; Actor=null; RequestedState=null;
-        }
-        private Vector3 LocalPoint(SurfaceView surface,int index,MatrixD aim,out Vector3 seatMotion)
-        {
-            var hand=index==0 ? Player.HandR : Player.HandL;
-            Vector3D tip=aim.Translation+aim.Forward*.025;
-            if(Vector3D.Distance(tip,surface.Pose.Translation)<.4)
-            {
-                if(index==0) RightPointing=true; else LeftPointing=true;
-                if(TrackedArms.TryFingertip(hand,out var finger)) tip=finger;
-            }
-            var local=PhysicalSurface.Point(surface,tip);
-            seatMotion=Vector3.Zero;
-            if(surface.Id=="Seat")
-            {
-                seatMotion=(Vector3)Vector3D.TransformNormal(SeatFit.Offset,SeatFit.Seat.WorldMatrix*MatrixD.Invert(surface.Pose));
-                local=hands[index].ContactPoint(local,seatMotion);
-            }
-            return local;
-        }
-        internal int NearKey(SurfaceView surface,int hand)
-        {
-            if(surface==null) return -1;
-            var head=SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation;
-            if(Vector3D.Dot(surface.Pose.Backward,head-surface.Pose.Translation)<=.015) return -1;
-            var aim=SpatialUi.DeviceWorld((hand==0 ? Player.HandR : Player.HandL).AimTracking);
-            var point=LocalPoint(surface,hand,aim,out _);
-            return Hand.NearKey(point,surface.KeyAt(PhysicalSurface.UV(surface,point)));
-        }
-        public int Update(SurfaceView surface,bool available,bool rightBlocked=false,bool isSwitch=false,bool triggerOnly=false)
-        {
-            if(!ReferenceEquals(owner,SeatFit.Seat) || origin!=Player.PlayerToAbsolute.matrix)
-            { Reset(); owner=SeatFit.Seat; origin=Player.PlayerToAbsolute.matrix; }
-            Hover=Held=-1; Actor=null; RequestedState=null;
-            if(!available || surface==null) { Reset(); return -1; }
-            int clicked=-1;
-            var head=SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation;
-            bool front=Vector3D.Dot(surface.Pose.Backward,head-surface.Pose.Translation)>.015;
-            for(int i=0;i<2;i++)
-            {
-                var state=hands[i]; var hand=i==0 ? Player.HandR : Player.HandL;
-                bool raw=i==0 ? Controls.Static.Primary.RawPressed : Controls.Static.ThrustUp.RawPosition.X>.55f;
-                if(!front || CockpitControls.Held(hand) || (i==0 && rightBlocked)) { state.Reset(); continue; }
+                MatrixD rawWrist=TrackedArms.FreeWristWorld(hand);
+                Matrix localWrist=(Matrix)(rawWrist*seat.PositionComp.WorldMatrixNormalizedInv);
+                Vector3 raw=localWrist.Translation;
                 var aim=SpatialUi.DeviceWorld(hand.AimTracking);
-                var local=LocalPoint(surface,i,aim,out var seatMotion);
-                int key=surface.KeyAt(PhysicalSurface.UV(surface,local));
-                var ray=(Matrix)(aim*MatrixD.Invert(surface.Pose));
-                int hit=ray.Translation.Length()<1.25f && VrMath.PanelHit(ray,Matrix.Identity,surface.Width,surface.Height,out var uv) ? surface.KeyAt(uv) : -1;
-                int target=surface.Id=="Seat" ? Hand.SeatTarget(local,key,hit) : hit;
-                bool pointing=pointers[i].Capture(surface.Id,target>=0);
-                var hoverUv=PhysicalSurface.UV(surface,local);
-                int hoverKey=isSwitch && hoverUv.X>=0 && hoverUv.X<=1 && hoverUv.Y>=0 && hoverUv.Y<=1.8f ? 0 : -1;
-                int tap=state.Sample(true,raw,surface.Id,local,key,pointing ? target : -1,isSwitch,hoverKey,triggerOnly,seatMotion);
-                int hover=state.Hover,held=state.Held;
-                if(pointing)
+                Vector3D tip=aim.Translation+aim.Forward*.025;
+                if(TrackedArms.TryFreeFingertip(hand,out var finger)) tip=finger;
+                Vector3D head=SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation;
+                Target chosen=null; int key=-1; float nearest=float.MaxValue;
+                foreach(var target in targets)
                 {
-                    Consume(i);
-                    if(hit>=0 && pointers[i].Preview)
-                    {
-                        float distance=-ray.Translation.Z/ray.Forward.Z;
-                        rayHit[i]=Vector3D.Transform(aim.Translation+aim.Forward*distance,SeatFit.Seat.PositionComp.WorldMatrixNormalizedInv);
-                    }
+                    var s=target.Surface;
+                    if(hands[1-i].Input.Surface==s.Id || Vector3D.Dot(s.Pose.Backward,head-s.Pose.Translation)<=.005) continue;
+                    var point=PhysicalSurface.Point(s,tip);
+                    int candidate=NearKey(s,point,out float distance);
+                    if(candidate<0) continue;
+                    if(h.Hover?.Surface.Id==s.Id && h.HoverKey==candidate) distance-=.003f;
+                    if(distance<nearest) { chosen=target; key=candidate; nearest=distance; }
                 }
-                if(hover>=0 && Hover<0) Hover=hover;
-                if(held>=0 && Held<0) Held=held;
-                if(tap>=0 && clicked<0) { clicked=tap; Actor=hand; RequestedState=state.FlickState; }
-                if(tap>=0 || held>=0 || (surface.Id!="Seat" && hover>=0 && raw))
+                bool pointing=targets.Any(t=>Vector3D.Distance(rawWrist.Translation,t.Surface.Pose.Translation)<.4);
+                if(i==0) RightPointing=pointing; else LeftPointing=pointing;
+                if(chosen!=null && (h.Hover?.Surface.Id!=chosen.Surface.Id || h.HoverKey!=key) && !h.Input.Consumed)
+                    CockpitFeedback.Hover(hand);
+                h.Hover=chosen; h.HoverKey=key;
+                var held=targets.FirstOrDefault(t=>t.Surface.Id==h.Input.Surface);
+                Vector3 motion=Compensate(raw,SeatFit.Offset,h.FitAtGrab);
+                bool reachable=held!=null && Vector3.Distance(motion,h.StartHand)<.28f;
+                bool canAcquire=i==0 ? c.Primary.HasPressed : c.LeftTriggerPressure.Position.X>0;
+                h.Input.Sample(true,pressure,down,chosen?.Surface.Id,key,canAcquire,reachable);
+                if(h.Input.Pressed)
                 {
-                    if(i==0) Controls.Static.Primary.BlockUntilRelease();
-                    else Controls.Static.ThrustUp.BlockUntilRelease();
+                    held=chosen; h.StartHand=raw; h.FitAtGrab=SeatFit.Offset; h.Wrist=localWrist; h.Grabbed=DateTime.UtcNow;
+                    var s=held.Surface; var b=s.Keys[h.Input.Held].Bounds;
+                    Vector3D anchor=Vector3D.Transform(new Vector3D((b.Center.X-.5)*s.Width,(.5-b.Center.Y)*s.Height,0),s.Pose);
+                    h.Anchor=(Vector3)Vector3D.Transform(anchor,seat.PositionComp.WorldMatrixNormalizedInv);
+                    h.StartPosition=held.Position;
+                    if(held.Hinged) h.Drag.Begin(raw,h.Anchor,held.Pivot,held.Axis,held.Position,held.Travel);
+                    CockpitFeedback.Engage(hand);
+                }
+                h.Target=h.Input.Surface!=null ? held : null;
+                if(h.Target?.Hinged==true && !h.Input.Pressed) h.Change=h.Drag.Move(motion);
+                if(h.Input.Consumed)
+                {
+                    h.Hover=h.Target; h.HoverKey=h.Target!=null ? h.Input.Held : -1;
+                    Consume(i);
                 }
             }
-            if(clicked>=0) Actor.Vibrate(0,.03f,100,.3f);
-            return clicked;
         }
-        public static IEnumerable<SurfaceView> RayViews()
+        public static Result Read(string surface)
         {
-            if(Main.MenuOpen || !InputRouter.Gameplay || !SeatFit.Eligible(SeatFit.Seat)) yield break;
+            var result=new Result { Hover=-1,Held=-1 };
             for(int i=0;i<2;i++)
-                if(showRay[i])
+            {
+                var h=hands[i];
+                if(h.Hover?.Surface.Id==surface) result.Hover=h.HoverKey;
+                if(h.Input.Surface!=surface) continue;
+                result.Held=h.Input.Held; result.Hover=result.Held; result.Actor=Controller(i);
+                result.Pressed=h.Input.Pressed;
+                if(h.Target?.Hinged==true)
                 {
-                    var aim=SpatialUi.DeviceWorld((i==0 ? Player.HandR : Player.HandL).AimTracking);
-                    Vector3D end=rayHit[i].HasValue ? Vector3D.Transform(rayHit[i].Value,SeatFit.Seat.WorldMatrix) : aim.Translation+aim.Forward*1.25;
-                    Vector3D delta=end-aim.Translation;
-                    if(delta.LengthSquared()<.000001) continue;
-                    yield return new SurfaceView { Id="CockpitRay"+i,Style=SurfaceStyle.Pointer,
-                        Pose=MatrixD.CreateWorld((aim.Translation+end)*.5,Vector3D.Normalize(delta),Math.Abs(Vector3D.Normalize(delta).Y)<.98 ? Vector3D.Up : Vector3D.Right),
-                        Width=.0018f,Height=(float)delta.Length() };
+                    result.Position=h.Drag.Value;
+                    if(h.Change>=0) result.Requested=h.Change==1;
                 }
+            }
+            return result;
+        }
+        internal static bool TryAttachment(Controller hand,out MatrixD wrist,out Vector3D contact,out float blend)
+        {
+            var h=hands[hand==Player.HandL ? 1 : 0];
+            wrist=MatrixD.Identity; contact=Vector3D.Zero; blend=0;
+            if(h.Input.Surface==null || h.Target==null || !SeatFit.Eligible(SeatFit.Seat)) return false;
+            Vector3 anchor=h.Anchor;
+            if(h.Target.Hinged)
+            {
+                float value=h.Target.Cover ? CockpitButtons.CoverPosition(h.Target.Slot) : CockpitButtons.SwitchPosition(h.Target.Slot);
+                anchor=Vector3.Transform(anchor,CockpitStickMath.Around(h.Target.Pivot,Matrix.CreateFromAxisAngle(h.Target.Axis,(value-h.StartPosition)*h.Target.Travel)));
+            }
+            wrist=(MatrixD)h.Wrist*SeatFit.Seat.WorldMatrix;
+            contact=Vector3D.Transform(anchor,SeatFit.Seat.WorldMatrix);
+            blend=MathHelper.Clamp((float)(DateTime.UtcNow-h.Grabbed).TotalSeconds/.09f,0,1);
+            return true;
+        }
+        internal static MatrixD LabelPose(MatrixD head,Vector3D tip,float width)
+        {
+            var pose=head.GetOrientation();
+            pose.Translation=tip+head.Right*(width/2+.018)+head.Up*-.035;
+            return pose;
+        }
+        public static IEnumerable<SurfaceView> Labels()
+        {
+            if(Main.MenuOpen || !SeatFit.Eligible(SeatFit.Seat)) yield break;
+            for(int i=0;i<2;i++)
+            {
+                var h=hands[i];
+                if(h.Input.Consumed || h.Hover==null) continue;
+                var target=h.Hover;
+                var hand=Controller(i);
+                var aim=SpatialUi.DeviceWorld(hand.AimTracking);
+                Vector3D tip=aim.Translation+aim.Forward*.025;
+                if(TrackedArms.TryFingertip(hand,out var finger)) tip=finger;
+                var head=SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix);
+                var label=CockpitButtons.Label(target,h.HoverKey);
+                label.Id="CockpitLabel"+i; label.Pose=LabelPose(head,tip,label.Width);
+                yield return label;
+            }
         }
     }
 }

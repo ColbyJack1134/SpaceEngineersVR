@@ -7,6 +7,9 @@ namespace SpaceEngineersVR.Player
     internal static class SeatPanel
     {
         internal static readonly string[] IconNames={ "GridPowerOn","Dampeners","Handbrake","Light" };
+        private static readonly string[] labels= { "Seat up","Seat forward","Seat down","Seat left","Center seat","Seat right","Seat back",
+            "Lock stick position","Reset sticks","Power","Dampeners","Park","Ship lights" };
+        internal static string Label(int key) => labels[key];
         internal static SurfaceView View()
         {
             var seat=SeatFit.Seat;

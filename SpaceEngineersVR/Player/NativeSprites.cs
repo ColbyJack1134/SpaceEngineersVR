@@ -26,11 +26,12 @@ namespace SpaceEngineersVR.Player
         public Vector2 Rounded;
         public bool Projected;
         public bool EncodeSrgb;
+        public bool Opaque;
         public Vector4 TopLeft, TopRight, BottomLeft, BottomRight;
         public NativeSprite(string path, RectangleF bounds, Vector4 tint)
         {
             Path=path; Bounds=bounds; Tint=tint; Texture=null; UV=new Vector4(0,0,1,1);
-            EncodeSrgb=false; Projected=false; TopLeft=TopRight=BottomLeft=BottomRight=Vector4.Zero;
+            EncodeSrgb=false; Opaque=false; Projected=false; TopLeft=TopRight=BottomLeft=BottomRight=Vector4.Zero;
             Rounded=Vector2.Zero;
         }
     }
@@ -78,8 +79,9 @@ float4 PS(P p):SV_TARGET {
         if (dot(corner,corner)>1) discard;
     }
     float4 color=Icon.Sample(Linear,p.uv)*Tint;
-    if (DepthTest.w > 0)
+    if (fmod(DepthTest.w,2) > 0)
         color.rgb=lerp(color.rgb*12.92,1.055*pow(max(color.rgb,0),1.0/2.4)-.055,step(.0031308,color.rgb));
+    if (DepthTest.w >= 2) color.a=1;
     return color;
 }";
 
@@ -188,7 +190,7 @@ float4 PS(P p):SV_TARGET {
                 {
                     var texture=sprite.Texture ?? Get(sprite.Path);
                     if (texture==null) continue;
-                    var data=new Parameters { Tint=sprite.Tint,UV=sprite.UV,DepthTest=new Vector4(sceneDepth==null ? 0 : 1,sprite.Rounded.X,sprite.Rounded.Y,sprite.EncodeSrgb ? 1 : 0) };
+                    var data=new Parameters { Tint=sprite.Tint,UV=sprite.UV,DepthTest=new Vector4(sceneDepth==null ? 0 : 1,sprite.Rounded.X,sprite.Rounded.Y,(sprite.EncodeSrgb ? 1 : 0)+(sprite.Opaque ? 2 : 0)) };
                     if (sprite.Projected)
                     {
                         data.TopLeft=sprite.TopLeft; data.TopRight=sprite.TopRight;

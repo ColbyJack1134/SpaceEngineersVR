@@ -38,15 +38,21 @@ namespace SpaceEngineersVR.Patches
         }
         private static bool BeforeScene()
         {
-            if (!Main.VrActive) return true;
+            if (!Main.VrActive) { Player.EyeResolution.Scene.RestoreNative(); return true; }
             try
             {
                 GetPoses();
                 if (!Main.MenuOpen || Main.WorldAvailable)
                     drewStereo = Player.Player.Headset.RenderUpdate();
             }
-            catch (Exception ex) { Player.StereoRenderState.CancelFrame(); Main.Fail(ex, "Stereo rendering stopped; desktop remains available"); }
-            return !drewStereo || !Main.VrActive || !Player.Player.Headset.MirroredDesktop;
+            catch (Exception ex)
+            {
+                Player.StereoRenderState.CancelFrame(); Player.EyeResolution.Scene.RestoreNative();
+                Main.Fail(ex, "Stereo rendering stopped; desktop remains available");
+            }
+            bool native=!drewStereo || !Main.VrActive || !Player.Player.Headset.MirroredDesktop;
+            if(native) Player.EyeResolution.Scene.RestoreNative();
+            return native;
         }
         private static void BeforeSprites()
         {
@@ -73,6 +79,7 @@ namespace SpaceEngineersVR.Patches
         }
         private static void AfterPresent()
         {
+            if(Main.VrActive && drewStereo) Player.RenderPerformance.Sample();
             Player.StereoRenderState.End();
             if (Main.VrActive) OpenVR.Compositor.PostPresentHandoff();
             posesAcquired = drewStereo = false;

@@ -82,7 +82,7 @@ namespace SpaceEngineersVR.Diagnostics
                 }
             var gate=new InputGate(); var touch=new SurfaceTouch();
             ToolbarShortcuts(log);
-            SeatTrigger(log);
+            CockpitCaptureTests.Run(log);
             gate.Update(true,false); gate.Update(true,true); Require(gate.Pressed,"Fresh cockpit/LCD press lost");
             gate.Block(); gate.Update(false,false); gate.Update(true,true); Require(!gate.Pressed,"Held button leaked after screen/owner change");
             Require(touch.Update("screen1",new Vector3(0,0,.01f),0)<0,"Unarmed touch activated on arrival");
@@ -116,58 +116,6 @@ namespace SpaceEngineersVR.Diagnostics
                 if(b.Width<=0) continue;
                 Require(seatView.KeyAt(new Vector2(b.X+b.Width/2,b.Y+b.Height/2))==i,"Seat controls overlap the new lock");
             }
-            // The same actual per-hand state machine drives left and right. A
-            // held trigger/embedded finger cannot cross focus or surface ownership.
-            var hands=new[] { new CockpitTouch.Hand(),new CockpitTouch.Hand() };
-            foreach(var h in hands)
-            {
-                var away=new Vector3(0,0,.2f);
-                Require(h.Sample(true,true,"seat",away,-1,7)<0,"Held trigger activated a newly available seat lock");
-                h.Sample(true,false,"seat",away,-1,7);
-                Require(h.Sample(true,true,"seat",away,-1,7)==7,"Fresh left/right ray press lost");
-                for(int i=0;i<30;i++) Require(h.Sample(true,true,"seat",away,-1,7)<0 && h.Held==7,"Held seat arrow repeats clicks or loses hold");
-                h.Sample(false,true,"seat",away,-1,7);
-                Require(h.Sample(true,true,"seat",away,-1,7)<0,"Menu/tracking return generated a click");
-                h.Sample(true,false,"seat",new Vector3(0,0,.04f),7,-1);
-                Require(h.Sample(true,false,"seat",new Vector3(0,0,.01f),7,-1)==7,"Left/right fingertip poke lost");
-                Require(h.Sample(true,false,"switch",new Vector3(0,0,.01f),0,-1)<0,"Embedded finger activated a new surface");
-            }
-            hands[0].Reset();
-            Require(hands[1].Sample(true,false,"switch",new Vector3(0,0,.04f),0,-1)<0 &&
-                hands[1].Sample(true,false,"switch",new Vector3(0,0,.01f),0,-1)==0,"One hand reset disabled the other");
-            foreach(var contactHand in hands)
-            {
-                contactHand.Reset();
-                var motion=new Vector3(.08f,-.03f,.01f);
-                var panel=new SurfaceView { Width=.108f,Height=.15f,Keys=SeatPanel.Keys(true) };
-                var centre=panel.Keys[5].Bounds.Center;
-                var contact=new Vector3((centre.X-.5f)*panel.Width,(.5f-centre.Y)*panel.Height,.04f);
-                contactHand.Sample(true,false,"Seat",contact,5,-1,seatMotion:motion);
-                contact.Z=.005f;
-                Require(contactHand.Sample(true,false,"Seat",contact,5,-1,seatMotion:motion)==5,"Seat physical press not acquired");
-                for(int frame=0;frame<180;frame++)
-                {
-                    var shifted=motion+new Vector3(frame*.002f,-frame*.0002f,frame*.0001f);
-                    var finger=contact+(shifted-motion); finger.Z-=.05f;
-                    var local=contactHand.ContactPoint(finger,shifted);
-                    int key=panel.KeyAt(PhysicalSurface.UV(panel,local));
-                    Require(contactHand.Sample(true,false,"Seat",local,key,-1,seatMotion:shifted)<0 && contactHand.Held==5,
-                        "Sustained seat push stopped after penetration or its own seat motion");
-                }
-                contactHand.Sample(true,false,"Seat",new Vector3(0,0,.04f),5,-1);
-                Require(contactHand.Held<0,"Seat movement survives finger withdrawal");
-                contactHand.Reset();
-                contactHand.Sample(true,false,"cover",new Vector3(0,0,.04f),0,-1,triggerOnly:true);
-                Require(contactHand.Sample(true,false,"cover",new Vector3(0,0,.005f),0,-1,triggerOnly:true)<0,
-                    "Open cover closes from a finger push");
-                Require(contactHand.Sample(true,true,"cover",new Vector3(0,0,.005f),0,-1,triggerOnly:true)==0,
-                    "Near cover trigger click lost");
-                Require(contactHand.Sample(true,true,"cover",new Vector3(0,0,.005f),0,0,triggerOnly:true)<0,
-                    "Held cover trigger toggles repeatedly");
-                contactHand.Sample(false,true,"cover",Vector3.Zero,0,0,triggerOnly:true);
-                Require(contactHand.Sample(true,true,"cover",Vector3.Zero,0,0,triggerOnly:true)<0,"Cover tracking return accepts held trigger");
-            }
-            log("PASS sustained physical seat movement: 180-frame deep push with accumulated seat motion, withdrawal, both hands; cover closes only on fresh trigger.");
             var config=new PluginConfig { ShipRollSensitivity=.77f,SeatFits=new[] { new SeatFitSetting { Subtype=FighterProfile.Subtype,Y=.1f } },
                 MenuWindows=new[] { new MenuWindowSetting { Screen="Inventory",Width=1.2f,Z=-1.4f,QW=1 } } };
             var serializer=new XmlSerializer(typeof(PluginConfig));
@@ -205,56 +153,6 @@ namespace SpaceEngineersVR.Diagnostics
             gesture.Update(true,true,true,false,cockpit,3,now); gesture.Reset();
             Require(gesture.Update(true,false,false,true,cockpit,3,now.AddSeconds(.1))==ToolbarGesture.Action.None,"Closed wheel retained a pending tap");
             log("PASS switch assignment gesture: contextual tap, both pages, hold-B radial, hover loss and owner/focus/menu cancellation.");
-        }
-        private static void SeatTrigger(Action<string> log)
-        {
-            foreach(int rayKey in new[] {-1,9}) foreach(int button in new[] {0,5,7,10})
-            {
-                var hand=new CockpitTouch.Hand(); var pointer=new PointerIntent();
-                var point=new Vector3(0,0,.04f);
-                int target=CockpitTouch.Hand.SeatTarget(point,button,rayKey);
-                pointer.Begin(true,0,false);
-                hand.Sample(true,false,"Seat",point,button,-1);
-                pointer.Begin(true,.1f,false,true,"Seat");
-                Require(!pointer.Capture("CockpitControl0",true),"Distant switch stole input from nearby seat button");
-                Require(pointer.Capture("Seat",target>=0),"Nearby finger did not capture the seat without a ray hit");
-                pointer.Begin(true,.8f,true,true,"Seat");
-                int clicked=hand.Sample(true,true,"Seat",point,button,pointer.Capture("Seat",true) ? target : -1);
-                Require(clicked==button && hand.Hover==button && hand.Held==button,"Seat click differs from fingertip highlight when ray misses or points at power");
-                for(int i=0;i<120;i++) Require(hand.Sample(true,true,"Seat",point,button,target)<0 && hand.Held==button,
-                    "Held near trigger repeats a toggle or stops seat motion");
-                hand.Sample(true,false,"Seat",point,button,-1);
-                Require(hand.Held<0,"Near trigger release keeps moving seat");
-                hand.Reset();
-                Require(hand.Sample(true,true,"Seat",point,button,target)<0,"Tracking/menu return accepted held near trigger");
-            }
-            Require(CockpitTouch.Hand.SeatTarget(new Vector3(0,0,.2f),5,7)==7,"Far seat interaction lost its ray target");
-            Require(CockpitTouch.Hand.SeatTarget(new Vector3(0,0,-.1f),5,-1)<0,"Finger behind panel activates a button");
-            Require(CockpitTouch.Hand.SeatTarget(new Vector3(0,0,.04f),-1,7)==7,"Panel margin masks valid ray target");
-            var movingHand=new CockpitTouch.Hand();
-            var seat=new SurfaceView { Width=.108f,Height=.120f,Keys=SeatPanel.Keys(true) };
-            var centre=seat.Keys[5].Bounds.Center;
-            var finger=new Vector3((centre.X-.5f)*seat.Width,(.5f-centre.Y)*seat.Height,.04f);
-            movingHand.Sample(true,false,"Seat",finger,5,-1);
-            movingHand.Sample(true,true,"Seat",finger,5,5);
-            for(int frame=0;frame<180;frame++)
-            {
-                var motion=new Vector3(frame*.002f,frame*.0002f,-frame*.0001f);
-                var local=movingHand.ContactPoint(finger+motion,motion);
-                int key=seat.KeyAt(PhysicalSurface.UV(seat,local));
-                movingHand.Sample(true,true,"Seat",local,key,CockpitTouch.Hand.SeatTarget(local,key,-1),seatMotion:motion);
-                Require(movingHand.Held==5,"Nearby trigger hold stopped due to its own seat motion");
-            }
-            movingHand.Sample(true,false,"Seat",finger,5,-1);
-            Require(movingHand.Held<0 && movingHand.ContactPoint(finger,Vector3.One)==finger,"Released near trigger retains seat compensation");
-            var toggle=new CockpitTouch.Hand(); var hover=new Vector3(0,0,.04f); var contact=new Vector3(0,0,.005f);
-            toggle.Sample(true,false,"Seat",hover,9,-1);
-            Require(toggle.Sample(true,true,"Seat",hover,9,9)==9,"Near power press lost");
-            Require(toggle.Sample(true,true,"Seat",contact,9,9)<0,"Trigger then finger contact toggles power twice");
-            toggle.Sample(true,false,"Seat",hover,9,-1);
-            Require(toggle.Sample(true,false,"Seat",contact,9,-1)==9,"New physical press after retraction lost");
-            Require(toggle.Sample(true,true,"Seat",contact,9,9)<0,"Physical press then trigger toggles power twice");
-            log("PASS finger-first seat clicks: ray miss/conflict, cross-panel priority, held movement/toggle, release and tracking gates.");
         }
     }
 }

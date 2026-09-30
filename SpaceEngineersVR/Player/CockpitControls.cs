@@ -22,6 +22,7 @@ namespace SpaceEngineersVR.Player
         private static DateTime leftPulse,rightPulse,grabLeft,grabRight;
         private static Vector3 translation,rotation;
         private static bool leftNear,rightNear;
+        private static readonly CockpitFeedback.ProximityPulse leftHover=new CockpitFeedback.ProximityPulse(),rightHover=new CockpitFeedback.ProximityPulse();
         private static readonly StickPlacement placement=new StickPlacement();
         private static Vector3 leftStartOffset,rightStartOffset,fit;
         public static bool Adjusting => placement.Unlocked;
@@ -43,6 +44,7 @@ namespace SpaceEngineersVR.Player
             if (left.Consumed) BlockTranslation();
             if (right.Consumed) BlockRotation();
             left.Release(); right.Release();
+            leftHover.Sample(false,0,0); rightHover.Sample(false,0,0);
             translation=rotation=Vector3.Zero;
             SetVisuals();
         }
@@ -137,16 +139,22 @@ namespace SpaceEngineersVR.Player
             Matrix l=available ? HandLocal(Player.HandL) : Matrix.Identity;
             Matrix r=available ? HandLocal(Player.HandR) : Matrix.Identity;
             Vector3 lp=WeaponPose.Palm(l),rp=WeaponPose.Palm(r);
-            leftNear=available && Vector3.Distance(lp,Vector3.Transform(FighterProfile.LeftContact,leftVisual))<FighterProfile.CaptureRadius;
-            rightNear=available && Vector3.Distance(rp,Vector3.Transform(FighterProfile.RightContact,rightVisual))<FighterProfile.CaptureRadius;
+            float leftDistance=Vector3.Distance(lp,Vector3.Transform(FighterProfile.LeftContact,leftVisual));
+            float rightDistance=Vector3.Distance(rp,Vector3.Transform(FighterProfile.RightContact,rightVisual));
+            leftNear=available && leftDistance<FighterProfile.CaptureRadius;
+            rightNear=available && rightDistance<FighterProfile.CaptureRadius;
+            if(leftHover.Sample(available,leftDistance,FighterProfile.CaptureRadius,leftDown || left.Consumed || CockpitTouch.Owns(Player.HandL)))
+                CockpitFeedback.Hover(Player.HandL);
+            if(rightHover.Sample(available,rightDistance,FighterProfile.CaptureRadius,rightDown || right.Consumed || CockpitTouch.OwnsRight))
+                CockpitFeedback.Hover(Player.HandR);
             bool leftWas=left.Held,rightWas=right.Held;
-            if (left.Update(available,leftDown,leftNear,!left.Held || Vector3.Distance(lp,WeaponPose.Palm(leftNeutral))<0.45f))
+            if (left.Update(available && !CockpitTouch.Owns(Player.HandL),leftDown,leftNear,!left.Held || Vector3.Distance(lp,WeaponPose.Palm(leftNeutral))<0.45f))
             {
                 grabLeft=DateTime.UtcNow; leftDetents=0;
                 leftStartOffset=placement.Left;
                 leftNeutral=l; BlockTranslation(); Player.HandL.Vibrate(0,0.055f,110,0.5f);
             }
-            if (right.Update(available,rightDown,rightNear,!right.Held || Vector3.Distance(rp,WeaponPose.Palm(rightNeutral))<0.45f))
+            if (right.Update(available && !CockpitTouch.OwnsRight,rightDown,rightNear,!right.Held || Vector3.Distance(rp,WeaponPose.Palm(rightNeutral))<0.45f))
             {
                 grabRight=DateTime.UtcNow; rightDetents=0;
                 rightStartOffset=placement.Right;
@@ -166,6 +174,8 @@ namespace SpaceEngineersVR.Player
             SetVisuals();
             Feedback(Player.HandL,left.Held,translation,ref leftDetents,ref leftPulse);
             Feedback(Player.HandR,right.Held,rotation,ref rightDetents,ref rightPulse);
+            CockpitFeedback.Motion(Player.HandL,left.Held && !Adjusting,translation,DateTime.UtcNow<leftPulse || (DateTime.UtcNow-grabLeft).TotalSeconds<.08);
+            CockpitFeedback.Motion(Player.HandR,right.Held && !Adjusting,rotation,DateTime.UtcNow<rightPulse || (DateTime.UtcNow-grabRight).TotalSeconds<.08);
             if (leftWas && !left.Held) Player.HandL.Vibrate(0,0.025f,75,0.2f);
             if (rightWas && !right.Held) Player.HandR.Vibrate(0,0.025f,75,0.2f);
             RefreshVisuals();

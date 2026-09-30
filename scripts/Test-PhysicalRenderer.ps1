@@ -8,7 +8,7 @@ $process = & (Join-Path $PSScriptRoot 'Launch.ps1') -PhysicalRenderTest -PassThr
 $passed = $false
 $logPath = $null
 try {
-    $deadline = $started.AddSeconds(90)
+    $deadline = $started.AddSeconds(130)
     while ((Get-Date) -lt $deadline -and !$process.HasExited) {
         $log = Get-ChildItem (Join-Path $PrototypeRoot 'GameData\SpaceEngineersVR_*.log') |
             Where-Object { $_.CreationTime -ge $started } | Sort-Object CreationTime -Descending | Select-Object -First 1

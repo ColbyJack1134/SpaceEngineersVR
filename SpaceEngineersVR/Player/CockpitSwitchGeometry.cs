@@ -13,6 +13,7 @@ namespace SpaceEngineersVR.Player
     internal static class CockpitSwitchGeometry
     {
         internal const string Material="Chrome";
+        internal const float Travel=1.05f;
         // Preserve the original four assignments, then use the other exposed levers.
         internal static readonly Vector3[] Centers={
             new Vector3(-.385498f,-.385986f,.075073f),new Vector3(-.389160f,-.390869f,.138367f),
@@ -32,8 +33,9 @@ namespace SpaceEngineersVR.Player
             new Vector3(-.393433f,-.393351f,.117421f),new Vector3(-.395671f,-.396281f,.155660f) };
         internal static readonly Vector3 Normal=Vector3.Normalize(new Vector3(.55f,.83f,.10f));
         internal static readonly Vector3 Up=Vector3.Normalize(Vector3.Cross(Vector3.Backward,Normal));
+        internal static readonly Vector3 Axis=Vector3.Normalize(Vector3.Cross(Normal,Up));
         internal static Matrix Visual(int slot,float value) => CockpitStickMath.Around(Pivots[slot],
-            Matrix.CreateFromAxisAngle(Vector3.Normalize(Vector3.Cross(Normal,Up)),MathHelper.Clamp(value,0,1)*1.05f));
+            Matrix.CreateFromAxisAngle(Axis,MathHelper.Clamp(value,0,1)*Travel));
 
         internal static MyModelData[] Build(Dictionary<string,object> tags) =>
             Partition(tags,Material,4046,Centers,Enumerable.Repeat(56,Centers.Length).ToArray());

@@ -32,6 +32,7 @@ namespace SpaceEngineersVR.Player
         public uint deviceId = OpenVR.k_unTrackedDeviceIndexInvalid;
 
         private readonly ulong hapticsActionHandle;
+        private bool hapticsReported;
         private readonly ulong actionHandle;
 
         public TrackedDevice(string actionName = null, string hapticsName = "/actions/feedback/out/GenericHaptic")
@@ -46,7 +47,9 @@ namespace SpaceEngineersVR.Player
             if (hapticsActionHandle == 0)
                 return;
 
-            OpenVR.Input.TriggerHapticVibrationAction(hapticsActionHandle, delay, duration, frequency, amplitude, OpenVR.k_ulInvalidInputValueHandle);
+            var error=OpenVR.Input.TriggerHapticVibrationAction(hapticsActionHandle, delay, duration, frequency, amplitude, OpenVR.k_ulInvalidInputValueHandle);
+            if(error!=EVRInputError.None && !hapticsReported)
+            { hapticsReported=true; Plugin.Logger.Warning("Controller haptic output failed: "+error); }
         }
 
 

@@ -15,7 +15,7 @@ namespace SpaceEngineersVR.Player
 {
     internal static class WorldMarkers
     {
-        private sealed class Marker
+        internal sealed class Marker
         {
             public Vector3D Position;
             public Vector4 Color;
@@ -23,17 +23,23 @@ namespace SpaceEngineersVR.Player
             public bool Detail;
             public double Distance;
         }
-        private sealed class View { public Marker[] Markers; public DateTime Time; }
+        internal sealed class View
+        {
+            public readonly Marker[] Markers;
+            public readonly DateTime Time;
+            public readonly int Generation;
+            public View(Marker[] markers,DateTime time) { Markers=markers; Time=time; Generation=generation; }
+        }
         private static readonly FieldInfo points = AccessTools.Field(typeof(MyHudMarkerRender), "m_pointsOfInterest");
         private static readonly Type point = AccessTools.Inner(typeof(MyHudMarkerRender), "PointOfInterest");
         private static readonly PropertyInfo position = AccessTools.Property(point,"WorldPosition"),
             name = AccessTools.Property(point,"Text"), kind = AccessTools.Property(point,"POIType"),
             relationship = AccessTools.Property(point,"Relationship"), always = AccessTools.Property(point,"AlwaysVisible");
         private static readonly FieldInfo color = AccessTools.Field(point,"Color");
-        private static volatile View snapshot;
         private static View renderSnapshot;
         private static MatrixD renderHead;
-        private static DateTime nextSample;
+        private static int generation;
+        private static DateTime nextLabels;
         private static readonly List<NativeSprite> sprites = new List<NativeSprite>(64);
         internal const int LabelWidth=512, LabelHeight=96, AtlasWidth=1024, AtlasHeight=1536;
         private static readonly Font font = new Font("Segoe UI",32,FontStyle.Regular,GraphicsUnit.Pixel);
@@ -41,43 +47,48 @@ namespace SpaceEngineersVR.Player
         private static readonly int[] labelWidths = new int[32];
         private static OverlayCanvas labels;
         private static ShaderResourceView labelTexture;
-        private static string labelKey;
+        private static string labelKey,labelNames;
         private static bool failed;
 
         public static void Capture(MyHudMarkerRender renderer)
         {
-            if (failed || !Main.VrActive || DateTime.UtcNow<nextSample) return;
-            nextSample=DateTime.UtcNow.AddMilliseconds(100);
+            if (failed || !Main.VrActive) return;
             try
             {
                 var mode=MyHudMarkerRender.SignalDisplayMode;
-                if (!Main.WorldAvailable || mode==MyHudMarkerRender.SignalMode.Off) { snapshot=null; return; }
-                var markers=new List<Marker>();
+                if (!Main.WorldAvailable) { RenderFrameBridge.CaptureMarkers(null); return; }
                 var head=CameraRig.Current?.Anchor.Translation ?? Sandbox.Game.World.MySector.MainCamera.Position;
-                // Snapshot values before the native renderer clusters and recycles its POIs.
-                foreach (object poi in (IEnumerable)points.GetValue(renderer))
-                {
-                    string type=kind.GetValue(poi).ToString();
-                    if (type=="Target" || type=="OffscreenTarget") continue;
-                    var world=(Vector3D)position.GetValue(poi);
-                    if (!world.IsValid()) continue;
-                    bool pinned=(bool)always.GetValue(poi);
-                    string relation=relationship.GetValue(poi).ToString();
-                    bool gps=type=="GPS" || type=="ContractGPS" || type=="Objective";
-                    string icon=gps ? "gps" : type=="Scenario" ? "scenario" : relation=="Owner" ? "self" :
-                        relation=="Enemies" ? "enemy" : relation=="FactionShare" || relation=="Friends" ? "friendly" : "neutral";
-                    var tint=(VRageMath.Color)color.GetValue(poi);
-                    if (!gps) tint=relation=="Enemies" ? VRageMath.Color.OrangeRed : relation=="Owner" || relation=="FactionShare" || relation=="Friends" ? VRageMath.Color.LightGreen : tint;
-                    string text=name.GetValue(poi)?.ToString() ?? "";
-                    if (mode==MyHudMarkerRender.SignalMode.NoNames && !pinned) text="";
-                    markers.Add(new Marker { Position=world, Color=tint.ToVector4(), Name=text,
-                        Icon=type=="Ore" ? "ore" : @"Textures\HUD\marker_"+icon+".dds",
-                        Detail=pinned || mode==MyHudMarkerRender.SignalMode.FullDisplay,
-                        Distance=Vector3D.Distance(world,head) });
-                }
-                snapshot=new View { Time=DateTime.UtcNow, Markers=markers.OrderByDescending(m=>m.Detail).ThenBy(m=>m.Distance).Take(32).ToArray() };
+                RenderFrameBridge.CaptureMarkers(Read(renderer,mode,head,DateTime.UtcNow));
             }
-            catch (Exception ex) { failed=true; snapshot=null; Logger.Warning(ex,"VR world markers disabled; native desktop markers retained"); }
+            catch (Exception ex) { failed=true; RenderFrameBridge.CaptureMarkers(null); Logger.Warning(ex,"VR world markers disabled; native desktop markers retained"); }
+        }
+
+        internal static View Read(MyHudMarkerRender renderer,MyHudMarkerRender.SignalMode mode,Vector3D head,DateTime now)
+        {
+            if(mode==MyHudMarkerRender.SignalMode.Off) return null;
+            var markers=new List<Marker>();
+            // Snapshot values before the native renderer clusters and recycles its POIs.
+            foreach (object poi in (IEnumerable)points.GetValue(renderer))
+            {
+                string type=kind.GetValue(poi).ToString();
+                if (type=="Target" || type=="OffscreenTarget") continue;
+                var world=(Vector3D)position.GetValue(poi);
+                if (!world.IsValid()) continue;
+                bool pinned=(bool)always.GetValue(poi);
+                string relation=relationship.GetValue(poi).ToString();
+                bool gps=type=="GPS" || type=="ContractGPS" || type=="Objective";
+                string icon=gps ? "gps" : type=="Scenario" ? "scenario" : relation=="Owner" ? "self" :
+                    relation=="Enemies" ? "enemy" : relation=="FactionShare" || relation=="Friends" ? "friendly" : "neutral";
+                var tint=(VRageMath.Color)color.GetValue(poi);
+                if (!gps) tint=relation=="Enemies" ? VRageMath.Color.OrangeRed : relation=="Owner" || relation=="FactionShare" || relation=="Friends" ? VRageMath.Color.LightGreen : tint;
+                string text=name.GetValue(poi)?.ToString() ?? "";
+                if (mode==MyHudMarkerRender.SignalMode.NoNames && !pinned) text="";
+                markers.Add(new Marker { Position=world, Color=tint.ToVector4(), Name=text,
+                    Icon=type=="Ore" ? "ore" : @"Textures\HUD\marker_"+icon+".dds",
+                    Detail=pinned || mode==MyHudMarkerRender.SignalMode.FullDisplay,
+                    Distance=Vector3D.Distance(world,head) });
+            }
+            return new View(markers.OrderByDescending(m=>m.Detail).ThenBy(m=>m.Distance).Take(32).ToArray(),now);
         }
 
         internal static bool Project(Vector3D world, MatrixD view, MatrixD projection, out Vector2 screen)
@@ -92,9 +103,9 @@ namespace SpaceEngineersVR.Player
         }
 
         private static string Distance(double metres) => metres>=1000 ? (metres/1000).ToString("0.0")+" km" : metres.ToString("0")+" m";
-        public static void BeginFrame(MatrixD head)
+        public static void BeginFrame(MatrixD head,View markers)
         {
-            renderSnapshot=snapshot;
+            renderSnapshot=markers?.Generation==generation ? markers : null;
             renderHead=head;
         }
 
@@ -130,23 +141,29 @@ namespace SpaceEngineersVR.Player
             if (failed || !HelmetHud.Markers || Main.MenuOpen || InputRouter.RadialOpen || !Main.WorldAvailable || current==null || current.Markers.Length==0 || (DateTime.UtcNow-current.Time).TotalSeconds>1) return;
             try
             {
-                string key=string.Join("\n",current.Markers.Select(m=>m.Name+"\n"+Distance(m.Distance)));
                 if (labels==null)
                 {
                     labels=new OverlayCanvas("Marker labels",AtlasWidth,AtlasHeight,1,false,mipMaps:true);
                     labelTexture=new ShaderResourceView(Wrappers.MyRender11.DeviceInstance,labels.Texture);
                 }
-                if (labelKey!=key)
+                string names=string.Join("\n",current.Markers.Select(m=>m.Name));
+                // Throttle text rasterization, never moving world coordinates.
+                if(names!=labelNames || DateTime.UtcNow>=nextLabels)
                 {
-                    labels.Clear(Color.Transparent);
-                    for (int i=0;i<current.Markers.Length;i++)
+                    nextLabels=DateTime.UtcNow.AddMilliseconds(100); labelNames=names;
+                    string key=string.Join("\n",current.Markers.Select(m=>m.Name+"\n"+Distance(m.Distance)));
+                    if(labelKey!=key)
                     {
-                        var marker=current.Markers[i];
-                        labelWidths[i]=PaintLabel(labels.Graphics,marker.Name,Distance(marker.Distance),i);
+                        labels.Clear(Color.Transparent);
+                        for (int i=0;i<current.Markers.Length;i++)
+                        {
+                            var marker=current.Markers[i];
+                            labelWidths[i]=PaintLabel(labels.Graphics,marker.Name,Distance(marker.Distance),i);
+                        }
+                        labels.Upload();
+                        Wrappers.MyRender11.DeviceInstance.ImmediateContext.GenerateMips(labelTexture);
+                        labelKey=key;
                     }
-                    labels.Upload();
-                    Wrappers.MyRender11.DeviceInstance.ImmediateContext.GenerateMips(labelTexture);
-                    labelKey=key;
                 }
                 sprites.Clear();
                 for (int i=0;i<current.Markers.Length;i++)
@@ -160,6 +177,6 @@ namespace SpaceEngineersVR.Player
             }
             catch (Exception ex) { failed=true; Logger.Warning(ex,"VR marker drawing disabled"); }
         }
-        public static void Reset() { snapshot=null; nextSample=DateTime.MinValue; }
+        public static void Reset() { generation++; RenderFrameBridge.CaptureMarkers(null); }
     }
 }

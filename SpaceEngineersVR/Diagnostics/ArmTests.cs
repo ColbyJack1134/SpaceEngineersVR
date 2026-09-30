@@ -66,8 +66,9 @@ namespace SpaceEngineersVR.Diagnostics
             }
             log("PASS tracked arms: 1,000 mirrored engine-bone poses in fixed and adaptive modes, accurate controller reach, bounded shoulders, twist chains, wrist orientation, singular/invalid targets");
             RecordedWatchPose(log);
+            CockpitHandTests.Run(log);
         }
-        private static void RecordedWatchPose(Action<string> log)
+        internal static MyCharacterBone[] InstalledBones()
         {
             string content=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(MyCharacterBone).Assembly.Location),"..","Content"));
             var importer=new MyModelImporter();
@@ -81,6 +82,11 @@ namespace SpaceEngineersVR.Diagnostics
                 bones[i]=new MyCharacterBone((string)CockpitRender.Member(n,"Name"),parent<0 ? null : bones[parent],
                     (Matrix)CockpitRender.Member(n,"Transform"),i,relative,absolute);
             }
+            return bones;
+        }
+        private static void RecordedWatchPose(Action<string> log)
+        {
+            var bones=InstalledBones();
             var palm=bones.Single(b=>b.Name=="SE_RigLPalm");
             var lower=bones.Single(b=>b.Name=="SE_RigLForearm1"); var upper=lower.Parent;
             // First watch pose captured during the September 29 playtest.
