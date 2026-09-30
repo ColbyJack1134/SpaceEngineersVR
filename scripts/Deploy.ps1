@@ -1,12 +1,15 @@
-param([string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype'))
+param(
+    [string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype'),
+    [ValidateSet('Debug','Release')][string]$Configuration = 'Debug'
+)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 if (Get-Process Legacy,SpaceEngineers,SEVR.Diagnostics -ErrorAction SilentlyContinue) {
     throw 'Close the game and diagnostics before deployment. No process was stopped.'
 }
 $targets = @(
-    @{ Source=(Join-Path $repo 'SpaceEngineersVR\bin\Debug\net48'); Target=(Join-Path $PrototypeRoot 'Pulsar\Legacy\Local\SpaceEngineersVR'); Name='Plugin' },
-    @{ Source=(Join-Path $repo 'tools\SEVR.Diagnostics\bin\Debug\net48'); Target=(Join-Path $PrototypeRoot 'Diagnostics'); Name='Diagnostics' }
+    @{ Source=(Join-Path $repo "SpaceEngineersVR\bin\$Configuration\net48"); Target=(Join-Path $PrototypeRoot 'Pulsar\Legacy\Local\SpaceEngineersVR'); Name='Plugin' },
+    @{ Source=(Join-Path $repo "tools\SEVR.Diagnostics\bin\$Configuration\net48"); Target=(Join-Path $PrototypeRoot 'Diagnostics'); Name='Diagnostics' }
 )
 foreach ($target in $targets) {
     foreach ($asset in @('SpaceEngineersVR.dll', 'openvr_api.dll', 'SEVRAssets\Controls\actions.json')) {
