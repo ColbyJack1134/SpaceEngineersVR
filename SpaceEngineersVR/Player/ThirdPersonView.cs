@@ -130,7 +130,10 @@ namespace SpaceEngineersVR.Player
             lock(sync)
             {
                 inputTime=Stopwatch.GetTimestamp();
-                started=view.Input(allowed,left,right);
+                bool flight=c.Primary.IsPressed || c.Secondary.IsPressed || c.ThrustRoll.IsPressed ||
+                    c.ThrustLRFB.Position!=Vector2.Zero || c.ThrustLRUD.Position!=Vector2.Zero || c.ThrustRotate.Position!=Vector2.Zero ||
+                    c.ThrustUp.Position.X!=0 || c.ThrustDown.Position.X!=0 || c.ThrustForward.Position.X!=0 || c.ThrustBackward.Position.X!=0;
+                started=view.Input(allowed,left,right,flight);
                 if(view.Held) consumed=true;
             }
             if(started)

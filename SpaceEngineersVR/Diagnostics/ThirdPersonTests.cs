@@ -80,6 +80,7 @@ namespace SpaceEngineersVR.Diagnostics
             Require(RenderFrameBridge.ForCurrentOwner(null)==null,"Third-person packet survived exit");
             RotationAndFollow(log);
             RenderCadence(log);
+            DioramaMotionTests.Run(log);
             log("PASS third-person stereo/head scale, large-world precision, two/one-hand pivot capture, partial release, no drift, tracking cancellation, recenter continuity and render handoff.");
         }
         private static MatrixD MovedHand(MatrixD hand,Vector3D pivot,MatrixD rotation,double scale,Vector3D shift)
@@ -171,18 +172,21 @@ namespace SpaceEngineersVR.Diagnostics
                 l=a; r=b; l.Translation+=new Vector3D(mainTime*.2,0,0); r.Translation+=new Vector3D(mainTime*.2,0,0);
                 delayed.Move(l,r,0);
                 double step=fresh.Center.X-oldFresh.X;
-                if(frame>20)
+                if(frame>45)
                 {
                     if(step<1e-6) freshStalls++;
                     if(delayed.Center.X-oldDelayed.X<1e-6) delayedStalls++;
-                    worstStepError=Math.Max(worstStepError,Math.Abs(step-.2/90));
+                    worstStepError=Math.Max(worstStepError,Math.Abs(step-.24/90));
                 }
                 oldFresh=fresh.Center; oldDelayed=delayed.Center;
             }
             Require(freshStalls==0 && delayedStalls>40 && worstStepError<.00001,"Fresh-pose drag still has simulation-cadence steps");
+            var stoppedLeft=a; var stoppedRight=b;
+            stoppedLeft.Translation+=new Vector3D(.4,0,0); stoppedRight.Translation+=new Vector3D(.4,0,0);
             fresh.Input(true,0,0); var stopped=fresh.Center;
+            fresh.Move(stoppedLeft,stoppedRight,1d/90);
             for(int i=0;i<90;i++) fresh.Move(a,b,1d/90);
-            Near(fresh.Center,stopped,"Filter coasted after grip release");
+            Near(fresh.Center,stopped,"Stationary release caught up with the filter");
             var noise=new Diorama(); noise.Fit(20,MatrixD.Identity,new Vector3D(0,0,-1));
             noise.Input(true,0,0); noise.Input(true,1,1); noise.Move(a,b,0);
             double filteredNoise=0,rawNoise=0; var previous=noise.Center;
@@ -195,7 +199,7 @@ namespace SpaceEngineersVR.Diagnostics
                 previous=noise.Center;
             }
             Require(filteredNoise<rawNoise*.4,"Gesture filter did not attenuate hand noise");
-            log($"PASS drag replay at 90 Hz render / 60 Hz simulation: old pose path stalled {delayedStalls} frames; fresh path {freshStalls}; noise RMS ratio {Math.Sqrt(filteredNoise/rawNoise):F2}; immediate release without drift. Replay does not establish headset comfort.");
+            log($"PASS drag replay at 90 Hz render / 60 Hz simulation: old pose path stalled {delayedStalls} frames; fresh path {freshStalls}; noise RMS ratio {Math.Sqrt(filteredNoise/rawNoise):F2}; stationary release without drift. Replay does not establish headset comfort.");
         }
     }
 }

@@ -17,10 +17,16 @@ namespace SpaceEngineersVR.Player.Control
         public double UnitsPerMeter { get; private set; }=1;
         public MatrixD Orientation { get; private set; }=MatrixD.Identity;
         public Vector3D Center { get; private set; }
-        private MatrixD left,right,rawLeft,rawRight;
-        private bool armed,poseReady;
+        private MatrixD rawLeft,rawRight;
+        private bool armed,poseReady,releasePending;
+        private int sampledHands;
+        private Vector3D panVelocity,rotationVelocity,coastPan,coastPivot,splitPanVelocity,splitPivot;
+        private double zoomVelocity,coastZoom,coastAge,splitZoomVelocity,splitAge;
+        private const double PanGain=1.2,ZoomGain=1.35,RotationGain=1.45,CoastTime=.48,CoastDuration=1.8,SplitReleaseTime=.1;
+        private const double PanReleaseGain=.8,ZoomReleaseGain=1.5,ReleaseGain=.85;
         public int Hands { get; private set; }
         public bool Held => Hands!=0;
+        public bool Coasting => coastPan.LengthSquared()>0 || coastZoom!=0;
         public double LastTranslation { get; private set; }
         public double LastRotation { get; private set; }
 
@@ -30,7 +36,17 @@ namespace SpaceEngineersVR.Player.Control
             Orientation=orientation.GetOrientation(); Center=center;
             Cancel();
         }
-        public void Cancel() { Hands=0; armed=poseReady=false; }
+        public void Cancel()
+        {
+            Hands=sampledHands=0; armed=poseReady=false;
+            panVelocity=rotationVelocity=Vector3D.Zero; zoomVelocity=0; Brake();
+        }
+        private void Brake()
+        {
+            releasePending=false; coastPan=Vector3D.Zero; coastZoom=coastAge=0;
+            ClearSplitRelease();
+        }
+        private void ClearSplitRelease() { splitZoomVelocity=splitAge=0; splitPanVelocity=splitPivot=Vector3D.Zero; }
         public MatrixD Anchor(Vector3D target) => Anchor(target,MatrixD.Identity);
         public MatrixD Anchor(Vector3D target,MatrixD reference)
         {
@@ -50,12 +66,19 @@ namespace SpaceEngineersVR.Player.Control
             Orientation=VrMath.Rigid(MatrixD.Transpose(change.GetOrientation())*Orientation);
             Cancel();
         }
-        public bool Input(bool available,float leftPressure,float rightPressure)
+        public bool Input(bool available,float leftPressure,float rightPressure,bool flightActive=false)
         {
             if(!available || float.IsNaN(leftPressure) || float.IsNaN(rightPressure)) { Cancel(); return false; }
             int next=(leftPressure>.025f ? 1:0)|(rightPressure>.025f ? 2:0);
-            if(next==0) { Hands=0; poseReady=false; armed=true; return false; }
+            if(next==0)
+            {
+                if(Held) releasePending=sampledHands!=0;
+                Hands=0; poseReady=false; armed=true;
+                if(flightActive) Brake();
+                return false;
+            }
             bool start=!Held;
+            if(start) Brake();
             if(start && (!armed || leftPressure<=.55f || rightPressure<=.55f)) return false;
             if(next!=Hands) poseReady=false;
             Hands=next; armed=false;
@@ -64,54 +87,142 @@ namespace SpaceEngineersVR.Player.Control
         public bool Move(MatrixD newLeft,MatrixD newRight,double seconds)
         {
             LastTranslation=LastRotation=0;
-            if(!Held) return false;
+            if(!Held && !releasePending && !Coasting) return false;
             if(!newLeft.Translation.IsValid() || !newRight.Translation.IsValid()) { Cancel(); return false; }
+            if(double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds<0) { Cancel(); return false; }
+            int trackedHands=splitZoomVelocity!=0 ? 3 : sampledHands;
+            if(trackedHands!=0 &&
+                (((trackedHands&1)!=0 && Discontinuous(rawLeft,newLeft)) || ((trackedHands&2)!=0 && Discontinuous(rawRight,newRight))))
+            { Cancel(); return false; }
+            if(seconds>.1) { Brake(); poseReady=false; panVelocity=rotationVelocity=Vector3D.Zero; zoomVelocity=0; }
+            if(!Held)
+            {
+                if(releasePending) Release(newLeft,newRight,seconds);
+                sampledHands=0;
+                return Coast(seconds);
+            }
             if(!poseReady)
             {
-                left=rawLeft=newLeft; right=rawRight=newRight; poseReady=true;
+                if(sampledHands==3 && Hands!=3 && ZoomRelease(zoomVelocity,newLeft,newRight,seconds)!=0)
+                {
+                    // Keep the two-hand throw briefly while the grip buttons release at different times.
+                    splitZoomVelocity=zoomVelocity; splitPanVelocity=panVelocity; splitAge=0;
+                    splitPivot=HandCenter(newLeft,newRight,3);
+                }
+                else ClearSplitRelease();
+                rawLeft=newLeft; rawRight=newRight; poseReady=true;
+                sampledHands=Hands; panVelocity=rotationVelocity=Vector3D.Zero; zoomVelocity=0;
                 return false;
             }
-            if(((Hands&1)!=0 && Discontinuous(rawLeft,newLeft)) || ((Hands&2)!=0 && Discontinuous(rawRight,newRight)))
-            { Cancel(); return false; }
-            var filteredLeft=Filter(left,newLeft,seconds);
-            var filteredRight=Filter(right,newRight,seconds);
+            if(splitZoomVelocity!=0)
+            {
+                splitAge+=seconds;
+                if(splitAge>SplitReleaseTime || ZoomRelease(splitZoomVelocity,newLeft,newRight,seconds)==0) ClearSplitRelease();
+            }
+            var pan=HandCenter(newLeft,newRight,Hands)-HandCenter(rawLeft,rawRight,Hands);
+            double beforeSpan=Vector3D.Distance(rawLeft.Translation,rawRight.Translation);
+            double afterSpan=Vector3D.Distance(newLeft.Translation,newRight.Translation);
+            bool scaling=Hands==3 && beforeSpan>=.08 && afterSpan>=.08;
+            double zoom=scaling ? Math.Log(afterSpan/beforeSpan) : 0;
+            var rotation=scaling ? RotationVector(PairRotation(rawLeft,rawRight,newLeft,newRight)) : Vector3D.Zero;
+            var pivot=HandCenter(rawLeft,rawRight,Hands);
+            if(seconds>0)
+            {
+                var speed=pan/seconds;
+                double rate=zoom/seconds;
+                pan=Smooth(ref panVelocity,speed,seconds,.065-.025*MathHelper.Clamp(speed.Length()/.5,0,1))*PanGain;
+                if(scaling)
+                {
+                    var velocity=new Vector3D(zoomVelocity,0,0);
+                    zoom=Smooth(ref velocity,new Vector3D(rate,0,0),seconds,.08-.03*MathHelper.Clamp(Math.Abs(rate),0,1)).X*ZoomGain;
+                    zoomVelocity=velocity.X;
+                }
+                else zoomVelocity=0;
+                rotation=Smooth(ref rotationVelocity,rotation*(RotationGain/seconds),seconds,.075);
+            }
+            else { panVelocity=rotationVelocity=Vector3D.Zero; zoomVelocity=0; }
             rawLeft=newLeft; rawRight=newRight;
             var oldCenter=Center;
             if(Hands==3)
             {
-                var oldMid=(left.Translation+right.Translation)*.5;
-                var newMid=(filteredLeft.Translation+filteredRight.Translation)*.5;
-                var before=right.Translation-left.Translation;
-                var after=filteredRight.Translation-filteredLeft.Translation;
-                double scale=1;
-                var rotation=MatrixD.Identity;
-                if(before.Length()>=.08 && after.Length()>=.08)
-                {
-                    double nextScale=MathHelper.Clamp(UnitsPerMeter*before.Length()/after.Length(),MinScale,MaxScale);
-                    scale=UnitsPerMeter/nextScale; UnitsPerMeter=nextScale;
-                    rotation=PairRotation(before,after,left,right,filteredLeft,filteredRight);
-                }
-                Center=Vector3D.TransformNormal(Center-oldMid,rotation)*scale+newMid;
-                Orientation=VrMath.Rigid(MatrixD.Transpose(rotation)*Orientation);
-                var q=QuaternionD.CreateFromRotationMatrix(rotation);
-                LastRotation=2*Math.Acos(Math.Min(1,Math.Abs(q.W)));
+                double angle=rotation.Length();
+                var turn=angle>1e-12 ? MatrixD.CreateFromAxisAngle(rotation/angle,angle) : MatrixD.Identity;
+                Center=Vector3D.TransformNormal(Center-pivot,turn)*Scale(zoom)+pivot+pan;
+                Orientation=VrMath.Rigid(MatrixD.Transpose(turn)*Orientation);
+                LastRotation=angle;
             }
-            else Center+=Hands==1 ? filteredLeft.Translation-left.Translation : filteredRight.Translation-right.Translation;
+            else Center+=pan;
             LastTranslation=Vector3D.Distance(Center,oldCenter);
-            left=filteredLeft; right=filteredRight;
             return true;
         }
-        private static MatrixD Filter(MatrixD previous,MatrixD next,double seconds)
+        private static Vector3D RotationVector(MatrixD rotation)
         {
-            if(seconds<=0) return next;
-            seconds=Math.Min(seconds,.05);
-            double speed=Vector3D.Distance(previous.Translation,next.Translation)/seconds;
-            double alpha=1-Math.Exp(-seconds/(.018-.012*MathHelper.Clamp(speed/.5,0,1)));
-            var a=QuaternionD.CreateFromRotationMatrix(previous);
-            var b=QuaternionD.CreateFromRotationMatrix(next);
-            var result=MatrixD.CreateFromQuaternion(QuaternionD.Slerp(a,b,alpha));
-            result.Translation=Vector3D.Lerp(previous.Translation,next.Translation,alpha);
-            return result;
+            var q=QuaternionD.CreateFromRotationMatrix(rotation);
+            var vector=new Vector3D(q.X,q.Y,q.Z);
+            double length=vector.Length();
+            return length<1e-12 ? Vector3D.Zero : vector*((q.W<0 ? -1:1)*2*Math.Atan2(length,Math.Abs(q.W))/length);
+        }
+        private static Vector3D HandCenter(MatrixD a,MatrixD b,int hands) =>
+            hands==3 ? (a.Translation+b.Translation)*.5 : hands==1 ? a.Translation : b.Translation;
+        private static Vector3D Smooth(ref Vector3D velocity,Vector3D target,double seconds,double time)
+        {
+            double decay=Math.Exp(-seconds/time);
+            var delta=target*seconds+(velocity-target)*(time*(1-decay));
+            velocity=target+(velocity-target)*decay;
+            return delta;
+        }
+        private double Scale(double zoom)
+        {
+            double next=MathHelper.Clamp(UnitsPerMeter*Math.Exp(-zoom),MinScale,MaxScale);
+            double scale=UnitsPerMeter/next; UnitsPerMeter=next;
+            if(next==MinScale || next==MaxScale) zoomVelocity=coastZoom=0;
+            return scale;
+        }
+        private void Release(MatrixD newLeft,MatrixD newRight,double seconds)
+        {
+            if(seconds<=0 || sampledHands==0) { Brake(); return; }
+            bool split=splitZoomVelocity!=0 && splitAge+seconds<=SplitReleaseTime;
+            int hands=split ? 3:sampledHands;
+            // Use the fresh release pose so filter catch-up cannot turn a stopped hand into a throw.
+            var speed=(HandCenter(newLeft,newRight,hands)-HandCenter(rawLeft,rawRight,hands))/seconds;
+            var pan=PanRelease(split ? splitPanVelocity:panVelocity,speed);
+            double zoom=hands==3 ? ZoomRelease(split ? splitZoomVelocity:zoomVelocity,newLeft,newRight,seconds):0;
+            var pivot=split ? splitPivot : HandCenter(newLeft,newRight,hands);
+            Brake(); coastPan=pan*ReleaseGain; coastZoom=zoom*ReleaseGain; coastPivot=pivot;
+            panVelocity=rotationVelocity=Vector3D.Zero; zoomVelocity=0;
+        }
+        private static Vector3D PanRelease(Vector3D velocity,Vector3D speed)
+        {
+            velocity*=PanReleaseGain;
+            double length=speed.Length(),filtered=velocity.Length();
+            return length>.04 && filtered>.02 && Vector3D.Dot(speed,velocity)>0 ?
+                velocity/filtered*Math.Min(.8,Math.Min(filtered,length*PanReleaseGain))*MathHelper.Clamp((length-.04)/.04,0,1) : Vector3D.Zero;
+        }
+        private double ZoomRelease(double velocity,MatrixD newLeft,MatrixD newRight,double seconds)
+        {
+            if(seconds<=0) return 0;
+            velocity*=ZoomReleaseGain;
+            double before=Vector3D.Distance(rawLeft.Translation,rawRight.Translation);
+            double after=Vector3D.Distance(newLeft.Translation,newRight.Translation);
+            if(before>=.08 && after>=.08)
+            {
+                double rate=Math.Log(after/before)/seconds;
+                if(Math.Abs(rate)>.08 && Math.Abs(velocity)>.04 && rate*velocity>0)
+                    return Math.Sign(rate)*Math.Min(1,Math.Min(Math.Abs(velocity),Math.Abs(rate)*ZoomReleaseGain))*MathHelper.Clamp((Math.Abs(rate)-.08)/.08,0,1);
+            }
+            return 0;
+        }
+        private bool Coast(double seconds)
+        {
+            if(!Coasting || seconds<=0) return false;
+            double step=Math.Min(seconds,CoastDuration-coastAge),decay=Math.Exp(-step/CoastTime);
+            var pan=coastPan*(CoastTime*(1-decay));
+            var before=Center;
+            Center=(Center-coastPivot)*Scale(coastZoom*CoastTime*(1-decay))+coastPivot+pan;
+            coastPivot+=pan; coastPan*=decay; coastZoom*=decay; coastAge+=step;
+            LastTranslation=Vector3D.Distance(Center,before);
+            if(coastAge>=CoastDuration) Brake();
+            return true;
         }
         private static bool Discontinuous(MatrixD before,MatrixD after)
         {
@@ -120,8 +231,10 @@ namespace SpaceEngineersVR.Player.Control
             return Vector3D.Distance(before.Translation,after.Translation)>.35 ||
                 Math.Abs(a.X*b.X+a.Y*b.Y+a.Z*b.Z+a.W*b.W)<.707;
         }
-        private static MatrixD PairRotation(Vector3D before,Vector3D after,MatrixD oldLeft,MatrixD oldRight,MatrixD newLeft,MatrixD newRight)
+        private static MatrixD PairRotation(MatrixD oldLeft,MatrixD oldRight,MatrixD newLeft,MatrixD newRight)
         {
+            var before=oldRight.Translation-oldLeft.Translation;
+            var after=newRight.Translation-newLeft.Translation;
             before.Normalize(); after.Normalize();
             var axis=Vector3D.Cross(before,after);
             double dot=MathHelper.Clamp(Vector3D.Dot(before,after),-1,1);
