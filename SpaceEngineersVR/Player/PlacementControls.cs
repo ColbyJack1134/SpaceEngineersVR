@@ -47,7 +47,6 @@ namespace SpaceEngineersVR.Player
         public static void PreviewClipboard()
         {
             if (!ClipboardActive) NativeActions.Pulse(MyControlsSpace.PASTE_OBJECT);
-            else EssentialHud.Notify("Preview already active. Trigger pastes; grip cancels.");
         }
         public static void FreeRotation() { if (ClipboardActive) NativeActions.Pulse(MyControlsSpace.FREE_ROTATION); }
     }

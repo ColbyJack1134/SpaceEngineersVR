@@ -163,10 +163,14 @@ namespace SpaceEngineersVR.Player
                 var list=((IEnumerable)listField.GetValue(manager)).Cast<object>().ToArray();
                 foreach(var stale in screens.Keys.Where(k=>!list.Contains(k)).ToArray()) screens.Remove(stale);
                 foreach(var value in list) if(!screens.ContainsKey(value)) screens.Add(value,new Screen(value));
+                // A held native trigger is firing; screen-owned squeezes already blocked that gate.
+                bool firing=SeatFit.Eligible(SeatFit.Seat) && Controls.Static.Primary.IsPressed && !Controls.Static.Primary.HasPressed;
                 bool allowed=(bool)enabledProperty.GetValue(session) && Main.VrActive && !ThirdPersonView.Active && InputRouter.Gameplay && !Main.MenuOpen && MenuPointer.GameFocused &&
+                    !firing &&
                     MySession.Static?.LocalCharacter?.IsDead==false && MySession.Static.LocalCharacter.CurrentWeapon==null &&
                     Player.Headset.pose.isTracked && Player.HandR.pose.isTracked && Player.HandL.pose.isTracked &&
-                    !CockpitControls.Adjusting && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandL) && !CockpitControls.Held(Player.HandR) && !PlacementControls.OwnsTools;
+                    !CockpitControls.Adjusting && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandL) && !CockpitControls.Held(Player.HandR) &&
+                    !PlacementControls.OwnsTools;
                 Screen best=null; SurfaceView bestPlane=null; float bestDistance=float.MaxValue; Vector3D intersection=Vector3D.Zero;
                 MatrixD aim=SpatialUi.DeviceWorld(Player.HandR.AimTracking); rayOrigin=aim.Translation;
                 Vector3D tip=aim.Translation+aim.Forward*.025;

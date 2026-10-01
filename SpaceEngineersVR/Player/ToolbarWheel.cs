@@ -52,7 +52,8 @@ namespace SpaceEngineersVR.Player
                 if (InputRouter.RadialOpen) Close();
                 if (InputRouter.Gameplay && controls.Unequip.HasPressed)
                 {
-                    if(CockpitButtons.HoveredSwitch>=0) CockpitActions.Configure(CockpitButtons.HoveredSwitch);
+                    if(ThirdPersonView.Active) ThirdPersonView.Toggle();
+                    else if(CockpitButtons.HoveredSwitch>=0) CockpitActions.Configure(CockpitButtons.HoveredSwitch);
                     else GameActions.Execute(GameActions.ConfigureToolbarAction);
                 }
                 return;
@@ -88,7 +89,6 @@ namespace SpaceEngineersVR.Player
                         else if(result==SlotResult.Activated)
                         {
                             GameActions.Reset();
-                            EssentialHud.Notify(chosenToolbar.GetItemAtSlot(chosen)?.DisplayName?.ToString());
                             InputRouter.Update();
                         }
                     }
@@ -118,8 +118,9 @@ namespace SpaceEngineersVR.Player
             }
             var action=gesture.Update(InputRouter.Gameplay && !Main.MenuOpen,
                 controls.Unequip.HasPressed,controls.Unequip.IsPressed,controls.Unequip.HasReleased,
-                MySession.Static?.ControlledEntity,CockpitButtons.HoveredSwitch,DateTime.UtcNow);
+                MySession.Static?.ControlledEntity,CockpitButtons.HoveredSwitch,DateTime.UtcNow,ThirdPersonView.Active);
             if(action==ToolbarGesture.Action.None) return;
+            if(action==ToolbarGesture.Action.FirstPerson) { ThirdPersonView.Toggle(); InputRouter.Update(); return; }
             if(action==ToolbarGesture.Action.AssignSwitch) { CockpitActions.Configure(gesture.Switch); InputRouter.Update(); return; }
             if(action==ToolbarGesture.Action.Unequip) { GameActions.Unequip(); InputRouter.Update(); return; }
             owner = MySession.Static.ControlledEntity;
@@ -233,10 +234,16 @@ namespace SpaceEngineersVR.Player
                 }
                 // Anchor motion uses every predicted render pose; texture content can update at 10Hz.
                 MatrixD anchor=(MatrixD)HandPose(Player.HandR.RenderGripTracking,Player.Headset.renderPose.deviceToAbsolute.matrix)*trackingToWorld;
-                var sprite=PhysicalSurface.Quad(texture,anchor,new VRageMath.RectangleF(-.26f,.26f,.52f,.52f),new Vector4(0,0,1,1),Vector4.One,viewMatrix,projection);
+                var sprite=Sprite(texture,anchor,viewMatrix,projection);
                 NativeSprites.Draw(target,new[] { sprite },PhysicalSurface.SceneDepth());
             }
             catch (Exception ex) { failed = true; Logger.Warning(ex, "Toolbar wheel rendering disabled"); canvas?.Hide(); }
+        }
+        internal static NativeSprite Sprite(ShaderResourceView texture,MatrixD anchor,MatrixD view,MatrixD projection)
+        {
+            var sprite=PhysicalSurface.Quad(texture,anchor,new VRageMath.RectangleF(-.26f,.26f,.52f,.52f),new Vector4(0,0,1,1),Vector4.One,view,projection);
+            sprite.IgnoreSceneDepth=true;
+            return sprite;
         }
         internal static void Paint(OverlayCanvas target, View current)
         {

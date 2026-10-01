@@ -19,11 +19,12 @@ namespace SpaceEngineersVR.Diagnostics
         {
             rows.Clear(); frames=0; start=DateTime.UtcNow.AddSeconds(3); deadline=start.AddSeconds(3);
             rows.Add("time,hand,frame,x,y,z,right_x,right_y,right_z,up_x,up_y,up_z,back_x,back_y,back_z");
-            EssentialHud.Notify("Arm capture starts in 3 seconds; hold the pose.");
+            PerformanceHud.Notify("Arm capture starts in 3 seconds; hold the pose.",10);
         }
         internal static void Record(MyCharacter character,Controller hand,MyCharacterBone upper,MyCharacterBone lower,MyCharacterBone palm)
         {
             if(rows.Count==0 || DateTime.UtcNow<start) return;
+            if(frames==0) PerformanceHud.Notify("Recording arm pose; hold still.",10);
             string side=hand==Player.Player.HandL ? "left" : "right";
             void Add(string name,MatrixD m)
             {
@@ -40,9 +41,13 @@ namespace SpaceEngineersVR.Diagnostics
             try
             {
                 File.WriteAllLines(Path.Combine(MyFileSystem.UserDataPath,"SEVR-arm-poses.csv"),rows);
-                EssentialHud.Notify("Arm pose capture saved.");
+                PerformanceHud.Notify("Arm pose capture saved.");
             }
-            catch(Exception ex) { Plugin.Logger.Warning(ex,"Arm pose capture could not be written"); }
+            catch(Exception ex)
+            {
+                Plugin.Logger.Warning(ex,"Arm pose capture could not be written");
+                PerformanceHud.Notify("Arm pose capture could not be saved.");
+            }
             finally { rows.Clear(); }
         }
     }

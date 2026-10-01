@@ -11,6 +11,7 @@ namespace SpaceEngineersVR.Patches
         private static bool posesAcquired;
         private static bool drewStereo;
         private static bool reportedCameraFrame;
+        private static long presentStart;
         public static void Install(Harmony harmony)
         {
             Type type = AccessTools.TypeByName("VRageRender.MyRender11");
@@ -38,10 +39,11 @@ namespace SpaceEngineersVR.Patches
         }
         private static bool BeforeScene()
         {
-            if (!Main.VrActive) { Player.EyeResolution.Scene.RestoreNative(); return true; }
+            if (!Main.VrActive) { Player.GpuTiming.Reset(); Player.EyeResolution.Scene.RestoreNative(); return true; }
             try
             {
                 GetPoses();
+                if(Main.WorldAvailable && !Main.MenuOpen) Player.GpuTiming.BeginFrame();
                 if (!Main.MenuOpen || Main.WorldAvailable)
                     drewStereo = Player.Player.Headset.RenderUpdate();
             }
@@ -65,21 +67,29 @@ namespace SpaceEngineersVR.Patches
         }
         private static void BeforePresent()
         {
+            presentStart=0;
             if (!Main.VrActive) return;
             try
             {
                 GetPoses();
+                Player.GpuTiming.Begin(Player.GpuTiming.Area.Hud);
                 Player.NativeSprites.Poll();
                 VRGUIManager.Draw();
                 Player.EssentialHud.Draw();
+                Player.HelmetHud.DrawTransition();
                 Player.BuildOrientationHud.Draw();
+                Player.PerformanceHud.Draw();
                 if (!drewStereo) VRGUIManager.SubmitMenuBackground();
+                Player.GpuTiming.End(Player.GpuTiming.Area.Hud);
             }
             catch (Exception ex) { Main.Fail(ex,"VR presentation stopped"); }
+            presentStart=Player.FeatureTiming.Start();
         }
         private static void AfterPresent()
         {
-            if(Main.VrActive && drewStereo) Player.RenderPerformance.Sample();
+            if(presentStart!=0) Player.FeatureTiming.End(Player.FeatureTiming.Area.DesktopPresent,presentStart);
+            Player.GpuTiming.EndFrame();
+            Player.RenderPerformance.Sample(Main.VrActive && drewStereo && Main.WorldAvailable && !Main.MenuOpen);
             Player.StereoRenderState.End();
             if (Main.VrActive) OpenVR.Compositor.PostPresentHandoff();
             posesAcquired = drewStereo = false;

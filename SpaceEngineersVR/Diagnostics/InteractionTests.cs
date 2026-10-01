@@ -109,13 +109,16 @@ namespace SpaceEngineersVR.Diagnostics
             Require(MenuWindow.StereoClient(true,true),"Keyboard no longer has its accepted stereo occlusion path");
             var seatKeys=SeatPanel.Keys(true,true);
             var seatView=new SurfaceView { Keys=seatKeys };
-            Require(seatKeys.Length==13,"Seat lock/reset missing");
+            Require(seatKeys.Length==14,"Seat ship controls or adjustment controls missing");
             for(int i=0;i<seatKeys.Length;i++)
             {
                 var b=seatKeys[i].Bounds;
                 if(b.Width<=0) continue;
                 Require(seatView.KeyAt(new Vector2(b.X+b.Width/2,b.Y+b.Height/2))==i,"Seat controls overlap the new lock");
             }
+            seatView.Keys=SeatPanel.Keys(true,false);
+            Require(seatView.KeyAt(seatView.Keys[8].Bounds.Center)==-1,"Locked stick reset remained active");
+            Require(seatView.Keys[8].Bounds==seatKeys[8].Bounds && seatView.Keys[12].Bounds==seatKeys[12].Bounds,"Locking sticks moved Reset or Lights");
             var config=new PluginConfig { ShipRollSensitivity=.77f,SeatFits=new[] { new SeatFitSetting { Subtype=FighterProfile.Subtype,Y=.1f } },
                 MenuWindows=new[] { new MenuWindowSetting { Screen="Inventory",Width=1.2f,Z=-1.4f,QW=1 } } };
             var serializer=new XmlSerializer(typeof(PluginConfig));
@@ -152,7 +155,18 @@ namespace SpaceEngineersVR.Diagnostics
             Require(gesture.Update(true,false,false,true,cockpit,3,now.AddSeconds(.1))==ToolbarGesture.Action.None,"Menu/focus interruption retained B assignment");
             gesture.Update(true,true,true,false,cockpit,3,now); gesture.Reset();
             Require(gesture.Update(true,false,false,true,cockpit,3,now.AddSeconds(.1))==ToolbarGesture.Action.None,"Closed wheel retained a pending tap");
-            log("PASS switch assignment gesture: contextual tap, both pages, hold-B radial, hover loss and owner/focus/menu cancellation.");
+            gesture.Update(true,true,true,false,cockpit,-1,now,true);
+            Require(gesture.Update(true,false,false,true,cockpit,-1,now.AddSeconds(.1),true)==ToolbarGesture.Action.FirstPerson,"Third-person B tap does not return to first person");
+            gesture.Update(true,true,true,false,cockpit,-1,now,true);
+            Require(gesture.Update(true,false,true,false,cockpit,-1,now.AddSeconds(.3),true)==ToolbarGesture.Action.OpenWheel,"Third-person B hold lost radial menu");
+            Require(gesture.Update(true,false,false,true,cockpit,-1,now.AddSeconds(.4),true)==ToolbarGesture.Action.None,"Radial release also exits third person");
+            foreach(int interruption in new[] {0,1,2})
+            {
+                gesture.Update(true,true,true,false,cockpit,-1,now,true);
+                gesture.Update(interruption!=0,false,true,false,interruption==1 ? new object() : cockpit,-1,now.AddSeconds(.05),interruption!=2);
+                Require(gesture.Update(true,false,false,true,cockpit,-1,now.AddSeconds(.1),true)==ToolbarGesture.Action.None,"Interrupted B tap still changes camera");
+            }
+            log("PASS B gestures: switch assignment, third-person return, hold-B radial and owner/menu/camera cancellation.");
         }
     }
 }

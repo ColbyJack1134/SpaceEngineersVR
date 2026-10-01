@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Sandbox.Game.Screens.Helpers;
 using Sandbox.Game.World;
 using Sandbox.ModAPI.Interfaces;
+using Sandbox.ModAPI.Ingame;
 using Block=Sandbox.ModAPI.Ingame.IMyTerminalBlock;
 
 namespace SpaceEngineersVR.Player
@@ -27,7 +28,7 @@ namespace SpaceEngineersVR.Player
                 if(target==null || !(target is Sandbox.ModAPI.IMyTerminalBlock accessible) ||
                     !accessible.HasPlayerAccess(MySession.Static.LocalPlayerId)) return false;
                 var property=target.GetProperty(id) as ITerminalProperty<bool>;
-                if(property==null) return false;
+                if(property==null && !(id=="SwitchLock" && target is IMyShipConnector)) return false;
                 properties.Add(property);
             }
             return true;
@@ -36,17 +37,49 @@ namespace SpaceEngineersVR.Player
         {
             state=0;
             if(!Resolve(item)) return false;
-            int on=0;
-            for(int i=0;i<blocks.Count;i++) if(properties[i].GetValue(blocks[i])) on++;
-            state=on==0 ? 0 : on==blocks.Count ? 1 : .5f;
+            state=ReadValues(blocks,properties);
             return true;
+        }
+        internal static float ReadValues(IReadOnlyList<Block> targets,IReadOnlyList<ITerminalProperty<bool>> values)
+        {
+            float state=ReadValue(targets[0],values[0]);
+            for(int i=1;i<targets.Count;i++)
+            {
+                float next=ReadValue(targets[i],values[i]);
+                // A connector group is still locked if any member is connected; center means ready, never mixed.
+                if(values[0]==null) state=Math.Max(state,next);
+                else if(next!=state) return .5f;
+            }
+            return state;
         }
         internal static bool Set(MyToolbarItem item,bool on)
         {
             if(!Resolve(item)) return false;
             for(int i=0;i<blocks.Count;i++)
-                if(properties[i].GetValue(blocks[i])!=on) properties[i].SetValue(blocks[i],on);
+                SetValue(blocks[i],properties[i],on);
             return true;
+        }
+        internal static float ReadValue(Block block,ITerminalProperty<bool> property)
+        {
+            if(property!=null) return property.GetValue(block) ? 1 : 0;
+            switch(((IMyShipConnector)block).Status)
+            {
+                case MyShipConnectorStatus.Connected: return 1;
+                case MyShipConnectorStatus.Connectable: return .5f;
+                default: return 0;
+            }
+        }
+        internal static void SetValue(Block block,ITerminalProperty<bool> property,bool on)
+        {
+            if(property!=null)
+            {
+                if(property.GetValue(block)!=on) property.SetValue(block,on);
+                return;
+            }
+            // SwitchLock is an action, not a Boolean property. Never synthesize its observed state.
+            var connector=(IMyShipConnector)block;
+            if(on) { if(connector.Status!=MyShipConnectorStatus.Connected) connector.Connect(); }
+            else if(connector.Status!=MyShipConnectorStatus.Unconnected) connector.Disconnect();
         }
     }
 }

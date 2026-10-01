@@ -1,14 +1,13 @@
-using System;
-using System.Linq;
 using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
     internal static class SeatPanel
     {
-        internal static readonly string[] IconNames={ "GridPowerOn","Dampeners","Handbrake","Light" };
+        internal static readonly string[] IconNames={ "GridPowerOn","Dampeners","Handbrake","Light","GridBroadcastingOnCenter" };
         private static readonly string[] labels= { "Seat up","Seat forward","Seat down","Seat left","Center seat","Seat right","Seat back",
-            "Lock stick position","Reset sticks","Power","Dampeners","Park","Ship lights" };
+            "Lock stick position","Reset sticks","Power","Dampeners","Park","Ship lights","Broadcast" };
+        private static readonly SurfaceKey[] lockedKeys=MakeKeys(true,false),unlockedKeys=MakeKeys(true,true),fixedKeys=MakeKeys(false,false);
         internal static string Label(int key) => labels[key];
         internal static SurfaceView View()
         {
@@ -20,26 +19,29 @@ namespace SpaceEngineersVR.Player
                 Width=width*Alignment.Scale(key),Height=height*Alignment.Scale(key),Title="SEAT",
                 Handle=CockpitControls.Adjusting ? 1 : 0,Keys=Keys(CockpitControls.CanAdjust,CockpitControls.Adjusting),Levels=States() };
         }
-        internal static SurfaceKey[] Keys(bool sticks=false,bool unlocked=false)
+        internal static SurfaceKey[] Keys(bool sticks=false,bool unlocked=false) => !sticks ? fixedKeys : unlocked ? unlockedKeys : lockedKeys;
+        private static SurfaceKey[] MakeKeys(bool sticks,bool unlocked)
         {
-            var keys=new[] {
-                new SurfaceKey("▲",.055f,.52f,.27f,.20f),new SurfaceKey("↑",.365f,.06f,.27f,.20f),
-                new SurfaceKey("▼",.675f,.52f,.27f,.20f),new SurfaceKey("←",.055f,.29f,.27f,.20f),
-                new SurfaceKey("↺",.365f,.29f,.27f,.20f),new SurfaceKey("→",.675f,.29f,.27f,.20f),
-                new SurfaceKey("↓",.365f,.52f,.27f,.20f),
-                new SurfaceKey(sticks ? "lock" : "",.365f,.77f,sticks ? .27f : 0,.17f),
-                new SurfaceKey(sticks && unlocked ? "stick reset" : "",.675f,.77f,sticks && unlocked ? .27f : 0,.17f) };
-            return keys.Concat(new[] {
-                new SurfaceKey("Power",.055f,.06f,.27f,.20f),new SurfaceKey("Dampeners",.675f,.06f,.27f,.20f),
-                new SurfaceKey("Park",.055f,.77f,.27f,.17f),new SurfaceKey(sticks && unlocked ? "" : "Lights",.675f,.77f,sticks && unlocked ? 0 : .27f,.17f) }).ToArray();
+            var keys=new SurfaceKey[labels.Length];
+            int[] order={9,11,10,12,13,2,1,0,3,6,5,4,7,8};
+            string[] symbols={"▲","↑","▼","←","seat center","→","↓","lock","stick reset"};
+            for(int i=0;i<order.Length;i++)
+            {
+                int key=order[i];
+                int row=i<2 ? 0 : 1+(i-2)/3,col=i<2 ? i : (i-2)%3;
+                float y=.035f+row*.185f+(row>=2 ? .02f : 0);
+                keys[key]=new SurfaceKey(key<9 ? symbols[key] : labels[key],(row==0 ? .215f : .065f)+col*.30f,y,.27f,.17f) {
+                    Enabled=key==7 ? sticks : key!=8 || sticks && unlocked };
+            }
+            return keys;
         }
         internal static float[] States()
         {
             var seat=SeatFit.Seat;
-            if(seat==null) return new float[4];
+            if(seat==null) return new float[5];
             var control=(VRage.Game.ModAPI.Interfaces.IMyControllableEntity)seat;
             return new[] { control.EnabledReactors ? 1f : 0,control.EnabledDamping ? 1f : 0,
-                seat.CubeGrid.IsParked ? 1f : 0,control.EnabledLights ? 1f : 0 };
+                seat.CubeGrid.IsParked ? 1f : 0,control.EnabledLights ? 1f : 0,EssentialHud.Current?.ShipBroadcasting==true ? 1f : 0 };
         }
         internal static void Activate(int key)
         {
@@ -49,6 +51,7 @@ namespace SpaceEngineersVR.Player
                 case 10: Sandbox.Game.World.MySession.Static?.ControlledEntity?.SwitchDamping(); break;
                 case 11: GameActions.ParkAction.Run(); break;
                 case 12: GameActions.LightsAction.Run(); break;
+                case 13: GameActions.BroadcastAction.Run(); break;
             }
         }
 

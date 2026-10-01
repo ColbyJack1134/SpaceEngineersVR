@@ -7,7 +7,7 @@ namespace SpaceEngineersVR.Player
         public const string ControlSeat="OpenCockpitLarge";
         public static bool Supported(string subtype) => subtype==FighterProfile.Subtype || subtype==ControlSeat;
 
-        public static int Count(string subtype) => subtype==FighterProfile.Subtype ? CockpitCoverGeometry.Count : 4;
+        public static int Count(string subtype) => subtype==FighterProfile.Subtype ? CockpitSwitchGeometry.Count+1 : 4;
 
         // Centers measured from connected lever/key meshes in the installed MWM.
         // The fighter cap is about 7 mm above its mesh center.
@@ -16,7 +16,8 @@ namespace SpaceEngineersVR.Player
             Vector3D p,normal,up;
             if(subtype==FighterProfile.Subtype)
             {
-                p=CockpitSwitchGeometry.Centers[index]; normal=CockpitSwitchGeometry.Normal; up=CockpitSwitchGeometry.Up;
+                if(index==CockpitBarGeometry.Slot) { size=.020f; return CockpitBarGeometry.TouchPose; }
+                p=CockpitSwitchGeometry.Centers[index]; normal=CockpitSwitchGeometry.NormalFor(index); up=CockpitSwitchGeometry.UpFor(index);
                 size=.018f; p+=normal*.007;
             }
             else

@@ -45,6 +45,8 @@ namespace SpaceEngineersVR.Player
                 case "Connectors": return "ToggleConnectors";
                 case "Landing gear / park": return "Handbrake";
                 case "Power": return "GridPowerOn";
+                case "Broadcast": return "ToggleBroadcasting";
+                case "Detach boots": return "Magboot";
                 case "Toggle trigger action": return "DrillIcon";
                 case "Signal visibility": return "SignalMode";
                 case "Closer": return "MoveCloser";
@@ -73,8 +75,17 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice HelmetAction = new ActionChoice("Helmet", () => new MyActionToggleVisor().ExecuteAction());
         public static readonly ActionChoice JetpackAction = new ActionChoice("Jetpack", () => { if (MySession.Static.ControlledEntity == MySession.Static.LocalCharacter) ((IMyCharacter)MySession.Static.LocalCharacter).SwitchThrusts(); });
         public static readonly ActionChoice PauseAction = new ActionChoice("Pause / save / exit", PauseMenu, true);
-        public static readonly ActionChoice ParkAction = new ActionChoice("Landing gear / park", () => new MyActionToggleHandbrake().ExecuteAction());
+        public static readonly ActionChoice ParkAction = new ActionChoice("Landing gear / park", () => {
+            var controlled=MySession.Static?.ControlledEntity;
+            if(controlled?.CanSwitchLandingGears==true) controlled.SwitchLandingGears();
+        });
         public static readonly ActionChoice PowerAction = new ActionChoice("Power", () => new MyActionTogglePower().ExecuteAction());
+        public static readonly ActionChoice BroadcastAction = new ActionChoice("Broadcast", () => new MyActionToggleBroadcasting().ExecuteAction());
+        public static readonly ActionChoice DetachBootsAction = new ActionChoice("Detach boots", () => {
+            var character=MySession.Static?.LocalCharacter;
+            if(character!=null && MySession.Static.ControlledEntity==character && character.IsMagneticBootsActive)
+                character.Jump(VRageMath.Vector3.Zero);
+        });
         public static readonly ActionChoice PaletteAction = new ActionChoice("Color / skin palette", () => new MyActionColorPicker().ExecuteAction(), true);
         public static readonly ActionChoice PaintAction = new ActionChoice("Paint tool", () => new MyActionColorTool().ExecuteAction());
         public static readonly ActionChoice SymmetryAction = new ActionChoice("Symmetry on / off", () => new MyActionToggleSymmetry().ExecuteAction());
@@ -100,16 +111,19 @@ namespace SpaceEngineersVR.Player
             new ActionChoice("Connectors", () => new MyActionToggleConnectors().ExecuteAction()),
             ParkAction,
             PowerAction,
-            new ActionChoice("Toggle trigger action", () => { AlternateTrigger = !AlternateTrigger; EssentialHud.Notify("Right trigger: " + (AlternateTrigger ? "SECONDARY" : "PRIMARY")); }),
+            new ActionChoice("Toggle trigger action", () => AlternateTrigger = !AlternateTrigger),
             new ActionChoice("Signal visibility", () => new MyActionToggleSignals().ExecuteAction()),
             BlueprintsAction,
             new ActionChoice("Switch view",ThirdPersonView.Toggle),
             new ActionChoice("Reset ship view",ThirdPersonView.ResetView),
-            new ActionChoice(()=>ThirdPersonView.ModeLabel,ThirdPersonView.CycleMode)
+            new ActionChoice(()=>ThirdPersonView.ModeLabel,ThirdPersonView.CycleMode),
+            BroadcastAction,
+            DetachBootsAction
         };
         public static readonly ActionChoice[] Developer = {
             new ActionChoice("Developer options", () => MyGuiSandbox.AddScreen(new GUI.DeveloperOptions()), true),
-            new ActionChoice("Capture arm pose", Diagnostics.ArmPoseCapture.Request)
+            new ActionChoice("Capture arm pose", Diagnostics.ArmPoseCapture.Request),
+            new ActionChoice(()=>PerformanceHud.Enabled ? "Hide performance" : "Show performance", PerformanceHud.Toggle)
         };
         public static readonly ActionChoice[] Building = {
             Native("Yaw +", MyControlsSpace.CUBE_ROTATE_VERTICAL_POSITIVE),
@@ -138,7 +152,6 @@ namespace SpaceEngineersVR.Player
 
         public static void Execute(ActionChoice choice)
         {
-            if(choice!=JetpackAction) EssentialHud.Notify(choice.Label);
             choice.Run();
             if (choice.OpensMenu || VRGUIManager.IsAnyDialogOpen()) Main.MenuOpen = true;
             InputRouter.Update();
@@ -174,8 +187,10 @@ namespace SpaceEngineersVR.Player
         public static void AddToPlanner()
         {
             var block = MyCubeBuilder.Static?.CurrentBlockDefinition;
-            if (block == null || MySession.Static.LocalCharacter?.AddToBuildPlanner(block) != true)
+            if (block == null)
                 EssentialHud.Notify("Select a block before adding it to the build planner");
+            else if(MySession.Static.LocalCharacter?.AddToBuildPlanner(block) != true)
+                EssentialHud.Notify("Could not add this block to the build planner");
         }
 
         public static void HandleButtons()
@@ -191,7 +206,7 @@ namespace SpaceEngineersVR.Player
             if (c.Reload.HasPressed) NativeActions.Pulse(MyControlsSpace.RELOAD);
             if (c.Interact.HasPressed)
             {
-                if (!HandInteraction.TryInteract()) MySession.Static.ControlledEntity?.Use();
+                if (!HandInteraction.TryInteract()) { MySession.Static.ControlledEntity?.Use(); HandInteraction.Feedback(); }
                 InputRouter.Update();
                 if (!InputRouter.Gameplay) return;
             }
@@ -200,7 +215,7 @@ namespace SpaceEngineersVR.Player
             if (c.Lights.HasPressed) Execute(LightsAction);
             if (c.Park.HasPressed) Execute(ParkAction);
             if (c.Power.HasPressed) Execute(PowerAction);
-            if (c.Broadcasting.HasPressed) new MyActionToggleBroadcasting().ExecuteAction();
+            if (c.Broadcasting.HasPressed) BroadcastAction.Run();
             if (c.Terminal.HasPressed) { Execute(TerminalAction); return; }
             if (c.Inventory.HasPressed) { Execute(InventoryAction); return; }
             if (c.ToolbarConfig.HasPressed || c.BlockSelector.HasPressed) { Execute(ConfigureToolbarAction); return; }

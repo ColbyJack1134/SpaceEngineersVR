@@ -102,7 +102,7 @@ namespace SpaceEngineersVR.Player
         }
         public static MatrixD WristWorld(Controller hand)
         {
-            Matrix local=Matrix.CreateTranslation(0,0.02f,0.04f)*HandLocal(hand);
+            Matrix local=CockpitHandPose.GripWrist(HandLocal(hand));
             if (Held(hand))
             {
                 bool isLeft=hand==Player.HandL;
@@ -116,6 +116,12 @@ namespace SpaceEngineersVR.Player
             return (MatrixD)local*seat.WorldMatrix;
         }
         public static void Update()
+        {
+            long started=FeatureTiming.Start();
+            try { UpdateCore(); }
+            finally { FeatureTiming.End(FeatureTiming.Area.Cockpit,started); }
+        }
+        private static void UpdateCore()
         {
             var next=MySession.Static?.ControlledEntity as MyCockpit;
             if (!Main.VrActive || !Common.Config.FighterCockpitSticks || !Eligible(next))
@@ -167,7 +173,9 @@ namespace SpaceEngineersVR.Player
             {
                 if (left.Held) placement.Move(true,leftStartOffset,WeaponPose.Palm(leftNeutral),lp);
                 if (right.Held) placement.Move(false,rightStartOffset,WeaponPose.Palm(rightNeutral),rp);
-                Controls.Static.Primary.BlockUntilRelease(); Controls.Static.Secondary.BlockUntilRelease();
+                // Released frames must rearm the trigger for the seat pad's next click.
+                if(c.Primary.RawPressed) c.Primary.BlockUntilRelease();
+                c.Secondary.BlockUntilRelease();
             }
             translation=left.Held && !Adjusting ? CockpitStickMath.Translation(leftNeutral,l,deadzone) : Vector3.Zero;
             rotation=right.Held && !Adjusting ? CockpitStickMath.Rotation(rightNeutral,r,deadzone) : Vector3.Zero;

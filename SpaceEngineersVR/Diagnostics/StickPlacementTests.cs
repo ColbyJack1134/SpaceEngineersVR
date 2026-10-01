@@ -25,8 +25,16 @@ namespace SpaceEngineersVR.Diagnostics
             Require(!placement.Unlocked,"Interrupted adjustment stayed unlocked"); Near(placement.Left,offset,"Interruption failed to restore saved position");
             placement.Load(new Vector3(float.NaN),new Vector3(float.PositiveInfinity));
             Near(placement.Left,Vector3.Zero,"Invalid saved position accepted"); Near(placement.Right,Vector3.Zero,"Invalid right position accepted");
-            Near(StickPlacement.Limit(new Vector3(999),true),new Vector3(.20f,.25f,.30f),"Left placement upper bounds");
-            Near(StickPlacement.Limit(new Vector3(-999),false),new Vector3(-.20f,-.10f,-.20f),"Right placement lower bounds");
+            Near(StickPlacement.Limit(new Vector3(999),true),new Vector3(.40f,.30f,.35f),"Left placement upper bounds");
+            Near(StickPlacement.Limit(new Vector3(-999),false),new Vector3(-.40f,-.15f,-.25f),"Right placement lower bounds");
+            foreach(bool left in new[] {false,true})
+            {
+                var contact=left ? FighterProfile.LeftContact : FighterProfile.RightContact;
+                var center=new Vector3(-contact.X,.03f,-.04f);
+                Near(StickPlacement.Limit(center,left),center,"Joystick cannot reach center console");
+                var parked=new Vector3(left ? -.18f : .18f,.03f,0);
+                Near(StickPlacement.Limit(parked,left),parked,"Joystick cannot be parked off to the side");
+            }
             for(int i=0;i<300;i++)
             foreach(bool left in new[] {false,true})
             {

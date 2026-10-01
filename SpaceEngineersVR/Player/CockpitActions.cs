@@ -54,15 +54,21 @@ namespace SpaceEngineersVR.Player
         }
         public static bool Activate(int slot,bool? desired=null)
         {
+            long started=FeatureTiming.Start();
+            try { return ActivateCore(slot,desired); }
+            finally { FeatureTiming.End(FeatureTiming.Area.CockpitAction,started); }
+        }
+        private static bool ActivateCore(int slot,bool? desired)
+        {
             if(toolbar==null || owner==null || !SeatFit.Eligible(owner) || editing || !((Sandbox.ModAPI.IMyTerminalBlock)owner).HasPlayerAccess(MySession.Static.LocalPlayerId)) return false;
             toolbar.UpdateItemForIdentity(slot,MySession.Static.LocalPlayerId,false);
             var item=toolbar.GetItemAtIndex(slot);
             if(item==null) { Configure(slot); return false; }
             if(!item.Enabled || (item is MyToolbarItemTerminalGroup group && !group.PlayerHasAccessToAllBlocks(MySession.Static.LocalPlayerId)))
             { EssentialHud.Notify("This switch action is unavailable or access is denied."); return false; }
-            bool binary=CockpitSwitchState.Read(item,out _);
-            if(!binary && desired==false) return false;
-            return binary && desired.HasValue ? CockpitSwitchState.Set(item,desired.Value) : toolbar.ActivateItemAtIndex(slot);
+            bool stateful=CockpitSwitchState.Read(item,out _);
+            if(!stateful && desired==false) return false;
+            return stateful && desired.HasValue ? CockpitSwitchState.Set(item,desired.Value) : toolbar.ActivateItemAtIndex(slot);
         }
         public static bool ReadState(int slot,out float state)
         {
@@ -88,7 +94,7 @@ namespace SpaceEngineersVR.Player
                 Controls.Static.BlockUntilRelease();
             }
             catch(Exception ex)
-            { RestoreEditor(); Logger.Warning(ex,"Cockpit switch configuration failed"); EssentialHud.Notify("Switch configuration unavailable; see plugin log."); }
+            { RestoreEditor(); Logger.Warning(ex,"Cockpit switch configuration failed"); EssentialHud.Notify("Switch configuration unavailable"); }
         }
         private static void Closed(MyGuiScreenBase screen,bool unloading) { RestoreEditor(); }
         private static void RestoreEditor()

@@ -47,9 +47,10 @@ namespace SpaceEngineersVR.Player
             nextHover[i]=DateTime.UtcNow.AddMilliseconds(100);
         }
         public static void Engage(Controller hand) => hand.Vibrate(0,.018f,110,.18f);
+        public static void Activate(Controller hand) => hand.Vibrate(0,.024f,105,.25f);
         public static void Click(Controller hand,bool cover=false)
         {
-            hand.Vibrate(0,.024f,105,.25f);
+            Activate(hand);
             if(soundFailed) return;
             try
             {

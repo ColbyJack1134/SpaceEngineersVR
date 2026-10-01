@@ -185,6 +185,7 @@ namespace SpaceEngineersVR.Player
             var point=touchPoint;
             output.AddRange(CockpitButtons.Views);
             output.AddRange(CockpitTouch.Labels());
+            output.AddRange(HandInteraction.Labels());
             if(Main.WorldAvailable && Pointing && TrackedArms.TryFingertip(out var latest)) point=latest;
             foreach(var s in output)
             {

@@ -8,7 +8,7 @@ namespace SpaceEngineersVR.Player
         private sealed class Packet { public CameraRig.Frame Rig; public SurfaceView[] Surfaces; public WorldMarkers.View Markers; }
         private static readonly ConditionalWeakTable<object, Packet> packets = new ConditionalWeakTable<object, Packet>();
         private static readonly List<Packet> pending=new List<Packet>();
-        private static WorldMarkers.View pendingMarkers;
+        private static WorldMarkers.View latestMarkers;
         public static CameraRig.Frame Current { get; private set; }
         public static SurfaceView[] Surfaces { get; private set; }
         public static WorldMarkers.View Markers { get; private set; }
@@ -27,12 +27,13 @@ namespace SpaceEngineersVR.Player
             pending.Add(packet);
         }
 
-        public static void CaptureMarkers(WorldMarkers.View markers) => pendingMarkers=markers;
+        public static void CaptureMarkers(WorldMarkers.View markers) => latestMarkers=markers;
         public static void Commit()
         {
             // HUD draw follows camera enqueue. Finalize before AfterUpdate publishes the native batch.
-            foreach(var packet in pending) packet.Markers=pendingMarkers;
-            pending.Clear(); pendingMarkers=null;
+            // Camera-only updates do not mean the native HUD removed its markers.
+            foreach(var packet in pending) packet.Markers=latestMarkers;
+            pending.Clear();
         }
 
         public static void Consume(object message)

@@ -33,6 +33,7 @@ namespace SpaceEngineersVR.Diagnostics
         private readonly object previousComponent;
         private readonly MyGuiControlToolbar toolbar;
         private readonly CockpitAssignment assignment;
+        private static int Count => Player.CockpitLayout.Count(Player.FighterProfile.Subtype);
         public override string GetFriendlyName() => "SEVR assignment preview";
         private static void Set(object instance,string field,object value) => AccessTools.Field(instance.GetType(),field).SetValue(instance,value);
         internal AssignmentPreview() : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.95f,.70f))
@@ -45,7 +46,7 @@ namespace SpaceEngineersVR.Diagnostics
             previousComponent=AccessTools.Field(typeof(MyToolbarComponent),"m_instance").GetValue(null);
             if(previousComponent==null) AccessTools.Field(typeof(MyToolbarComponent),"m_instance").SetValue(null,FormatterServices.GetUninitializedObject(typeof(MyToolbarComponent)));
             previous=MyToolbarComponent.CurrentToolbar;
-            target=new MyToolbar(MyToolbarType.ButtonPanel,9,2);
+            target=new MyToolbar(MyToolbarType.ButtonPanel,9,(Count+8)/9);
             source=new MyToolbar(MyToolbarType.Ship,9,3);
             MyToolbarComponent.CurrentToolbar=target;
             toolbar=new PreviewToolbar(style) { Position=new Vector2(.33f,.20f),OriginAlign=MyGuiDrawAlignEnum.HORISONTAL_RIGHT_AND_VERTICAL_BOTTOM };
@@ -57,14 +58,14 @@ namespace SpaceEngineersVR.Diagnostics
             Set(owner,"m_dragAndDrop",drag); Controls.Add(drag);
             Controls.Add(new MyGuiControlLabel(new Vector2(-.32f,.10f),text:"Switches") {Name="LabelToolbar"});
             Controls.Add(new MyGuiControlLabel(new Vector2(0,-.23f),text:"Cockpit assignment",originAlign:MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER));
-            assignment=new CockpitAssignment(owner,target,source,13,10); assignment.Update();
+            assignment=new CockpitAssignment(owner,target,source,Count,10); assignment.Update();
             FillArtwork();
         }
         private void FillArtwork()
         {
             string[] art={"GridPowerOn","Dampeners","Handbrake","Light","ToggleConnectors","GridPowerOn","Dampeners","Light","Handbrake"};
             foreach(var grid in Controls.OfType<MyGuiControlGrid>().Concat(new[] {toolbar.ToolbarGrid}))
-                for(int i=0;i<9;i++) if(grid!=toolbar.ToolbarGrid || target.CurrentPage==0 || i<4)
+                for(int i=0;i<9;i++) if(grid!=toolbar.ToolbarGrid || target.CurrentPage*9+i<Count)
                     grid.SetItemAt(i,new MyGuiGridItem(Player.NativeSprites.Hud(art[i]),null,"Action",null));
         }
         internal void VerifyAndPage()
@@ -78,13 +79,21 @@ namespace SpaceEngineersVR.Diagnostics
                 if(Math.Abs(pixels.X-pixels.Y)>2) throw new Exception("Toolbar paging buttons are not square: "+pixels);
             }
             ((MyGuiControlButton)Controls.GetControlByName("SwitchNextPage")).PressButton();
-            if(target.CurrentPage!=1 || toolbar.ToolbarGrid.GetItemAt(4)?.Enabled!=false) throw new Exception("Switch page 2 failed or accepts an out-of-range slot");
+            if(target.CurrentPage!=1) throw new Exception("Switch page 2 failed");
             ((MyGuiControlButton)Controls.GetControlByName("ShipNextPage")).PressButton();
             if(source.CurrentPage!=0 || target.CurrentPage!=1) throw new Exception("Browsing ship actions changed an actual toolbar page");
+            for(int page=2;page<target.PageCount;page++)
+            {
+                ((MyGuiControlButton)Controls.GetControlByName("SwitchNextPage")).PressButton();
+                if(target.CurrentPage!=page) throw new Exception("Switch page advancement failed");
+            }
+            int used=Count%9;
+            if(used>0 && toolbar.ToolbarGrid.GetItemAt(used)?.Enabled!=false)
+                throw new Exception("Last switch page accepts an out-of-range slot");
             ((MyGuiControlButton)Controls.GetControlByName("SwitchNextPage")).PressButton();
             if(target.CurrentPage!=0) throw new Exception("Switch page wrap failed");
             ((MyGuiControlButton)Controls.GetControlByName("SwitchPreviousPage")).PressButton(); FillArtwork();
-            Plugin.Logger.Info("PASS native assignment UI: square buttons, independent page changes, wrap, selected switch and disabled slots 14-18.");
+            Plugin.Logger.Info("PASS native assignment UI: square buttons, independent page changes, all switch pages, wrap and disabled unused slots.");
         }
         internal void Finish()
         {

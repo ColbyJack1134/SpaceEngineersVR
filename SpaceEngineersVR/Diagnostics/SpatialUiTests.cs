@@ -55,13 +55,40 @@ namespace SpaceEngineersVR.Diagnostics
             foreach(string subtype in new[] { FighterProfile.Subtype,"OpenCockpitLarge" })
             {
                 Require(SeatPanel.TryMount(subtype,out var mount,out float w,out float h) && mount.IsValid(),"Missing measured console mount");
-                var panel=new SurfaceView { Width=w,Height=h,Keys=SeatPanel.Keys() };
-                Require(panel.KeyAt(new Vector2(.5f,.42f))==4,"Seat reset is not at cross centre");
-                Require(panel.KeyAt(new Vector2(.5f,.24f))==1 && panel.KeyAt(new Vector2(.5f,.60f))==6,"Seat fore/aft cross reversed");
-                Require(panel.KeyAt(new Vector2(.19f,.42f))==3 && panel.KeyAt(new Vector2(.81f,.42f))==5,"Seat lateral cross reversed");
+                var panel=new SurfaceView { Width=w,Height=h,Keys=SeatPanel.Keys(true,true) };
+                Require(panel.KeyAt(new Vector2(.35f,.14f))==9 && panel.KeyAt(new Vector2(.65f,.14f))==11,"Power/park top row reversed");
+                Require(panel.KeyAt(new Vector2(.20f,.325f))==10 && panel.KeyAt(new Vector2(.5f,.325f))==12 &&
+                    panel.KeyAt(new Vector2(.80f,.325f))==13,"Ship action second row changed");
+                Require(panel.KeyAt(new Vector2(.20f,.51f))==2 && panel.KeyAt(new Vector2(.80f,.51f))==0,"Seat down/up row reversed");
+                Require(panel.KeyAt(new Vector2(.5f,.51f))==1 && panel.KeyAt(new Vector2(.5f,.695f))==6,"Seat fore/aft row reversed");
+                Require(panel.KeyAt(new Vector2(.20f,.695f))==3 && panel.KeyAt(new Vector2(.80f,.695f))==5,"Seat lateral row reversed");
+                Require(panel.KeyAt(new Vector2(.20f,.88f))==4 && panel.KeyAt(new Vector2(.5f,.88f))==7 &&
+                    panel.KeyAt(new Vector2(.80f,.88f))==8,"Seat/stick reset or central lock moved");
                 Require(Vector3D.Dot(mount.Backward,Vector3D.Up)>.9,"Console controls face into the mesh");
             }
             Require(!SeatPanel.TryMount("unknown",out _,out _,out _),"Unmeasured cockpit gets a guessed floating panel");
+            foreach(float tangent in new[] {.4f,.65f,1.1f})
+            foreach(float cant in new[] {0f,.15f})
+            {
+                var projections=new MatrixD[2];
+                for(int eye=0;eye<2;eye++)
+                {
+                    double side=eye==0 ? -1 : 1;
+                    var eyeToHead=MatrixD.CreateRotationY(side*cant);
+                    eyeToHead.Translation=new Vector3D(side*.036,0,0);
+                    projections[eye]=MatrixD.Invert(eyeToHead)*VrMath.Projection(-tangent*.9f,tangent*1.1f,-tangent,tangent,.05);
+                }
+                float scale=EssentialHud.FitScale(projections[0],projections[1]);
+                Require(scale>0 && scale<=1,"HUD fit enlarged or hid the panel");
+                if(tangent==1.1f) Require(scale==1,"Wide FOV needlessly shrinks HUD text");
+                foreach(var projection in projections)
+                foreach(double x in new[] {-.8,.8})
+                foreach(double y in new[] {-.75,-.05})
+                {
+                    var clip=Vector4D.Transform(new Vector4D(x*scale,y*scale,-1.5,1),projection);
+                    Require(clip.W>0 && Math.Abs(clip.X/clip.W)<=.90001 && Math.Abs(clip.Y/clip.W)<=.90001,"HUD clips one eye's inset FOV");
+                }
+            }
 
             var wristMount=MatrixD.CreateFromYawPitchRoll(.4,-.6,.2);
             wristMount.Translation=new Vector3D(1e8,2e8,-3e8);

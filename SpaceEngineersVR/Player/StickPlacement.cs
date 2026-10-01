@@ -11,8 +11,8 @@ namespace SpaceEngineersVR.Player
         public bool Unlocked { get; private set; }
         private Vector3 savedLeft, savedRight;
         public static Vector3 Limit(Vector3 offset, bool left) => !offset.IsValid() ? Vector3.Zero :
-            Vector3.Clamp(offset, new Vector3(left ? -.12f : -.20f, -.10f, -.20f),
-                new Vector3(left ? .20f : .12f, .25f, .30f));
+            Vector3.Clamp(offset, new Vector3(left ? -.20f : -.40f, -.15f, -.25f),
+                new Vector3(left ? .40f : .20f, .30f, .35f));
         public void Load(Vector3 left, Vector3 right)
         { Left=savedLeft=Limit(left,true); Right=savedRight=Limit(right,false); Unlocked=false; }
         public void Unlock() { Unlocked=true; }

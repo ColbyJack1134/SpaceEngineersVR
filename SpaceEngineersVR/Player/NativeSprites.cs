@@ -25,13 +25,14 @@ namespace SpaceEngineersVR.Player
         public Vector4 UV;
         public Vector2 Rounded;
         public bool Projected;
+        public bool IgnoreSceneDepth;
         public bool EncodeSrgb;
         public bool Opaque;
         public Vector4 TopLeft, TopRight, BottomLeft, BottomRight;
         public NativeSprite(string path, RectangleF bounds, Vector4 tint)
         {
             Path=path; Bounds=bounds; Tint=tint; Texture=null; UV=new Vector4(0,0,1,1);
-            EncodeSrgb=false; Opaque=false; Projected=false; TopLeft=TopRight=BottomLeft=BottomRight=Vector4.Zero;
+            EncodeSrgb=false; Opaque=false; Projected=IgnoreSceneDepth=false; TopLeft=TopRight=BottomLeft=BottomRight=Vector4.Zero;
             Rounded=Vector2.Zero;
         }
     }
@@ -190,7 +191,7 @@ float4 PS(P p):SV_TARGET {
                 {
                     var texture=sprite.Texture ?? Get(sprite.Path);
                     if (texture==null) continue;
-                    var data=new Parameters { Tint=sprite.Tint,UV=sprite.UV,DepthTest=new Vector4(sceneDepth==null ? 0 : 1,sprite.Rounded.X,sprite.Rounded.Y,(sprite.EncodeSrgb ? 1 : 0)+(sprite.Opaque ? 2 : 0)) };
+                    var data=new Parameters { Tint=sprite.Tint,UV=sprite.UV,DepthTest=new Vector4(sceneDepth==null || sprite.IgnoreSceneDepth ? 0 : 1,sprite.Rounded.X,sprite.Rounded.Y,(sprite.EncodeSrgb ? 1 : 0)+(sprite.Opaque ? 2 : 0)) };
                     if (sprite.Projected)
                     {
                         data.TopLeft=sprite.TopLeft; data.TopRight=sprite.TopRight;

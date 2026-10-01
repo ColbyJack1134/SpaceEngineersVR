@@ -19,6 +19,16 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Run(string game, string output, Action<string> log)
         {
             Directory.CreateDirectory(output);
+            using(var guards=new StreamWriter(Path.Combine(output,"cockpit-panel-guards.csv")))
+                for(int i=0;i<CockpitPanelGuard.Fighter.Length;i++)
+                {
+                    var region=CockpitPanelGuard.Fighter[i];
+                    foreach(var corner in region.Bounds.GetCorners())
+                    {
+                        var point=Vector3.Transform(corner,region.Frame);
+                        guards.WriteLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,"{0},{1:R},{2:R},{3:R}",i,point.X,point.Y,point.Z));
+                    }
+                }
             MyFileSystem.Init(Path.Combine(game,"..","Content"),Path.Combine(output,"data"));
             foreach (var action in GameActions.Quick.Concat(GameActions.Building).Concat(GameActions.Developer))
                 if (!File.Exists(Path.Combine(MyFileSystem.ContentPath,action.Icon))) throw new FileNotFoundException("Action artwork",action.Icon);
@@ -30,18 +40,30 @@ namespace SpaceEngineersVR.Diagnostics
                     var model=new EssentialHud.View {
                         Levels=new[] { .72f,.46f,.88f,.19f }, Values=new[] { "72","46","88","19" },
                         Icons=new[] { @"Textures\GUI\Icons\WeaponWelder.dds" }, Selected="Enhanced Welder",Ammo="",
-                        Prompt="A  Open door",Helmet=true,Jetpack=true,Dampeners=false,Flying=true,
+                        Helmet=true,Jetpack=true,Dampeners=false,Flying=true,Broadcasting=true,Flashlight=true,
+                        OxygenBottles="2",HydrogenBottles="3",OxygenRefilling=true,EnvironmentOxygen="High",Temperature="Warm",
                         Speed="24.6",SpeedLevel=.246f,Gravity="1.00 / 0.00 g",Down=new Vector3(.2f,-.9f,.3f) };
                     Render(hud,()=>EssentialHud.Paint(hud,model));
                     Save(hud.Texture,Path.Combine(output,"hud-preview.png"));
+                    model.FoodEnabled=true; model.RadiationEnabled=true; model.Food="64"; model.FoodLevel=.64f;
+                    model.Radiation="21"; model.RadiationLevel=.21f; model.RadiationImmunity=true;
+                    Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"hud-survival-preview.png"));
+                    model.FoodEnabled=false; model.RadiationEnabled=false;
                     model.Piloting=true; model.ShipHydrogen="78%"; model.ShipBattery="61%  12.4 MWh"; model.ShipLoad="43%"; model.ShipEndurance="2 h 12 min";
+                    model.ShipMass="872,000 kg"; model.ShipPower=true; model.ShipBroadcasting=true; model.ShipPark=false; model.Dampeners=true;
                     model.ShipHydrogenLevel=.78f; model.ShipBatteryLevel=.61f; model.ShipLoadLevel=.43f;
                     Render(hud,()=>EssentialHud.Paint(hud,model));
                     Save(hud.Texture,Path.Combine(output,"ship-hud-preview.png"));
+                    model.FoodEnabled=true; model.RadiationEnabled=true;
+                    Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"ship-hud-survival-preview.png"));
                     model.Speed="0.00"; model.SpeedLevel=.00001f;
                     Render(hud,()=>EssentialHud.Paint(hud,model));
                     Save(hud.Texture,Path.Combine(output,"ship-hud-zero-speed.png"));
-
+                    model.Prompt="This switch action is unavailable or access is denied.";
+                    Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"ship-hud-error.png"));
+                    model.Piloting=false;
+                    model.Prompt="Select a block before adding it to the build planner";
+                    Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"hud-error.png"));
                 }
                 using (var wheel=new OverlayCanvas("Wheel test",1024,1024,1,false,device))
                 {
@@ -75,6 +97,36 @@ namespace SpaceEngineersVR.Diagnostics
                     model.Selected=2;
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
                     Save(wheel.Texture,Path.Combine(output,"wheel-empty-assignment.png"));
+                    model.Title="Developer"; model.Group=3; model.Page=0; model.Pages=1;
+                    model.Labels=Enumerable.Range(0,9).Select(i=>i<GameActions.Developer.Length ? GameActions.Developer[i].Label : "").ToArray();
+                    model.Icons=Enumerable.Range(0,9).Select(i=>i<GameActions.Developer.Length ? new[] {GameActions.Developer[i].Icon} : new string[0]).ToArray();
+                    model.Enabled=Enumerable.Range(0,9).Select(i=>i<GameActions.Developer.Length).ToArray();
+                    Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
+                    Save(wheel.Texture,Path.Combine(output,"wheel-performance-preview.png"));
+                }
+                using(var performance=new OverlayCanvas("Performance preview",640,540,1,false,device))
+                {
+                    long now=System.Diagnostics.Stopwatch.GetTimestamp();
+                    var timings=new FeatureTiming.Measurement[Enum.GetValues(typeof(FeatureTiming.Area)).Length];
+                    timings[(int)FeatureTiming.Area.HudPaint]=new FeatureTiming.Measurement {Mean=.341,P95=1.879,Peak=4.1,Time=now};
+                    timings[(int)FeatureTiming.Area.CockpitGeometry]=new FeatureTiming.Measurement {Mean=430.523,P95=430.523,Peak=430.523,Time=now-20*System.Diagnostics.Stopwatch.Frequency};
+                    var current=new RenderPerformance.View {Fps=59.9,FrameMs=16.7,AppGpuMs=13.2,TotalGpuMs=16.7,Repeated=.5,Dropped=2,RefreshHz=72};
+                    Render(performance,()=>PerformanceHud.Paint(performance,current,timings,now));
+                    Save(performance.Texture,Path.Combine(output,"performance-preview.png"));
+                    Render(performance,()=>PerformanceHud.Paint(performance,null,timings,now));
+                    Save(performance.Texture,Path.Combine(output,"performance-collecting.png"));
+                    Render(performance,()=>PerformanceHud.Paint(performance,current,timings,now,"Arm capture starts in 3 seconds; hold the pose."));
+                    Save(performance.Texture,Path.Combine(output,"performance-capture.png"));
+                    Render(performance,()=>PerformanceHud.PaintStatus(performance,"Arm capture starts in 3 seconds; hold the pose."));
+                    Save(performance.Texture,Path.Combine(output,"developer-capture.png"));
+                }
+                using(var visor=new OverlayCanvas("Visor preview",1280,800,1,false,device))
+                {
+                    foreach(float progress in new[] {0f,.25f,.5f,.75f,1f})
+                    {
+                        Render(visor,()=>HelmetHud.PaintTransition(visor,progress,true));
+                        Save(visor.Texture,Path.Combine(output,"visor-"+(int)(progress*100)+".png"));
+                    }
                 }
                 using (var markers=new OverlayCanvas("Marker test",512,128,1,false,device))
                 {
@@ -122,6 +174,37 @@ namespace SpaceEngineersVR.Diagnostics
                 if (NativeSprites.Loaded<20) throw new Exception("Native artwork did not load: "+NativeSprites.Loaded);
                 log("PASS native UI GPU composition: "+NativeSprites.Loaded+" installed PNG/DDS assets, shaders, alpha blending and disabled tint. Previews: "+output);
             }
+            GpuQueries(log);
+        }
+        private static void GpuQueries(Action<string> log)
+        {
+            if(VRage.Utils.MyLog.Default==null) VRage.Utils.MyLog.Default=new VRage.Utils.MyLog();
+            using(var device=new Device(DriverType.Hardware,DeviceCreationFlags.BgraSupport))
+            using(var texture=new Texture2D(device,new Texture2DDescription { Width=256,Height=256,MipLevels=1,ArraySize=1,
+                Format=SharpDX.DXGI.Format.R8G8B8A8_UNorm,SampleDescription=new SharpDX.DXGI.SampleDescription(1,0),BindFlags=BindFlags.RenderTarget }))
+            using(var target=new RenderTargetView(device,texture))
+            {
+                try
+                {
+                    int before=GpuTiming.Completed;
+                    GpuTiming.BeginFrame(device);
+                    foreach(GpuTiming.Area area in Enum.GetValues(typeof(GpuTiming.Area)))
+                    {
+                        GpuTiming.Begin(area);
+                        device.ImmediateContext.ClearRenderTargetView(target,new SharpDX.Mathematics.Interop.RawColor4(.1f,.2f,.3f,1));
+                        GpuTiming.End(area);
+                    }
+                    GpuTiming.EndFrame();
+                    // This offscreen fixture has no Present to submit its command buffer.
+                    device.ImmediateContext.Flush();
+                    var deadline=DateTime.UtcNow.AddSeconds(5);
+                    while(GpuTiming.Completed==before && DateTime.UtcNow<deadline)
+                    { Thread.Sleep(5); GpuTiming.BeginFrame(device); }
+                    if(GpuTiming.Completed==before) throw new Exception("Hardware GPU timestamp sample did not complete");
+                    log("PASS hardware D3D11 timestamp/disjoint queries: production collector completed delayed nonblocking readback.");
+                }
+                finally { GpuTiming.Reset(); }
+            }
         }
         private static void SurfacePreviews(Device device,string output,Action<string> log)
         {
@@ -144,7 +227,7 @@ namespace SpaceEngineersVR.Diagnostics
                 foreach(string subtype in new[] { FighterProfile.Subtype,"OpenCockpitLarge" })
                 {
                     SeatPanel.TryMount(subtype,out _,out float width,out float height);
-                    var panel=new SurfaceView { Id="Seat",Title="SEAT",Keys=SeatPanel.Keys(subtype==FighterProfile.Subtype),Levels=new[] {1f,1f,0f,0f},Width=width,Height=height };
+                    var panel=new SurfaceView { Id="Seat",Title="SEAT",Keys=SeatPanel.Keys(subtype==FighterProfile.Subtype),Levels=new[] {1f,1f,0f,0f,1f},Width=width,Height=height };
                     Render(canvas,()=>PhysicalSurface.Paint(canvas,panel));
                     Save(canvas.Texture,Path.Combine(output,"seat-"+subtype+".png"));
                     using(var face=new OverlayCanvas("seat face",600,(int)(600*height/width),1,false,device))
@@ -167,7 +250,8 @@ namespace SpaceEngineersVR.Diagnostics
                 var wrist=new SurfaceView { Id="Wrist preview",Style=SurfaceStyle.WristStatus,Width=.133f,Height=.07f,Levels=new[] { .8f,.7f,.6f,.5f } };
                 foreach(bool unlocked in new[] {false,true})
                 {
-                    PhysicalSurface.Paint(canvas,new SurfaceView { Id="Seat",Width=.13f,Height=.205f,Keys=SeatPanel.Keys(true,unlocked),Handle=unlocked ? 1 : 0 }); canvas.Upload();
+                    SeatPanel.TryMount(FighterProfile.Subtype,out _,out float width,out float height);
+                    PhysicalSurface.Paint(canvas,new SurfaceView { Id="Seat",Width=width,Height=height,Keys=SeatPanel.Keys(true,unlocked),Handle=unlocked ? 1 : 0 }); canvas.Upload();
                     Save(canvas.Texture,Path.Combine(output,"stick-placement-"+(unlocked ? "unlocked" : "locked")+".png"));
                 }
                 foreach(string subtype in new[] { FighterProfile.Subtype,"OpenCockpitLarge" })
@@ -216,7 +300,48 @@ namespace SpaceEngineersVR.Diagnostics
                         if(pixel.R!=7 || pixel.G!=12 || pixel.B!=18) throw new Exception("Physical surface ignored nearer scene depth");
                     }
                 log("PASS physical surface GPU shader: perspective key faces/slab edges, production controller depth can be sampled; clear depth shows keyboard, nearer depth occludes it");
+                var label=new SurfaceView {Id="Occluded label",Style=SurfaceStyle.Label,Title="Switch lock · Connector",
+                    Icons=new[] {NativeSprites.Hud("GridPowerOn")},Levels=new[] {.5f},Width=.34f,Height=.068f,Pose=MatrixD.CreateTranslation(0,0,-.65)};
+                wrist.Pose=MatrixD.CreateTranslation(0,0,-.65);
+                foreach(int eye in new[] {-1,1}) foreach(var surface in new[] {label,wrist})
+                {
+                    scene.Clear(System.Drawing.Color.FromArgb(255,7,12,18)); scene.Upload();
+                    PhysicalSurface.Draw(scene.Texture,new[] {surface},MatrixD.CreateTranslation(-eye*.032,0,0),projection,srv);
+                    string path=Path.Combine(output,(surface==label ? "label" : "wrist")+"-behind-world-"+eye+".png");
+                    Save(scene.Texture,path);
+                    bool visible=HasContent(path);
+                    if(visible!=(surface==label)) throw new Exception("Label/wrist depth policy incorrect in eye "+eye);
+                }
+                using(var wheel=new OverlayCanvas("occluded wheel",1024,1024,1,false,device))
+                using(var texture=new ShaderResourceView(device,wheel.Texture))
+                {
+                    var model=new ToolbarWheel.View {Title="Actions",Group=1,Pages=3,Selected=0,
+                        Labels=GameActions.Quick.Take(9).Select(a=>a.Label).ToArray(),Icons=GameActions.Quick.Take(9).Select(a=>new[] {a.Icon}).ToArray(),
+                        Enabled=Enumerable.Repeat(true,9).ToArray(),SubIcons=new string[9],ItemText=new string[9]};
+                    Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
+                    foreach(int eye in new[] {-1,1}) foreach(bool overlay in new[] {false,true})
+                    {
+                        scene.Clear(System.Drawing.Color.FromArgb(255,7,12,18)); scene.Upload();
+                        var sprite=ToolbarWheel.Sprite(texture,MatrixD.CreateTranslation(0,0,-.65),MatrixD.CreateTranslation(-eye*.032,0,0),projection);
+                        if(!overlay) sprite.IgnoreSceneDepth=false;
+                        NativeSprites.Draw(scene.Texture,new[] {sprite},srv);
+                        string path=Path.Combine(output,"wheel-behind-world-"+eye+(overlay ? "-after" : "-before")+".png");
+                        Save(scene.Texture,path);
+                        if(HasContent(path)!=overlay) throw new Exception("Selection wheel scene-depth override incorrect in eye "+eye);
+                    }
+                }
+                log("PASS stereo UI depth: production labels and selection wheel remain visible behind nearer depth; wrist, keyboard and physical pointer retain occlusion.");
             }
+        }
+        private static bool HasContent(string path)
+        {
+            using(var bitmap=new Bitmap(path))
+                for(int y=0;y<bitmap.Height;y+=4) for(int x=0;x<bitmap.Width;x+=4)
+                {
+                    var pixel=bitmap.GetPixel(x,y);
+                    if(pixel.R!=7 || pixel.G!=12 || pixel.B!=18) return true;
+                }
+            return false;
         }
         private static void MarkerPreviews(Device device,string output)
         {

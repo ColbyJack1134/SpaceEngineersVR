@@ -81,6 +81,7 @@ namespace SpaceEngineersVR.Diagnostics
             RenderingPatchTests.Run(log);
             ThirdPersonTests.Run(log);
             ResolutionTests.Run(log);
+            PerformanceTests.Run(log);
             PlacementTests.Run(log);
             StickPlacementTests.Run(log);
             InteractionTests.Run(log);
@@ -291,6 +292,8 @@ namespace SpaceEngineersVR.Diagnostics
             PhysicalControlTests.Run(log);
             SpatialUiTests.Run(log);
             CockpitTests.Run(log);
+            CockpitStateTests.Run(log);
+            CockpitProbeTests.Run(log);
 
             var harmony=new Harmony("SpaceEngineersVR.BootstrapTests");
             try

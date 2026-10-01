@@ -119,12 +119,23 @@ namespace SpaceEngineersVR.Diagnostics
             RenderFrameBridge.CaptureMarkers(WorldMarkers.Read(renderer,MyHudMarkerRender.SignalMode.FullDisplay,origin,now));
             RenderFrameBridge.Commit(); RenderFrameBridge.Consume(recycled);
             if(RenderFrameBridge.Markers==null) throw new Exception("Native camera without independent rig lost markers");
-            RenderFrameBridge.Capture(recycled,null);
-            RenderFrameBridge.Commit(); RenderFrameBridge.Consume(recycled);
-            if(RenderFrameBridge.Markers!=null) throw new Exception("Frame without HUD retained pooled marker snapshot");
+            var retained=RenderFrameBridge.Markers;
+            for(int tick=0;tick<12;tick++)
+            {
+                RenderFrameBridge.Capture(recycled,null);
+                RenderFrameBridge.Commit(); RenderFrameBridge.Consume(recycled);
+                if(!ReferenceEquals(RenderFrameBridge.Markers,retained)) throw new Exception("Camera-only update dropped native markers");
+            }
             points.Clear();
-            if(WorldMarkers.Read(renderer,MyHudMarkerRender.SignalMode.FullDisplay,origin,now).Markers.Length!=0)
-                throw new Exception("Removed marker retained");
+            var empty=WorldMarkers.Read(renderer,MyHudMarkerRender.SignalMode.FullDisplay,origin,now);
+            RenderFrameBridge.Capture(recycled,null); RenderFrameBridge.CaptureMarkers(empty);
+            RenderFrameBridge.Commit(); RenderFrameBridge.Consume(recycled);
+            if(RenderFrameBridge.Markers.Markers.Length!=0) throw new Exception("Removed marker retained");
+            RenderFrameBridge.Capture(recycled,null); RenderFrameBridge.CaptureMarkers(retained);
+            WorldMarkers.Reset();
+            RenderFrameBridge.Commit(); RenderFrameBridge.Consume(recycled);
+            if(RenderFrameBridge.Markers!=null) throw new Exception("World reset retained markers");
+            log("PASS marker cadence: camera-only updates retain immutable captures; explicit empty HUD and world reset clear them.");
             log("PASS native POI motion: 180 ticks at 300 m/s, delayed render batches, pooled POIs/camera messages, fixed GPS and stereo. Old 10 Hz capture lag: "+oldLag+" m; paired per-frame capture: 0 m.");
         }
     }

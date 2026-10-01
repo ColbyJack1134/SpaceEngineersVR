@@ -6,13 +6,21 @@ namespace SpaceEngineersVR.Player
 {
     internal static class CockpitHandPose
     {
+        internal const float CockpitTip=-.033f;
+        internal static Matrix GripWrist(Matrix grip) => Matrix.CreateTranslation(0,.02f,.04f)*grip;
+        internal static MatrixD CockpitWrist(MatrixD wrist,Matrix palmOffset,Matrix finger)
+        {
+            // Retract the glove's measured 8mm overhang, leaving the controller's selection anchor fixed.
+            wrist.Translation+=Vector3D.TransformNormal(new Vector3D(-.025-CockpitTip,0,0),(MatrixD)finger*palmOffset*wrist);
+            return wrist;
+        }
         internal static Quaternion Rotation(string name,bool pinch,bool stick=false)
         {
             bool thumb=name.Contains("Thumb"),index=name.Contains("Index");
             float curl=thumb ? pinch ? .25f : .35f : index && !stick ? pinch ? .7f : 0 : .85f;
             return Quaternion.CreateFromAxisAngle(Vector3.Backward,curl);
         }
-        internal static Vector3 Finger(MyCharacterBone palm,MyCharacterBone tip,bool pinch)
+        internal static Matrix FingerPose(MyCharacterBone palm,MyCharacterBone tip,bool pinch)
         {
             var chain=new Stack<MyCharacterBone>();
             for(var bone=tip;bone!=null && bone!=palm;bone=bone.Parent) chain.Push(bone);
@@ -22,11 +30,20 @@ namespace SpaceEngineersVR.Player
                 Matrix local=bone.GetAbsoluteRigTransform()*Matrix.Invert(bone.Parent.GetAbsoluteRigTransform());
                 pose=Matrix.CreateFromQuaternion(Rotation(bone.Name,pinch))*local*pose;
             }
-            return Vector3.Transform(new Vector3(-.025f,0,0),pose);
+            return pose;
         }
-        internal static Vector3 Contact(MyCharacterBone palm,MyCharacterBone index,MyCharacterBone thumb,bool pinch)
+        internal static Vector3 Finger(MyCharacterBone palm,MyCharacterBone tip,bool pinch,float tipOffset=-.025f) =>
+            Vector3.Transform(new Vector3(tipOffset,0,0),FingerPose(palm,tip,pinch));
+        internal static Vector3D PointContact(MatrixD wrist,Matrix palmOffset,Matrix finger) =>
+            Vector3D.Transform(new Vector3D(-.025,0,0),(MatrixD)finger*palmOffset*wrist);
+        internal static MatrixD PointPose(MatrixD wrist,Matrix palmOffset,Matrix finger)
         {
-            Vector3 point=Finger(palm,index,pinch);
+            MatrixD posed=(MatrixD)finger*palmOffset*wrist;
+            return MatrixD.CreateWorld(Vector3D.Transform(new Vector3D(-.025,0,0),posed),-posed.Right,posed.Up);
+        }
+        internal static Vector3 Contact(MyCharacterBone palm,MyCharacterBone index,MyCharacterBone thumb,bool pinch,float tipOffset=-.025f)
+        {
+            Vector3 point=Finger(palm,index,pinch,tipOffset);
             return pinch && thumb!=null ? (point+Finger(palm,thumb,true))*.5f : point;
         }
         internal static MatrixD Attach(MatrixD wrist,Matrix palmOffset,Vector3 localContact,Vector3D target)

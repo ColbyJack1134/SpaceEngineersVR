@@ -48,6 +48,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Recenter(Matrix oldOrigin, Matrix newOrigin)
         {
+            HandInteraction.ResetTouch();
             if(owner==null) return;
             anchor=VrMath.RecenterAnchor(anchor,oldOrigin,newOrigin);
             anchor.Translation=BodyFrame(owner).Translation+Vector3D.TransformNormal(eyeOffset,anchor);

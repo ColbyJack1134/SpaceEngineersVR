@@ -76,6 +76,14 @@ namespace SpaceEngineersVR.Player
             visible = true;
         }
 
+        internal void Show(float alpha=1)
+        {
+            if(handle==0) return;
+            Check(OpenVR.Overlay.SetOverlayAlpha(handle,alpha));
+            if(!visible) Check(OpenVR.Overlay.ShowOverlay(handle));
+            visible=true;
+        }
+
         public void Hide()
         {
             if (visible) Check(OpenVR.Overlay.HideOverlay(handle));

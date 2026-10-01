@@ -33,7 +33,7 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Start(Harmony harmony)
         {
             harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),"DrawScene"),new HarmonyMethod(typeof(PhysicalRendererProbe),nameof(Render)));
-            Active=true; phase=0; next=DateTime.UtcNow.AddSeconds(10); deadline=DateTime.UtcNow.AddSeconds(115);
+            Active=true; phase=0; next=DateTime.UtcNow.AddSeconds(10); deadline=DateTime.UtcNow.AddSeconds(145);
             Directory.CreateDirectory(output);
             foreach (string file in new[] {"native-left.png","rest-left.png","rest-right.png","articulated-left.png","articulated-right.png","restored-left.png","regrab-left.png"})
                 if (File.Exists(Path.Combine(output,file))) File.Delete(Path.Combine(output,file));
@@ -53,6 +53,7 @@ namespace SpaceEngineersVR.Diagnostics
                     PlacementTests.RunNativeFixture(line=>Logger.Info(line));
                     NativeIntegrationTests.Run(line=>Logger.Info(line));
                     BuildOrientationTests.RunNative(line=>Logger.Info(line));
+                    CockpitHandTests.NativeContacts(line=>Logger.Info(line));
                     native=MyRenderProxy.CreateRenderEntity("SEVR probe interior",FighterProfile.Model,MatrixD.Identity,MyMeshDrawTechnique.MESH,
                         RenderFlags.Visible|RenderFlags.CastShadows,(CullingOptions)0,Color.White,neutralPaint);
                     assignment=new AssignmentPreview(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(assignment);
@@ -71,7 +72,7 @@ namespace SpaceEngineersVR.Diagnostics
                 float fov=phase>=16 ? .23f : .72f;
                 float near=.03f;
                 MatrixD modelWorld=MatrixD.Identity;
-                if(phase>=20)
+                if(phase>=20 && phase<29)
                 {
                     var model=VRage.Game.Models.MyModels.GetModelOnlyData(FighterProfile.Model);
                     var miniature=new Player.Control.Diorama();
@@ -100,6 +101,22 @@ namespace SpaceEngineersVR.Diagnostics
                         Matrix.CreateTranslation(phase>=26 || phase%2==0 ? -.032f : .032f,0,0),miniature.UnitsPerMeter);
                     eye=MatrixD.Invert(view).Translation; near=(float)(.005*miniature.UnitsPerMeter); fov=.7f;
                 }
+                if(phase>=29)
+                {
+                    eye=new Vector3D(.29,-.29,.66);
+                    view=MatrixD.CreateLookAt(eye,new Vector3D(.40,-.44,.60),Vector3D.Up); fov=.22f;
+                }
+                if(phase>=31)
+                {
+                    eye=phase<33 ? new Vector3D(.02,.02,.28) : new Vector3D(.11,-.12,.04);
+                    view=MatrixD.CreateLookAt(eye,phase<33 ? new Vector3D(0,-.4,-.26) : new Vector3D(.32,-.355,-.23),Vector3D.Up);
+                    fov=phase<33 ? .35f : .30f;
+                }
+                if(phase>=35)
+                {
+                    eye=new Vector3D(.16,-.07,.16);
+                    view=MatrixD.CreateLookAt(eye,CockpitBarGeometry.Front,Vector3D.Up); fov=.25f;
+                }
                 Matrix projection=(Matrix)VrMath.Projection(-aspect*fov,aspect*fov,-fov,fov,near,100);
                 MyRenderProxy.SetCameraViewMatrix(view,projection,projection,1.3f,1.3f,near,100,100,eye,smooth:false);
                 camera=new MyRenderMessageSetCameraViewMatrix { ViewMatrix=view,ProjectionMatrix=projection,ProjectionFarMatrix=projection,
@@ -111,8 +128,8 @@ namespace SpaceEngineersVR.Diagnostics
                     Matrix r=moved ? CockpitStickMath.RightVisual(new Vector3(0.5f,0.4f,0.6f)) : Matrix.Identity;
                     Vector3 lo=phase>=10 && phase<14 ? new Vector3(.07f,.10f,.10f) : Vector3.Zero;
                     Vector3 ro=phase>=10 && phase<14 ? new Vector3(-.07f,.12f,.08f) : Vector3.Zero;
-                    CockpitRender.UpdateScene(native,modelWorld,StickPlacement.Visual(l,lo),StickPlacement.Visual(r,ro),moved,moved,lo,ro,moved ? 1f : 0f,moved ? 1f : (float?)null,colorMask:phase>=14 ? new Vector3(.58f,0,.02f) : neutralPaint,
-                        previewHover:phase==17 ? 0 : phase==18 ? 9 : -1,previewHeld:phase==17 ? 1 : phase==18 ? 10 : -1,previewCover:phase==18);
+                    CockpitRender.UpdateScene(native,modelWorld,StickPlacement.Visual(l,lo),StickPlacement.Visual(r,ro),moved,moved,lo,ro,moved || phase==30 || phase==32 || phase==34 ? 1f : 0f,phase>=31 ? phase==32 ? 1f : 0f : moved ? 1f : (float?)null,colorMask:phase>=14 ? new Vector3(.58f,0,.02f) : neutralPaint,
+                        previewHover:phase==17 ? 0 : phase==18 ? 9 : -1,previewHeld:phase==17 ? 1 : phase==18 ? 10 : phase==30 ? 19 : -1,previewCover:phase==18,nativeRest:phase<16 && !moved,barPreview:phase==36 ? 1f : 0f);
                 }
                 if(phase>=14) MyRenderProxy.UpdateRenderEntity(native,null,new Vector3(.58f,0,.02f));
                 MyRenderProxy.UpdateRenderObject(native,modelWorld);
@@ -137,11 +154,11 @@ namespace SpaceEngineersVR.Diagnostics
                         options=new GUI.RenderingOptions(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
                     }
                     if(phase==26) { options.CloseScreenNow(); options=null; }
-                    if (phase==29)
+                    if (phase==37)
                     {
                         if(!rotationPreviewsSaved) throw new InvalidOperationException("Native rotation previews not rendered");
                         ValidateImages();
-                        Stop(); Logger.Info("PHYSICAL RENDER SMOKE PASSED: native material suppression, six stick actors plus preserved Chrome/interior and thirteen animated levers/covers, articulation, independently relocated bases/handles, 64 mm left/right scene views, removal/restoration and recreation. Images: "+output);
+                        Stop(); Logger.Info("PHYSICAL RENDER SMOKE PASSED: native material suppression, sticks, covered/uncovered levers, articulation, independently relocated bases/handles, stereo scene views, removal/restoration and recreation. Images: "+output);
                     }
                     return;
                 }
@@ -154,8 +171,11 @@ namespace SpaceEngineersVR.Diagnostics
                     phase==6 ? "articulated-right" : phase==7 ? "restored-left" : phase==9 ? "regrab-left" :
                     phase==10 ? "relocated-left" : phase==11 ? "relocated-right" : phase==12 ? "relocated-articulated-left" : phase==13 ? "relocated-articulated-right" : phase==14 ? "repainted-left" : phase==15 ? "repainted-native-left" : phase==16 ? "controls-rest" : phase==17 ? "controls-levers" : phase==18 ? "controls-covers" : phase==19 ? "controls-restored" :
                     phase==20 ? "miniature-left" : phase==21 ? "miniature-right" : phase==22 ? "miniature-enlarged-left" : phase==23 ? "miniature-enlarged-right" :
+                    phase==35 ? "bar-rest" : phase==36 ? "bar-pulled" :
+                    phase==31 ? "front-closed" : phase==32 ? "front-open" : phase==33 ? "front-right-rest" : phase==34 ? "front-right-on" :
+                    phase==29 ? "uncovered-rest" : phase==30 ? "uncovered-on" :
                     phase>=26 ? "camera-"+(Player.Control.ObserverMode)(phase-26) : "rendering-scene-"+phase;
-                if(phase==1 || phase==3) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"assignment-page-"+(phase==1 ? "1" : "2")+".png"),false,false,false);
+                if(phase==1 || phase==3) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"assignment-page-"+(phase==1 ? "1" : "last")+".png"),false,false,false);
                 if(phase==24 || phase==25) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,phase==24 ? "options-native.png" : "rendering-options-native.png"),false,false,false);
                 pending=Path.Combine(output,name+".png");
                 next=DateTime.UtcNow.AddSeconds(1);
@@ -270,6 +290,12 @@ namespace SpaceEngineersVR.Diagnostics
         }
         private static void ValidateImages()
         {
+            if(Difference("bar-rest","bar-pulled")<10)
+                throw new InvalidOperationException("Striped bar does not pull in the native renderer");
+            if(Difference("front-closed","front-open")<15 || Difference("front-right-rest","front-right-on")<10)
+                throw new InvalidOperationException("Remaining fighter controls did not articulate in the native renderer");
+            if(Difference("uncovered-rest","uncovered-on")<2)
+                throw new InvalidOperationException("Uncovered switch articulation missing from native render");
             if(Difference("camera-Ship","camera-Heading")<100 || Difference("camera-Heading","camera-Fixed")<100)
                 throw new InvalidOperationException("Observer modes lost their distinct native orientations");
             if(Difference("miniature-left","miniature-right")<100 || Difference("miniature-left","miniature-enlarged-left")<100)

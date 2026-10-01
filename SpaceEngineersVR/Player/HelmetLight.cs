@@ -12,6 +12,7 @@ namespace SpaceEngineersVR.Player
     [HarmonyPatch(typeof(MyRenderComponentCharacter),nameof(MyRenderComponentCharacter.UpdateLightPosition))]
     internal static class HelmetLight
     {
+        internal const float Height=.05f;
         private sealed class Frame
         {
             public readonly MyCharacter Character;
@@ -27,16 +28,16 @@ namespace SpaceEngineersVR.Player
             Volatile.Write(ref frame,active ? new Frame(character,SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix)) : null);
             if(active) (character.Render as MyRenderComponentCharacter)?.UpdateLightPosition();
         }
-        internal static MatrixD Pose(MatrixD head,Vector3 offset)
+        internal static MatrixD Pose(MatrixD head)
         {
-            head.Translation=Vector3D.Transform(offset,head);
+            head.Translation+=head.Up*Height;
             return head;
         }
         private static void Postfix(MyRenderComponentCharacter __instance,MyLight ___m_light)
         {
             var current=Volatile.Read(ref frame);
             if(!Main.VrActive || current==null || ___m_light==null || current.Character.Render!=__instance || current.Character.Closed) return;
-            var pose=Pose(current.Head,current.Character.Definition.LightOffset);
+            var pose=Pose(current.Head);
             ___m_light.ReflectorDirection=pose.Forward;
             ___m_light.ReflectorUp=pose.Up;
             ___m_light.Position=pose.Translation;

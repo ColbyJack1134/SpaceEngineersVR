@@ -13,6 +13,7 @@ namespace SpaceEngineersVR.Player
     internal sealed class SurfaceKey
     {
         public string Label;
+        public bool Enabled=true;
         public VRageMath.RectangleF Bounds;
         public SurfaceKey(string label,float x,float y,float w,float h) { Label=label; Bounds=new VRageMath.RectangleF(x,y,w,h); }
     }
@@ -31,12 +32,12 @@ namespace SpaceEngineersVR.Player
         public float[] Levels;
         public int Handle;
         public Vector3? TouchPoint;
-        public string ContentKey => Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Hover+"|"+Pressed+"|"+string.Join("|",Keys.Select(k=>k.Label))+
+        public string ContentKey => Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Hover+"|"+Pressed+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled))+
             "|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
         public int KeyAt(Vector2 uv)
         {
-            for (int i=0;i<Keys.Length;i++) if (Keys[i].Bounds.Width>0 && Keys[i].Bounds.Height>0 && Keys[i].Bounds.Contains(uv)) return i;
+            for (int i=0;i<Keys.Length;i++) if (Keys[i].Enabled && Keys[i].Bounds.Width>0 && Keys[i].Bounds.Height>0 && Keys[i].Bounds.Contains(uv)) return i;
             return -1;
         }
     }
@@ -143,12 +144,12 @@ namespace SpaceEngineersVR.Player
                 target.Icon(s.SubIcon,target.Width*91f/768,target.Height*91f/154,target.Width*51f/768,target.Height*51f/154,new Vector4(0,0,1,1),Color.White);
         }
 
-        private static void DrawLock(Graphics g,System.Drawing.RectangleF r,bool unlocked)
+        private static void DrawLock(Graphics g,System.Drawing.RectangleF r,bool unlocked,bool enabled)
         {
             var state=g.Save();
             float size=Math.Min(r.Width,r.Height)*.80f;
             g.TranslateTransform(r.X+r.Width/2,r.Y+r.Height/2); g.ScaleTransform(size,size);
-            Color color=unlocked ? Color.Orange : Color.LightGreen;
+            Color color=!enabled ? Color.SlateGray : unlocked ? Color.Orange : Color.LightGreen;
             using(var pen=new Pen(color,.10f))
             using(var brush=new SolidBrush(color))
             {
@@ -179,8 +180,8 @@ namespace SpaceEngineersVR.Player
                         using(var path=Rounded(r,.003f))
                         using(var brush=new SolidBrush(i==s.Pressed ? Color.FromArgb(38,124,139) : i==s.Hover ? Color.FromArgb(61,85,94) : Color.FromArgb(44,51,56)))
                         { g.FillPath(brush,path); g.DrawPath(border,path); }
-                        if(i==7) DrawLock(g,r,s.Handle==1);
-                        else if(i<9) DrawSeatSymbol(g,i==8 ? 4 : i,r);
+                        if(i==7) DrawLock(g,r,s.Handle==1,s.Keys[i].Enabled);
+                        else if(i<9) DrawSeatSymbol(g,i,r,s.Keys[i].Enabled ? Color.LightCyan : Color.SlateGray);
                         else
                         {
                             bool on=s.Levels!=null && i-9<s.Levels.Length && s.Levels[i-9]>.5f;
@@ -207,21 +208,35 @@ namespace SpaceEngineersVR.Player
             }
             g.FillRectangle(Brushes.White,1020,636,4,4);
         }
-        private static void DrawSeatSymbol(Graphics g,int key,System.Drawing.RectangleF r)
+        private static void DrawSeatSymbol(Graphics g,int key,System.Drawing.RectangleF r,Color color)
         {
             var saved=g.Save();
             float size=Math.Min(r.Width,r.Height)*.68f;
             g.TranslateTransform(r.X+r.Width/2,r.Y+r.Height/2); g.ScaleTransform(size,size);
-            if(key==4)
+            using(var brush=new SolidBrush(color))
+            if(key==4 || key==8)
             {
-                using(var pen=new Pen(Color.LightCyan,.14f)) g.DrawArc(pen,-.32f,-.32f,.64f,.64f,45,275);
-                g.FillPolygon(Brushes.LightCyan,new[] { new PointF(.43f,-.43f),new PointF(.02f,-.32f),new PointF(.33f,-.06f) });
+                using(var pen=new Pen(color,.075f) { LineJoin=System.Drawing.Drawing2D.LineJoin.Round })
+                {
+                    g.DrawArc(pen,-.43f,-.43f,.86f,.86f,40,285);
+                    if(key==4)
+                    {
+                        g.DrawLines(pen,new[] {new PointF(-.16f,-.23f),new PointF(-.16f,.12f),new PointF(.20f,.12f),new PointF(.20f,.26f)});
+                        g.DrawLine(pen,-.16f,.12f,-.16f,.26f);
+                    }
+                    else foreach(float x in new[] {-.17f,.17f})
+                    {
+                        g.FillRectangle(brush,x-.065f,-.22f,.13f,.20f);
+                        g.DrawLine(pen,x,-.04f,x,.20f); g.DrawLine(pen,x-.10f,.23f,x+.10f,.23f);
+                    }
+                }
+                g.FillPolygon(brush,new[] { new PointF(.45f,-.36f),new PointF(.22f,-.34f),new PointF(.41f,-.14f) });
             }
             else
             {
                 g.RotateTransform(key==3 ? -90 : key==5 ? 90 : key==2 || key==6 ? 180 : 0);
-                if(key==0 || key==2) g.FillPolygon(Brushes.LightCyan,new[] { new PointF(0,-.43f),new PointF(.43f,.32f),new PointF(-.43f,.32f) });
-                else g.FillPolygon(Brushes.LightCyan,new[] { new PointF(0,-.46f),new PointF(.43f,-.02f),new PointF(.16f,-.02f),
+                if(key==0 || key==2) g.FillPolygon(brush,new[] { new PointF(0,-.43f),new PointF(.43f,.32f),new PointF(-.43f,.32f) });
+                else g.FillPolygon(brush,new[] { new PointF(0,-.46f),new PointF(.43f,-.02f),new PointF(.16f,-.02f),
                     new PointF(.16f,.44f),new PointF(-.16f,.44f),new PointF(-.16f,-.02f),new PointF(-.43f,-.02f) });
             }
             g.Restore(saved);
@@ -291,7 +306,7 @@ namespace SpaceEngineersVR.Player
         public static void Draw(Texture2D target,IEnumerable<SurfaceView> surfaces,MatrixD view,MatrixD projection,ShaderResourceView depth)
         {
             sprites.Clear();
-            foreach(var s in surfaces.OrderBy(s=>Vector3D.Transform(s.Pose.Translation,view).Z))
+            foreach(var s in surfaces.OrderBy(s=>s.Style==SurfaceStyle.Label).ThenBy(s=>Vector3D.Transform(s.Pose.Translation,view).Z))
             {
                 if(!cache.TryGetValue(s.Id,out var c))
                 {
@@ -314,7 +329,11 @@ namespace SpaceEngineersVR.Player
                 if(s.Style==SurfaceStyle.ModelControl || s.Style==SurfaceStyle.Label)
                 {
                     if(Vector3D.Dot(s.Pose.Backward,MatrixD.Invert(view).Translation-s.Pose.Translation)>0)
-                        sprites.Add(Quad(c.Texture,s.Pose,full,new Vector4(0,0,1,1),Vector4.One,view,projection,.001f));
+                    {
+                        var sprite=Quad(c.Texture,s.Pose,full,new Vector4(0,0,1,1),Vector4.One,view,projection,.001f);
+                        sprite.IgnoreSceneDepth=s.Style==SurfaceStyle.Label;
+                        sprites.Add(sprite);
+                    }
                     continue;
                 }
                 // Back plate plus four dark edge faces make a tangible 8mm slab.

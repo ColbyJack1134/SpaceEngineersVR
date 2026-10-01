@@ -71,16 +71,47 @@ namespace SpaceEngineersVR.Diagnostics
             string content=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(MyRenderProxy).Assembly.Location),"..","Content"));
             var geometry=CockpitGeometry.Load(content);
             Require(geometry.Parts.Take(6).Sum(p=>p.Indices.Count)==568*3,"Native stick triangles lost or duplicated");
-            Require(geometry.Parts.Length==34 && geometry.Parts.Skip(6).Take(14).Sum(p=>p.Indices.Count)==4046*3,"Chrome triangles lost or duplicated");
-            for(int i=0;i<13;i++)
+            int coverBase=7+CockpitSwitchGeometry.Count;
+            Require(geometry.Parts.Length==coverBase+2+CockpitCoverGeometry.Count && geometry.Parts.Skip(6).Take(CockpitSwitchGeometry.Count+1).Sum(p=>p.Indices.Count)==4046*3,"Chrome triangles lost or duplicated");
+            for(int i=0;i<CockpitSwitchGeometry.Count;i++)
             {
                 Require(geometry.Parts[7+i].Indices.Count==56*3,"Missing isolated lever");
                 var visual=CockpitSwitchGeometry.Visual(i,1);
                 Near(Vector3.Transform(CockpitSwitchGeometry.Pivots[i],visual),CockpitSwitchGeometry.Pivots[i],"Switch pivot moves");
-                Require(Vector3.Dot(Vector3.Transform(CockpitSwitchGeometry.Centers[i],visual)-CockpitSwitchGeometry.Centers[i],CockpitSwitchGeometry.Up)>0,"Switch flips away from up");
+                var off=Vector3.Transform(CockpitSwitchGeometry.Centers[i],CockpitSwitchGeometry.Visual(i,0));
+                Require(Vector3.Dot(Vector3.Transform(CockpitSwitchGeometry.Centers[i],visual)-off,CockpitSwitchGeometry.UpFor(i))>0,"Switch flips away from up");
             }
-            Require(geometry.Parts.Skip(20).Sum(p=>p.Indices.Count)==4126*3,"Cover material triangles lost or duplicated");
-            for(int i=0;i<13;i++) for(int step=0;step<=10;step++)
+            Require(geometry.Parts.Skip(coverBase).Sum(p=>p.Indices.Count)==4126*3,"Cover material triangles lost or duplicated");
+            var barMesh=geometry.Parts.Last();
+            Require(barMesh.Indices.Count==70*3,"Striped bar is not isolated from its plate");
+            var cap=barMesh.Positions.Where(p=>Vector3.Dot(p,CockpitBarGeometry.Normal)>-.49f);
+            float capBack=cap.Min(p=>Vector3.Dot(Vector3.Transform(p,CockpitBarGeometry.Visual(1)),CockpitBarGeometry.Normal));
+            Require(capBack>-.49798227f+.03f,"Pulled striped cap does not clear the installed mounting plate");
+            float stemBase=barMesh.Positions.Min(p=>Vector3.Dot(Vector3.Transform(p,CockpitBarGeometry.Visual(1)),CockpitBarGeometry.Normal));
+            Require(stemBase<-.49798227f && stemBase>-.500f,"Extended stem detaches from its mounting plate");
+            Vector3 CoverFace(int index)
+            {
+                var mesh=geometry.Parts[coverBase+1+index];
+                var axis=CockpitSwitchGeometry.AxisFor(CockpitCoverGeometry.Slot(index));
+                Vector3 face=Vector3.Zero; float largest=0;
+                for(int t=0;t<mesh.Indices.Count;t+=3)
+                {
+                    var a=mesh.Positions[mesh.Indices[t]];
+                    var cross=Vector3.Cross(mesh.Positions[mesh.Indices[t+1]]-a,mesh.Positions[mesh.Indices[t+2]]-a);
+                    float area=cross.Length();
+                    if(area>largest && Math.Abs(Vector3.Dot(cross/area,axis))<.2f) { largest=area; face=cross/area; }
+                }
+                Require(largest>0,"Cover leaf face missing");
+                return face;
+            }
+            for(int i=0;i<CockpitCoverGeometry.Count;i++) foreach(float endpoint in new[] {0f,1f})
+            {
+                int reference=i<13 ? 9 : 13;
+                var face=Vector3.TransformNormal(CoverFace(i),CockpitCoverGeometry.Visual(i,endpoint));
+                var expected=Vector3.TransformNormal(CoverFace(reference),CockpitCoverGeometry.Visual(reference,endpoint));
+                Require(Math.Abs(Vector3.Dot(face,expected))>Math.Cos(Math.PI/180),"Native cover variants disagree at the same endpoint");
+            }
+            for(int i=0;i<CockpitCoverGeometry.Count;i++) for(int step=0;step<=10;step++)
             {
                 float openness=step/10f;
                 var visual=CockpitCoverGeometry.Visual(i,openness);

@@ -30,6 +30,12 @@ namespace SpaceEngineersVR.Player
         private CockpitGeometry(MyModelData[] parts,int triangles) { Parts=parts; NativeTriangles=triangles; }
         public static CockpitGeometry Load(string content)
         {
+            long started=FeatureTiming.Start();
+            try { return LoadCore(content); }
+            finally { FeatureTiming.End(FeatureTiming.Area.CockpitGeometry,started); }
+        }
+        private static CockpitGeometry LoadCore(string content)
+        {
             var importer=new MyModelImporter();
             using (var reader=new BinaryReader(File.OpenRead(Path.Combine(content,FighterProfile.Model.Replace('/',Path.DirectorySeparatorChar)))))
                 AccessTools.Method(typeof(MyModelImporter),"LoadTagData").Invoke(importer,new object[] {

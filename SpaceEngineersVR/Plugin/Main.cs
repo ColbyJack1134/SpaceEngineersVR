@@ -156,6 +156,7 @@ namespace SpaceEngineersVR.Plugin
                     VRGUIManager.Hide();
                     Player.EssentialHud.Hide();
                     Player.BuildOrientationHud.Hide();
+                    Player.PerformanceHud.Hide();
                     Player.ToolbarWheel.Hide();
                 }
                 catch (Exception ex) { Logger.Critical(ex, "VR failure cleanup"); }
@@ -249,6 +250,7 @@ namespace SpaceEngineersVR.Plugin
             Player.CockpitButtons.Update();
             Player.SpatialUi.Update();
             Player.TouchScreenBridge.Update();
+            Player.HandInteraction.UpdateTouch();
             Player.ToolbarWheel.Update();
             Player.NativeActions.Update();
             Player.CameraRig.Publish();

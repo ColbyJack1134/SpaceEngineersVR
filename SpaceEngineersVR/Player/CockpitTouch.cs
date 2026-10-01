@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using SpaceEngineersVR.Player.Control;
 using SpaceEngineersVR.Plugin;
@@ -12,34 +13,65 @@ namespace SpaceEngineersVR.Player
         internal sealed class Target
         {
             public SurfaceView Surface;
-            public bool Lever,Cover;
+            public bool Lever,Cover,Pull;
             public int Slot=-1;
             public float Position,Travel;
             public Vector3 Pivot,Axis;
             public bool Hinged => Lever || Cover;
+            public bool Draggable => Hinged || Pull;
         }
         internal sealed class Hand
         {
             private readonly InputGate press=new InputGate();
+            private readonly InputGate squeeze=new InputGate();
             private readonly PointerIntent pointer=new PointerIntent();
+            private bool guardedSqueeze;
             public string Surface { get; private set; }
             public int Held { get; private set; }=-1;
+            public bool Captured { get; private set; }
+            public bool Committed { get; private set; }
             public bool Pressed { get; private set; }
             public bool Consumed { get; private set; }
             public void Reset()
             {
-                press.Block(); pointer.Reset(); Surface=null; Held=-1; Pressed=false;
+                press.Block(); squeeze.Block(); pointer.Reset(); guardedSqueeze=false; Surface=null; Held=-1; Captured=Committed=Pressed=false;
             }
-            public void Sample(bool available,float pressure,bool down,string target,int key,bool canAcquire=true,bool reachable=true)
+            public void Sample(bool available,float pressure,bool down,string target,int key,bool canAcquire=true,bool reachable=true,bool guarded=false,bool softCapture=true)
             {
-                Pressed=false;
-                if(pressure<=.025f && !down) Consumed=false;
-                if(!available) { Reset(); return; }
+                Captured=Pressed=false;
+                if(pressure<=.025f && !down) Consumed=guardedSqueeze=false;
+                if(!available || float.IsNaN(pressure)) { Reset(); return; }
                 press.Update(true,down);
+                squeeze.Update(true,VrMath.Deadzone(pressure)>0 || down);
                 pointer.Begin(true,pressure,down,target!=null);
-                if(!down || !reachable) { Surface=null; Held=-1; }
-                if(Surface==null && !Consumed && press.Pressed && canAcquire && target!=null && key>=0 && pointer.Capture(target,true))
-                { Surface=target; Held=key; Pressed=true; Consumed=true; }
+                if(!reachable || (Committed ? !down : pressure<.08f && !down))
+                { Surface=null; Held=-1; Committed=false; }
+                if(Surface==null && (!Consumed || guardedSqueeze) && (softCapture && pressure>=.20f || press.Pressed) && canAcquire &&
+                    target!=null && key>=0 && pointer.Capture(target,true))
+                { Surface=target; Held=key; Captured=Consumed=true; guardedSqueeze=false; }
+                if(Surface!=null && !Committed && press.Pressed) { Committed=Pressed=true; }
+                if(press.Pressed && canAcquire && guarded) Consumed=true;
+                if(press.Pressed) guardedSqueeze=false;
+                // Left-trigger thrust starts before its click threshold; reserve a nearby squeeze early.
+                if(!Consumed && squeeze.Pressed && !down && canAcquire && guarded) Consumed=guardedSqueeze=true;
+            }
+        }
+        internal sealed class HoverGrace
+        {
+            internal string Surface { get; private set; }
+            private int key;
+            private Vector3 contact;
+            private Vector3D tip;
+            private double last;
+            internal void Reset() { Surface=null; }
+            internal void Remember(string surface,int index,Vector3D localTip,Vector3 localContact,double now)
+            { Surface=surface; key=index; tip=localTip; contact=localContact; last=now; }
+            internal bool TryGet(Vector3D localTip,double now,out int index,out Vector3 localContact)
+            {
+                index=-1; localContact=Vector3.Zero;
+                if(Surface==null || !localTip.IsValid() || now<last || now-last>.1 || Vector3D.DistanceSquared(tip,localTip)>.0001)
+                { Reset(); return false; }
+                index=key; localContact=contact; return true;
             }
         }
         internal struct Result
@@ -53,7 +85,8 @@ namespace SpaceEngineersVR.Player
         private sealed class Contact
         {
             public readonly Hand Input=new Hand();
-            public readonly HingeDrag Drag=new HingeDrag();
+            public readonly ControlDrag Drag=new ControlDrag();
+            public readonly HoverGrace Grace=new HoverGrace();
             public Target Target,Hover;
             public int HoverKey=-1,Change=-1;
             public Vector3 StartHand,FitAtGrab,Anchor;
@@ -69,7 +102,7 @@ namespace SpaceEngineersVR.Player
         public static bool OwnsRight => hands[0].Input.Consumed;
         public static bool Owns(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Input.Consumed;
         public static bool Attached(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Input.Surface!=null;
-        public static bool Pinching(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Target?.Hinged==true && Attached(hand);
+        public static bool Pinching(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Target?.Draggable==true && Attached(hand);
         private static Controller Controller(int i) => i==0 ? Player.HandR : Player.HandL;
         private static void Consume(int i)
         {
@@ -83,24 +116,35 @@ namespace SpaceEngineersVR.Player
         }
         public static void Reset()
         {
-            foreach(var h in hands) { h.Input.Reset(); h.Target=h.Hover=null; h.HoverKey=-1; }
+            foreach(var h in hands) { h.Input.Reset(); h.Grace.Reset(); h.Target=h.Hover=null; h.HoverKey=-1; }
             LeftPointing=RightPointing=false; owner=null; origin=Matrix.Identity;
         }
         internal static Vector3 Compensate(Vector3 hand,Vector3 fit,Vector3 startFit) => hand-(fit-startFit);
-        internal static int NearKey(SurfaceView s,Vector3 point,out float distance)
+        internal static int NearKey(SurfaceView s,CockpitProbe probe,out float distance,out Vector3 contact,float padding=.001f)
         {
-            distance=float.MaxValue;
-            if(!point.IsValid() || point.Z<-.014f || point.Z>.045f) return -1;
-            var uv=PhysicalSurface.UV(s,point);
-            int key=s.KeyAt(uv);
-            if(key<0 && s.Style==SurfaceStyle.ModelControl && Math.Abs(point.X)<s.Width/2+.003f && Math.Abs(point.Y)<s.Height/2+.003f) key=0;
-            if(key<0) return -1;
-            var b=s.Keys[key].Bounds;
-            var center=new Vector3((b.Center.X-.5f)*s.Width,(.5f-b.Center.Y)*s.Height,0);
-            distance=Vector3.Distance(point,center);
+            distance=float.MaxValue; contact=Vector3.Zero; int key=-1;
+            for(int i=0;i<s.Keys.Length;i++)
+            {
+                var k=s.Keys[i]; if(!k.Enabled || k.Bounds.Width<=0 || k.Bounds.Height<=0) continue;
+                var b=k.Bounds;
+                float z=s.Style==SurfaceStyle.ModelControl ? 0 : .006f;
+                var bounds=new BoundingBox(new Vector3((b.X-.5f)*s.Width,(.5f-b.Y-b.Height)*s.Height,z),
+                    new Vector3((b.X+b.Width-.5f)*s.Width,(.5f-b.Y)*s.Height,z));
+                if(!probe.Intersects(bounds,padding)) continue;
+                var point=Vector3.Clamp((Vector3)probe.Tip,bounds.Min,bounds.Max);
+                float candidate=Vector3.Distance((Vector3)probe.Tip,point);
+                if(candidate>=distance) continue;
+                distance=candidate; contact=point; key=i;
+            }
             return key;
         }
         public static void BeginFrame()
+        {
+            long started=FeatureTiming.Start();
+            try { BeginFrameCore(); }
+            finally { FeatureTiming.End(FeatureTiming.Area.CockpitTouch,started); }
+        }
+        private static void BeginFrameCore()
         {
             CockpitButtons.Prepare();
             LeftPointing=RightPointing=false;
@@ -125,6 +169,7 @@ namespace SpaceEngineersVR.Player
             var targets=new List<Target>(CockpitButtons.Targets);
             var panel=available && !WeaponHandling.ConsumesLeftGrip ? SeatPanel.View() : null;
             if(panel!=null) targets.Add(new Target { Surface=panel });
+            double now=(double)Stopwatch.GetTimestamp()/Stopwatch.Frequency;
             for(int i=0;i<2;i++)
             {
                 var h=hands[i]; var hand=Controller(i); var c=Controls.Static;
@@ -132,31 +177,49 @@ namespace SpaceEngineersVR.Player
                 bool down=i==0 ? c.Primary.RawPressed : pressure>.55f;
                 bool flying=i==0 ? c.ThrustRotate.RawPosition.LengthSquared()>.04f :
                     c.ThrustLRUD.RawPosition.LengthSquared()>.04f || c.ThrustLRFB.RawPosition.LengthSquared()>.04f;
-                bool free=available && !CockpitControls.Held(hand) && !flying && !HelmetHud.Consumes(hand);
+                bool free=available && !CockpitControls.Held(hand) && !HelmetHud.Consumes(hand);
                 h.Change=-1;
                 if(!free)
                 {
-                    h.Input.Sample(false,pressure,down,null,-1); h.Target=h.Hover=null; h.HoverKey=-1;
+                    h.Input.Sample(false,pressure,down,null,-1); h.Grace.Reset(); h.Target=h.Hover=null; h.HoverKey=-1;
                     if(h.Input.Consumed) Consume(i);
                     continue;
                 }
                 MatrixD rawWrist=TrackedArms.FreeWristWorld(hand);
                 Matrix localWrist=(Matrix)(rawWrist*seat.PositionComp.WorldMatrixNormalizedInv);
                 Vector3 raw=localWrist.Translation;
-                var aim=SpatialUi.DeviceWorld(hand.AimTracking);
-                Vector3D tip=aim.Translation+aim.Forward*.025;
-                if(TrackedArms.TryFreeFingertip(hand,out var finger)) tip=finger;
+                var pointer=SpatialUi.DeviceWorld(hand.AimTracking);
+                pointer.Translation+=pointer.Forward*.025;
+                if(TrackedArms.TryFreePointPose(hand,out var finger)) pointer=finger;
+                var probe=new CockpitProbe(pointer);
                 Vector3D head=SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation;
-                Target chosen=null; int key=-1; float nearest=float.MaxValue;
+                bool guarded=CockpitPanelGuard.Contains(seat.BlockDefinition.Id.SubtypeName,probe.Transform(seat.PositionComp.WorldMatrixNormalizedInv)) ||
+                    panel!=null && CockpitPanelGuard.NearSurface(panel,probe);
+                Target chosen=null; int key=-1; float nearest=float.MaxValue; Vector3 chosenContact=Vector3.Zero;
                 foreach(var target in targets)
                 {
                     var s=target.Surface;
-                    if(hands[1-i].Input.Surface==s.Id || Vector3D.Dot(s.Pose.Backward,head-s.Pose.Translation)<=.005) continue;
-                    var point=PhysicalSurface.Point(s,tip);
-                    int candidate=NearKey(s,point,out float distance);
+                    if(Vector3D.Dot(s.Pose.Backward,head-s.Pose.Translation)<=.005) continue;
+                    var localProbe=probe.Transform(MatrixD.Invert(s.Pose));
+                    int candidate=NearKey(s,localProbe,out float distance,out var contact,target.Pull ? .004f : .001f);
                     if(candidate<0) continue;
-                    if(h.Hover?.Surface.Id==s.Id && h.HoverKey==candidate) distance-=.003f;
-                    if(distance<nearest) { chosen=target; key=candidate; nearest=distance; }
+                    guarded=true;
+                    if(flying || hands[1-i].Input.Surface==s.Id) continue;
+                    if(h.Hover?.Surface.Id==s.Id && h.HoverKey==candidate) distance-=.001f;
+                    if(distance<nearest) { chosen=target; key=candidate; nearest=distance; chosenContact=contact; }
+                }
+                if(flying || h.Input.Surface!=null) h.Grace.Reset();
+                else if(chosen!=null)
+                    h.Grace.Remember(chosen.Surface.Id,key,Vector3D.Transform(probe.Tip,MatrixD.Invert(chosen.Surface.Pose)),chosenContact,now);
+                else if(h.Grace.Surface!=null)
+                {
+                    var recent=targets.FirstOrDefault(t=>t.Surface.Id==h.Grace.Surface);
+                    if(recent==null || hands[1-i].Input.Surface==recent.Surface.Id ||
+                        Vector3D.Dot(recent.Surface.Pose.Backward,head-recent.Surface.Pose.Translation)<=.005)
+                        h.Grace.Reset();
+                    else if(h.Grace.TryGet(Vector3D.Transform(probe.Tip,MatrixD.Invert(recent.Surface.Pose)),now,out int recentKey,out var recentContact) &&
+                        recentKey>=0 && recentKey<recent.Surface.Keys.Length && recent.Surface.Keys[recentKey].Enabled)
+                    { chosen=recent; key=recentKey; chosenContact=recentContact; guarded=true; }
                 }
                 bool pointing=targets.Any(t=>Vector3D.Distance(rawWrist.Translation,t.Surface.Pose.Translation)<.4);
                 if(i==0) RightPointing=pointing; else LeftPointing=pointing;
@@ -166,20 +229,23 @@ namespace SpaceEngineersVR.Player
                 var held=targets.FirstOrDefault(t=>t.Surface.Id==h.Input.Surface);
                 Vector3 motion=Compensate(raw,SeatFit.Offset,h.FitAtGrab);
                 bool reachable=held!=null && Vector3.Distance(motion,h.StartHand)<.28f;
-                bool canAcquire=i==0 ? c.Primary.HasPressed : c.LeftTriggerPressure.Position.X>0;
-                h.Input.Sample(true,pressure,down,chosen?.Surface.Id,key,canAcquire,reachable);
-                if(h.Input.Pressed)
+                bool canAcquire=i==0 ? c.PointerPressure.Position.X>0 || c.Primary.HasPressed : c.LeftTriggerPressure.Position.X>0;
+                h.Input.Sample(true,pressure,down,chosen?.Surface.Id,key,canAcquire,reachable,guarded);
+                if(h.Input.Captured)
                 {
                     held=chosen; h.StartHand=raw; h.FitAtGrab=SeatFit.Offset; h.Wrist=localWrist; h.Grabbed=DateTime.UtcNow;
                     var s=held.Surface; var b=s.Keys[h.Input.Held].Bounds;
                     Vector3D anchor=Vector3D.Transform(new Vector3D((b.Center.X-.5)*s.Width,(.5-b.Center.Y)*s.Height,0),s.Pose);
+                    if(held.Pull)
+                        anchor=Vector3D.Transform(chosenContact,s.Pose);
                     h.Anchor=(Vector3)Vector3D.Transform(anchor,seat.PositionComp.WorldMatrixNormalizedInv);
                     h.StartPosition=held.Position;
                     if(held.Hinged) h.Drag.Begin(raw,h.Anchor,held.Pivot,held.Axis,held.Position,held.Travel);
+                    else if(held.Pull) h.Drag.BeginLinear(raw,held.Axis,held.Position,held.Travel);
                     CockpitFeedback.Engage(hand);
                 }
                 h.Target=h.Input.Surface!=null ? held : null;
-                if(h.Target?.Hinged==true && !h.Input.Pressed) h.Change=h.Drag.Move(motion);
+                if(h.Target?.Draggable==true && !h.Input.Captured) h.Change=h.Drag.Move(motion,h.Input.Committed);
                 if(h.Input.Consumed)
                 {
                     h.Hover=h.Target; h.HoverKey=h.Target!=null ? h.Input.Held : -1;
@@ -195,9 +261,9 @@ namespace SpaceEngineersVR.Player
                 var h=hands[i];
                 if(h.Hover?.Surface.Id==surface) result.Hover=h.HoverKey;
                 if(h.Input.Surface!=surface) continue;
-                result.Held=h.Input.Held; result.Hover=result.Held; result.Actor=Controller(i);
+                result.Held=h.Input.Committed ? h.Input.Held : -1; result.Hover=h.Input.Held; result.Actor=Controller(i);
                 result.Pressed=h.Input.Pressed;
-                if(h.Target?.Hinged==true)
+                if(h.Target?.Draggable==true)
                 {
                     result.Position=h.Drag.Value;
                     if(h.Change>=0) result.Requested=h.Change==1;
@@ -216,6 +282,8 @@ namespace SpaceEngineersVR.Player
                 float value=h.Target.Cover ? CockpitButtons.CoverPosition(h.Target.Slot) : CockpitButtons.SwitchPosition(h.Target.Slot);
                 anchor=Vector3.Transform(anchor,CockpitStickMath.Around(h.Target.Pivot,Matrix.CreateFromAxisAngle(h.Target.Axis,(value-h.StartPosition)*h.Target.Travel)));
             }
+            else if(h.Target.Pull)
+                anchor+=h.Target.Axis*((CockpitButtons.SwitchPosition(h.Target.Slot)-h.StartPosition)*h.Target.Travel);
             wrist=(MatrixD)h.Wrist*SeatFit.Seat.WorldMatrix;
             contact=Vector3D.Transform(anchor,SeatFit.Seat.WorldMatrix);
             blend=MathHelper.Clamp((float)(DateTime.UtcNow-h.Grabbed).TotalSeconds/.09f,0,1);

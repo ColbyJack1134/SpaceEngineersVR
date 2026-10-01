@@ -59,6 +59,7 @@ namespace SpaceEngineersVR.Player
                 RenderEye(EVREye.Eye_Left, leftTexture, matrices, gameView, sceneCamera, originInverse,rig,out leftAmbient);
                 if(leftAmbient!=null) { new BorrowedRtvTexture(leftAmbient).Release(); leftAmbient=null; }
                 RenderEye(EVREye.Eye_Right, rightTexture, matrices, gameView, sceneCamera, originInverse,rig,out rightAmbient);
+                GpuTiming.Begin(GpuTiming.Area.Companion);
                 var source=(SharpDX.Direct3D11.Texture2D)leftTexture.GetResource();
                 var destination=(SharpDX.Direct3D11.Texture2D)MyRender11.GetBackbuffer().GetResource();
                 if(!Common.Config.MirrorDesktop)
@@ -79,6 +80,7 @@ namespace SpaceEngineersVR.Player
                 resources.Dispose();
                 object debug=rightAmbient; rightAmbient=null;
                 MyRender11.DrawDebugScene(debug);
+                GpuTiming.End(GpuTiming.Area.Companion);
                 MirroredDesktop=true;
                 if (++submittedFrames == 1) Logger.Info($"FIRST STEREO FRAME submitted: {size.X}x{size.Y} per eye");
             }
@@ -121,13 +123,21 @@ namespace SpaceEngineersVR.Player
             env.ViewFrustumClippedD = new BoundingFrustumD(view * env.OriginalProjection);
             env.ViewFrustumClippedFarD = new BoundingFrustumD(view * env.OriginalProjectionFar);
             sceneCamera.Position = world.Translation;
+            var sceneArea=eye==EVREye.Eye_Left ? GpuTiming.Area.SceneLeft : GpuTiming.Area.SceneRight;
+            var uiArea=eye==EVREye.Eye_Left ? GpuTiming.Area.WorldUiLeft : GpuTiming.Area.WorldUiRight;
+            GpuTiming.Begin(sceneArea);
+            long sceneStart=FeatureTiming.Start();
             MyRender11.DrawGameScene(target, out ambientOcclusion);
+            FeatureTiming.End(eye==EVREye.Eye_Left ? FeatureTiming.Area.SceneLeft : FeatureTiming.Area.SceneRight,sceneStart);
+            GpuTiming.End(sceneArea);
+            GpuTiming.Begin(uiArea);
             WorldMarkers.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection);
             if (Main.MenuOpen || rig?.ThirdPerson==true) MenuHands.DrawInWorld((SharpDX.Direct3D11.Texture2D)target.GetResource(),eye,Main.MenuOpen);
             SpatialUi.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,RenderFrameBridge.Surfaces);
             FloatingKeyboard.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),eye);
             ToolbarWheel.DrawWorld((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,
                 rig?.TrackingToWorld ?? (MatrixD)originInverse*MatrixD.Invert(gameView));
+            GpuTiming.End(uiArea);
             var input = new Texture_t { eColorSpace=EColorSpace.Auto, eType=ETextureType.DirectX, handle=target.GetResource().NativePointer };
             var error = OpenVR.Compositor.Submit(eye,ref input,ref bounds,EVRSubmitFlags.Submit_Default);
             StereoRenderState.Record("eye",timing.Elapsed.TotalMilliseconds,world.Translation.X,world.Translation.Y,world.Translation.Z,projection.M11,projection.M22,projection.M31,projection.M32);
