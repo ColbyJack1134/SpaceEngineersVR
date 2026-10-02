@@ -182,7 +182,7 @@ namespace SpaceEngineersVR.Player
             if (CalibratingTicksLeft > 0)
             {
                 CalibrationUpdate();
-
+                CalibrationStatus="Measuring: "+((CalibratingTicksLeft+59)/60)+" s · eye height "+(CalibrationInProgress.height*100).ToString("0")+" cm";
                 CalibratingTicksLeft--;
 
                 if (CalibratingTicksLeft <= 0)
@@ -197,9 +197,11 @@ namespace SpaceEngineersVR.Player
             }
         }
 
+        public static string CalibrationStatus { get; private set; }="Stand upright to measure, or enter your height.";
         public static void StartCalibration(int timeTicks = CalibrationTimeTicks)
         {
             CalibratingTicksLeft = timeTicks;
+            PerformanceHud.Notify("Stand upright and look ahead. Measuring for five seconds.",6);
 
             CalibrationInProgress.height = 0f;
             CalibrationInProgress.armSpan = 0f;
@@ -229,25 +231,31 @@ namespace SpaceEngineersVR.Player
 
         public static void FinishCalibration()
         {
-            using (PlayerCalibrationLock.AcquireExclusiveUsing())
+            var character=Sandbox.Game.World.MySession.Static?.LocalCharacter;
+            float measured=CalibrationInProgress.height;
+            if(measured>.3f && measured<2.5f)
             {
-                if (CalibrationInProgress.height > 0f)
-                    PlayerCalibration.height = CalibrationInProgress.height;
-                if (CalibrationInProgress.armSpan > 0f)
-                    PlayerCalibration.armSpan = CalibrationInProgress.armSpan;
+                float ratio=character==null ? 1.8f/1.69f : character.Definition.CharacterCollisionHeight/BodyFit.EyeReference(character);
+                Common.Config.PlayerHeight=MathHelper.Clamp(measured*ratio,1,2.4f);
+                Common.Config.MeasuredEyeHeight=measured;
+                Common.Config.SeatedPlay=false;
+                Common.Config.BodyCalibrated=true;
+                if(CalibrationInProgress.armSpan>0) Common.Config.PlayerArmSpan=CalibrationInProgress.armSpan;
+                using(PlayerCalibrationLock.AcquireExclusiveUsing())
+                {
+                    PlayerCalibration.height=Common.Config.PlayerHeight;
+                    PlayerCalibration.armSpan=Common.Config.PlayerArmSpan;
+                }
+                ApplyCalibrationOrigin();
+                CalibrationStatus="Measured height: "+(Common.Config.PlayerHeight*100).ToString("0")+" cm. Adjust above if needed.";
+                PerformanceHud.Notify(CalibrationStatus,5);
             }
-
-            if (CalibrationInProgress.height > 0f)
-                Common.Config.PlayerHeight = CalibrationInProgress.height;
-            if (CalibrationInProgress.armSpan > 0f)
-                Common.Config.PlayerArmSpan = CalibrationInProgress.armSpan;
-
-            ResetPlayerFloor();
-
-            CalibratingTicksLeft = 0;
+            else { CalibrationStatus="Measurement failed. Check tracking and floor setup."; PerformanceHud.Notify(CalibrationStatus,5); }
+            CalibratingTicksLeft=0;
         }
         public static void CancelCalibration()
         {
+            CalibrationStatus="Measurement cancelled.";
             CalibratingTicksLeft = 0;
         }
 
@@ -270,6 +278,7 @@ namespace SpaceEngineersVR.Player
         {
             if (!Headset.pose.isTracked) return;
             Matrix floor = VrMath.TrackingOrigin(Headset.pose.deviceToAbsolute.matrix);
+            if(BodyFit.Enabled && Sandbox.Game.World.MySession.Static?.LocalCharacter?.IsSitting!=true) floor.Translation=new Vector3(floor.Translation.X,CalibrationReference(),floor.Translation.Z);
             CameraRig.Recenter(PlayerToAbsolute.matrix,floor);
             ThirdPersonView.Recenter(PlayerToAbsolute.matrix,floor);
             Logger.Info("Recentered tracking origin at current seated/standing head position.");
@@ -282,6 +291,27 @@ namespace SpaceEngineersVR.Player
             }
         }
 
+        private static float CalibrationReference()
+        {
+            return Common.Config.SeatedPlay ? Common.Config.SeatedReference : BodyFit.StandingReference();
+        }
+        public static void SeatOrigin(bool entering)
+        {
+            if(!BodyFit.Enabled || !Headset.pose.isTracked) return;
+            Matrix origin=PlayerToAbsolute.matrix;
+            origin.Translation=new Vector3(origin.Translation.X,entering ? Headset.pose.deviceToAbsolute.matrix.Translation.Y : CalibrationReference(),origin.Translation.Z);
+            PlayerToAbsolute=new MatrixAndInvert(origin);
+            using(SyncPlayerToAbsoluteLock.AcquireExclusiveUsing()) SyncPlayerToAbsolute=PlayerToAbsolute;
+        }
+        public static void ApplyCalibrationOrigin()
+        {
+            if(Sandbox.Game.World.MySession.Static?.LocalCharacter?.IsSitting==true) return;
+            Matrix origin=PlayerToAbsolute.matrix;
+            float reference=BodyFit.Enabled ? CalibrationReference() : Headset.pose.deviceToAbsolute.matrix.Translation.Y;
+            origin.Translation=new Vector3(origin.Translation.X,reference,origin.Translation.Z);
+            PlayerToAbsolute=new MatrixAndInvert(origin);
+            using(SyncPlayerToAbsoluteLock.AcquireExclusiveUsing()) SyncPlayerToAbsolute=PlayerToAbsolute;
+        }
         public static void ConsumeRoomscale(Vector3 localOffset)
         {
             Matrix origin = PlayerToAbsolute.matrix;

@@ -117,6 +117,7 @@ namespace SpaceEngineersVR.Plugin
             Player.MenuPointer.Release();
             Player.TouchScreenBridge.Reset();
             Player.CockpitButtons.Reset();
+            Player.BodyProximity.Reset();
             Player.TrackedArms.Reset();
             Player.CockpitControls.Reset();
             config?.Dispose();
@@ -149,6 +150,7 @@ namespace SpaceEngineersVR.Plugin
                 {
                     Player.ToolbarWheel.Close(resume:false);
                     Player.MenuKeyboard.Close();
+                    Player.BodyProximity.Reset();
                     Player.TrackedArms.Reset();
                     Player.CockpitControls.Reset();
                     Player.TouchScreenBridge.Reset();
@@ -239,6 +241,7 @@ namespace SpaceEngineersVR.Plugin
         private void CustomUpdate()
         {
             Player.Player.MainUpdate();
+            Player.RemoteView.UpdateContext();
             Player.InputRouter.Update();
             Player.Controls.Static.Poll(Player.InputRouter.Mode);
             Player.HelmetHud.Update();
@@ -254,6 +257,7 @@ namespace SpaceEngineersVR.Plugin
             Player.SpatialUi.Update();
             Player.TouchScreenBridge.Update();
             Player.HandInteraction.UpdateTouch();
+            Player.BlockInspection.Update();
             Player.ToolbarWheel.Update();
             Player.GameActions.RunScheduled();
             Player.PlacementControls.Update();
@@ -262,6 +266,8 @@ namespace SpaceEngineersVR.Plugin
             Player.CameraRig.Publish();
             Player.WeaponHandling.Update();
             Player.CockpitControls.Update();
+            Player.RemoteView.Update();
+            Player.BodyProximity.Update();
             if(Player.SeatFit.Eligible(Player.SeatFit.Seat))
                 Player.TrackedArms.Update(Player.SeatFit.Seat.Pilot);
             if (Player.Controls.Static.Options.HasPressed) OpenConfigDialog();
@@ -290,12 +296,15 @@ namespace SpaceEngineersVR.Plugin
         private static void ResetWorldState()
         {
             Player.GameActions.Reset();
+            Player.RemoteView.Reset();
+            Player.BlockInspection.Reset();
             Player.InputRouter.RadialOpen = false;
             Player.ToolbarWheel.Close(resume:false);
             Player.EssentialHud.Reset();
             Player.BuildOrientationHud.Reset();
             Player.WorldMarkers.Reset();
             Player.InputRouter.Reset();
+            Player.BodyProximity.Reset();
             Player.TrackedArms.Reset();
             Player.CockpitControls.Reset();
             Player.SeatFit.Reset();

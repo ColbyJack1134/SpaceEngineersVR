@@ -14,6 +14,7 @@ namespace SpaceEngineersVR.Patches
         private static long presentStart;
         public static void Install(Harmony harmony)
         {
+            Player.RemoteHud.Install(harmony);
             Type type = AccessTools.TypeByName("VRageRender.MyRender11");
             harmony.Patch(AccessTools.Method(type,"SetupCameraMatrices"), new HarmonyMethod(typeof(FrameInjections),nameof(CameraFrame)));
             harmony.Patch(AccessTools.Method(type,"DrawScene"), new HarmonyMethod(typeof(FrameInjections),nameof(BeforeScene)));
@@ -39,7 +40,7 @@ namespace SpaceEngineersVR.Patches
         }
         private static bool BeforeScene()
         {
-            if (!Main.VrActive) { Player.GpuTiming.Reset(); Player.EyeResolution.Scene.RestoreNative(); return true; }
+            if (!Main.VrActive) { Player.RemoteFeed.Reset(); Player.GpuTiming.Reset(); Player.EyeResolution.Scene.RestoreNative(); return true; }
             try
             {
                 GetPoses();

@@ -216,7 +216,7 @@ float4 PS(P p):SV_TARGET {
                 var hands = new[] { Player.HandL, Player.HandR };
                 var meshes = new Mesh[2];
                 for (int h = 0; h < 2; h++) if (hands[h].renderPose.isTracked) meshes[h] = GetModel(hands[h]);
-                if(menu && !MenuKeyboard.Standalone) Components.VRGUIManager.DrawStereo(texture,eye);
+                if(menu && !MenuKeyboard.Standalone) Components.VRGUIManager.DrawStereo(texture,eye,ThirdPersonView.Active ? null:NativeHandLayer.Depth);
                 using (var target = new RenderTargetView(gpu, texture))
                     DrawEye(target, eye, size, hands, meshes, false,menu);
                 if(ThirdPersonView.Active && !NativeGloves.Visible)
@@ -282,6 +282,8 @@ float4 PS(P p):SV_TARGET {
         internal static MatrixD AttachWrist(MatrixD pose)
         {
             var state=wrist;
+            if(state!=null && FloatingKeyboard.TryAttachment(out var keyboardWrist,out var keyboardPoint,out float keyboardBlend,tracking:true))
+                return CockpitHandPose.Blend(pose,CockpitHandPose.Attach(keyboardWrist,Matrix.Identity,state.RightPoint.Translation,keyboardPoint),keyboardBlend);
             if(state==null || !ThirdPersonView.Active || !SpatialUi.TryWristAttachment(out var captured,out var contact,out float blend,render:true)) return pose;
             var attached=CockpitHandPose.Attach(captured,Matrix.Identity,state.RightPoint.Translation,contact);
             return CockpitHandPose.Blend(pose,attached,blend);
@@ -299,7 +301,7 @@ float4 PS(P p):SV_TARGET {
             {
                 var hand=hands[h]; if(!hand.renderPose.isTracked) continue;
                 Matrix raw=hand.renderPose.deviceToAbsolute.matrix;
-                if(!NativeGloves.Visible && (!Main.WorldAvailable || MenuKeyboard.IsOpen || !TrackedArms.Applied || !pointer))
+                if(!NativeGloves.Visible && (!Main.WorldAvailable || !TrackedArms.Applied || !pointer))
                 {
                     if(meshes[h]!=null)
                     {

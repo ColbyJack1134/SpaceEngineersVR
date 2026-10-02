@@ -65,7 +65,7 @@ namespace SpaceEngineersVR.Player
         public static string Hud(string name) => @"Textures\GUI\Icons\HUD 2017\" + name + ".png";
         private const string Shader = @"
 cbuffer Params : register(b0) { float4 TopLeft; float4 TopRight; float4 BottomLeft; float4 BottomRight; float4 Tint; float4 UV; float4 DepthTest; };
-Texture2D Icon : register(t0); Texture2D SceneDepth : register(t1); SamplerState Linear : register(s0);
+Texture2D Icon : register(t0); Texture2D SceneDepth : register(t1); Texture2D HandDepth : register(t2); Texture2D WorldDepth : register(t3); SamplerState Linear : register(s0);
 struct P { float4 p:SV_POSITION; float2 uv:TEXCOORD; };
 P VS(uint id:SV_VertexID) {
     float2 q=float2(id&1,id>>1); P o;
@@ -74,6 +74,10 @@ P VS(uint id:SV_VertexID) {
 }
 float4 PS(P p):SV_TARGET {
     if (DepthTest.x > 0 && SceneDepth.Load(int3(p.p.xy,0)).r > p.p.z + 0.000002) discard;
+    if (DepthTest.w >= 4) {
+        float hand=HandDepth.Load(int3(p.p.xy,0)).r;
+        if(hand > 0 && hand >= WorldDepth.Load(int3(p.p.xy,0)).r - 0.000002) discard;
+    }
     if (DepthTest.y > 0 && DepthTest.z > 0) {
         float2 uv=(p.uv-UV.xy)/UV.zw;
         float2 corner=max(abs(uv-.5)-(.5-DepthTest.yz),0)/DepthTest.yz;
@@ -82,7 +86,7 @@ float4 PS(P p):SV_TARGET {
     float4 color=Icon.Sample(Linear,p.uv)*Tint;
     if (fmod(DepthTest.w,2) > 0)
         color.rgb=lerp(color.rgb*12.92,1.055*pow(max(color.rgb,0),1.0/2.4)-.055,step(.0031308,color.rgb));
-    if (DepthTest.w >= 2) color.a=1;
+    if (fmod(floor(DepthTest.w/2),2) > 0) color.a=1;
     return color;
 }";
 
@@ -169,7 +173,7 @@ float4 PS(P p):SV_TARGET {
             icons[oldest].View?.Dispose(); icons[oldest].Texture?.Dispose(); icons.Remove(oldest);
         }
 
-        public static void Draw(Texture2D target, IList<NativeSprite> sprites,ShaderResourceView sceneDepth=null)
+        public static void Draw(Texture2D target, IList<NativeSprite> sprites,ShaderResourceView sceneDepth=null,ShaderResourceView handDepth=null)
         {
             if (sprites.Count==0) return;
             if (context==null) Init(target.Device);
@@ -187,11 +191,13 @@ float4 PS(P p):SV_TARGET {
                 context.VertexShader.SetConstantBuffer(0,constants); context.PixelShader.SetConstantBuffer(0,constants);
                 context.PixelShader.SetSampler(0,sampler);
                 context.PixelShader.SetShaderResource(1,sceneDepth);
+                context.PixelShader.SetShaderResource(2,handDepth);
+                context.PixelShader.SetShaderResource(3,handDepth==null ? null:PhysicalSurface.SceneDepth());
                 foreach (var sprite in sprites)
                 {
                     var texture=sprite.Texture ?? Get(sprite.Path);
                     if (texture==null) continue;
-                    var data=new Parameters { Tint=sprite.Tint,UV=sprite.UV,DepthTest=new Vector4(sceneDepth==null || sprite.IgnoreSceneDepth ? 0 : 1,sprite.Rounded.X,sprite.Rounded.Y,(sprite.EncodeSrgb ? 1 : 0)+(sprite.Opaque ? 2 : 0)) };
+                    var data=new Parameters { Tint=sprite.Tint,UV=sprite.UV,DepthTest=new Vector4(sceneDepth==null || sprite.IgnoreSceneDepth ? 0 : 1,sprite.Rounded.X,sprite.Rounded.Y,(sprite.EncodeSrgb ? 1 : 0)+(sprite.Opaque ? 2 : 0)+(handDepth!=null ? 4:0)) };
                     if (sprite.Projected)
                     {
                         data.TopLeft=sprite.TopLeft; data.TopRight=sprite.TopRight;

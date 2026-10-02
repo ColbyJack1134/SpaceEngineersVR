@@ -49,9 +49,12 @@ namespace SpaceEngineersVR.Player.Components
             {
                 if (!ReferenceEquals(inputOwner, MySession.Static.ControlledEntity)) StopInput();
                 inputOwner = MySession.Static.ControlledEntity;
-                BodyLocomotion.Update(Character);
+                if(!RemoteView.Turret) BodyLocomotion.Update(Character);
+                else if(RemoteView.CharacterAnchor) { CameraRig.Begin(Character); CameraRig.End(Character); }
 
-                if(PlacementControls.Adjusting) ApplyMoveAndRotation(Vector3.Zero,Vector2.Zero,0);
+                if(RemoteView.Turret) { RemoteView.ControlTurret(RotationSpeed); UsingControllerMovement=true; hadControllerMovement=true; }
+                else if(RemoteView.OwnsInput) ApplyMoveAndRotation(Vector3.Zero,Vector2.Zero,0);
+                else if(PlacementControls.Adjusting) ApplyMoveAndRotation(Vector3.Zero,Vector2.Zero,0);
                 else if (MySession.Static.ControlledEntity is MyShipController)
                 {
                     ControlShip();
@@ -76,15 +79,17 @@ namespace SpaceEngineersVR.Player.Components
             {
                 TrackedArms.Update(Character);
                 CockpitControls.RefreshVisuals();
+                RemoteView.Refresh();
                 SpatialUi.Publish();
                 return;
             }
-            if(!Main.VrActive || !CameraRig.Owns(Character) || MySession.Static?.ControlledEntity!=Character || Character.IsDead) return;
+            if(!Main.VrActive || !CameraRig.Owns(Character) || (MySession.Static?.ControlledEntity!=Character && !RemoteView.CharacterAnchor) || Character.IsDead) return;
             try
             {
                 // Input/body following runs before physics. Publish a fresh camera AFTER
                 // physics too: at 100 m/s the old one-tick lag was about 1.67 metres.
                 CameraRig.RefreshAfterSimulation(Character);
+                RemoteView.Refresh();
                 Patches.MotionToolPatch.Refresh(Character);
                 TrackedArms.Update(Character);
                 SpatialUi.Publish();
@@ -107,7 +112,7 @@ namespace SpaceEngineersVR.Player.Components
         private void StopInput()
         {
             var controlled = inputOwner;
-            if (hadControllerMovement) controlled?.MoveAndRotateStopped();
+            if (hadControllerMovement) { RemoteView.Stop(controlled); controlled?.MoveAndRotateStopped(); }
             if (wasShooting) controlled?.EndShoot(MyShootActionEnum.PrimaryAction);
             if (wasSecondary) controlled?.EndShoot(MyShootActionEnum.SecondaryAction);
             if (active == this) UsingControllerMovement = false;
@@ -226,8 +231,10 @@ namespace SpaceEngineersVR.Player.Components
             var controls = Controls.Static;
 
             var controlledEntity = MySession.Static.ControlledEntity;
-            bool primaryPressed=controls.Primary.IsPressed && !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput;
-            bool secondaryPressed=(controls.Secondary.IsPressed && !InputRouter.Flying || controls.Primary.IsPressed && GameActions.AlternateTrigger) && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput;
+            bool primaryPressed=!RemoteView.OwnsInput && controls.Primary.IsPressed && !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput;
+            bool secondaryPressed=!RemoteView.Turret && !RemoteView.OwnsInput && !BlockInspection.ConsumesSecondary && (controls.Secondary.IsPressed && !InputRouter.Flying || controls.Primary.IsPressed && GameActions.AlternateTrigger) && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput;
+            if(controlledEntity is Sandbox.Game.Entities.Character.MyCharacter character && character.CurrentWeapon==null)
+                secondaryPressed=false;
 
             if (primaryPressed && !wasShooting)
             {

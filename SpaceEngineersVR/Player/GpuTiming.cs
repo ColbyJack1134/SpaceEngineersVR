@@ -8,8 +8,8 @@ namespace SpaceEngineersVR.Player
     // Render-thread only. Sample one frame every two seconds without waiting for the GPU.
     internal static class GpuTiming
     {
-        internal enum Area { SceneLeft,WorldUiLeft,SceneRight,WorldUiRight,Companion,Hud }
-        private const int Count=6;
+        internal enum Area { SceneLeft,WorldUiLeft,SceneRight,WorldUiRight,Companion,Hud,RemoteFeed }
+        private const int Count=7;
         private static readonly Query[] stamps=new Query[Count*2];
         private static readonly bool[] written=new bool[Count*2];
         private static readonly ulong[] ticks=new ulong[Count*2];
@@ -75,7 +75,7 @@ namespace SpaceEngineersVR.Player
                 int i=(int)area*2;
                 return written[i] && written[i+1] && ticks[i+1]>=ticks[i] ? (ticks[i+1]-ticks[i])*1000.0/clock.Frequency : double.NaN;
             }
-            Logger.Info($"VR GPU sample: eyes {size.X}x{size.Y}; cockpit {cockpit}; third person {thirdPerson}; native scene L/R {Ms(Area.SceneLeft):F3}/{Ms(Area.SceneRight):F3} ms; world UI L/R {Ms(Area.WorldUiLeft):F3}/{Ms(Area.WorldUiRight):F3} ms; companion {Ms(Area.Companion):F3} ms; HUD upload/draw {Ms(Area.Hud):F3} ms");
+            Logger.Info($"VR GPU sample: eyes {size.X}x{size.Y}; cockpit {cockpit}; third person {thirdPerson}; native scene L/R {Ms(Area.SceneLeft):F3}/{Ms(Area.SceneRight):F3} ms; world UI L/R {Ms(Area.WorldUiLeft):F3}/{Ms(Area.WorldUiRight):F3} ms; companion {Ms(Area.Companion):F3} ms; remote feed {Ms(Area.RemoteFeed):F3} ms; HUD upload/draw {Ms(Area.Hud):F3} ms");
         }
         internal static void Reset()
         {

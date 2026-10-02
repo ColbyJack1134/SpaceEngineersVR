@@ -95,15 +95,13 @@ namespace SpaceEngineersVR.Player.Components
                 var texture=Texture(desktopCopy);
                 Check(OpenVR.Overlay.SetOverlayTexture(overlayHandle,ref texture));
                 // A compositor overlay always covers submitted stereo geometry.
-                // Keep native text at source resolution in the compositor, as before
-                // window manipulation. Only typing needs the accepted keyboard occlusion path.
-                Check(MenuWindow.StereoClient(MenuKeyboard.IsOpen,FloatingKeyboard.Available) ? OpenVR.Overlay.HideOverlay(overlayHandle) : OpenVR.Overlay.ShowOverlay(overlayHandle));
+                Check(MenuHands.Available && (Main.MenuOpen || !Main.WorldAvailable) ? OpenVR.Overlay.HideOverlay(overlayHandle) : OpenVR.Overlay.ShowOverlay(overlayHandle));
                 if (!reportedMenu) { Logger.Info("NATIVE MENU ready: tracking-space panel, " + desc.Width + "x" + desc.Height + ", world stereo=" + Main.WorldAvailable); reportedMenu=true; }
                 visible=true;
             }
             else { Hide(); }
         }
-        internal static void DrawStereo(Texture2D target,EVREye eye)
+        internal static void DrawStereo(Texture2D target,EVREye eye,ShaderResourceView handDepth=null)
         {
             if((!Main.MenuOpen && !Main.ShowDesktopPanel) || desktopView==null) return;
             Matrix panel; float height,width;
@@ -114,12 +112,8 @@ namespace SpaceEngineersVR.Player.Components
             Matrix view=Matrix.Invert(OpenVR.System.GetEyeToHeadTransform(eye).ToMatrix()*Player.Headset.renderPose.deviceToAbsolute.matrix);
             float l=0,r=0,t=0,b=0; OpenVR.System.GetProjectionRaw(eye,ref l,ref r,ref t,ref b);
             var projection=VrMath.Projection(l,r,t,b,.03);
-            if(current!=null) FloatingMenu.DrawFrame(target,current,view,projection);
-            if(!MenuWindow.StereoClient(MenuKeyboard.IsOpen,FloatingKeyboard.Available)) return;
-            var sprite=PhysicalSurface.Quad(desktopView,panel,new VRageMath.RectangleF(-width/2,height/2,width,height),
-                new Vector4(0,0,1,1),Vector4.One,view,projection,.001f);
-            sprite.Rounded=new Vector2(.014f/width,.014f/height);
-            NativeSprites.Draw(target,new[] { sprite });
+            if(!MenuHands.Available) return;
+            FloatingMenu.DrawPanel(target,desktopView,new FloatingMenu.Snapshot {Pose=panel,Width=width,Height=height,Hover=current?.Hover ?? 0},view,projection,handDepth);
         }
         public static void SubmitMenuBackground()
         {

@@ -177,7 +177,7 @@ namespace SpaceEngineersVR.Player
             }
             bool changed=!ReferenceEquals(owner,seat) || origin!=Player.PlayerToAbsolute.matrix;
             owner=seat; origin=Player.PlayerToAbsolute.matrix;
-            bool available=eligible && !changed && InputRouter.Mode==InputMode.Piloting && !Main.MenuOpen &&
+            bool available=eligible && !changed && InputRouter.CockpitInteraction && !Main.MenuOpen &&
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked && MenuPointer.GameFocused;
             var targets=new List<Target>(CockpitButtons.Targets);
             var panel=available && !WeaponHandling.ConsumesLeftGrip ? SeatPanel.View() : null;

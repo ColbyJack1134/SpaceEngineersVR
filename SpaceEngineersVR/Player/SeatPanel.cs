@@ -45,6 +45,18 @@ namespace SpaceEngineersVR.Player
         }
         internal static void Activate(int key)
         {
+            if(RemoteView.Turret && RemoteView.HomeSeat is Sandbox.Game.Entities.IMyControllableEntity cockpit)
+            {
+                switch(key)
+                {
+                    case 9: cockpit.SwitchReactors(); break;
+                    case 10: cockpit.SwitchDamping(); break;
+                    case 11: if(cockpit.CanSwitchLandingGears) cockpit.SwitchLandingGears(); break;
+                    case 12: cockpit.SwitchLights(); break;
+                    case 13: cockpit.SwitchBroadcasting(); break;
+                }
+                return;
+            }
             switch(key)
             {
                 case 9: GameActions.PowerAction.Run(); break;

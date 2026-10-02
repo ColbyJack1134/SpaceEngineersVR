@@ -64,8 +64,16 @@ namespace SpaceEngineersVR.Player
             toolbar.UpdateItemForIdentity(slot,MySession.Static.LocalPlayerId,false);
             var item=toolbar.GetItemAtIndex(slot);
             if(item==null) { Configure(slot); return false; }
+            bool view=CockpitSwitchState.ViewState(item,out bool active);
+            // Native Control becomes disabled while occupied; the owning switch must still release it.
+            if(view && active)
+            {
+                if(desired!=true) RemoteView.Exit();
+                return true;
+            }
             if(!item.Enabled || (item is MyToolbarItemTerminalGroup group && !group.PlayerHasAccessToAllBlocks(MySession.Static.LocalPlayerId)))
             { EssentialHud.Notify("This switch action is unavailable or access is denied."); return false; }
+            if(view) return desired!=false && toolbar.ActivateItemAtIndex(slot);
             bool stateful=CockpitSwitchState.Read(item,out _);
             if(!stateful && desired==false) return false;
             return stateful && desired.HasValue ? CockpitSwitchState.Set(item,desired.Value) : toolbar.ActivateItemAtIndex(slot);

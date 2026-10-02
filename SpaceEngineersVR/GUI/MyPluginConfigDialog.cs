@@ -23,15 +23,18 @@ namespace SpaceEngineersVR.GUI
         {
             base.RecreateControls(constructor);
             AddCaption("Space Engineers VR Options");
-            string[] pages={ "Character","Flight","Third person","HUD & Interface","Rendering","Controls" };
+            string[] pages={ "Character","Flight","Turrets and cameras","Third person","HUD & Interface","Rendering","Controls" };
             for(int i=0;i<pages.Length;i++)
             {
                 string page=pages[i];
-                Controls.Add(new MyGuiControlButton(new Vector2(0,-.24f+i*.092f),size:new Vector2(.50f,.065f),text:new System.Text.StringBuilder(page),onButtonClick:b=> {
+                Controls.Add(new MyGuiControlButton(new Vector2(0,-.25f+i*.080f),size:new Vector2(.50f,.065f),text:new System.Text.StringBuilder(page),onButtonClick:b=> {
                     MyGuiSandbox.AddScreen(CreatePage(page));
                 }));
             }
-            Controls.Add(new MyGuiControlButton(new Vector2(0,.35f),text:new System.Text.StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
+            Controls.Add(new MyGuiControlButton(new Vector2(-.18f,.35f),text:new System.Text.StringBuilder(Common.Config.SeatedPlay ? "Use standing play":"Use seated play"),onButtonClick:b=> {
+                Player.BodyFit.SetSeated(!Common.Config.SeatedPlay); RecreateControls(false);
+            }));
+            Controls.Add(new MyGuiControlButton(new Vector2(.18f,.35f),text:new System.Text.StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
         }
     }
 }

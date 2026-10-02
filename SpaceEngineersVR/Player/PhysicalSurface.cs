@@ -9,7 +9,7 @@ using Color=System.Drawing.Color;
 
 namespace SpaceEngineersVR.Player
 {
-    internal enum SurfaceStyle { Default,WristStatus,WristMenu,Keyboard,ModelControl,Pointer,Label }
+    internal enum SurfaceStyle { Default,WristStatus,WristMenu,Keyboard,ModelControl,Pointer,Label,BlockInfo }
     internal sealed class SurfaceKey
     {
         public string Label;
@@ -24,6 +24,7 @@ namespace SpaceEngineersVR.Player
     {
         public string Id,Title,Text;
         public EssentialHud.View Status;
+        public BlockInspection.Data Block;
         public string[] Icons=new string[0];
         public string SubIcon;
         public bool Enabled=true;
@@ -68,6 +69,7 @@ namespace SpaceEngineersVR.Player
     }
     internal static class PhysicalSurface
     {
+        internal static Vector2I TextureSize(SurfaceStyle style) => style==SurfaceStyle.Label ? new Vector2I(1536,308) : style==SurfaceStyle.BlockInfo ? new Vector2I(2048,1280) : new Vector2I(1024,640);
         private sealed class Cache { public OverlayCanvas Canvas; public ShaderResourceView Texture; public string Content; public int Revision; public EssentialHud.View Status; }
         private static readonly Dictionary<string,Cache> cache=new Dictionary<string,Cache>();
         private static readonly Font title=new Font("Segoe UI",32,FontStyle.Bold,GraphicsUnit.Pixel),text=new Font("Segoe UI",27,FontStyle.Regular,GraphicsUnit.Pixel);
@@ -86,6 +88,7 @@ namespace SpaceEngineersVR.Player
         internal static void Paint(OverlayCanvas target,SurfaceView s)
         {
             if(s.Style==SurfaceStyle.Pointer) { target.Clear(Color.White); return; }
+            if(s.Style==SurfaceStyle.BlockInfo) { BlockInspection.Paint(target,s); return; }
             if(s.Style==SurfaceStyle.Label)
             {
                 PaintSwitchInfo(target,s);
@@ -267,7 +270,7 @@ namespace SpaceEngineersVR.Player
             }
             g.FillRectangle(Brushes.White,1020,636,4,4);
         }
-        private static System.Drawing.Drawing2D.GraphicsPath Rounded(System.Drawing.RectangleF r,float radius)
+        internal static System.Drawing.Drawing2D.GraphicsPath Rounded(System.Drawing.RectangleF r,float radius)
         {
             var p=new System.Drawing.Drawing2D.GraphicsPath(); float d=radius*2;
             p.AddArc(r.Left,r.Top,d,d,180,90); p.AddArc(r.Right-d,r.Top,d,d,270,90);
@@ -282,14 +285,15 @@ namespace SpaceEngineersVR.Player
                 BottomLeft=(Vector4)Vector4D.Transform(new Vector4D(bounds.X,bounds.Y-bounds.Height,z,1),transform),
                 BottomRight=(Vector4)Vector4D.Transform(new Vector4D(bounds.X+bounds.Width,bounds.Y-bounds.Height,z,1),transform) };
         }
-        public static void Draw(Texture2D target,IEnumerable<SurfaceView> surfaces,MatrixD view,MatrixD projection,ShaderResourceView depth)
+        public static void Draw(Texture2D target,IEnumerable<SurfaceView> surfaces,MatrixD view,MatrixD projection,ShaderResourceView depth,ShaderResourceView handDepth=null)
         {
             sprites.Clear();
             foreach(var s in surfaces.OrderBy(s=>s.Style==SurfaceStyle.Pointer ? 2 : s.Style==SurfaceStyle.Label ? 1 : 0).ThenBy(s=>Vector3D.Transform(s.Pose.Translation,view).Z))
             {
                 if(!cache.TryGetValue(s.Id,out var c))
                 {
-                    var canvas=new OverlayCanvas(s.Id,s.Style==SurfaceStyle.Label ? 768 : 1024,s.Style==SurfaceStyle.Label ? 154 : 640,1,false,target.Device,mipMaps:true);
+                    var size=TextureSize(s.Style);
+                    var canvas=new OverlayCanvas(s.Id,size.X,size.Y,1,false,target.Device,mipMaps:true);
                     cache[s.Id]=c=new Cache { Canvas=canvas,Texture=new ShaderResourceView(target.Device,canvas.Texture) };
                 }
                 string content=s.ContentKey;
@@ -307,12 +311,12 @@ namespace SpaceEngineersVR.Player
                     sprites.Add(pointer);
                     continue;
                 }
-                if(s.Style==SurfaceStyle.ModelControl || s.Style==SurfaceStyle.Label)
+                if(s.Style==SurfaceStyle.ModelControl || s.Style==SurfaceStyle.Label || s.Style==SurfaceStyle.BlockInfo)
                 {
                     if(Vector3D.Dot(s.Pose.Backward,MatrixD.Invert(view).Translation-s.Pose.Translation)>0)
                     {
                         var sprite=Quad(c.Texture,s.Pose,full,new Vector4(0,0,1,1),Vector4.One,view,projection,.001f);
-                        sprite.IgnoreSceneDepth=s.Style==SurfaceStyle.Label;
+                        sprite.IgnoreSceneDepth=s.Style==SurfaceStyle.Label || s.Style==SurfaceStyle.BlockInfo;
                         sprites.Add(sprite);
                     }
                     continue;
@@ -354,7 +358,7 @@ namespace SpaceEngineersVR.Player
                         new Vector4(.2f,.9f,1,1),view,projection,p.Z));
                 }
             }
-            NativeSprites.Draw(target,sprites,depth);
+            NativeSprites.Draw(target,sprites,depth,handDepth);
         }
     }
 }

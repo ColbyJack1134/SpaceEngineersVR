@@ -65,7 +65,7 @@ namespace SpaceEngineersVR.Player
                 if(!ReferenceEquals(owner,seat))
                 { owner=seat; subtype=seat?.BlockDefinition.Id.SubtypeName; Release(); ResetCovers(); Array.Clear(positions,0,positions.Length); Array.Clear(pulses,0,pulses.Length); }
                 Release();
-                if(!eligible || InputRouter.Mode!=InputMode.Piloting || Main.MenuOpen || CockpitControls.Adjusting) return;
+                if(!eligible || !InputRouter.CockpitInteraction || Main.MenuOpen || CockpitControls.Adjusting) return;
                 subtype=seat.BlockDefinition.Id.SubtypeName;
                 var rig=CockpitRig.Find(subtype);
                 bool fighter=subtype==FighterProfile.Subtype;

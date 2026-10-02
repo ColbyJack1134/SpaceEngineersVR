@@ -10,7 +10,7 @@ namespace SpaceEngineersVR.GUI
     internal sealed class RenderingOptions : MyGuiScreenBase
     {
         public override string GetFriendlyName() => "SEVR rendering options";
-        public RenderingOptions() : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.8f,.66f))
+        public RenderingOptions() : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.8f,.78f))
         { m_closeOnEsc=true; CloseButtonEnabled=true; }
         public override void LoadContent() { base.LoadContent(); RecreateControls(true); }
         public override void RecreateControls(bool constructor)
@@ -32,10 +32,9 @@ namespace SpaceEngineersVR.GUI
             Label(.03f,"Mirror headset on desktop");
             var mirror=new MyGuiControlCheckbox(new Vector2(.28f,.03f)) { IsChecked=config.MirrorDesktop };
             mirror.IsCheckedChanged+=c=>config.MirrorDesktop=c.IsChecked; Controls.Add(mirror);
-            Label(.09f,"On saves a separate desktop scene render.",.65f);
             Label(.15f,RenderPerformance.Summary,.65f);
-            Controls.Add(new MyGuiControlButton(new Vector2(-.16f,.25f),text:new StringBuilder("Reset to 100%"),onButtonClick:b=> { config.EyeRenderScale=1; RecreateControls(false); }));
-            Controls.Add(new MyGuiControlButton(new Vector2(.16f,.25f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
+            Controls.Add(new MyGuiControlButton(new Vector2(-.16f,.30f),text:new StringBuilder("Reset to 100%"),onButtonClick:b=> { config.EyeRenderScale=1; RecreateControls(false); }));
+            Controls.Add(new MyGuiControlButton(new Vector2(.16f,.30f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
         }
         private MyGuiControlLabel Label(float y,string text,float size=.75f)
         {

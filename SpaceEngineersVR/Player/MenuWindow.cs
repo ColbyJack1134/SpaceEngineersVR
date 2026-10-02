@@ -6,10 +6,9 @@ namespace SpaceEngineersVR.Player
 {
     internal sealed class MenuWindow
     {
-        internal static bool StereoClient(bool typing,bool keyboardAvailable) => typing && keyboardAvailable;
         public const float DefaultWidth=2.4f, MinWidth=.7f, MaxWidth=3.2f;
         public Matrix Pose=Matrix.Identity;
-        public float Width=DefaultWidth,Aspect=9f/16;
+        public float Width=DefaultWidth,Aspect=9f/16,BarOffset=.085f;
         public float Height => Width*Aspect;
         public int Drag { get; private set; }
         private Matrix startPose,relative;
@@ -20,7 +19,7 @@ namespace SpaceEngineersVR.Player
         { Stop(); Width=DefaultWidth; Pose=Matrix.CreateTranslation(0,0,-2.2f)*VrMath.TrackingOrigin(head); }
         public int Handle(Vector3 point)
         {
-            float y=point.Y+Height/2+.085f;
+            float y=point.Y+Height/2+BarOffset;
             if(Math.Abs(y)<.045f)
             {
                 if(Math.Abs(point.X)<.19f) return 1;

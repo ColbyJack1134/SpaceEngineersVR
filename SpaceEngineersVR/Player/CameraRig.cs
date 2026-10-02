@@ -30,13 +30,14 @@ namespace SpaceEngineersVR.Player
         private static MyCharacter owner;
         private static MatrixD anchor, lastBody;
         private static Vector3D eyeOffset;
+        private static double standingEye;
         private static readonly EyeHeightCalibration eyeHeight=new EyeHeightCalibration();
         private static object activeDefinition;
         private static bool restoreBag, restoreHead;
         private static readonly System.Reflection.FieldInfo bagField=AccessTools.Field(typeof(MyCharacter),"m_enableBag");
         private static readonly System.Reflection.FieldInfo headField=AccessTools.Field(typeof(MyCharacter),"m_headRenderingEnabled");
         private static readonly Action<MyCharacter> refreshDepth=AccessTools.MethodDelegate<Action<MyCharacter>>(AccessTools.Method(typeof(MyCharacter),"UpdateNearFlag"));
-        public static Frame Current => ThirdPersonView.Current ?? Volatile.Read(ref frame);
+        public static Frame Current => ThirdPersonView.Current ?? RemoteView.SeatedRig ?? Volatile.Read(ref frame);
         public static void Reset(bool forgetHeight=false)
         {
             epoch++;
@@ -80,6 +81,7 @@ namespace SpaceEngineersVR.Player
                 double height=eyeHeight.Get(character,character.Definition,measured,rest,character.Definition.CharacterCollisionHeight);
                 // Remain centered over the physics capsule and preserve the previously
                 // validated standing height when ejection animation is still settling.
+                standingEye=height;
                 eyeOffset=new Vector3D(0,height,0);
                 activeDefinition=character.Definition;
                 owner=character;
@@ -102,6 +104,7 @@ namespace SpaceEngineersVR.Player
             character.EnableHead(false);
             character.Render.NearFlag=false;
             if ((bool)(bagField?.GetValue(character) ?? true)) character.EnableBag(false);
+            eyeOffset.Y=BodyFit.Fitting(character) ? BodyFit.DesiredEye(character) : standingEye;
             anchor.Translation=body.Translation+Vector3D.TransformNormal(eyeOffset,anchor);
         }
         public static void End(MyCharacter character)
@@ -120,7 +123,7 @@ namespace SpaceEngineersVR.Player
         public static void Publish()
         {
             var character=MySession.Static?.LocalCharacter;
-            if(character==null || MySession.Static.ControlledEntity!=character || character.IsSitting || character.IsDead)
+            if(character==null || (MySession.Static.ControlledEntity!=character && !RemoteView.CharacterAnchor) || character.IsSitting || character.IsDead)
             { Reset(); return; }
             if(owner==character) Volatile.Write(ref frame,new Frame(anchor,Player.PlayerToAbsolute.inverted,epoch));
         }

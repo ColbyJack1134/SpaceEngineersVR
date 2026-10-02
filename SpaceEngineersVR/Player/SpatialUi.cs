@@ -165,8 +165,11 @@ namespace SpaceEngineersVR.Player
             var panel=wristTouch.Surface==wristMenu?.Id ? wristMenu : wrist;
             if(panel==null || !wristDirect) return false;
             var parent=render && panel.TrackingSpace && panel.HandLocal.HasValue ? panel.HandLocal.Value*Player.HandL.RenderGripTracking : panel.Pose;
+            if(!panel.TrackingSpace && TrackedArms.TryWristScreen(out var mount))
+                parent=WristAttachmentParent(panel,mount);
             return wristContact.Attachment(parent,out pose,out contact,out blend);
         }
+        internal static MatrixD WristAttachmentParent(SurfaceView panel,MatrixD mount) => WristPose(mount,panel.Style==SurfaceStyle.WristStatus ? 0:1,panel.Height,-1);
         public static void Publish()
         {
             if(!Main.WorldAvailable)
@@ -212,6 +215,7 @@ namespace SpaceEngineersVR.Player
             if(!ThirdPersonView.Active) output.AddRange(CockpitButtons.Views);
             if(!ThirdPersonView.Active) output.AddRange(CockpitTouch.Labels());
             if(!ThirdPersonView.Active) output.AddRange(HandInteraction.Labels());
+            if(BlockInspection.Current!=null) output.Add(BlockInspection.Current);
             foreach(var s in output)
             {
                 Vector3 local=PhysicalSurface.Point(s,point);

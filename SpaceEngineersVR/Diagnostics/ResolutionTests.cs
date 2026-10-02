@@ -46,7 +46,9 @@ namespace SpaceEngineersVR.Diagnostics
         internal static void RunNative(string output,MyRenderMessageSetCameraViewMatrix camera)
         {
             var bufferField=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Resources.MyGBuffer"),"Main");
-            object desktop=bufferField.GetValue(null),previousEye=null;
+            object desktop=bufferField.GetValue(null),previousEye=null,previousCamera=null;
+            var aoField=AccessTools.Field(AccessTools.TypeByName("VRageRender.MyHBAO"),"m_fullResViewDepthTarget");
+            object desktopAo=aoField.GetValue(null);
             var desktopSize=MyRender11.Resolution;
             var matrices=MyRender11.Environment_Matrices;
             var snapshot=matrices.Capture();
@@ -59,9 +61,12 @@ namespace SpaceEngineersVR.Diagnostics
                     using(new EyeResolution.Scene(size))
                     {
                         object eye=bufferField.GetValue(null);
-                        if(ReferenceEquals(eye,desktop) || (pass==1 && (!ReferenceEquals(eye,previousEye) || EyeResolution.Scene.Allocations!=allocations+1)))
+                        if(ReferenceEquals(eye,desktop) || (pass==1 && (!ReferenceEquals(eye,previousEye) || EyeResolution.Scene.Allocations!=allocations+2)))
                             throw new Exception("Native eye resources were not isolated and retained between frames");
                         previousEye=eye;
+                        var aoTexture=(Texture2D)CockpitRender.Member(aoField.GetValue(null),"Resource");
+                        if(aoTexture.Description.Width!=size.X || aoTexture.Description.Height!=size.Y)
+                            throw new Exception("Eye AO resources do not match the eye target");
                         foreach(string attachment in new[] {"GBuffer0","GBuffer1","GBuffer2","LBuffer","DepthStencil"})
                         {
                             var texture=(Texture2D)CockpitRender.Member(CockpitRender.Member(eye,attachment),"Resource");
@@ -91,11 +96,24 @@ namespace SpaceEngineersVR.Diagnostics
                         }
                         finally { if(ao!=null) new BorrowedRtvTexture(ao).Release(); target.Release(); }
                     }
-                    if(!ReferenceEquals(desktop,bufferField.GetValue(null)) || MyRender11.Resolution!=desktopSize)
+                    if(!ReferenceEquals(desktop,bufferField.GetValue(null)) || !ReferenceEquals(desktopAo,aoField.GetValue(null)) || MyRender11.Resolution!=desktopSize)
                         throw new Exception("Eye rendering did not restore desktop resources");
+                    if(pass<2)
+                    {
+                        using(new EyeResolution.Scene(RemoteFeed.Resolution,true))
+                        {
+                            var cameraBuffer=bufferField.GetValue(null);
+                            if(ReferenceEquals(cameraBuffer,previousEye) || (pass==1 && !ReferenceEquals(cameraBuffer,previousCamera)))
+                                throw new Exception("1080p camera resources were not isolated and retained");
+                            previousCamera=cameraBuffer;
+                            var cameraDepth=(Texture2D)CockpitRender.Member(aoField.GetValue(null),"Resource");
+                            if(cameraDepth.Description.Width!=1920 || cameraDepth.Description.Height!=1080)
+                                throw new Exception("Camera AO target is not 1080p");
+                        }
+                    }
                 }
-                if(EyeResolution.Scene.Allocations!=allocations+2) throw new Exception("Eye resize did not replace its retained buffers exactly once");
-                Plugin.Logger.Info("PASS native independent resolution: 2112x2304 scene/depth/lighting, retained across frames, resize to 1584x1728, 1280x720 mirror, desktop restored");
+                if(EyeResolution.Scene.Allocations!=allocations+3) throw new Exception("Eye/camera resources were reallocated between fixed-size frames");
+                Plugin.Logger.Info("PASS native independent resolution: retained eye and 1920x1080 camera scene/depth/AO resources, eye resize, 1280x720 mirror, desktop restored");
             }
             finally { matrices.Restore(snapshot); EyeResolution.Scene.RestoreNative(); }
         }

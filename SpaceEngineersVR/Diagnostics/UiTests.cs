@@ -198,6 +198,14 @@ namespace SpaceEngineersVR.Diagnostics
                 MarkerPreviews(device,output);
                 SurfacePreviews(device,output,log);
                 CockpitHandTests.Preview(output);
+                GameplayFeatureTests.Run(log,output);
+                BlockPreviews(device,output);
+                using(var feed=new OverlayCanvas("remote feed frame",1600,1100,1,false,device))
+                    foreach(float width in new[] {.7f,1.2f,3.2f})
+                    {
+                        RemoteFeed.Paint(feed,new RemoteView.View { Width=width,Height=width*9/16,Hover=3 });
+                        feed.Upload(); Save(feed.Texture,Path.Combine(output,"remote-frame-"+width.ToString("0.0",System.Globalization.CultureInfo.InvariantCulture)+".png"));
+                    }
                 using(var menu=new OverlayCanvas("menu frame preview",1600,1100,1,false,device))
                 {
                     FloatingMenu.Paint(menu,new FloatingMenu.Snapshot { Width=1.5f,Height=.84375f,Hover=1 });
@@ -221,6 +229,34 @@ namespace SpaceEngineersVR.Diagnostics
                 log("PASS native UI GPU composition: "+NativeSprites.Loaded+" installed PNG/DDS assets, shaders, alpha blending and disabled tint. Previews: "+output);
             }
             GpuQueries(log);
+        }
+        private static void BlockPreviews(Device device,string output)
+        {
+            var names=new[] {"Steel Plate","Construction Comp.","Large Steel Tube","Metal Grid","Computer"};
+            var icons=new[] {"steel_plate_component","construction_components_component","large_tube_component","metal_grid_component","computer_component"};
+            var totals=new[] {280,40,80,40,4}; var mounted=new[] {155,10,10,25,4}; var available=new[] {82,100,4,25,8};
+            foreach(string variant in new[] {"unfinished","damaged","complete","preview"})
+            {
+                var data=new BlockInspection.Data {Built=variant=="unfinished" ? .65f:variant=="preview" ? 0:1,
+                    Integrity=variant=="damaged" ? .48f:variant=="unfinished" ? .65f:variant=="preview" ? 0:1,Critical=.6f,Ownership=.2f,Pcu=15,Preview=variant=="preview",
+                    Components=names.Select((n,i)=>new Sandbox.Game.Gui.MyHudBlockInfo.ComponentInfo {ComponentName=n,TotalCount=totals[i],
+                        MountedCount=variant=="complete" ? totals[i]:variant=="preview" ? 0:mounted[i],AvailableAmount=available[i],
+                        Icons=new[] {@"Textures\GUI\Icons\component\"+icons[i]+".dds"}}).ToArray()};
+                var view=new SurfaceView {Title="Large Hydrogen Thruster",Block=data,Icons=new[] {@"Textures\GUI\Icons\Cubes\HydrogenThrusterLarge.dds"}};
+                var size=PhysicalSurface.TextureSize(SurfaceStyle.BlockInfo);
+                using(var card=new OverlayCanvas("block inspection",size.X,size.Y,1,false,device))
+                {
+                    Render(card,()=>BlockInspection.Paint(card,view));
+                    Save(card.Texture,Path.Combine(output,"block-"+variant+"-texture.png"));
+                    using(var image=System.Drawing.Image.FromFile(Path.Combine(output,"block-"+variant+"-texture.png")))
+                    using(var face=new System.Drawing.Bitmap(size.X,(int)(size.X*.441f)))
+                    using(var g=System.Drawing.Graphics.FromImage(face))
+                    {
+                        g.DrawImage(image,0,0,face.Width,face.Height);
+                        face.Save(Path.Combine(output,"block-"+variant+".png"));
+                    }
+                }
+            }
         }
         private static void GpuQueries(Action<string> log)
         {
@@ -304,7 +340,7 @@ namespace SpaceEngineersVR.Diagnostics
                         Save(face.Texture,Path.Combine(output,"seat-face-"+subtype+".png"));
                     }
                 }
-                using(var badge=new OverlayCanvas("switch action preview",768,154,1,false,device))
+                using(var badge=new OverlayCanvas("switch action preview",PhysicalSurface.TextureSize(SurfaceStyle.Label).X,PhysicalSurface.TextureSize(SurfaceStyle.Label).Y,1,false,device))
                 {
                     foreach(bool assigned in new[] {false,true})
                     {

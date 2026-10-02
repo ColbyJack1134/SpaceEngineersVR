@@ -11,6 +11,7 @@ namespace SpaceEngineersVR.Patches
     {
         private static void Prefix(MyRenderMessageBase message)
         {
+            if(message is MyRenderMessageSetCharacterTransforms bones) BodyFit.Render(bones);
             if (Main.VrActive && message is MyRenderMessageSetCameraViewMatrix)
                 RenderFrameBridge.Capture(message, CameraRig.Current);
         }

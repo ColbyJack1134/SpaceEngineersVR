@@ -53,12 +53,12 @@ namespace SpaceEngineersVR.Player
             return result;
         }
         public static bool ApplyPose(MyCharacterBone upper,MyCharacterBone lower,MyCharacterBone palm,
-            Matrix target,Matrix palmOffset,Vector3 hint,bool adaptive=true,bool rigidWrist=false)
+            Matrix target,Matrix palmOffset,Vector3 hint,bool adaptive=true,bool rigidWrist=false,float bodyScale=1)
         {
             if(!target.IsValid()) return false;
             // Vanilla weapon IK can translate the palm to reach a weapon. Restore
             // its bind-space offset before solving, rather than inheriting a stretched wrist.
-            lower.Translation=Vector3.Zero; palm.Translation=Vector3.Zero;
+            lower.Translation=lower.BindTransform.Translation*(bodyScale-1); palm.Translation=Vector3.Zero;
             for(var bone=palm.Parent;bone!=null && bone!=lower;bone=bone.Parent)
             { bone.Rotation=Quaternion.Identity; bone.Translation=Vector3.Zero; }
             upper.ComputeAbsoluteTransform(true,true);

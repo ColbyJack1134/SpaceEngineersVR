@@ -81,6 +81,10 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice AllActions=new ActionChoice("All actions",()=>MyGuiSandbox.AddScreen(new GUI.ActionBrowser()),true);
         public static readonly ActionChoice RelativeDampeners=new ActionChoice("Auto dampeners",DampenerTargeting.Activate);
         public static readonly ActionChoice Dampeners=Native("Dampeners",MyControlsSpace.DAMPING);
+        public static readonly ActionChoice ResetFeed=new ActionChoice("Reset camera screen",RemoteView.Recenter);
+        public static readonly ActionChoice ExitFeed=new ActionChoice("Exit camera control",RemoteView.Exit);
+        public static readonly ActionChoice Inspect=new ActionChoice(()=>Common.Config?.InspectWithoutGrip==true ? "Block info: automatic" : "Block info: hold grip",()=>Common.Config.InspectWithoutGrip=!Common.Config.InspectWithoutGrip);
+        public static readonly ActionChoice PlayPosture=new ActionChoice(()=>Common.Config?.SeatedPlay==true ? "Switch to standing play":"Switch to seated play",()=>BodyFit.SetSeated(!Common.Config.SeatedPlay));
         public static readonly ActionChoice Tablet=new ActionChoice("Tablet",SpatialUi.Expand);
         public static readonly ActionChoice Options=new ActionChoice("VR options",()=>Common.Plugin.OpenConfigDialog(),true);
         public static void Schedule(ActionChoice action)
@@ -99,6 +103,7 @@ namespace SpaceEngineersVR.Player
         }
         public static ActionChoice[] WheelActions(bool building,bool seated,bool thirdPerson,bool jetpack=false)
         {
+            if(RemoteView.Active) return new[] { PauseAction,Options,TerminalAction,ExitFeed,ResetFeed,ConfigureToolbarAction,Native("Previous camera",MyControlsSpace.SWITCH_LEFT),Native("Next camera",MyControlsSpace.SWITCH_RIGHT),Inspect };
             if(thirdPerson) return new[] { PauseAction,Options,TerminalAction,Quick[22],LightsAction,Dampeners,PowerAction,ParkAction,BroadcastAction };
             if(building) return new[] { PauseAction,Options,TerminalAction,Building[17],PlacementAction,Building[8],Building[9],Building[10],PaletteAction };
             if(seated) return new[] { PauseAction,Options,TerminalAction,LightsAction,Dampeners,PowerAction,ParkAction,HelmetAction,BroadcastAction };
@@ -170,7 +175,10 @@ namespace SpaceEngineersVR.Player
             BroadcastAction,
             DetachBootsAction,
             RelativeDampeners,
-            Tablet
+            Tablet,
+            Inspect,ResetFeed,ExitFeed,PlayPosture,
+            new ActionChoice("Turrets and cameras",()=>MyGuiSandbox.AddScreen(new GUI.SettingsPage("Turrets and cameras")),true),
+            new ActionChoice("Body and seated play",()=>MyGuiSandbox.AddScreen(new GUI.BodyOptions()),true)
         };
         public static readonly ActionChoice[] Developer = {
             new ActionChoice("Developer options", () => MyGuiSandbox.AddScreen(new GUI.DeveloperOptions()), true),
@@ -231,7 +239,7 @@ namespace SpaceEngineersVR.Player
         private static void ToolbarConfig(int slot)
         {
             if (MyGuiScreenToolbarConfigBase.Static != null) return;
-            var screen=MyGuiSandbox.CreateScreen(MyPerGameSettings.GUI.ToolbarConfigScreen,0,MySession.Static.ControlledEntity as MyShipController,null);
+            var screen=MyGuiSandbox.CreateScreen(MyPerGameSettings.GUI.ToolbarConfigScreen,0,MyToolbarComponent.CurrentToolbar?.Owner as MyCubeBlock,null);
             if(slot>=0 && screen.Controls.GetControlByName("LabelToolbar") is MyGuiControlLabel label)
                 label.Text="Assign slot "+(slot+1)+" · drag item below";
             MyGuiSandbox.AddScreen(MyGuiScreenGamePlay.ActiveGameplayScreen=screen);
@@ -252,7 +260,7 @@ namespace SpaceEngineersVR.Player
         public static void HandleButtons()
         {
             var c = Controls.Static;
-            if(InputRouter.Mode==InputMode.Piloting)
+            if(InputRouter.Mode==InputMode.Piloting || InputRouter.Mode==InputMode.Turret)
             {
                 if(c.SeatTerminal.HasPressed) { Execute(TerminalAction); return; }
 
@@ -264,6 +272,7 @@ namespace SpaceEngineersVR.Player
             if (c.Interact.HasPressed || c.Terminal.HasPressed || c.Inventory.HasPressed)
                 HandInteraction.RefreshTarget();
             if (c.Reload.HasPressed) NativeActions.Pulse(MyControlsSpace.RELOAD);
+            if (c.Interact.HasPressed && RemoteView.Active) { RemoteView.Exit(); InputRouter.Update(); return; }
             if (c.Interact.HasPressed)
             {
                 if (!HandInteraction.TryInteract()) { MySession.Static.ControlledEntity?.Use(); HandInteraction.Feedback(); }

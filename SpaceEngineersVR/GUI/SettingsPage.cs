@@ -25,13 +25,27 @@ namespace SpaceEngineersVR.GUI
                     Toggle(-.14f,"Roomscale body movement",c.RoomscaleMovement,v=>c.RoomscaleMovement=v);
                     Toggle(-.05f,"Controller-relative movement",c.ControllerRelativeMovement,v=>c.ControllerRelativeMovement=v);
                     Toggle(.04f,"Invert jetpack pitch",c.InvertJetpackPitch,v=>c.InvertJetpackPitch=v);
-                    Link(.16f,"Advanced controls",()=>new SettingsPage("Advanced controls"));
+                    Link(.13f,"Body and seated play",()=>new BodyOptions());
+                    Link(.20f,"Body visibility",()=>new SettingsPage("Body visibility"));
+                    Link(.27f,"Advanced controls",()=>new SettingsPage("Advanced controls"));
+                    break;
+                case "Body visibility":
+                    Toggle(-.20f,"Proximity fade on foot",c.OnFootBodyProximityFade,v=>c.OnFootBodyProximityFade=v);
+                    Toggle(-.08f,"Proximity fade in seats",c.BodyProximityFade,v=>c.BodyProximityFade=v);
+                    Toggle(.04f,"Hide first-person body",c.HideFirstPersonBody,v=>c.HideFirstPersonBody=v);
+                    Label(.19f,"Hands and wrist controls stay visible.",.65f);
                     break;
                 case "Advanced controls":
                     Toggle(-.23f,"Controller menu pointer",c.ControllerMenuPointer,v=>c.ControllerMenuPointer=v);
                     Toggle(-.14f,"Keyboard / mouse gameplay",c.EnableKeyboardAndMouseControls,v=>c.EnableKeyboardAndMouseControls=v);
                     Toggle(-.05f,"Tracked arms",c.TrackedArms,v=>c.TrackedArms=v);
                     Toggle(.04f,"Legacy hand-tilt ship steering",c.LegacyShipTilt,v=>c.LegacyShipTilt=v);
+                    break;
+                case "Turrets and cameras":
+                    Slider(-.24f,"Turret aim sensitivity",c.TurretAimSensitivity,.25f,v=>c.TurretAimSensitivity=v,400);
+                    Slider(-.10f,"Camera zoom sensitivity",c.CameraZoomSensitivity,.25f,v=>c.CameraZoomSensitivity=v,400);
+                    Label(.20f,"Camera zoom: left thumbstick while holding left cockpit stick.",.55f);
+                    Reset(()=> { c.TurretAimSensitivity=c.CameraZoomSensitivity=2; });
                     break;
                 case "Third person":
                     Slider(-.24f,"Pan sensitivity",c.ThirdPersonPanSensitivity,.25f,v=>c.ThirdPersonPanSensitivity=v);
@@ -54,7 +68,7 @@ namespace SpaceEngineersVR.GUI
                     var modes=new MyGuiControlCombobox(new Vector2(.10f,-.04f),new Vector2(.35f,.04f));
                     modes.AddItem(0,new StringBuilder("Off")); modes.AddItem(1,new StringBuilder("Icons")); modes.AddItem(2,new StringBuilder("Names and distance"));
                     modes.SelectItemByKey(c.WaypointMode); modes.ItemSelected+=()=>c.WaypointMode=(int)modes.GetSelectedKey(); Controls.Add(modes);
-                    Label(.09f,"Right-temple trigger cycles HUD visibility.",.65f);
+                    Toggle(.08f,"Block info without grip",c.InspectWithoutGrip,v=>c.InspectWithoutGrip=v);
                     Link(.20f,"All actions",()=>new ActionBrowser());
                     break;
             }
@@ -66,10 +80,10 @@ namespace SpaceEngineersVR.GUI
             Label(y,text); var check=new MyGuiControlCheckbox(new Vector2(.29f,y)) { IsChecked=value };
             check.IsCheckedChanged+=v=>store(v.IsChecked); Controls.Add(check);
         }
-        private void Slider(float y,string text,float value,float min,Action<float> store)
+        private void Slider(float y,string text,float value,float min,Action<float> store,float max=200)
         {
             Label(y,text);
-            var slider=new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:min*100,maxValue:200,width:.53f,defaultValue:100,labelText:"{0}%",labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=value*100 };
+            var slider=new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:min*100,maxValue:max,width:.53f,defaultValue:100,labelText:"{0}%",labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=value*100 };
             slider.ValueChanged+=v=>store(v.Value/100); Controls.Add(slider);
         }
         private void Link(float y,string text,Func<MyGuiScreenBase> screen) => Controls.Add(new MyGuiControlButton(new Vector2(0,y),text:new StringBuilder(text),onButtonClick:b=>MyGuiSandbox.AddScreen(screen())));

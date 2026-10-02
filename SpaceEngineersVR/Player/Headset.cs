@@ -50,9 +50,11 @@ namespace SpaceEngineersVR.Player
             SceneCamera sceneCamera = SceneCamera.Current();
             Vector3D originalCamera = sceneCamera.Position;
             object leftAmbient=null,rightAmbient=null;
-            var resources=new EyeResolution.Scene(size);
+            EyeResolution.Scene resources=null;
             try
             {
+                RemoteFeed.Render(RenderFrameBridge.Remote);
+                resources=new EyeResolution.Scene(size);
                 StereoRenderState.Begin(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale),
                     rig?.ThirdPerson==true ? .005*scale : Math.Max(.03,matrices.NearClipping),matrices.LargeDistanceFarClipping);
                 ThirdPersonView.RecordTrace(rig);
@@ -92,7 +94,7 @@ namespace SpaceEngineersVR.Player
                 matrices.Restore(snapshot);
                 sceneCamera.Position = originalCamera;
                 StereoRenderState.View=-1;
-                resources.Dispose();
+                resources?.Dispose();
             }
             return true;
         }
@@ -128,11 +130,16 @@ namespace SpaceEngineersVR.Player
             var uiArea=eye==EVREye.Eye_Left ? GpuTiming.Area.WorldUiLeft : GpuTiming.Area.WorldUiRight;
             GpuTiming.Begin(sceneArea);
             long sceneStart=FeatureTiming.Start();
-            MyRender11.DrawGameScene(target, out ambientOcclusion);
+            var targetSize=((SharpDX.Direct3D11.Texture2D)target.GetResource()).Description;
+            bool handLayer=rig?.ThirdPerson!=true && (RenderFrameBridge.Remote!=null || Main.MenuOpen || Main.ShowDesktopPanel);
+            NativeHandLayer.Begin(targetSize.Width,targetSize.Height,handLayer);
+            try { MyRender11.DrawGameScene(target, out ambientOcclusion); }
+            finally { NativeHandLayer.End(); }
             FeatureTiming.End(eye==EVREye.Eye_Left ? FeatureTiming.Area.SceneLeft : FeatureTiming.Area.SceneRight,sceneStart);
             GpuTiming.End(sceneArea);
             GpuTiming.Begin(uiArea);
             WorldMarkers.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection);
+            RemoteFeed.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),RenderFrameBridge.Remote,view,projection);
             if (Main.MenuOpen || rig?.ThirdPerson==true) MenuHands.DrawInWorld((SharpDX.Direct3D11.Texture2D)target.GetResource(),eye,Main.MenuOpen);
             SpatialUi.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,RenderFrameBridge.Surfaces);
             if(rig?.ThirdPerson==true && NativeGloves.Visible)
@@ -150,6 +157,7 @@ namespace SpaceEngineersVR.Player
 
         public void ReleaseTextures()
         {
+            NativeHandLayer.Reset();
             leftTexture?.Release(); rightTexture?.Release();
             leftTexture = rightTexture = null;
         }

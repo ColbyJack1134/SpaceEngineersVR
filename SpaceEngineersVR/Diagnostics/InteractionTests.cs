@@ -105,8 +105,6 @@ namespace SpaceEngineersVR.Diagnostics
                 "Tools without support grips acquired a two-hand profile");
             Require(WeaponProfile.Find(WeaponProfile.Rifle.Item,WeaponProfile.Rifle.Model)==WeaponProfile.Rifle &&
                 WeaponProfile.Find(WeaponProfile.Launcher.Item,WeaponProfile.Launcher.Model)==WeaponProfile.Launcher,"Accepted original weapon profiles lost");
-            Require(!MenuWindow.StereoClient(false,true),"Ordinary native menu was resampled into eye texture");
-            Require(MenuWindow.StereoClient(true,true),"Keyboard no longer has its accepted stereo occlusion path");
             var seatKeys=SeatPanel.Keys(true,true);
             var seatView=new SurfaceView { Keys=seatKeys };
             Require(seatKeys.Length==14,"Seat ship controls or adjustment controls missing");

@@ -18,6 +18,26 @@ namespace SpaceEngineersVR.Diagnostics
     // An isolated main-menu scene in an explicitly launched diagnostic process. No world/save is loaded.
     internal static class PhysicalRendererProbe
     {
+        private sealed class CameraHudPreview : GUI.MyPluginConfigDialog
+        {
+            private Sandbox.Game.GUI.MyHudCameraOverlay overlay;
+            private Action drawCrosshair;
+            public override bool Draw()
+            {
+                bool drawn=base.Draw();
+                if(overlay==null)
+                {
+                    overlay=new Sandbox.Game.GUI.MyHudCameraOverlay();
+                    Sandbox.Game.Gui.MyGuiScreenHudBase.LoadTextureAtlas(out var atlas,out var coordinates);
+                    var crosshair=new Sandbox.Game.Gui.MyHudCrosshair(); crosshair.Recenter();
+                    drawCrosshair=()=>crosshair.Draw(atlas,coordinates);
+                }
+                Sandbox.Game.GUI.MyHudCameraOverlay.Enabled=true;
+                Sandbox.Game.GUI.MyHudCameraOverlay.TextureName=@"Textures\GUI\Screens\camera_overlay.dds";
+                overlay.Draw(1,1); drawCrosshair();
+                return drawn;
+            }
+        }
         private sealed class PausePreview : SpaceEngineers.Game.GUI.MyGuiScreenMainMenu
         {
             internal PausePreview() : base(true) { }
@@ -31,6 +51,41 @@ namespace SpaceEngineersVR.Diagnostics
                 origin.Y+=.043f;
                 AccessTools.Method(typeof(SpaceEngineers.Game.GUI.MyGuiScreenMainMenu),"CreateInGameMenu").Invoke(this,new object[] {origin,null});
                 Patches.PauseOptionsPatch.Add(this);
+            }
+        }
+        private sealed class BlockPreview : Sandbox.Graphics.GUI.MyGuiScreenBase
+        {
+            private readonly Sandbox.Game.GUI.MyGuiProgressCompositeTextureAdvanced[] bars=new Sandbox.Game.GUI.MyGuiProgressCompositeTextureAdvanced[2];
+            private readonly Sandbox.Graphics.GUI.MyGuiControlPanel[] backgrounds=new Sandbox.Graphics.GUI.MyGuiControlPanel[2];
+            internal BlockPreview() : base(new Vector2(.5f),new Vector4(.03f,.05f,.07f,1),new Vector2(.85f,.8f)) { }
+            public override string GetFriendlyName() => "Native block-bar reference";
+            public override void LoadContent() { base.LoadContent(); RecreateControls(true); }
+            public override void RecreateControls(bool constructor)
+            {
+                base.RecreateControls(constructor); AddCaption("Native block integrity bar");
+                for(int i=0;i<2;i++)
+                {
+                    backgrounds[i]=new Sandbox.Graphics.GUI.MyGuiControlPanel(new Vector2(i==0 ? -.16f:.16f,0),new Vector2(.05f,.185f),new Vector4(68/255f,77/255f,86/255f,.9f))
+                        { BackgroundTexture=Sandbox.Graphics.GUI.MyGuiConstants.TEXTURE_COMPOSITE_BLOCKINFO_PROGRESSBAR };
+                    Controls.Add(backgrounds[i]);
+                    bars[i]=new Sandbox.Game.GUI.MyGuiProgressCompositeTextureAdvanced(Sandbox.Graphics.GUI.MyGuiConstants.TEXTURE_COMPOSITE_BLOCKINFO_PROGRESSBAR)
+                        {IsInverted=true,Orientation=Sandbox.Game.GUI.MyGuiProgressCompositeTexture.BarOrientation.VERTICAL};
+                    Controls.Add(new Sandbox.Graphics.GUI.MyGuiControlLabel(new Vector2(i==0 ? -.16f:.16f,-.14f),text:i==0 ? "48%":"80%",textScale:.8f,
+                        originAlign:VRage.Utils.MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER));
+                    Controls.Add(new Sandbox.Graphics.GUI.MyGuiControlLabel(new Vector2(i==0 ? -.16f:.16f,.14f),text:i==0 ? "Below functional":"Above functional",textScale:.6f,
+                        originAlign:VRage.Utils.MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER));
+                }
+            }
+            public override bool Draw()
+            {
+                bool result=base.Draw();
+                for(int i=0;i<2;i++)
+                {
+                    bars[i].Position=new Vector2I(Sandbox.Graphics.MyGuiManager.GetScreenCoordinateFromNormalizedCoordinate(backgrounds[i].GetPositionAbsoluteTopLeft()));
+                    bars[i].Size=new Vector2I(Sandbox.Graphics.MyGuiManager.GetScreenSizeFromNormalizedSize(backgrounds[i].Size));
+                    bars[i].Draw(i==0 ? .48f:.8f,i==0 ? new Vector4(115/255f,69/255f,80/255f,1):new Vector4(122/255f,140/255f,154/255f,1));
+                }
+                return result;
             }
         }
         private static uint native=uint.MaxValue;
@@ -51,6 +106,7 @@ namespace SpaceEngineersVR.Diagnostics
         public static bool Active { get; private set; }
         public static void Start(Harmony harmony)
         {
+            RemoteHud.Install(harmony);
             harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),"DrawScene"),new HarmonyMethod(typeof(PhysicalRendererProbe),nameof(Render)));
             Active=true; phase=0; next=DateTime.UtcNow.AddSeconds(10); deadline=DateTime.UtcNow.AddSeconds(520);
             Directory.CreateDirectory(output);
@@ -76,6 +132,12 @@ namespace SpaceEngineersVR.Diagnostics
                 if (phase==0)
                 {
                     if (DateTime.UtcNow<next) return;
+                    if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_CAMERA_HUD_ONLY")=="1")
+                    {
+                        native=MyRenderProxy.CreateRenderEntity("SEVR camera probe",FighterProfile.Model,MatrixD.Identity,MyMeshDrawTechnique.MESH,
+                            RenderFlags.Visible|RenderFlags.CastShadows,(CullingOptions)0,Color.White,neutralPaint);
+                        phase=24; BeginCameraHud(); next=DateTime.UtcNow.AddSeconds(6); return;
+                    }
                     if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_COCKPITS_ONLY")=="1")
                     {
                         rigs=SelectedRigs();
@@ -183,19 +245,27 @@ namespace SpaceEngineersVR.Diagnostics
                     if (phase==7 || phase==15) CockpitRender.Reset();
                     if(phase==24)
                     {
-                        options=new GUI.MyPluginConfigDialog(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
+                        BeginCameraHud();
                     }
                     if(phase==25)
                     {
+                        RemoteHud.Fixture=null;
+                        Sandbox.Game.GUI.MyHudCameraOverlay.Enabled=false;
+                        Sandbox.Game.GUI.MyHudCameraOverlay.TextureName=null;
+                        if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_CAMERA_HUD_ONLY")=="1")
+                        { Stop(); Logger.Info("PHYSICAL RENDER SMOKE PASSED: selective native camera HUD and scene resource isolation only."); return; }
                         options.CloseScreenNow(); EyeResolution.Recommend(2112,2304);
+                        var display=Sandbox.Engine.Platform.VideoMode.MyVideoSettingsManager.CurrentDeviceSettings;
+                        display.BackBufferWidth=1920; display.BackBufferHeight=1080; display.WindowMode=VRage.MyWindowModeEnum.Window;
+                        Sandbox.Engine.Platform.VideoMode.MyVideoSettingsManager.Apply(display);
                         options=new GUI.RenderingOptions(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
                     }
                     if(phase==26) { options.CloseScreenNow(); options=null; }
                     if(phase>=37 && phase<=44)
                     {
                         options?.CloseScreenNow();
-                        options=phase==38 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.FlightOptions() :
-                            phase==43 ? new GUI.ActionBrowser() : phase==44 ? new GUI.BindingHelp() :
+                        options=phase==42 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.BodyOptions() : phase==38 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.FlightOptions() :
+                            phase==43 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.SettingsPage("Turrets and cameras") : phase==44 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.SettingsPage("Body visibility") :
                             (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.SettingsPage(phase==37 ? "Character" : phase==39 ? "Third person" : phase==40 ? "Release glide" : phase==41 ? "HUD & Interface" : "Advanced controls");
                         Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
                     }
@@ -216,6 +286,8 @@ namespace SpaceEngineersVR.Diagnostics
                         options?.CloseScreenNow(); options=null;
                         if(!rotationPreviewsSaved) throw new InvalidOperationException("Native rotation previews not rendered");
                         ValidateImages();
+                        if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_INTERFACE_ONLY")=="1")
+                        { Stop(); Logger.Info("PHYSICAL RENDER SMOKE PASSED: native interface, camera HUD, hand layer and reference cockpit. Rig sweep excluded."); return; }
                         rigs=SelectedRigs(); rigIndex=rigStep=0; BeginRig();
                     }
                     return;
@@ -281,10 +353,7 @@ namespace SpaceEngineersVR.Diagnostics
                 pending=null; rigStep++; next=DateTime.UtcNow.AddSeconds(2);
                 if(rigStep==3) CockpitRender.Reset();
                 if(rigStep<4) return;
-                int rest=Difference(prefix+"native",prefix+"rest"),restored=Difference(prefix+"native",prefix+"restored"),moved=Difference(prefix+"rest",prefix+"moved");
-                if(rest>10 || restored>10 || moved<5)
-                { rigFailures.Add(rig.Subtype); Logger.Info("FAIL native cockpit rig articulation/restoration: "+rig.Subtype); }
-                else Logger.Info("PASS native cockpit rig articulation/restoration: "+rig.Subtype);
+                if(!PhysicalImageComparison.Rig(output,rig.Subtype,message=>Logger.Info(message))) rigFailures.Add(rig.Subtype);
                 if(++rigIndex<rigs.Length) { rigStep=0; BeginRig(); return; }
                 if(rigFailures.Count>0) throw new InvalidOperationException("Cockpit rig render/restoration mismatch: "+string.Join(", ",rigFailures));
                 Stop(); Logger.Info("PHYSICAL RENDER SMOKE PASSED: installed cockpit rigs and material restoration. Images: "+output);
@@ -321,11 +390,27 @@ namespace SpaceEngineersVR.Diagnostics
                         if(phase>=45 && phase<=46 && !NativeGloves.Preview(
                             CockpitHandPose.GripWrist(Matrix.CreateTranslation(-.11f,0,0)),
                             CockpitHandPose.GripWrist(Matrix.CreateTranslation(.11f,0,0)))) return;
+                        if(phase==45) PolishRenderTests.BeginHands(size.X,size.Y);
                         Wrappers.MyRender11.DrawGameScene(target,out ao);
                     }
                     finally { if (ao!=null) new Wrappers.BorrowedRtvTexture(ao).Release(); }
                     // Exercise the installed engine's depth SRV and our spatial shader in a real scene.
                     var physicalTarget=(Texture2D)target.GetResource();
+                    if(phase==24)
+                    {
+                        if(RemoteHud.SpriteCount<2) throw new InvalidOperationException("Expected native filter and crosshair: "+RemoteHud.FixtureSprites);
+                        Logger.Info("PASS native camera HUD allowlist: "+RemoteHud.SpriteCount+" camera/crosshair sprites; options screen excluded");
+                        var remote=new RemoteView.View { Source=123,Width=1.2f,Height=.675f,
+                            Pose=MatrixD.CreateTranslation(0,0,-1.5)*MatrixD.Invert(camera.ViewMatrix) };
+                        RemoteFeed.Render(remote);
+                        // Restore the physical view's depth after rendering the camera feed.
+                        object extra=null;
+                        try { Wrappers.MyRender11.DrawGameScene(target,out extra); }
+                        finally { if(extra!=null) new Wrappers.BorrowedRtvTexture(extra).Release(); }
+                        RemoteFeed.Draw(physicalTarget,remote,camera.ViewMatrix,Wrappers.MyRender11.Environment_Matrices.Projection);
+                        UiTests.Save(physicalTarget,Path.Combine(output,"remote-feed-native.png"));
+                        RemoteFeed.Reset();
+                    }
                     MatrixD surfacePose=MatrixD.CreateTranslation(0,-.10,-.5)*MatrixD.Invert(camera.ViewMatrix);
                     PhysicalSurface.Draw(physicalTarget,new[] { new SurfaceView { Id="Physical probe",Title="SEAT FIT",Text="Scene depth probe",Width=.24f,Height=.18f,Pose=surfacePose,
                         Keys=new[] { new SurfaceKey("UP",.08f,.40f,.38f,.35f),new SurfaceKey("DOWN",.54f,.40f,.38f,.35f) } } },camera.ViewMatrix,camera.ProjectionMatrix,PhysicalSurface.SceneDepth());
@@ -341,6 +426,11 @@ namespace SpaceEngineersVR.Diagnostics
                         texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
                         PhysicalSurface.Draw(physicalTarget,new[] {tablet},camera.ViewMatrix,camera.ProjectionMatrix,PhysicalSurface.SceneDepth());
                         UiTests.Save(physicalTarget,Path.Combine(output,"native-tablet-depth-"+phase+".png"));
+                        if(phase==45)
+                        {
+                            texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
+                            PolishRenderTests.Hands(physicalTarget,output,camera.ViewMatrix,camera.ProjectionMatrix);
+                        }
                     }
                     var description=texture.Description;
                     description.BindFlags=BindFlags.None; description.Usage=ResourceUsage.Staging;
@@ -447,16 +537,7 @@ namespace SpaceEngineersVR.Diagnostics
         }
         private static int Difference(string first,string second)
         {
-            int changed=0;
-            using(var a=new System.Drawing.Bitmap(Path.Combine(output,first+".png")))
-            using(var b=new System.Drawing.Bitmap(Path.Combine(output,second+".png")))
-            {
-                for(int y=0;y<a.Height;y+=4) for(int x=0;x<a.Width;x+=4)
-                {
-                    var p=a.GetPixel(x,y); var q=b.GetPixel(x,y);
-                    if(Math.Abs(p.R-q.R)+Math.Abs(p.G-q.G)+Math.Abs(p.B-q.B)>12) changed++;
-                }
-            }
+            int changed=PhysicalImageComparison.Difference(Path.Combine(output,first+".png"),Path.Combine(output,second+".png"));
             Logger.Info("Physical image difference "+first+" / "+second+": "+changed+" sampled pixels");
             return changed;
         }
@@ -467,6 +548,11 @@ namespace SpaceEngineersVR.Diagnostics
             NativeGloves.Reset(); CockpitRender.Reset();
             if (native!=uint.MaxValue) MyRenderProxy.RemoveRenderObject(native,MyRenderProxy.ObjectType.Entity);
             native=uint.MaxValue; Active=false;
+        }
+        private static void BeginCameraHud()
+        {
+            RemoteHud.Fixture=new RemoteView.View {Source=123};
+            options=new CameraHudPreview(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
         }
     }
 }

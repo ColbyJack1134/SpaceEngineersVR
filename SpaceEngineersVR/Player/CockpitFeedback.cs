@@ -47,10 +47,10 @@ namespace SpaceEngineersVR.Player
             nextHover[i]=DateTime.UtcNow.AddMilliseconds(100);
         }
         public static void Engage(Controller hand) => hand.Vibrate(0,.018f,110,.18f);
-        public static void Activate(Controller hand) => hand.Vibrate(0,.024f,105,.25f);
-        public static void Click(Controller hand,bool cover=false)
+        public static void Activate(Controller hand,float amplitude=.25f,float duration=.024f) => hand.Vibrate(0,duration,105,amplitude);
+        public static void Click(Controller hand,bool cover=false,float amplitude=.25f,float duration=.024f)
         {
-            Activate(hand);
+            Activate(hand,amplitude,duration);
             if(soundFailed) return;
             try
             {

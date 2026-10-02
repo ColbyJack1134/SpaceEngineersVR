@@ -45,6 +45,24 @@ namespace SpaceEngineersVR.Config
         public bool AdaptiveArms { get => adaptiveArms; set => SetValue(ref adaptiveArms,value); }
         private bool legacyShipTilt,physicalShipControlsOnly;
         public bool PhysicalShipControlsOnly { get => physicalShipControlsOnly; set => SetValue(ref physicalShipControlsOnly,value); }
+        private bool bodyCalibrated,seatedPlay,fitBodyOnFoot;
+        private float measuredEyeHeight;
+        public bool FitBodyOnFoot { get => fitBodyOnFoot; set => SetValue(ref fitBodyOnFoot,value); }
+        public float MeasuredEyeHeight { get => measuredEyeHeight; set => SetValue(ref measuredEyeHeight,Bound(value,0,2.5f,0)); }
+        private float seatedReference=1.2f;
+        public bool BodyCalibrated { get => bodyCalibrated; set => SetValue(ref bodyCalibrated,value); }
+        public bool SeatedPlay { get => seatedPlay; set => SetValue(ref seatedPlay,value); }
+        public float SeatedReference { get => seatedReference; set => SetValue(ref seatedReference,Bound(value,.3f,2.5f,1.2f)); }
+        private bool bodyProximityFade=true;
+        public bool BodyProximityFade { get => bodyProximityFade; set => SetValue(ref bodyProximityFade,value); }
+        private bool onFootBodyProximityFade=true,hideFirstPersonBody;
+        public bool OnFootBodyProximityFade { get => onFootBodyProximityFade; set => SetValue(ref onFootBodyProximityFade,value); }
+        public bool HideFirstPersonBody { get => hideFirstPersonBody; set => SetValue(ref hideFirstPersonBody,value); }
+        private float turretAimSensitivity=2,cameraZoomSensitivity=2;
+        public float TurretAimSensitivity { get => turretAimSensitivity; set => SetValue(ref turretAimSensitivity,Bound(value,.25f,4,2)); }
+        public float CameraZoomSensitivity { get => cameraZoomSensitivity; set => SetValue(ref cameraZoomSensitivity,Bound(value,.25f,4,2)); }
+        private bool inspectWithoutGrip;
+        public bool InspectWithoutGrip { get => inspectWithoutGrip; set => SetValue(ref inspectWithoutGrip,value); }
         private bool developerTools;
         public bool DeveloperTools { get => developerTools; set => SetValue(ref developerTools,value); }
         private bool stableShadows=true,distantFlares=true,mirrorDesktop=true;

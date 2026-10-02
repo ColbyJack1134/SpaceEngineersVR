@@ -12,6 +12,15 @@ namespace SpaceEngineersVR.Player
     {
         private static readonly List<Block> blocks=new List<Block>();
         private static readonly List<ITerminalProperty<bool>> properties=new List<ITerminalProperty<bool>>();
+        internal static bool ViewBlock(object block) => block is Sandbox.Game.Entities.MyCameraBlock || RemoteView.IsTurret(block);
+        internal static bool ViewAction(string action,object block) => action=="View" && block is Sandbox.Game.Entities.MyCameraBlock || action=="Control" && RemoteView.IsTurret(block);
+        internal static bool ViewState(MyToolbarItem item,out bool active)
+        {
+            active=false;
+            if(!(item is MyToolbarItemTerminalBlock block) || !ViewAction(block.ActionId,block.Block)) return false;
+            active=ReferenceEquals(block.Block,MySession.Static?.CameraController) || ReferenceEquals(block.Block,MySession.Static?.ControlledEntity);
+            return true;
+        }
         private static bool Resolve(MyToolbarItem item)
         {
             blocks.Clear(); properties.Clear();
@@ -36,6 +45,7 @@ namespace SpaceEngineersVR.Player
         internal static bool Read(MyToolbarItem item,out float state)
         {
             state=0;
+            if(ViewState(item,out bool active)) { state=active ? 1:0; return true; }
             if(!Resolve(item)) return false;
             state=ReadValues(blocks,properties);
             return true;

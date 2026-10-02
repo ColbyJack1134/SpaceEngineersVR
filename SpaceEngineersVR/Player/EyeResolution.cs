@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using System.Linq;
 using HarmonyLib;
 using SharpDX.Direct3D11;
 using SpaceEngineersVR.Plugin;
@@ -40,82 +41,87 @@ namespace SpaceEngineersVR.Player
             return Current;
         }
 
-        // Retain an eye G-buffer beside the native desktop buffer. Lighting/AO
-        // resources stay at eye size until the next resize or desktop fallback.
+        // Each scene size keeps its depth, lighting tiles and AO resources together.
         internal sealed class Scene : IDisposable
         {
             private static readonly Type renderer=AccessTools.TypeByName("VRageRender.MyRender11");
             private static readonly PropertyInfo viewport=AccessTools.Property(renderer,"ViewportResolution");
             private static readonly FieldInfo fullViewport=AccessTools.Field(renderer,"FullResViewport");
             private static readonly FieldInfo mainBuffer=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Resources.MyGBuffer"),"Main");
-            private static object retained;
-            private static object desktop;
-            private static bool nativeResourcesChanged;
-            private static MyAntialiasingMode retainedAntialiasing;
-            private static readonly MethodInfo release=AccessTools.Method(mainBuffer.FieldType,"Release");
-            private static Vector2I retainedSize;
+            private static readonly MethodInfo remove=AccessTools.Method(renderer,"RemoveScreenResources");
+            private static readonly FieldInfo[] fields=new[] {mainBuffer}.Concat(
+                new[] {"m_tileIndices","m_tilesNum","m_tilesX","m_tilesY","m_isLightPreparedAfterResize","m_lastFrameVisiblePointlights"}
+                    .Select(n=>AccessTools.Field(AccessTools.TypeByName("VRage.Render11.LightingStage.MyLightsRendering"),n))).Concat(
+                new[] {"m_fullResViewDepthTarget","m_fullResNormalTexture","m_fullResAOZTexture","m_fullResAOZTexture2","m_quarterResViewDepthTextureArray","m_quarterResAOTextureArray"}
+                    .Select(n=>AccessTools.Field(AccessTools.TypeByName("VRageRender.MyHBAO"),n))).ToArray();
+            private sealed class Resources
+            {
+                internal object[] Values;
+                internal object Parent;
+                internal Vector2I Size;
+                internal MyAntialiasingMode Antialiasing;
+            }
+            private static readonly Resources[] retained=new Resources[2];
             public static int Allocations { get; private set; }
             private readonly Vector2I resolution;
             private readonly object oldViewport,oldFullViewport;
-            private readonly object oldBuffer;
+            private readonly object[] previous;
             private readonly bool drs;
+            private readonly int slot;
             private bool disposed;
-            public Scene(Vector2I size)
+            private static object[] Capture() => fields.Select(f=>f.GetValue(null)).ToArray();
+            private static void Restore(object[] values)
             {
+                for(int i=0;i<fields.Length;i++) fields[i].SetValue(null,values[i]);
+            }
+            public Scene(Vector2I size,bool camera=false)
+            {
+                slot=camera ? 1:0;
                 resolution=MyRender11.Resolution;
                 oldViewport=viewport.GetValue(null); oldFullViewport=fullViewport.GetValue(null);
-                oldBuffer=mainBuffer.GetValue(null);
+                previous=Capture();
                 var settings=MyRender11.Settings; drs=settings.User.DRScaling;
                 settings.User.DRScaling=false; MyRender11.Settings=settings;
                 try
                 {
                     MyRender11.Resolution=size;
-                    if(retained==null || !ReferenceEquals(desktop,oldBuffer) || retainedSize!=size)
+                    var current=retained[slot];
+                    if(current==null || !ReferenceEquals(current.Parent,previous[0]) || current.Size!=size || current.Antialiasing!=settings.User.AntialiasingMode)
                     {
-                        ReleaseRetained();
-                        mainBuffer.SetValue(null,null);
-                        nativeResourcesChanged=true;
-                        retainedAntialiasing=settings.User.AntialiasingMode;
-                        MyRender11.CreateScreenResources();
-                        retained=mainBuffer.GetValue(null); desktop=oldBuffer; retainedSize=size; Allocations++;
+                        Release(slot);
+                        foreach(var field in fields) if(!field.FieldType.IsValueType) field.SetValue(null,null);
+                        try { MyRender11.CreateScreenResources(); }
+                        catch { remove.Invoke(null,null); throw; }
+                        retained[slot]=new Resources {Values=Capture(),Parent=previous[0],Size=size,Antialiasing=settings.User.AntialiasingMode};
+                        Allocations++;
                         Logger.Info("VR scene resources: "+size.X+"x"+size.Y+"; desktop "+resolution.X+"x"+resolution.Y);
                     }
-                    else mainBuffer.SetValue(null,retained);
+                    else Restore(current.Values);
                     viewport.SetValue(null,size);
                     fullViewport.SetValue(null,new MyViewport(size));
                 }
-                catch
-                {
-                    if(retained==null) retained=mainBuffer.GetValue(null);
-                    Dispose(); RestoreNative(); throw;
-                }
+                catch { Dispose(); throw; }
             }
             public void Dispose()
             {
                 if(disposed) return; disposed=true;
+                if(retained[slot]!=null && ReferenceEquals(mainBuffer.GetValue(null),retained[slot].Values[0])) retained[slot].Values=Capture();
                 MyRender11.Resolution=resolution;
-                mainBuffer.SetValue(null,oldBuffer);
+                Restore(previous);
                 viewport.SetValue(null,oldViewport); fullViewport.SetValue(null,oldFullViewport);
                 var settings=MyRender11.Settings; settings.User.DRScaling=drs; MyRender11.Settings=settings;
             }
-            public static void RestoreNative()
+            public static void RestoreNative() { Release(0); Release(1); }
+            private static void Release(int index)
             {
-                if(!nativeResourcesChanged) return;
-                ReleaseRetained();
-                desktop=null; retainedSize=Vector2I.Zero;
-                MyRender11.CreateScreenResources();
-                nativeResourcesChanged=false;
-            }
-            private static void ReleaseRetained()
-            {
-                if(retained==null) return;
-                var buffer=retained; retained=null;
-                var settings=MyRender11.Settings;
+                var resources=retained[index];
+                if(resources==null) return;
+                retained[index]=null;
+                var previous=Capture(); var settings=MyRender11.Settings;
                 var antialiasing=settings.User.AntialiasingMode;
-                // Native Release uses the global AA mode to distinguish aliased depth buffers.
-                settings.User.AntialiasingMode=retainedAntialiasing; MyRender11.Settings=settings;
-                try { release.Invoke(buffer,null); }
-                finally { settings.User.AntialiasingMode=antialiasing; MyRender11.Settings=settings; }
+                settings.User.AntialiasingMode=resources.Antialiasing; MyRender11.Settings=settings;
+                try { Restore(resources.Values); remove.Invoke(null,null); }
+                finally { Restore(previous); settings.User.AntialiasingMode=antialiasing; MyRender11.Settings=settings; }
             }
         }
 

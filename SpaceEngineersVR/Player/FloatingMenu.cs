@@ -19,7 +19,7 @@ namespace SpaceEngineersVR.Player
         internal sealed class Snapshot
         {
             public Matrix Pose;
-            public float Width,Height;
+            public float Width,Height,BarOffset=.085f;
             public int Hover;
         }
         private static readonly MenuWindow window=new MenuWindow();
@@ -114,11 +114,10 @@ namespace SpaceEngineersVR.Player
             var g=canvas.Graphics; var state=g.Save();
             try
             {
-                float w=s.Width+.06f,h=s.Height+.20f;
+                float w=s.Width+.06f,h=s.Height+.20f+s.BarOffset-.085f;
                 g.ScaleTransform(1600/w,1100/h); g.TranslateTransform(w/2,.03f+s.Height/2);
-                // Two affordances only: a grab bar and resize corner. Native
-                // menu pixels stay on their own compositor layer, without a tint.
-                float bottom=s.Height/2+.085f;
+                // Native menu contents retain their own texture, without a tint.
+                float bottom=s.Height/2+s.BarOffset;
                 using(var pen=new Pen(s.Hover==1 ? Color.Cyan : Color.White,.010f) { StartCap=LineCap.Round,EndCap=LineCap.Round })
                     g.DrawLine(pen,-.15f,bottom,.15f,bottom);
                 using(var pen=new Pen(s.Hover==2 ? Color.Cyan : Color.White,.006f) { StartCap=LineCap.Round,EndCap=LineCap.Round })
@@ -129,7 +128,15 @@ namespace SpaceEngineersVR.Player
             }
             finally { g.Restore(state); }
         }
-        public static void DrawFrame(Texture2D target,Snapshot s,MatrixD view,MatrixD projection)
+        internal static void DrawPanel(Texture2D target,ShaderResourceView contents,Snapshot s,MatrixD view,MatrixD projection,ShaderResourceView handDepth=null)
+        {
+            DrawFrame(target,s,view,projection,handDepth);
+            var sprite=PhysicalSurface.Quad(contents,s.Pose,new VRageMath.RectangleF(-s.Width/2,s.Height/2,s.Width,s.Height),
+                new Vector4(0,0,1,1),Vector4.One,view,projection,.001f);
+            sprite.Rounded=new Vector2(.014f/s.Width,.014f/s.Height);
+            NativeSprites.Draw(target,new[] {sprite},handDepth:handDepth);
+        }
+        public static void DrawFrame(Texture2D target,Snapshot s,MatrixD view,MatrixD projection,ShaderResourceView handDepth=null)
         {
             if(!Available) return;
             try
@@ -139,7 +146,7 @@ namespace SpaceEngineersVR.Player
                 if(key!=painted) { Paint(frame,s); frame.Upload(); target.Device.ImmediateContext.GenerateMips(frameView); painted=key; }
                 NativeSprites.Draw(target,new[] { PhysicalSurface.Quad(frameView,s.Pose,
                     new VRageMath.RectangleF(-s.Width/2-.03f,s.Height/2+.03f,s.Width+.06f,s.Height+.20f),
-                    new Vector4(0,0,1,1),Vector4.One,view,projection) });
+                    new Vector4(0,0,1,1),Vector4.One,view,projection) },handDepth:handDepth);
             }
             catch(Exception ex) { failed=true; Logger.Warning(ex,"Floating menu frame disabled; native menu retained"); }
         }

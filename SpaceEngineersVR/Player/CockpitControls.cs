@@ -27,7 +27,7 @@ namespace SpaceEngineersVR.Player
         private static readonly StickPlacement placement=new StickPlacement();
         private static Vector3 leftStartOffset,rightStartOffset,fit;
         public static bool Adjusting => placement.Unlocked;
-        public static bool CanAdjust => seat!=null && Eligible(seat) && CockpitRender.Ready && InputRouter.Mode==InputMode.Piloting && !Main.MenuOpen;
+        public static bool CanAdjust => seat!=null && Eligible(seat) && CockpitRender.Ready && InputRouter.CockpitInteraction && !Main.MenuOpen;
         public static bool RotationOwned => Adjusting || right.Consumed || Rig!=null && Rig.Right==null && left.Consumed;
         internal static bool NeedsControllerTranslation => Rig!=null && (Rig.Left==null || Rig.Right==null);
         public static bool Held(Controller hand) => hand==Player.HandL ? left.Held : right.Held;
@@ -92,7 +92,7 @@ namespace SpaceEngineersVR.Player
         private static bool Eligible(MyCockpit cockpit) => cockpit!=null && !cockpit.Closed && !cockpit.MarkedForClose &&
             ModelSupported(cockpit) &&
             cockpit.Pilot==MySession.Static?.LocalCharacter && cockpit.Pilot!=null && !cockpit.Pilot.IsDead &&
-            MySession.Static.CameraController==cockpit && (cockpit.IsInFirstPersonView || cockpit.ForceFirstPersonCamera);
+            (MySession.Static.CameraController==cockpit || RemoteView.UsesSeat(cockpit)) && (cockpit.IsInFirstPersonView || cockpit.ForceFirstPersonCamera);
 
         private static bool ModelSupported(MyCockpit cockpit)
         {
@@ -133,7 +133,7 @@ namespace SpaceEngineersVR.Player
         }
         private static void UpdateCore()
         {
-            var next=MySession.Static?.ControlledEntity as MyCockpit;
+            var next=RemoteView.HomeSeat ?? MySession.Static?.ControlledEntity as MyCockpit;
             if (!Main.VrActive || !Common.Config.FighterCockpitSticks || !Eligible(next))
             { if (seat!=null) Reset(); return; }
             if (seat!=next)
@@ -146,7 +146,7 @@ namespace SpaceEngineersVR.Player
             }
             if (origin!=Player.PlayerToAbsolute.matrix || fit!=SeatFit.Offset) { Release(); origin=Player.PlayerToAbsolute.matrix; fit=SeatFit.Offset; }
             RefreshVisuals();
-            bool available=CockpitRender.Ready && InputRouter.Mode==InputMode.Piloting && !Main.MenuOpen && !TouchScreenBridge.OwnsInput &&
+            bool available=CockpitRender.Ready && (InputRouter.Mode==InputMode.Piloting || InputRouter.Mode==InputMode.Turret) && !RemoteView.OwnsInput && !Main.MenuOpen && !TouchScreenBridge.OwnsInput &&
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;
             if (!available && Adjusting) Release();
             var c=Controls.Static;
@@ -213,6 +213,14 @@ namespace SpaceEngineersVR.Player
         {
             if (seat==null || !Eligible(seat)) return;
             CockpitRender.Update(seat,leftVisual,rightVisual,left.Held,right.Held,placement.Left,placement.Right);
+        }
+        public static void ApplyTurret(float speed,ref Vector2 aim,ref float zoom)
+        {
+            if(seat==null || !Eligible(seat) || !CockpitRender.Ready) return;
+            bool singleLeft=Rig!=null && Rig.Right==null;
+            if(right.Consumed || singleLeft && left.Consumed)
+                aim=new Vector2(rotation.X,rotation.Z)*speed*Common.Config.PhysicalStickSensitivity;
+            if(left.Consumed && !singleLeft) zoom=translation.Z;
         }
         public static void ApplyFlight(float speed,ref Vector3 move,ref Vector2 rotate,ref float roll)
         {
