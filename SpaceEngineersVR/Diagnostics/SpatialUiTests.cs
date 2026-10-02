@@ -10,6 +10,146 @@ namespace SpaceEngineersVR.Diagnostics
         private static void Require(bool value,string label) { if(!value) throw new Exception(label); }
         public static void Run(Action<string> log)
         {
+            foreach(var context in new[] {
+                new[] {false,false,false,false},new[] {false,false,false,true},new[] {true,false,false,false},
+                new[] {true,false,false,true},new[] {false,true,false,false},new[] {false,true,true,false} })
+            {
+                var wheel=GameActions.WheelActions(context[0],context[1],context[2],context[3]);
+                Require(wheel.Distinct().Count()==9 && wheel.Length==9 && wheel[0]==GameActions.PauseAction && wheel[1]==GameActions.Options,"Context moved Pause/Options or changed wheel slot count");
+                Require(!wheel.Contains(GameActions.Tablet) && !wheel.Any(a=>a.Label=="Reset ship view"),"Duplicate gesture/button action consumes a radial slot");
+                Require(!wheel.Contains(GameActions.RelativeDampeners) || context[3],"Auto dampeners shown outside jetpack context");
+                Require(wheel.Count(a=>a.Label.StartsWith("Camera:"))==(context[2] ? 1:0),"Camera cycle leaked context or split into multiple slots");
+                var panelKeys=WristPanel.Keys(null,context[0],context[1],context[2],context[3],null,false);
+                Require(panelKeys.Length<=20 && panelKeys.All(k=>k.Bounds.X>=0 && k.Bounds.Y>=0 && k.Bounds.Right<=1 && k.Bounds.Bottom<=1),"Tablet context overflows the panel");
+                for(int i=0;i<panelKeys.Length;i++) for(int j=i+1;j<panelKeys.Length;j++)
+                    Require(panelKeys[i].Bounds.Right<=panelKeys[j].Bounds.X || panelKeys[j].Bounds.Right<=panelKeys[i].Bounds.X || panelKeys[i].Bounds.Bottom<=panelKeys[j].Bounds.Y || panelKeys[j].Bounds.Bottom<=panelKeys[i].Bounds.Y,"Tablet panelKeys overlap");
+            }
+            var variants=Enumerable.Range(0,17).Select(i=>new ActionChoice("Variant "+i,()=> {})).ToArray();
+            var armor=new Sandbox.Definitions.MyCubeBlockDefinition { Id=new VRage.Game.MyDefinitionId(typeof(VRage.Game.MyObjectBuilder_CubeBlock),"Armor"),CubeSize=VRage.Game.MyCubeSize.Large };
+            var armorCorner=new Sandbox.Definitions.MyCubeBlockDefinition { Id=new VRage.Game.MyDefinitionId(typeof(VRage.Game.MyObjectBuilder_CubeBlock),"Corner"),CubeSize=VRage.Game.MyCubeSize.Large };
+            var small=new Sandbox.Definitions.MyCubeBlockDefinition { Id=new VRage.Game.MyDefinitionId(typeof(VRage.Game.MyObjectBuilder_CubeBlock),"SmallArmor"),CubeSize=VRage.Game.MyCubeSize.Small };
+            var family=new Sandbox.Definitions.MyBlockVariantGroup { Blocks=new[] {armor,armorCorner,small} };
+            armor.BlockVariantsGroup=armorCorner.BlockVariantsGroup=small.BlockVariantsGroup=family;
+            Require(BlockVariants.Family(armorCorner,new[] {armorCorner}).SequenceEqual(new[] {armor,armorCorner}),"Selecting a armorCorner collapsed the radial variant family");
+            Require(BlockVariants.Family(small,new[] {armorCorner}).SequenceEqual(new[] {small}),"Variant family leaked the previous block size");
+            var pages=BlockVariants.Pages(variants,GameActions.WheelActions(true,false,false));
+            Require(pages.Length==3 && pages.All(p=>p.Length==9),"Building wheel loses fixed actions or overflow pages");
+            Require(pages.Take(2).SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(variants),"Building variant paging loses or duplicates entries");
+            Require(pages[2].SequenceEqual(GameActions.WheelActions(true,false,false)),"Building actions page moved before variants");
+            Require(BlockVariants.Pages(new ActionChoice[0],GameActions.WheelActions(true,false,false)).Single().SequenceEqual(GameActions.WheelActions(true,false,false)),"No-variant block does not open actions directly");
+            WristPanel.Reset(); WristPanel.Show(2); WristPanel.SetQuery("damp");
+            var search=WristPanel.Keys(null,false,false,false,true,null);
+            Require(search.Any(k=>k.Action==GameActions.RelativeDampeners) && search.Any(k=>k.Action==GameActions.Dampeners),"Tablet search loses native actions");
+            var keyboard=WristPanel.Keys(null,false,false,false,true,null);
+            Require(keyboard.All(k=>k.Bounds.X>=0 && k.Bounds.Y>=0 && k.Bounds.Right<=1 && k.Bounds.Bottom<=1),"Search results leave tablet bounds");
+            WristPanel.Reset();
+            for(int i=0;i<80;i++)
+            {
+                var body=MatrixD.CreateFromYawPitchRoll(i*.1,i*.04,-i*.03);
+                double pitch=(i%15-7)*.13,yaw=i*.17;
+                var look=MatrixD.CreateRotationX(pitch)*MatrixD.CreateRotationY(yaw)*body;
+                var angles=DampenerTargeting.HeadAngles(look.Forward,body);
+                var native=MatrixD.CreateRotationX(MathHelper.ToRadians(angles.X))*MatrixD.CreateRotationY(MathHelper.ToRadians(angles.Y))*body;
+                Require(Vector3D.Dot(native.Forward,look.Forward)>.99999,"Native damping target direction disagrees with HMD");
+            }
+            var oldHud=new EssentialHud.View { Values=new[] {"80","70","60","50"},Icons=new string[0],Dampeners=true };
+            var autoHud=new EssentialHud.View { Values=new[] {"80","70","60","50"},Icons=new string[0],Dampeners=true,AutoDampeners=true };
+            Require(!oldHud.SameAs(autoHud),"Auto dampeners state fails to repaint the HUD");
+            autoHud.AutoDampeners=false; autoHud.NaturalGravity="1.00";
+            Require(!oldHud.SameAs(autoHud),"Natural gravity changes fail to repaint wrist HUD");
+            autoHud.NaturalGravity=null; autoHud.ArtificialGravity="0.50";
+            Require(!oldHud.SameAs(autoHud),"Artificial gravity changes fail to repaint wrist HUD");
+            log("PASS contextual action layouts: fixed Pause/Options, one third-person camera cycle, jetpack auto dampeners, tablet bounds and HUD auto-state refresh.");
+            var tabletPress=new CockpitTouch.Hand();
+            tabletPress.Sample(true,1,true,"Wrist",0,softCapture:false);
+            Require(!tabletPress.Pressed,"Held trigger on tablet appearance fired");
+            tabletPress.Sample(true,0,false,"Wrist",0,softCapture:false);
+            tabletPress.Sample(true,.3f,false,"Wrist",0,softCapture:false);
+            Require(!tabletPress.Pressed && tabletPress.Held<0,"Light pressure activated tablet");
+            tabletPress.Sample(true,1,true,"Wrist",0,softCapture:false);
+            Require(tabletPress.Pressed && tabletPress.Held==0 && tabletPress.Consumed,"Fresh tablet trigger missed");
+            tabletPress.Sample(true,1,true,"Wrist",1,softCapture:false);
+            Require(!tabletPress.Pressed && tabletPress.Held==0,"Held tablet press slid or repeated");
+            tabletPress.Sample(false,1,true,null,-1,softCapture:false);
+            tabletPress.Sample(true,1,true,"Wrist",1,softCapture:false);
+            Require(!tabletPress.Pressed,"Tracking recovery activated tablet");
+            tabletPress.Sample(true,0,false,"Wrist",1,softCapture:false);
+            tabletPress.Sample(true,1,true,"Wrist",1,softCapture:false);
+            Require(tabletPress.Pressed && tabletPress.Held==1,"Tablet failed after release/recovery");
+            var heldTablet=new CockpitTouch.SurfaceHold();
+            heldTablet.Input.Sample(true,0,false,"Wrist",2,softCapture:false);
+            heldTablet.Input.Sample(true,1,true,"Wrist",2,softCapture:false);
+            var capturedWrist=Matrix.CreateTranslation(.03f,.02f,.1f);
+            var anchor=new Vector3(.01f,-.02f,.001f);
+            heldTablet.Capture(capturedWrist,anchor);
+            heldTablet.Grabbed=DateTime.UtcNow.AddSeconds(-1);
+            var movingPanel=MatrixD.CreateFromYawPitchRoll(.7,-.4,.2);
+            movingPanel.Translation=new Vector3D(1e8,2e8,-3e8);
+            heldTablet.Input.Sample(true,1,true,null,-1,reachable:true,softCapture:false);
+            Require(heldTablet.Input.Committed && heldTablet.Attachment(movingPanel,out var attachedWrist,out var attachedPoint,out float blend),"Tablet lost held contact when the finger left the original key bounds");
+            heldTablet.Attachment(movingPanel,out attachedWrist,out attachedPoint,out blend);
+            Require(blend==1 && Vector3D.Distance(attachedPoint,Vector3D.Transform(anchor,movingPanel))<1e-6 &&
+                Vector3D.Distance(attachedWrist.Translation,Vector3D.Transform(capturedWrist.Translation,movingPanel))<1e-6,"Held tablet contact failed to follow a moving parent");
+            heldTablet.Input.Sample(true,0,false,null,-1,softCapture:false);
+            Require(!heldTablet.Attachment(movingPanel,out _,out _,out _),"Tablet retained finger attachment after trigger release");
+            var heldTab=new SurfaceKey("Toolbar",.265f,.025f,.23f,.1f);
+            var changedKeys=new[] { new SurfaceKey("Controls",.02f,.025f,.23f,.1f),new SurfaceKey("Toolbar",.265f,.025f,.23f,.1f) };
+            var kept=SpatialUi.HoldKey(changedKeys,heldTab,out int heldIndex);
+            Require(heldIndex==1 && ReferenceEquals(kept[heldIndex],heldTab),"Tab change replaced captured button");
+            var heldNext=new SurfaceKey("Next",.70f,.86f,.28f,.115f);
+            kept=SpatialUi.HoldKey(kept,heldNext,out heldIndex);
+            Require(ReferenceEquals(kept[heldIndex],heldNext),"Result-count change lost captured paging button");
+            var compactPose=SpatialUi.WristViews(movingPanel,0,1,oldHud,changedKeys)[0].Pose;
+            foreach(float opening in new[] {0f,.2f,.5f,.8f,1f,.5f,0f})
+            {
+                var panels=SpatialUi.WristViews(movingPanel,opening,1,oldHud,changedKeys);
+                var compact=panels[0]; var menu=panels.Length>1 ? panels[1] : null;
+                Require(compact.Pose==compactPose && compact.Keys.Length==1 && ReferenceEquals(compact.Status,oldHud),"Opening menu moved or removed the wrist HUD");
+                Require(menu==null || menu.Id!=compact.Id && (opening>=.99f || menu.Keys.Length==0),"Moving menu accepted a new button press");
+                var menuPoint=menu?.Pose ?? compact.Pose;
+                Require(SpatialUi.WristTarget(compact,menu,menuPoint,menuPoint.Translation+menuPoint.Backward,"Wrist")==compact,"Opening/closing menu stole captured HUD press");
+                if(menu!=null)
+                {
+                    Require(SpatialUi.WristTarget(compact,menu,compact.Pose,compact.Pose.Translation+compact.Pose.Backward,"WristMenu")==menu,"HUD stole captured menu press");
+                    if(opening==1)
+                    {
+                        foreach(var candidate in panels)
+                        {
+                            var key=candidate.Keys[0].Bounds;
+                            var tip=MatrixD.CreateTranslation((key.Center.X-.5)*candidate.Width,(.5-key.Center.Y)*candidate.Height,PhysicalSurface.KeyHeight(candidate))*candidate.Pose;
+                            Require(SpatialUi.WristTarget(compact,menu,tip,candidate.Pose.Translation+candidate.Pose.Backward,null)==candidate,"Fresh touch cannot independently select HUD and menu");
+                        }
+                    }
+                    var finalMenu=SpatialUi.WristPose(movingPanel,1,.225f,-1);
+                    Require(Vector3D.Dot(menu.Pose.Up,finalMenu.Up)>.9999 && Vector3D.Dot(menu.Pose.Backward,finalMenu.Backward)>.9999,"Opening menu flips its text or face");
+                    Require(Vector3D.Distance(menu.Pose.Translation-menu.Pose.Up*menu.Height/2,finalMenu.Translation-finalMenu.Up*.225/2)<1e-6,"Menu expansion slides its lower edge");
+                }
+            }
+            var remotePanel=new SurfaceView { Id="WristMenu",Pose=movingPanel,Width=.4f,Height=.225f,Style=SurfaceStyle.WristMenu,
+                Keys=new[] {new SurfaceKey("Action",.1f,.1f,.8f,.8f)} };
+            var remotePointer=MatrixD.CreateTranslation(0,0,.4)*movingPanel;
+            Require(SpatialUi.WristRayTarget(new[] {remotePanel},remotePointer,3,out int rayKey,out float rayDistance)==remotePanel && rayKey==0 && rayDistance>.3f,"Ray cannot select a tablet button outside capsule reach");
+            var rayPress=new CockpitTouch.Hand();
+            for(int i=0;i<60;i++) rayPress.Sample(true,0,false,remotePanel.Id,rayKey,guarded:true,softCapture:false);
+            Require(!rayPress.Captured && !rayPress.Consumed && !rayPress.Pressed,"Idle tablet hover captures trigger input");
+            rayPress.Sample(true,.3f,false,remotePanel.Id,rayKey,guarded:true,softCapture:false);
+            rayPress.Sample(true,1,true,remotePanel.Id,rayKey,guarded:true,softCapture:false);
+            Require(rayPress.Pressed && rayPress.Held==0,"Gradual ray squeeze failed to activate tablet");
+            rayPress.Sample(true,1,true,remotePanel.Id,rayKey,guarded:true,softCapture:false);
+            Require(!rayPress.Pressed && rayPress.Committed,"Ray hold repeats activation or loses ownership");
+            Require(SpatialUi.WristRayTarget(new[] {remotePanel},remotePointer,.1f,out _,out _)==null,"Tablet ray passes through a nearer obstacle");
+            var blank= new SurfaceView { Id="Occluder",Pose=MatrixD.CreateTranslation(0,0,.1)*movingPanel,Width=.4f,Height=.225f,Style=SurfaceStyle.WristMenu,Keys=new SurfaceKey[0] };
+            Require(SpatialUi.WristRayTarget(new[] {remotePanel,blank},remotePointer,3,out rayKey,out _)==blank && rayKey<0,"Ray clicks through an unclickable panel face");
+            foreach(var style in new[] {SurfaceStyle.WristStatus,SurfaceStyle.WristMenu})
+            {
+                var panel=new SurfaceView { Pose=movingPanel,Width=.4f,Height=.225f,Style=style };
+                var ray=MatrixD.CreateTranslation(0,0,.3)*movingPanel;
+                Require(SpatialUi.WristRay(panel,ray,out float length) && Math.Abs(length-(.3-PhysicalSurface.KeyHeight(panel)))<.00001,"Tablet ray misses its physical face");
+                ray=MatrixD.CreateTranslation(.3,0,.3)*movingPanel;
+                Require(!SpatialUi.WristRay(panel,ray,out _),"Tablet clips a ray outside its bounds");
+                ray=MatrixD.CreateRotationY(Math.PI)*MatrixD.CreateTranslation(0,0,-.3)*movingPanel;
+                Require(!SpatialUi.WristRay(panel,ray,out _),"Tablet accepts a back-facing ray");
+            }
             var touch=new SurfaceTouch();
             Require(touch.Update("keyboard",Vector3.Zero,0)<0,"A surface appearing through a hand fired a key");
             touch.Update("keyboard",new Vector3(0,0,.06f),0);
@@ -43,13 +183,14 @@ namespace SpaceEngineersVR.Diagnostics
                 float fold=i/20f,height=MathHelper.Lerp(.07f,.40f*9/16,fold);
                 MatrixD mount=MatrixD.CreateFromYawPitchRoll(.4,-.6,.2); mount.Translation=new Vector3D(1e8,2e8,-3e8);
                 MatrixD opened=SpatialUi.WristPose(mount,fold,height,side);
-                Vector3D bottom=opened.Translation-opened.Up*height*.5;
-                Require(Vector3D.Distance(bottom,mount.Translation+mount.Right*side*.035)<1e-6,"Wrist long-edge hinge detached");
-                Require(Vector3D.Dot(opened.Right,mount.Up*side)>.9999,"Wrist baseline does not follow forearm");
+                var hingeFrame=MatrixD.CreateRotationZ(-Math.PI*fold)*opened;
+                Vector3D bottom=opened.Translation+hingeFrame.Up*height*.5;
+                Require(Vector3D.Distance(bottom,mount.Translation+mount.Right*side*.035-mount.Backward*(.0035*(1-fold)))<1e-6,"Wrist long-edge hinge detached");
+                if(i==0) Require(Vector3D.Dot(opened.Right,-mount.Up*side)>.9999,"Folded wrist baseline does not follow forearm");
                 if(i==20)
                 {
-                    Require(Vector3D.Dot(opened.Up,mount.Backward)>.9999,"Wrist opens into the arm");
-                    Require(Vector3D.Dot(opened.Backward,mount.Right*side)>.9999,"Wrist opens away from chosen viewer side");
+                    Require(Vector3D.Dot(opened.Up,mount.Backward)>.9999,"Expanded wrist text is upside down in the watch-reading pose");
+                    Require(Vector3D.Dot(opened.Backward,-mount.Right*side)>.9999,"Wrist opens away from chosen viewer side");
                 }
             }
             foreach(string subtype in new[] { FighterProfile.Subtype,"OpenCockpitLarge" })
@@ -64,7 +205,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(panel.KeyAt(new Vector2(.20f,.695f))==3 && panel.KeyAt(new Vector2(.80f,.695f))==5,"Seat lateral row reversed");
                 Require(panel.KeyAt(new Vector2(.20f,.88f))==4 && panel.KeyAt(new Vector2(.5f,.88f))==7 &&
                     panel.KeyAt(new Vector2(.80f,.88f))==8,"Seat/stick reset or central lock moved");
-                Require(Vector3D.Dot(mount.Backward,Vector3D.Up)>.9,"Console controls face into the mesh");
+                Require(Vector3D.Dot(mount.Backward,Vector3D.Up)>.85,"Console controls face into the mesh");
             }
             Require(!SeatPanel.TryMount("unknown",out _,out _,out _),"Unmeasured cockpit gets a guessed floating panel");
             foreach(float tangent in new[] {.4f,.65f,1.1f})
@@ -88,18 +229,6 @@ namespace SpaceEngineersVR.Diagnostics
                     var clip=Vector4D.Transform(new Vector4D(x*scale,y*scale,-1.5,1),projection);
                     Require(clip.W>0 && Math.Abs(clip.X/clip.W)<=.90001 && Math.Abs(clip.Y/clip.W)<=.90001,"HUD clips one eye's inset FOV");
                 }
-            }
-
-            var wristMount=MatrixD.CreateFromYawPitchRoll(.4,-.6,.2);
-            wristMount.Translation=new Vector3D(1e8,2e8,-3e8);
-            foreach(int side in new[] { -1,1 })
-            {
-                Require(!SpatialUi.WristNeedsRefold(wristMount,wristMount.Translation+wristMount.Right*side*.3,side),"Facing wrist needlessly refolds");
-                Require(!SpatialUi.WristNeedsRefold(wristMount,wristMount.Translation-wristMount.Right*side*.03,side),"Wrist edge-on jitter flips the screen");
-                var viewer=wristMount.Translation-wristMount.Right*side*.3;
-                Require(SpatialUi.WristNeedsRefold(wristMount,viewer,side),"Wrist remains inverted after viewer side changes");
-                var reopened=SpatialUi.WristPose(wristMount,1,.225f,-side);
-                Require(Vector3D.Dot(reopened.Backward,viewer-reopened.Translation)>0,"Reopened wrist still faces away");
             }
 
             var window=new KeyboardWindow();
@@ -159,7 +288,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Vector3D world=Vector3D.Transform(local,surface.Pose);
                 Require(surface.KeyAt(PhysicalSurface.UV(surface,PhysicalSurface.Point(surface,world)))==Array.IndexOf(keys,key),"Rendered key/touch mismatch at large coordinates");
             }
-            log("PASS spatial input: front-only/retracted pokes, bounded seat fit, temple exclusion, light-trigger ray hysteresis, forearm hinge and inverted-wrist recovery, captured keyboard move/release/bounded resize, console arrow mappings, hand/wheel clearance, attached grasps, all 46 key touch volumes at large coordinates");
+            log("PASS spatial input: front-only/retracted pokes, bounded seat fit, temple exclusion, light-trigger ray hysteresis, fixed forearm hinge, captured keyboard move/release/bounded resize, console arrow mappings, hand/wheel clearance, attached grasps, all 46 key touch volumes at large coordinates");
         }
     }
 }

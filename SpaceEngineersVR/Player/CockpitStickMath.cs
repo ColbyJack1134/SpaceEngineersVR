@@ -35,7 +35,7 @@ namespace SpaceEngineersVR.Player
             return new Vector3(Axis(-angle.X/FighterProfile.Tilt,deadzone),Axis(-angle.Y/FighterProfile.Twist,deadzone),Axis(-angle.Z/FighterProfile.Tilt,deadzone));
         }
         public static Matrix Around(Vector3 pivot,Matrix rotation) => Matrix.CreateTranslation(-pivot)*rotation*Matrix.CreateTranslation(pivot);
-        private static Matrix Visual(Vector3 pivot,Vector3 axes)
+        internal static Matrix Visual(Vector3 pivot,Vector3 axes)
         {
             Matrix turn=Matrix.CreateFromYawPitchRoll(-axes.Y*FighterProfile.Twist,-axes.X*FighterProfile.Tilt,-axes.Z*FighterProfile.Tilt);
             return Around(pivot,turn);
@@ -46,11 +46,16 @@ namespace SpaceEngineersVR.Player
         {
             float side=left ? -1 : 1;
             Vector3 shaft=Vector3.Normalize(new Vector3(-side*.30f,.9539f,-.015f));
+            return GripPalm(left,left ? FighterProfile.LeftContact : FighterProfile.RightContact,shaft);
+        }
+        internal static Matrix GripPalm(bool left,Vector3 contact,Vector3 shaft)
+        {
+            float side=left ? -1 : 1;
             Vector3 length=Vector3.Normalize(Vector3.Backward-shaft*Vector3.Dot(Vector3.Backward,shaft));
             Matrix palm=Matrix.Identity;
             palm.Right=length; palm.Backward=shaft*side; palm.Up=Vector3.Cross(palm.Backward,palm.Right);
             // Grip cavity measured with the astronaut's curled finger bones.
-            palm.Translation=(left ? FighterProfile.LeftContact : FighterProfile.RightContact)-
+            palm.Translation=contact-
                 Vector3.TransformNormal(new Vector3(-.105f,-.035f,0),palm);
             return palm;
         }

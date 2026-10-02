@@ -26,7 +26,7 @@ namespace SpaceEngineersVR.Player
         private static long inputTime,renderTime;
         private static readonly double[] renderTrace=new double[7];
         private static ObserverMode Mode => (ObserverMode)(Common.Config?.ThirdPersonMode ?? 0);
-        internal static string Label(ObserverMode mode) => "Camera: "+(mode==ObserverMode.Ship ? "Ship" : mode==ObserverMode.Heading ? "Heading" : "Fixed");
+        internal static string Label(ObserverMode mode) => "Camera: "+(mode==ObserverMode.Ship ? "follow ship" : mode==ObserverMode.Heading ? "heading only" : "fixed");
         public static string ModeLabel => Label(Mode);
         public static CameraRig.Frame Current => Volatile.Read(ref frame);
         public static bool Active => Current!=null;
@@ -57,12 +57,13 @@ namespace SpaceEngineersVR.Player
         {
             if(Active) Fade(Fit);
         }
-        public static void CycleMode()
+        public static void CycleMode() => SetMode((Common.Config.ThirdPersonMode+1)%3);
+        public static void SetMode(int mode)
         {
             lock(sync)
             {
                 var before=follow.Reference(Mode);
-                Common.Config.ThirdPersonMode=(Common.Config.ThirdPersonMode+1)%3;
+                Common.Config.ThirdPersonMode=mode;
                 if(Active) { view.ChangeReference(before,follow.Reference(Mode)); epoch--; }
             }
             if(Active)
@@ -124,7 +125,7 @@ namespace SpaceEngineersVR.Player
             var c=Controls.Static;
             float left=c.LeftGripPressure.RawPosition.X,right=c.RightGripPressure.RawPosition.X;
             if(left<=.025f && right<=.025f) consumed=false;
-            bool allowed=InputRouter.Mode==InputMode.Piloting && !Main.MenuOpen && transition==null &&
+            bool allowed=InputRouter.Mode==InputMode.Piloting && !Main.MenuOpen && !HelmetHud.ViewGestureHeld && transition==null &&
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked && MenuPointer.GameFocused;
             bool started;
             lock(sync)
@@ -171,6 +172,10 @@ namespace SpaceEngineersVR.Player
                 long now=Stopwatch.GetTimestamp();
                 double seconds=renderTime==0 ? 1d/90 : (double)(now-renderTime)/Stopwatch.Frequency;
                 renderTime=now;
+                var config=Common.Config;
+                view.PanSensitivity=config.ThirdPersonPanSensitivity; view.ZoomSensitivity=config.ThirdPersonZoomSensitivity;
+                view.RotationSensitivity=config.ThirdPersonRotationSensitivity; view.PanGlide=config.ThirdPersonPanGlide;
+                view.ZoomGlide=config.ThirdPersonZoomGlide; view.RotationGlide=config.ThirdPersonRotationGlide;
                 if(!Player.Headset.renderPose.isTracked || !Player.HandL.renderPose.isTracked || !Player.HandR.renderPose.isTracked)
                     view.Cancel();
                 else view.Move(VrMath.Affine(Player.HandL.RenderGripTracking*packet.OriginInverse),

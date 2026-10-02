@@ -8,14 +8,15 @@ namespace SpaceEngineersVR.Player.Control
         private bool pending,thirdPersonAtPress;
         private DateTime pressedAt;
         private object owner;
+        public bool Alternate { get; private set; }
         public int Switch { get; private set; }=-1;
 
-        public void Reset() { pending=false; owner=null; Switch=-1; }
+        public void Reset() { pending=false; owner=null; Switch=-1; Alternate=false; }
 
-        public Action Update(bool available,bool pressed,bool held,bool released,object currentOwner,int hoveredSwitch,DateTime now,bool thirdPerson=false)
+        public Action Update(bool available,bool pressed,bool held,bool released,object currentOwner,int hoveredSwitch,DateTime now,bool thirdPerson=false,bool alternate=false)
         {
             if(!available || (pending && (!ReferenceEquals(owner,currentOwner) || thirdPersonAtPress!=thirdPerson))) { Reset(); return Action.None; }
-            if(pressed) { pending=true; pressedAt=now; owner=currentOwner; Switch=hoveredSwitch; thirdPersonAtPress=thirdPerson; }
+            if(pressed) { pending=true; pressedAt=now; owner=currentOwner; Switch=hoveredSwitch; thirdPersonAtPress=thirdPerson; Alternate=alternate; }
             if(!pending) return Action.None;
             if(released)
             {

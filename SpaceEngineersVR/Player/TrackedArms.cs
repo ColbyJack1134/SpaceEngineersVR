@@ -144,9 +144,9 @@ namespace SpaceEngineersVR.Player
             foreach(var twist in arm.Twists) twist.Save();
             foreach(var finger in arm.Fingers) finger.Save();
             arm.Applied=true;
-            if(!ArmMath.ApplyPose(arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone,target,arm.PalmOffset,arm.Hint,Common.Config.AdaptiveArms))
+            if(!ArmMath.ApplyPose(arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone,target,arm.PalmOffset,arm.Hint,Common.Config.AdaptiveArms,hand==Player.HandL))
             { arm.Restore(true); return false; }
-            if(CockpitControls.Held(hand) || CockpitTouch.Attached(hand) || (hand==Player.HandL ? CockpitTouch.LeftPointing || HandInteraction.PointingFor(hand) : CockpitTouch.RightPointing || SpatialUi.Pointing || TouchScreenBridge.Pointing || HandInteraction.PointingFor(hand)))
+            if((Main.MenuOpen && hand==Player.HandR) || CockpitControls.Held(hand) || CockpitTouch.Attached(hand) || (hand==Player.HandL ? CockpitTouch.LeftPointing || HandInteraction.PointingFor(hand) : CockpitTouch.RightPointing || SpatialUi.Pointing || TouchScreenBridge.Pointing || HandInteraction.PointingFor(hand)))
                 foreach(var finger in arm.Fingers)
                 {
                     finger.Bone.Rotation=CockpitHandPose.Rotation(finger.Bone.Name,CockpitTouch.Pinching(hand),CockpitControls.Held(hand));
@@ -168,6 +168,11 @@ namespace SpaceEngineersVR.Player
             bool cockpit=SeatFit.Eligible(SeatFit.Seat) && SeatFit.Seat.Pilot==character;
             if(cockpit && arm?.IndexTip!=null && !CockpitControls.Held(hand))
                 world=CockpitHandPose.CockpitWrist(world,arm.PalmOffset,arm.PointFinger);
+            if(hand==Player.HandR && arm?.IndexTip!=null && SpatialUi.TryWristAttachment(out var wristPose,out var wristPoint,out float wristBlend))
+            {
+                var point=CockpitHandPose.Contact(arm.Palm.Bone,arm.IndexTip,arm.ThumbTip,false,CockpitHandPose.CockpitTip);
+                return CockpitHandPose.Blend(world,CockpitHandPose.Attach(wristPose,arm.PalmOffset,point,wristPoint),wristBlend);
+            }
             if(!character.IsSitting && character.CurrentWeapon==null && arm?.IndexTip!=null)
             {
                 if(HandInteraction.TryAttachment(hand,out var pressed,out var point,out float amount))
@@ -231,6 +236,18 @@ namespace SpaceEngineersVR.Player
             world=(MatrixD)arm.PalmOffset*WristWorld(character,hand);
             return world.IsValid();
         }
+        internal static Matrix WristScreenLocal
+        {
+            get
+            {
+                Matrix local=Matrix.Identity;
+                local.Right=new Vector3(.005888f,.999087f,.042033f);
+                local.Up=new Vector3(-.995760f,.009721f,-.091583f);
+                local.Backward=Vector3.Normalize(Vector3.Cross(local.Right,local.Up));
+                local.Translation=new Vector3(-.107609f,-.013799f,.074502f)+local.Backward*.004f;
+                return local;
+            }
+        }
         internal static bool TryWristScreen(out MatrixD world)
         {
             world=MatrixD.Identity;
@@ -238,13 +255,7 @@ namespace SpaceEngineersVR.Player
             if(character!=owner || disabled || left==null || !left.Applied || !Player.HandL.pose.isTracked) return false;
             var bone=character.AnimationController.FindBone("SE_RigLForearm2",out _);
             if(bone==null) return false;
-            // Measured default astronaut display, in its skinned forearm's bind space.
-            Matrix local=Matrix.Identity;
-            local.Right=new Vector3(.005888f,.999087f,.042033f);
-            local.Up=new Vector3(-.995760f,.009721f,-.091583f);
-            local.Backward=Vector3.Normalize(Vector3.Cross(local.Right,local.Up));
-            local.Translation=new Vector3(-.107609f,-.013799f,.074502f)+local.Backward*.004f;
-            world=Alignment.Apply(Alignment.WristKey,(MatrixD)(local*bone.AbsoluteTransform)*character.WorldMatrix);
+            world=Alignment.Apply(Alignment.WristKey,(MatrixD)(WristScreenLocal*bone.AbsoluteTransform)*character.WorldMatrix);
             return world.IsValid();
         }
         internal static bool TryFingertip(out Vector3D point)

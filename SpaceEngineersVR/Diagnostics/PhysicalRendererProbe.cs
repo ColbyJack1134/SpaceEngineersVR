@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using HarmonyLib;
@@ -17,8 +18,26 @@ namespace SpaceEngineersVR.Diagnostics
     // An isolated main-menu scene in an explicitly launched diagnostic process. No world/save is loaded.
     internal static class PhysicalRendererProbe
     {
+        private sealed class PausePreview : SpaceEngineers.Game.GUI.MyGuiScreenMainMenu
+        {
+            internal PausePreview() : base(true) { }
+            public override void RecreateControls(bool constructor)
+            {
+                base.RecreateControls(constructor); Controls.Clear();
+                AccessTools.Field(typeof(SpaceEngineers.Game.GUI.MyGuiScreenMainMenu),"m_elementGroup").SetValue(this,new Sandbox.Graphics.GUI.MyGuiControlElementGroup());
+                var size=Sandbox.Graphics.GUI.MyGuiControlButton.GetVisualStyle(VRage.Game.MyGuiControlButtonStyleEnum.Default).NormalTexture.MinSizeGui;
+                var origin=Sandbox.Graphics.MyGuiManager.ComputeFullscreenGuiCoordinate(VRage.Utils.MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_BOTTOM)
+                    +new Vector2(size.X/2,0)+new Vector2(15,0)/Sandbox.Graphics.GUI.MyGuiConstants.GUI_OPTIMAL_SIZE;
+                origin.Y+=.043f;
+                AccessTools.Method(typeof(SpaceEngineers.Game.GUI.MyGuiScreenMainMenu),"CreateInGameMenu").Invoke(this,new object[] {origin,null});
+                Patches.PauseOptionsPatch.Add(this);
+            }
+        }
         private static uint native=uint.MaxValue;
         private static int phase;
+        private static CockpitRig[] rigs;
+        private static int rigIndex,rigStep;
+        private static readonly System.Collections.Generic.List<string> rigFailures=new System.Collections.Generic.List<string>();
         private static AssignmentPreview assignment;
         private static Sandbox.Graphics.GUI.MyGuiScreenBase options;
         private static bool rotationPreviewsSaved;
@@ -33,10 +52,17 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Start(Harmony harmony)
         {
             harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),"DrawScene"),new HarmonyMethod(typeof(PhysicalRendererProbe),nameof(Render)));
-            Active=true; phase=0; next=DateTime.UtcNow.AddSeconds(10); deadline=DateTime.UtcNow.AddSeconds(145);
+            Active=true; phase=0; next=DateTime.UtcNow.AddSeconds(10); deadline=DateTime.UtcNow.AddSeconds(520);
             Directory.CreateDirectory(output);
             foreach (string file in new[] {"native-left.png","rest-left.png","rest-right.png","articulated-left.png","articulated-right.png","restored-left.png","regrab-left.png"})
                 if (File.Exists(Path.Combine(output,file))) File.Delete(Path.Combine(output,file));
+        }
+        private static CockpitRig[] SelectedRigs()
+        {
+            string subtype=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_COCKPIT");
+            var selected=CockpitRig.All.Where(r=>r.HasSticks && (string.IsNullOrEmpty(subtype) || r.Subtype==subtype)).ToArray();
+            if(selected.Length==0) throw new InvalidOperationException("Unknown cockpit probe subtype: "+subtype);
+            return selected;
         }
         public static void Update()
         {
@@ -46,9 +72,15 @@ namespace SpaceEngineersVR.Diagnostics
                 if (MySession.Static!=null) throw new InvalidOperationException("Renderer probe requires the main menu, without a loaded world.");
                 if (renderError!=null) throw new InvalidOperationException(renderError);
                 if (DateTime.UtcNow>deadline) throw new TimeoutException("Native renderer probe timed out in phase "+phase);
+                if(phase>=48) { UpdateRig(); return; }
                 if (phase==0)
                 {
                     if (DateTime.UtcNow<next) return;
+                    if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_COCKPITS_ONLY")=="1")
+                    {
+                        rigs=SelectedRigs();
+                        rigIndex=rigStep=0; phase=48; BeginRig(); return;
+                    }
                     MenuTests.Run(line=>Logger.Info(line));
                     PlacementTests.RunNativeFixture(line=>Logger.Info(line));
                     NativeIntegrationTests.Run(line=>Logger.Info(line));
@@ -117,11 +149,16 @@ namespace SpaceEngineersVR.Diagnostics
                     eye=new Vector3D(.16,-.07,.16);
                     view=MatrixD.CreateLookAt(eye,CockpitBarGeometry.Front,Vector3D.Up); fov=.25f;
                 }
+                if(phase>=45 && phase<=46)
+                {
+                    eye=new Vector3D(phase==45 ? -.35:.35,.23,.42);
+                    view=MatrixD.CreateLookAt(eye,new Vector3D(0,0,-.04),Vector3D.Up); fov=.30f;
+                }
                 Matrix projection=(Matrix)VrMath.Projection(-aspect*fov,aspect*fov,-fov,fov,near,100);
                 MyRenderProxy.SetCameraViewMatrix(view,projection,projection,1.3f,1.3f,near,100,100,eye,smooth:false);
                 camera=new MyRenderMessageSetCameraViewMatrix { ViewMatrix=view,ProjectionMatrix=projection,ProjectionFarMatrix=projection,
                     FOV=1.3f,FOVForSkybox=1.3f,NearPlane=near,FarPlane=100,FarFarPlane=100,CameraPosition=eye,Smooth=false };
-                if (phase>=2 && phase!=7 && phase!=15)
+                if (phase>=2 && phase<45 && phase!=7 && phase!=15)
                 {
                     bool moved=phase==5 || phase==6 || phase==12 || phase==13;
                     Matrix l=moved ? CockpitStickMath.LeftVisual(new Vector3(0.5f,0.4f,-0.5f)) : Matrix.Identity;
@@ -131,8 +168,8 @@ namespace SpaceEngineersVR.Diagnostics
                     CockpitRender.UpdateScene(native,modelWorld,StickPlacement.Visual(l,lo),StickPlacement.Visual(r,ro),moved,moved,lo,ro,moved || phase==30 || phase==32 || phase==34 ? 1f : 0f,phase>=31 ? phase==32 ? 1f : 0f : moved ? 1f : (float?)null,colorMask:phase>=14 ? new Vector3(.58f,0,.02f) : neutralPaint,
                         previewHover:phase==17 ? 0 : phase==18 ? 9 : -1,previewHeld:phase==17 ? 1 : phase==18 ? 10 : phase==30 ? 19 : -1,previewCover:phase==18,nativeRest:phase<16 && !moved,barPreview:phase==36 ? 1f : 0f);
                 }
-                if(phase>=14) MyRenderProxy.UpdateRenderEntity(native,null,new Vector3(.58f,0,.02f));
-                MyRenderProxy.UpdateRenderObject(native,modelWorld);
+                if(phase>=14 && native!=uint.MaxValue) MyRenderProxy.UpdateRenderEntity(native,null,new Vector3(.58f,0,.02f));
+                if(native!=uint.MaxValue) MyRenderProxy.UpdateRenderObject(native,modelWorld);
                 MyRenderProxy.Draw3DScene();
                 if (DateTime.UtcNow<next) return;
                 if (pending!=null)
@@ -154,11 +191,32 @@ namespace SpaceEngineersVR.Diagnostics
                         options=new GUI.RenderingOptions(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
                     }
                     if(phase==26) { options.CloseScreenNow(); options=null; }
-                    if (phase==37)
+                    if(phase>=37 && phase<=44)
                     {
+                        options?.CloseScreenNow();
+                        options=phase==38 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.FlightOptions() :
+                            phase==43 ? new GUI.ActionBrowser() : phase==44 ? new GUI.BindingHelp() :
+                            (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.SettingsPage(phase==37 ? "Character" : phase==39 ? "Third person" : phase==40 ? "Release glide" : phase==41 ? "HUD & Interface" : "Advanced controls");
+                        Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
+                    }
+                    if(phase==45)
+                    {
+                        options?.CloseScreenNow(); options=null; CockpitRender.Reset();
+                        MyRenderProxy.RemoveRenderObject(native,MyRenderProxy.ObjectType.Entity); native=uint.MaxValue;
+                        NativeGloves.Create(GloveGeometry.DefaultModel,new Vector3(.58f,-.25f,0));
+                    }
+                    if(phase==47)
+                    {
+                        NativeGloves.Reset();
+                        options=new PausePreview();
+                        Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
+                    }
+                    if (phase==48)
+                    {
+                        options?.CloseScreenNow(); options=null;
                         if(!rotationPreviewsSaved) throw new InvalidOperationException("Native rotation previews not rendered");
                         ValidateImages();
-                        Stop(); Logger.Info("PHYSICAL RENDER SMOKE PASSED: native material suppression, sticks, covered/uncovered levers, articulation, independently relocated bases/handles, stereo scene views, removal/restoration and recreation. Images: "+output);
+                        rigs=SelectedRigs(); rigIndex=rigStep=0; BeginRig();
                     }
                     return;
                 }
@@ -171,20 +229,76 @@ namespace SpaceEngineersVR.Diagnostics
                     phase==6 ? "articulated-right" : phase==7 ? "restored-left" : phase==9 ? "regrab-left" :
                     phase==10 ? "relocated-left" : phase==11 ? "relocated-right" : phase==12 ? "relocated-articulated-left" : phase==13 ? "relocated-articulated-right" : phase==14 ? "repainted-left" : phase==15 ? "repainted-native-left" : phase==16 ? "controls-rest" : phase==17 ? "controls-levers" : phase==18 ? "controls-covers" : phase==19 ? "controls-restored" :
                     phase==20 ? "miniature-left" : phase==21 ? "miniature-right" : phase==22 ? "miniature-enlarged-left" : phase==23 ? "miniature-enlarged-right" :
-                    phase==35 ? "bar-rest" : phase==36 ? "bar-pulled" :
+                    phase>=45 ? "gloves-scene-"+phase : phase>=37 ? "settings-scene-"+phase : phase==35 ? "bar-rest" : phase==36 ? "bar-pulled" :
                     phase==31 ? "front-closed" : phase==32 ? "front-open" : phase==33 ? "front-right-rest" : phase==34 ? "front-right-on" :
                     phase==29 ? "uncovered-rest" : phase==30 ? "uncovered-on" :
                     phase>=26 ? "camera-"+(Player.Control.ObserverMode)(phase-26) : "rendering-scene-"+phase;
                 if(phase==1 || phase==3) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"assignment-page-"+(phase==1 ? "1" : "last")+".png"),false,false,false);
                 if(phase==24 || phase==25) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,phase==24 ? "options-native.png" : "rendering-options-native.png"),false,false,false);
+                if(phase>=37 && phase<=44) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"settings-native-"+phase+".png"),false,false,false);
+                if(phase==47) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"pause-vr-options.png"),false,false,false);
                 pending=Path.Combine(output,name+".png");
                 next=DateTime.UtcNow.AddSeconds(1);
             }
             catch(Exception ex) { Stop(); Logger.Warning(ex,"PHYSICAL RENDER SMOKE FAILED"); }
         }
+        private static void BeginRig()
+        {
+            CockpitRender.Reset();
+            if(native!=uint.MaxValue) MyRenderProxy.RemoveRenderObject(native,MyRenderProxy.ObjectType.Entity);
+            var rig=rigs[rigIndex];
+            native=MyRenderProxy.CreateRenderEntity("SEVR rig probe "+rig.Subtype,rig.Model,MatrixD.Identity,MyMeshDrawTechnique.MESH,
+                RenderFlags.Visible|RenderFlags.ForceOldPipeline|RenderFlags.CastShadows,(CullingOptions)0,Color.White,neutralPaint);
+            next=DateTime.UtcNow.AddSeconds(2);
+        }
+        private static void UpdateRig()
+        {
+            var rig=rigs[rigIndex];
+            Vector3 center=rig.Left!=null && rig.Right!=null ? (rig.Left.Contact+rig.Right.Contact)*.5f : (rig.Left ?? rig.Right).Contact;
+            Vector3D eye=center+new Vector3(.02f,.55f,.48f);
+            var view=MatrixD.CreateLookAt(eye,center,Vector3D.Up);
+            var size=Wrappers.MyRender11.Resolution; float aspect=(float)size.X/size.Y;
+            // Match the culling frustum to the FOV used by SetupCameraMatrices.
+            float tangent=(float)Math.Tan(1.3f*.5f);
+            var projection=VrMath.Projection(-aspect*tangent,aspect*tangent,-tangent,tangent,.01,100);
+            MyRenderProxy.SetCameraViewMatrix(view,(Matrix)projection,(Matrix)projection,1.3f,1.3f,.01f,100,100,eye,smooth:false);
+            camera=new MyRenderMessageSetCameraViewMatrix { ViewMatrix=view,ProjectionMatrix=(Matrix)projection,ProjectionFarMatrix=(Matrix)projection,
+                FOV=1.3f,FOVForSkybox=1.3f,NearPlane=.01f,FarPlane=100,FarFarPlane=100,CameraPosition=eye,Smooth=false };
+            if(rigStep==1 || rigStep==2)
+            {
+                bool moved=rigStep==2;
+                Matrix left=moved && rig.Left!=null ? CockpitStickMath.Visual(rig.Left.Pivot,new Vector3(.5f,.4f,.6f)) : Matrix.Identity;
+                Matrix right=moved && rig.Right!=null ? CockpitStickMath.Visual(rig.Right.Pivot,new Vector3(-.5f,.4f,-.6f)) : Matrix.Identity;
+                CockpitRender.UpdateScene(native,MatrixD.Identity,left,right,moved,moved,switchPreview:moved ? 1f:0f,coverPreview:moved ? 1f:0f,
+                    colorMask:neutralPaint,nativeRest:!moved,rig:rig);
+            }
+            MyRenderProxy.Draw3DScene();
+            if(DateTime.UtcNow<next || (rigStep==1 || rigStep==2) && !CockpitRender.Ready) return;
+            string prefix="rig-"+rig.Subtype+"-";
+            if(pending!=null)
+            {
+                if(captured!=pending) return;
+                pending=null; rigStep++; next=DateTime.UtcNow.AddSeconds(2);
+                if(rigStep==3) CockpitRender.Reset();
+                if(rigStep<4) return;
+                int rest=Difference(prefix+"native",prefix+"rest"),restored=Difference(prefix+"native",prefix+"restored"),moved=Difference(prefix+"rest",prefix+"moved");
+                if(rest>10 || restored>10 || moved<5)
+                { rigFailures.Add(rig.Subtype); Logger.Info("FAIL native cockpit rig articulation/restoration: "+rig.Subtype); }
+                else Logger.Info("PASS native cockpit rig articulation/restoration: "+rig.Subtype);
+                if(++rigIndex<rigs.Length) { rigStep=0; BeginRig(); return; }
+                if(rigFailures.Count>0) throw new InvalidOperationException("Cockpit rig render/restoration mismatch: "+string.Join(", ",rigFailures));
+                Stop(); Logger.Info("PHYSICAL RENDER SMOKE PASSED: installed cockpit rigs and material restoration. Images: "+output);
+                return;
+            }
+            pending=Path.Combine(output,prefix+new[] {"native","rest","moved","restored"}[rigStep]+".png");
+            next=DateTime.UtcNow.AddSeconds(1);
+        }
         public static void Render()
         {
             if(Active && !rotationPreviewsSaved && BuildOrientationTests.Previews.Count==3) RenderRotationPreviews();
+            if(Active && phase>=45 && phase<=46) NativeGloves.Preview(
+                CockpitHandPose.GripWrist(Matrix.CreateTranslation(-.11f,0,0)),
+                CockpitHandPose.GripWrist(Matrix.CreateTranslation(.11f,0,0)));
             string path=pending;
             if (!Active || path==null || captured==path || renderError!=null) return;
             try
@@ -202,7 +316,13 @@ namespace SpaceEngineersVR.Diagnostics
                 try
                 {
                     object ao=null;
-                    try { Wrappers.MyRender11.DrawGameScene(target,out ao); }
+                    try
+                    {
+                        if(phase>=45 && phase<=46 && !NativeGloves.Preview(
+                            CockpitHandPose.GripWrist(Matrix.CreateTranslation(-.11f,0,0)),
+                            CockpitHandPose.GripWrist(Matrix.CreateTranslation(.11f,0,0)))) return;
+                        Wrappers.MyRender11.DrawGameScene(target,out ao);
+                    }
                     finally { if (ao!=null) new Wrappers.BorrowedRtvTexture(ao).Release(); }
                     // Exercise the installed engine's depth SRV and our spatial shader in a real scene.
                     var physicalTarget=(Texture2D)target.GetResource();
@@ -212,6 +332,16 @@ namespace SpaceEngineersVR.Diagnostics
                     // The main menu has no world lighting. Inspect actual rasterized albedo/depth occlusion.
                     var buffer=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Resources.MyGBuffer"),"Main").GetValue(null);
                     var texture=(Texture2D)CockpitRender.Member(CockpitRender.Member(buffer,"GBuffer0"),"Resource");
+                    if(phase==45 || phase==46)
+                    {
+                        var glove=GloveGeometry.Load(VRage.FileSystem.MyFileSystem.ContentPath,GloveGeometry.DefaultModel,true);
+                        MatrixD mount=glove.WristMount*CockpitHandPose.GripWrist(Matrix.CreateTranslation(-.11f,0,0));
+                        var tablet=new SurfaceView { Id="Native glove tablet",Style=SurfaceStyle.WristMenu,Width=.4f,Height=.225f,
+                            Pose=SpatialUi.WristPose(mount,1,.225f,-1),Keys=WristPanel.Keys(null,false,false,false,true,null,false) };
+                        texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
+                        PhysicalSurface.Draw(physicalTarget,new[] {tablet},camera.ViewMatrix,camera.ProjectionMatrix,PhysicalSurface.SceneDepth());
+                        UiTests.Save(physicalTarget,Path.Combine(output,"native-tablet-depth-"+phase+".png"));
+                    }
                     var description=texture.Description;
                     description.BindFlags=BindFlags.None; description.Usage=ResourceUsage.Staging;
                     description.CpuAccessFlags=CpuAccessFlags.Read; description.OptionFlags=ResourceOptionFlags.None;
@@ -242,11 +372,11 @@ namespace SpaceEngineersVR.Diagnostics
                                 int lit=0;
                                 for(int y=0;y<bitmap.Height;y+=8) for(int x=0;x<bitmap.Width;x+=8)
                                 { var pixel=bitmap.GetPixel(x,y); if(pixel.R+pixel.G+pixel.B>30) lit++; }
-                                if(lit<100)
-                                {
-                                    throw new InvalidOperationException("Native probe scene is blank; proxy validation alone is not a render test.");
-                                }
                                 bitmap.Save(path,ImageFormat.Png);
+                                if(lit<100 && phase!=47)
+                                {
+                                    throw new InvalidOperationException("Native probe scene is blank in phase "+phase+" ("+lit+" samples); proxy validation alone is not a render test.");
+                                }
                                 captured=path;
                             }
                         }
@@ -334,7 +464,7 @@ namespace SpaceEngineersVR.Diagnostics
         {
             options?.CloseScreenNow(); options=null;
             if(assignment!=null) { assignment.Finish(); assignment=null; }
-            CockpitRender.Reset();
+            NativeGloves.Reset(); CockpitRender.Reset();
             if (native!=uint.MaxValue) MyRenderProxy.RemoveRenderObject(native,MyRenderProxy.ObjectType.Entity);
             native=uint.MaxValue; Active=false;
         }

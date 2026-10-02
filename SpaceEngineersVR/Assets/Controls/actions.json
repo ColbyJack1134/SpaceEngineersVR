@@ -371,6 +371,11 @@
       "name": "/actions/common/in/RightGripPressure",
       "type": "vector1",
       "requirement": "optional"
+    },
+    {
+      "name": "/actions/common/in/QuickMenu",
+      "type": "boolean",
+      "requirement": "optional"
     }
   ],
   "action_sets": [

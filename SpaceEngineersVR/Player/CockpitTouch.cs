@@ -82,16 +82,29 @@ namespace SpaceEngineersVR.Player
             public float? Position;
             public Controller Actor;
         }
-        private sealed class Contact
+        internal class SurfaceHold
         {
             public readonly Hand Input=new Hand();
+            public Vector3 StartHand,Anchor;
+            public Matrix Wrist;
+            public DateTime Grabbed;
+            public void Capture(Matrix localWrist,Vector3 anchor)
+            { Wrist=localWrist; StartHand=localWrist.Translation; Anchor=anchor; Grabbed=DateTime.UtcNow; }
+            public bool Reachable(Vector3 localHand) => Vector3.Distance(localHand,StartHand)<.28f;
+            public bool Attachment(MatrixD surface,out MatrixD wrist,out Vector3D contact,out float blend)
+            {
+                wrist=(MatrixD)Wrist*surface; contact=Vector3D.Transform(Anchor,surface);
+                blend=MathHelper.Clamp((float)(DateTime.UtcNow-Grabbed).TotalSeconds/.09f,0,1);
+                return Input.Surface!=null;
+            }
+        }
+        private sealed class Contact : SurfaceHold
+        {
             public readonly ControlDrag Drag=new ControlDrag();
             public readonly HoverGrace Grace=new HoverGrace();
             public Target Target,Hover;
             public int HoverKey=-1,Change=-1;
-            public Vector3 StartHand,FitAtGrab,Anchor;
-            public Matrix Wrist;
-            public DateTime Grabbed;
+            public Vector3 FitAtGrab;
             public float StartPosition;
         }
         private static readonly Contact[] hands={new Contact(),new Contact()};
@@ -127,7 +140,7 @@ namespace SpaceEngineersVR.Player
             {
                 var k=s.Keys[i]; if(!k.Enabled || k.Bounds.Width<=0 || k.Bounds.Height<=0) continue;
                 var b=k.Bounds;
-                float z=s.Style==SurfaceStyle.ModelControl ? 0 : .006f;
+                float z=PhysicalSurface.KeyHeight(s);
                 var bounds=new BoundingBox(new Vector3((b.X-.5f)*s.Width,(.5f-b.Y-b.Height)*s.Height,z),
                     new Vector3((b.X+b.Width-.5f)*s.Width,(.5f-b.Y)*s.Height,z));
                 if(!probe.Intersects(bounds,padding)) continue;
@@ -228,7 +241,7 @@ namespace SpaceEngineersVR.Player
                 h.Hover=chosen; h.HoverKey=key;
                 var held=targets.FirstOrDefault(t=>t.Surface.Id==h.Input.Surface);
                 Vector3 motion=Compensate(raw,SeatFit.Offset,h.FitAtGrab);
-                bool reachable=held!=null && Vector3.Distance(motion,h.StartHand)<.28f;
+                bool reachable=held!=null && h.Reachable(motion);
                 bool canAcquire=i==0 ? c.PointerPressure.Position.X>0 || c.Primary.HasPressed : c.LeftTriggerPressure.Position.X>0;
                 h.Input.Sample(true,pressure,down,chosen?.Surface.Id,key,canAcquire,reachable,guarded);
                 if(h.Input.Captured)
@@ -238,7 +251,7 @@ namespace SpaceEngineersVR.Player
                     Vector3D anchor=Vector3D.Transform(new Vector3D((b.Center.X-.5)*s.Width,(.5-b.Center.Y)*s.Height,0),s.Pose);
                     if(held.Pull)
                         anchor=Vector3D.Transform(chosenContact,s.Pose);
-                    h.Anchor=(Vector3)Vector3D.Transform(anchor,seat.PositionComp.WorldMatrixNormalizedInv);
+                    h.Capture(localWrist,(Vector3)Vector3D.Transform(anchor,seat.PositionComp.WorldMatrixNormalizedInv));
                     h.StartPosition=held.Position;
                     if(held.Hinged) h.Drag.Begin(raw,h.Anchor,held.Pivot,held.Axis,held.Position,held.Travel);
                     else if(held.Pull) h.Drag.BeginLinear(raw,held.Axis,held.Position,held.Travel);

@@ -53,7 +53,7 @@ namespace SpaceEngineersVR.Player
             return result;
         }
         public static bool ApplyPose(MyCharacterBone upper,MyCharacterBone lower,MyCharacterBone palm,
-            Matrix target,Matrix palmOffset,Vector3 hint,bool adaptive=true)
+            Matrix target,Matrix palmOffset,Vector3 hint,bool adaptive=true,bool rigidWrist=false)
         {
             if(!target.IsValid()) return false;
             // Vanilla weapon IK can translate the palm to reach a weapon. Restore
@@ -66,6 +66,68 @@ namespace SpaceEngineersVR.Player
             float upperLength=Vector3.Distance(shoulder,lower.AbsoluteTransform.Translation);
             float lowerLength=Vector3.Distance(lower.AbsoluteTransform.Translation,palm.AbsoluteTransform.Translation);
             Matrix palmPose=palmOffset*target.GetOrientation();
+            if(rigidWrist)
+            {
+                palmPose.Translation=target.Translation;
+                Matrix rigidLower=lower.GetAbsoluteRigTransform()*Matrix.Invert(palm.GetAbsoluteRigTransform())*palmPose;
+                Vector3 rigidElbow=rigidLower.Translation;
+                Vector3 reach=rigidElbow-shoulder;
+                float distance=reach.Length();
+                if(distance<.001f || distance>2.5f) return false;
+                // Keep the forearm straight through the cuff. Fit reach at the shoulder,
+                // instead of forcing all wrist deflection into the short Forearm1 segment.
+                if(adaptive) shoulder+=reach/distance*Math.Min(.12f,Math.Max(0,distance-upperLength)*.6f);
+                Matrix rigidUpper=AimBone(upper.GetAbsoluteRigTransform(),
+                    lower.GetAbsoluteRigTransform().Translation-upper.GetAbsoluteRigTransform().Translation,rigidElbow-shoulder);
+                Vector3 rigidAxis=Vector3.Normalize(rigidElbow-shoulder);
+                Vector3 normal=Vector3.Cross(rigidAxis,Vector3.Normalize(palmPose.Translation-rigidElbow));
+                if(normal.LengthSquared()>.001f)
+                {
+                    Vector3 bindUpper=lower.GetAbsoluteRigTransform().Translation-upper.GetAbsoluteRigTransform().Translation;
+                    Vector3 bindLower=palm.GetAbsoluteRigTransform().Translation-lower.GetAbsoluteRigTransform().Translation;
+                    float sign=Math.Sign(Vector3.Dot(upper.GetAbsoluteRigTransform().Backward,Vector3.Cross(bindUpper,bindLower)));
+                    Vector3 from=rigidUpper.Backward-rigidAxis*Vector3.Dot(rigidUpper.Backward,rigidAxis);
+                    if(from.LengthSquared()>.001f && sign!=0)
+                    {
+                        float bend=normal.Length();
+                        from.Normalize(); normal.Normalize(); normal*=sign;
+                        float angle=(float)Math.Atan2(Vector3.Dot(rigidAxis,Vector3.Cross(from,normal)),Vector3.Dot(from,normal));
+                        // The bend plane loses its direction near a straight arm. Keep the
+                        // shoulder's neutral twist dominant so crossing it cannot flip the sleeve.
+                        float weight=.4f*MathHelper.SmoothStep(0,1,MathHelper.Clamp(bend/.35f,0,1));
+                        angle=(float)Math.Atan2(weight*Math.Sin(angle),1-weight+weight*Math.Cos(angle));
+                        rigidUpper=rigidUpper.GetOrientation()*Matrix.CreateFromAxisAngle(rigidAxis,angle);
+                    }
+                }
+                rigidUpper.Translation=shoulder;
+                upper.SetCompleteTransformFromAbsoluteMatrix(ref rigidUpper,false); upper.ComputeAbsoluteTransform(true,true);
+                var cuff=palm.Parent;
+                while(cuff!=null && cuff.Parent!=lower) cuff=cuff.Parent;
+                if(cuff!=null)
+                {
+                    // Forearm2 carries the tablet and strap. Share sleeve roll at Forearm1
+                    // while preserving the cuff's complete frame relative to the hand.
+                    Matrix cuffPose=cuff.GetAbsoluteRigTransform()*Matrix.Invert(palm.GetAbsoluteRigTransform())*palmPose;
+                    Vector3 sleeveAxis=Vector3.Normalize(palmPose.Translation-rigidElbow);
+                    Matrix sleeve=lower.GetAbsoluteRigTransform()*Matrix.Invert(upper.GetAbsoluteRigTransform())*rigidUpper;
+                    Vector3 bindAxis=palm.GetAbsoluteRigTransform().Translation-lower.GetAbsoluteRigTransform().Translation;
+                    Vector3 neutralAxis=Vector3.TransformNormal(bindAxis,
+                        Matrix.Transpose(lower.GetAbsoluteRigTransform().GetOrientation())*sleeve.GetOrientation());
+                    sleeve=AimBone(sleeve,neutralAxis,sleeveAxis);
+                    Matrix twist=ForearmTwist(sleeve,rigidLower,sleeveAxis);
+                    sleeve=sleeve.GetOrientation()*Matrix.CreateFromQuaternion(
+                        Quaternion.Slerp(Quaternion.Identity,Quaternion.CreateFromRotationMatrix(twist),.5f));
+                    sleeve.Translation=rigidElbow;
+                    lower.SetCompleteTransformFromAbsoluteMatrix(ref sleeve,false); lower.ComputeAbsoluteTransform(true,true);
+                    cuff.SetCompleteTransformFromAbsoluteMatrix(ref cuffPose,false); cuff.ComputeAbsoluteTransform(true,true);
+                }
+                else
+                {
+                    lower.SetCompleteTransformFromAbsoluteMatrix(ref rigidLower,false); lower.ComputeAbsoluteTransform(true,true);
+                }
+                palm.SetCompleteTransformFromAbsoluteMatrix(ref palmPose,false); palm.ComputeAbsoluteTransform(true,true);
+                return upper.AbsoluteTransform.IsValid() && lower.AbsoluteTransform.IsValid() && palm.AbsoluteTransform.IsValid();
+            }
             if(adaptive)
             {
                 var rig=palm.GetAbsoluteRigTransform();

@@ -29,7 +29,7 @@ namespace SpaceEngineersVR.Player
             if(!Available) { MenuKeyboard.Close(); return; }
             if(InputRouter.Mode!=InputMode.Menu || !MenuPointer.GameFocused || !Player.Headset.pose.isTracked || !Player.HandR.pose.isTracked)
             { ReleaseInput(); current=null; return; }
-            var c=Controls.Static; Matrix aim=Player.HandR.AimTracking;
+            var c=Controls.Static; Matrix aim=MenuHands.PointerTracking();
             Vector3 tip=aim.Translation+aim.Forward*.025f;
             if(window.Drag!=0)
             {

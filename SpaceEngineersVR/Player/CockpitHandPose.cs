@@ -46,6 +46,13 @@ namespace SpaceEngineersVR.Player
             Vector3 point=Finger(palm,index,pinch,tipOffset);
             return pinch && thumb!=null ? (point+Finger(palm,thumb,true))*.5f : point;
         }
+        internal static MatrixD Blend(MatrixD free,MatrixD attached,float amount)
+        {
+            var rotation=Quaternion.Slerp(Quaternion.CreateFromRotationMatrix(free),Quaternion.CreateFromRotationMatrix(attached),amount);
+            var result=MatrixD.CreateFromQuaternion(rotation);
+            result.Translation=Vector3D.Lerp(free.Translation,attached.Translation,amount);
+            return result;
+        }
         internal static MatrixD Attach(MatrixD wrist,Matrix palmOffset,Vector3 localContact,Vector3D target)
         {
             wrist.Translation+=target-Vector3D.Transform(localContact,(MatrixD)palmOffset*wrist);

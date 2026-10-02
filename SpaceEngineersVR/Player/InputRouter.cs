@@ -64,6 +64,7 @@ namespace SpaceEngineersVR.Player
 
         private static void Reset(bool continueLocomotion)
         {
+            GameActions.ResetJumpHold();
             Controls.Static.BlockUntilRelease(continueLocomotion);
             SpatialUi.ReleaseInput();
             WeaponHandling.Reset();

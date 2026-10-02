@@ -21,7 +21,7 @@ namespace SpaceEngineersVR.Player
         [DllImport("user32.dll")] private static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
         private static readonly uint ProcessId=(uint)Process.GetCurrentProcess().Id;
         [DllImport("user32.dll")] private static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
-        private static bool held, secondaryHeld;
+        private static bool held, secondaryHeld,shiftHeld,controlHeld;
         private static bool checkTextFocus;
         private static byte pulseKey;
         private static int pulseTicks;
@@ -50,7 +50,13 @@ namespace SpaceEngineersVR.Player
                 return process == ProcessId;
             }
         }
-        public static void Release() { ReleaseMouse(); ReleaseKey(); }
+        public static void Release() { ReleaseMouse(); ReleaseKey(); Modifiers(false,false); }
+        private static void Modifiers(bool shift,bool control)
+        {
+            if(shift!=shiftHeld) keybd_event(0xA0,0,shift ? 0u:2u,UIntPtr.Zero);
+            if(control!=controlHeld) keybd_event(0xA2,0,control ? 0u:2u,UIntPtr.Zero);
+            shiftHeld=shift; controlHeld=control;
+        }
         private static void ReleaseMouse()
         {
             if (held) mouse_event(4,0,0,0,UIntPtr.Zero);
@@ -76,23 +82,18 @@ namespace SpaceEngineersVR.Player
             {
                 if (controls.Unequip.HasPressed)
                 {
-                    if (MenuKeyboard.IsOpen) MenuKeyboard.Close();
+                    if (SpatialUi.CollapseIfOpen()) controls.Unequip.BlockUntilRelease();
+                    else if (MenuKeyboard.IsOpen) MenuKeyboard.Close();
                     else Key(27);
                 }
                 if (controls.Jetpack.HasPressed) MenuKeyboard.Open();
                 if (controls.MenuKeyboardFallback.HasPressed) MenuKeyboard.Open(true);
                 if (controls.Interact.HasPressed && !MenuKeyboard.IsOpen) Key(13);
-                if (!MenuKeyboard.IsOpen && Components.VRGUIManager.TopScreen is MyGuiScreenToolbarConfigBase)
-                {
-                    int delta=(controls.WheelNextPage.HasPressed ? 1 : 0)-(controls.WheelPreviousPage.HasPressed ? 1 : 0);
-                    var toolbar=MyToolbarComponent.CurrentToolbar;
-                    if (delta!=0 && toolbar!=null && toolbar.PageCount>0)
-                        toolbar.SwitchToPage((toolbar.CurrentPage+toolbar.PageCount+delta)%toolbar.PageCount);
-                }
+
             }
             if (InputRouter.Mode != InputMode.Menu) { Release(); return; }
             if (!Common.Config.ControllerMenuPointer || !Player.HandR.pose.isTracked || MenuKeyboard.IsOpen || FloatingMenu.OwnsInput)
-            { ReleaseMouse(); return; }
+            { ReleaseMouse(); Modifiers(false,false); return; }
             IntPtr window=GetForegroundWindow();
             GetWindowThreadProcessId(window,out uint process);
             if (process!=ProcessId) { Release(); return; }
@@ -102,15 +103,16 @@ namespace SpaceEngineersVR.Player
                     mouseUntil=DateTime.UtcNow.AddSeconds(2);
                 lastCursor=current; haveCursor=true;
             }
-            if(!held && DateTime.UtcNow<mouseUntil && !Controls.Static.Primary.HasPressed) return;
-            if (!Components.VRGUIManager.TryPanelHit(Player.HandR.AimTracking,out Vector2 uv))
-            { ReleaseMouse(); return; }
-            if (!GetClientRect(window,out Rect rect)) { ReleaseMouse(); return; }
+            if(!held && DateTime.UtcNow<mouseUntil && !Controls.Static.Primary.HasPressed) { Modifiers(false,false); return; }
+            if (!Components.VRGUIManager.TryPanelHit(MenuHands.PointerTracking(),out Vector2 uv))
+            { ReleaseMouse(); Modifiers(false,false); return; }
+            if (!GetClientRect(window,out Rect rect)) { ReleaseMouse(); Modifiers(false,false); return; }
             var point=new Point { X=(int)(uv.X*(rect.Right-rect.Left-1)),Y=(int)(uv.Y*(rect.Bottom-rect.Top-1)) };
-            if (!ClientToScreen(window,ref point)) { ReleaseMouse(); return; }
+            if (!ClientToScreen(window,ref point)) { ReleaseMouse(); Modifiers(false,false); return; }
             SetCursorPos(point.X,point.Y);
             lastCursor=point;
             // Only a new trigger press over the panel starts a click. Hold supports dragging sliders.
+            Modifiers(Player.HandL.pose.isTracked && controls.LeftGripPressure.Position.X>.55f,Player.HandL.pose.isTracked && controls.LeftTriggerPressure.Position.X>.55f);
             if (Controls.Static.Primary.HasPressed && !held) { mouse_event(2,0,0,0,UIntPtr.Zero); held=true; }
             if (!controls.Primary.IsPressed && held) { mouse_event(4,0,0,0,UIntPtr.Zero); held=false; checkTextFocus=true; }
             if (controls.Secondary.HasPressed && !secondaryHeld) { mouse_event(8,0,0,0,UIntPtr.Zero); secondaryHeld=true; }

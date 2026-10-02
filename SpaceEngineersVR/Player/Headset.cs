@@ -43,6 +43,7 @@ namespace SpaceEngineersVR.Player
             var rig=RenderFrameBridge.ForCurrentOwner(CameraRig.Current);
             var markers=ReferenceEquals(rig,RenderFrameBridge.Current) ? RenderFrameBridge.Markers : null;
             rig=ThirdPersonView.RenderFrame(rig);
+            NativeGloves.Prepare(rig);
             Matrix originInverse=rig?.OriginInverse ?? Player.RenderPlayerToAbsolute.inverted;
             double scale=rig?.UnitsPerMeter ?? 1;
             if(rig!=null) gameView=MatrixD.Invert(rig.Anchor);
@@ -134,6 +135,8 @@ namespace SpaceEngineersVR.Player
             WorldMarkers.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection);
             if (Main.MenuOpen || rig?.ThirdPerson==true) MenuHands.DrawInWorld((SharpDX.Direct3D11.Texture2D)target.GetResource(),eye,Main.MenuOpen);
             SpatialUi.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,RenderFrameBridge.Surfaces);
+            if(rig?.ThirdPerson==true && NativeGloves.Visible)
+                SpatialUi.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,RenderFrameBridge.Surfaces,tracking:true,trackingToWorld:rig.TrackingToWorld);
             FloatingKeyboard.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),eye);
             ToolbarWheel.DrawWorld((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,
                 rig?.TrackingToWorld ?? (MatrixD)originInverse*MatrixD.Invert(gameView));

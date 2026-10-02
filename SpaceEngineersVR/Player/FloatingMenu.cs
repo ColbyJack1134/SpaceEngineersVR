@@ -48,7 +48,7 @@ namespace SpaceEngineersVR.Player
             // before the thumbstick can scroll native contents again.
             if(window.Drag!=0) Controls.Static.MenuNavigate.BlockUntilRelease();
             OwnsInput=false;
-            bool shown=Main.MenuOpen || Main.ShowDesktopPanel;
+            bool shown=(Main.MenuOpen && !MenuKeyboard.Standalone) || Main.ShowDesktopPanel;
             string key=MyScreenManager.Screens.FirstOrDefault(s=>!(s is MyGuiScreenGamePlay) && !(s is MyGuiScreenHudSpace))?.GetType().Name ?? "Desktop";
             bool available=shown && Available && InputRouter.Mode==InputMode.Menu && MenuPointer.GameFocused &&
                 Player.Headset.pose.isTracked && Player.HandR.pose.isTracked && !MenuKeyboard.IsOpen;
@@ -65,7 +65,7 @@ namespace SpaceEngineersVR.Player
             if(!available) window.Cancel();
             else
             {
-                Matrix aim=Player.HandR.AimTracking;
+                Matrix aim=MenuHands.PointerTracking();
                 if(window.Drag!=0)
                 {
                     OwnsInput=true;

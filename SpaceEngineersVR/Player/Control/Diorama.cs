@@ -20,13 +20,16 @@ namespace SpaceEngineersVR.Player.Control
         private MatrixD rawLeft,rawRight;
         private bool armed,poseReady,releasePending;
         private int sampledHands;
-        private Vector3D panVelocity,rotationVelocity,coastPan,coastPivot,splitPanVelocity,splitPivot;
+        private Vector3D panVelocity,rotationVelocity,coastPan,coastRotation,coastPivot,splitPanVelocity,splitRotationVelocity,splitPivot;
         private double zoomVelocity,coastZoom,coastAge,splitZoomVelocity,splitAge;
-        private const double PanGain=1.2,ZoomGain=1.35,RotationGain=1.45,CoastTime=.48,CoastDuration=1.8,SplitReleaseTime=.1;
+        private const double PanGain=1.2,ZoomGain=1.15,RotationGain=1.45,CoastTime=.48,CoastDuration=1.8,SplitReleaseTime=.1;
         private const double PanReleaseGain=.8,ZoomReleaseGain=1.5,ReleaseGain=.85;
+        private const double RotationReleaseGain=.30,RotationCoastTime=.24,RotationCoastDuration=.9;
+        public double PanSensitivity=1,ZoomSensitivity=1,RotationSensitivity=1,PanGlide=1,ZoomGlide=1,RotationGlide=1;
         public int Hands { get; private set; }
         public bool Held => Hands!=0;
-        public bool Coasting => coastPan.LengthSquared()>0 || coastZoom!=0;
+        public bool Coasting => coastPan.LengthSquared()>0 || coastZoom!=0 || coastRotation.LengthSquared()>0;
+        private bool SplitRelease => splitZoomVelocity!=0 || splitRotationVelocity.LengthSquared()>0;
         public double LastTranslation { get; private set; }
         public double LastRotation { get; private set; }
 
@@ -43,10 +46,10 @@ namespace SpaceEngineersVR.Player.Control
         }
         private void Brake()
         {
-            releasePending=false; coastPan=Vector3D.Zero; coastZoom=coastAge=0;
+            releasePending=false; coastPan=coastRotation=Vector3D.Zero; coastZoom=coastAge=0;
             ClearSplitRelease();
         }
-        private void ClearSplitRelease() { splitZoomVelocity=splitAge=0; splitPanVelocity=splitPivot=Vector3D.Zero; }
+        private void ClearSplitRelease() { splitZoomVelocity=splitAge=0; splitPanVelocity=splitRotationVelocity=splitPivot=Vector3D.Zero; }
         public MatrixD Anchor(Vector3D target) => Anchor(target,MatrixD.Identity);
         public MatrixD Anchor(Vector3D target,MatrixD reference)
         {
@@ -90,7 +93,7 @@ namespace SpaceEngineersVR.Player.Control
             if(!Held && !releasePending && !Coasting) return false;
             if(!newLeft.Translation.IsValid() || !newRight.Translation.IsValid()) { Cancel(); return false; }
             if(double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds<0) { Cancel(); return false; }
-            int trackedHands=splitZoomVelocity!=0 ? 3 : sampledHands;
+            int trackedHands=SplitRelease ? 3 : sampledHands;
             if(trackedHands!=0 &&
                 (((trackedHands&1)!=0 && Discontinuous(rawLeft,newLeft)) || ((trackedHands&2)!=0 && Discontinuous(rawRight,newRight))))
             { Cancel(); return false; }
@@ -103,10 +106,12 @@ namespace SpaceEngineersVR.Player.Control
             }
             if(!poseReady)
             {
-                if(sampledHands==3 && Hands!=3 && ZoomRelease(zoomVelocity,newLeft,newRight,seconds)!=0)
+                if(sampledHands==3 && Hands!=3)
                 {
                     // Keep the two-hand throw briefly while the grip buttons release at different times.
-                    splitZoomVelocity=zoomVelocity; splitPanVelocity=panVelocity; splitAge=0;
+                    splitZoomVelocity=ZoomRelease(zoomVelocity,newLeft,newRight,seconds)!=0 ? zoomVelocity:0;
+                    splitRotationVelocity=RotationRelease(rotationVelocity,newLeft,newRight,seconds).LengthSquared()>0 ? rotationVelocity:Vector3D.Zero;
+                    splitPanVelocity=panVelocity; splitAge=0;
                     splitPivot=HandCenter(newLeft,newRight,3);
                 }
                 else ClearSplitRelease();
@@ -114,10 +119,12 @@ namespace SpaceEngineersVR.Player.Control
                 sampledHands=Hands; panVelocity=rotationVelocity=Vector3D.Zero; zoomVelocity=0;
                 return false;
             }
-            if(splitZoomVelocity!=0)
+            if(SplitRelease)
             {
                 splitAge+=seconds;
-                if(splitAge>SplitReleaseTime || ZoomRelease(splitZoomVelocity,newLeft,newRight,seconds)==0) ClearSplitRelease();
+                if(ZoomRelease(splitZoomVelocity,newLeft,newRight,seconds)==0) splitZoomVelocity=0;
+                if(RotationRelease(splitRotationVelocity,newLeft,newRight,seconds).LengthSquared()==0) splitRotationVelocity=Vector3D.Zero;
+                if(splitAge>SplitReleaseTime || !SplitRelease) ClearSplitRelease();
             }
             var pan=HandCenter(newLeft,newRight,Hands)-HandCenter(rawLeft,rawRight,Hands);
             double beforeSpan=Vector3D.Distance(rawLeft.Translation,rawRight.Translation);
@@ -130,15 +137,15 @@ namespace SpaceEngineersVR.Player.Control
             {
                 var speed=pan/seconds;
                 double rate=zoom/seconds;
-                pan=Smooth(ref panVelocity,speed,seconds,.065-.025*MathHelper.Clamp(speed.Length()/.5,0,1))*PanGain;
+                pan=Smooth(ref panVelocity,speed,seconds,.065-.025*MathHelper.Clamp(speed.Length()/.5,0,1))*PanGain*PanSensitivity;
                 if(scaling)
                 {
                     var velocity=new Vector3D(zoomVelocity,0,0);
-                    zoom=Smooth(ref velocity,new Vector3D(rate,0,0),seconds,.08-.03*MathHelper.Clamp(Math.Abs(rate),0,1)).X*ZoomGain;
+                    zoom=Smooth(ref velocity,new Vector3D(rate,0,0),seconds,.08-.03*MathHelper.Clamp(Math.Abs(rate),0,1)).X*ZoomGain*ZoomSensitivity;
                     zoomVelocity=velocity.X;
                 }
                 else zoomVelocity=0;
-                rotation=Smooth(ref rotationVelocity,rotation*(RotationGain/seconds),seconds,.075);
+                rotation=Smooth(ref rotationVelocity,rotation*(RotationGain*RotationSensitivity/seconds),seconds,.075);
             }
             else { panVelocity=rotationVelocity=Vector3D.Zero; zoomVelocity=0; }
             rawLeft=newLeft; rawRight=newRight;
@@ -181,22 +188,31 @@ namespace SpaceEngineersVR.Player.Control
         private void Release(MatrixD newLeft,MatrixD newRight,double seconds)
         {
             if(seconds<=0 || sampledHands==0) { Brake(); return; }
-            bool split=splitZoomVelocity!=0 && splitAge+seconds<=SplitReleaseTime;
+            bool split=SplitRelease && splitAge+seconds<=SplitReleaseTime;
             int hands=split ? 3:sampledHands;
             // Use the fresh release pose so filter catch-up cannot turn a stopped hand into a throw.
             var speed=(HandCenter(newLeft,newRight,hands)-HandCenter(rawLeft,rawRight,hands))/seconds;
             var pan=PanRelease(split ? splitPanVelocity:panVelocity,speed);
             double zoom=hands==3 ? ZoomRelease(split ? splitZoomVelocity:zoomVelocity,newLeft,newRight,seconds):0;
+            var rotation=hands==3 ? RotationRelease(split ? splitRotationVelocity:rotationVelocity,newLeft,newRight,seconds):Vector3D.Zero;
             var pivot=split ? splitPivot : HandCenter(newLeft,newRight,hands);
-            Brake(); coastPan=pan*ReleaseGain; coastZoom=zoom*ReleaseGain; coastPivot=pivot;
+            Brake(); coastPan=pan*ReleaseGain*PanGlide; coastZoom=zoom*ReleaseGain*ZoomGlide; coastRotation=rotation; coastPivot=pivot;
             panVelocity=rotationVelocity=Vector3D.Zero; zoomVelocity=0;
         }
-        private static Vector3D PanRelease(Vector3D velocity,Vector3D speed)
+        private static Vector3D PanRelease(Vector3D velocity,Vector3D speed) =>
+            MovingRelease(velocity*PanReleaseGain,speed,PanReleaseGain,.04,.02,.8);
+        private Vector3D RotationRelease(Vector3D velocity,MatrixD newLeft,MatrixD newRight,double seconds)
         {
-            velocity*=PanReleaseGain;
+            if(seconds<=0 || Vector3D.Distance(rawLeft.Translation,rawRight.Translation)<.08 ||
+                Vector3D.Distance(newLeft.Translation,newRight.Translation)<.08) return Vector3D.Zero;
+            var speed=RotationVector(PairRotation(rawLeft,rawRight,newLeft,newRight))/seconds;
+            return MovingRelease(velocity*RotationReleaseGain*RotationGlide,speed,RotationGain*RotationSensitivity*RotationReleaseGain*RotationGlide,.08,.02,.35);
+        }
+        private static Vector3D MovingRelease(Vector3D velocity,Vector3D speed,double gain,double rawMinimum,double filteredMinimum,double maximum)
+        {
             double length=speed.Length(),filtered=velocity.Length();
-            return length>.04 && filtered>.02 && Vector3D.Dot(speed,velocity)>0 ?
-                velocity/filtered*Math.Min(.8,Math.Min(filtered,length*PanReleaseGain))*MathHelper.Clamp((length-.04)/.04,0,1) : Vector3D.Zero;
+            return length>rawMinimum && filtered>filteredMinimum && Vector3D.Dot(speed,velocity)>0 ?
+                velocity/filtered*Math.Min(maximum,Math.Min(filtered,length*gain))*MathHelper.Clamp((length-rawMinimum)/rawMinimum,0,1) : Vector3D.Zero;
         }
         private double ZoomRelease(double velocity,MatrixD newLeft,MatrixD newRight,double seconds)
         {
@@ -217,10 +233,18 @@ namespace SpaceEngineersVR.Player.Control
             if(!Coasting || seconds<=0) return false;
             double step=Math.Min(seconds,CoastDuration-coastAge),decay=Math.Exp(-step/CoastTime);
             var pan=coastPan*(CoastTime*(1-decay));
+            double rotationStep=Math.Min(step,Math.Max(0,RotationCoastDuration-coastAge));
+            double rotationDecay=Math.Exp(-rotationStep/RotationCoastTime);
+            var rotation=coastRotation*(RotationCoastTime*(1-rotationDecay));
+            double angle=rotation.Length();
+            var turn=angle>1e-12 ? MatrixD.CreateFromAxisAngle(rotation/angle,angle):MatrixD.Identity;
             var before=Center;
-            Center=(Center-coastPivot)*Scale(coastZoom*CoastTime*(1-decay))+coastPivot+pan;
+            Center=Vector3D.TransformNormal(Center-coastPivot,turn)*Scale(coastZoom*CoastTime*(1-decay))+coastPivot+pan;
+            Orientation=VrMath.Rigid(MatrixD.Transpose(turn)*Orientation);
             coastPivot+=pan; coastPan*=decay; coastZoom*=decay; coastAge+=step;
+            coastRotation=coastAge>=RotationCoastDuration ? Vector3D.Zero:coastRotation*rotationDecay;
             LastTranslation=Vector3D.Distance(Center,before);
+            LastRotation=angle;
             if(coastAge>=CoastDuration) Brake();
             return true;
         }

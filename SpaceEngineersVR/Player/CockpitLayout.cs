@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using VRageMath;
 
 namespace SpaceEngineersVR.Player
@@ -5,9 +7,10 @@ namespace SpaceEngineersVR.Player
     internal static class CockpitLayout
     {
         public const string ControlSeat="OpenCockpitLarge";
-        public static bool Supported(string subtype) => subtype==FighterProfile.Subtype || subtype==ControlSeat;
+        public static bool Supported(string subtype) => subtype==FighterProfile.Subtype || (CockpitRig.Find(subtype)?.Levers.Length ?? 0)>0;
 
-        public static int Count(string subtype) => subtype==FighterProfile.Subtype ? CockpitSwitchGeometry.Count+1 : 4;
+        public static int Count(string subtype) => subtype==FighterProfile.Subtype ? CockpitSwitchGeometry.Count+1 : CockpitRig.Find(subtype)?.Levers.Length ?? 0;
+        internal static int MaximumCount => Math.Max(CockpitSwitchGeometry.Count+1,CockpitRig.All.Max(r=>r.Levers.Length));
 
         // Centers measured from connected lever/key meshes in the installed MWM.
         // The fighter cap is about 7 mm above its mesh center.
@@ -19,6 +22,10 @@ namespace SpaceEngineersVR.Player
                 if(index==CockpitBarGeometry.Slot) { size=.020f; return CockpitBarGeometry.TouchPose; }
                 p=CockpitSwitchGeometry.Centers[index]; normal=CockpitSwitchGeometry.NormalFor(index); up=CockpitSwitchGeometry.UpFor(index);
                 size=.018f; p+=normal*.007;
+            }
+            else if(CockpitRig.Find(subtype)?.Levers[index] is CockpitRig.Lever lever)
+            {
+                p=lever.Center+lever.Normal*.007f; normal=lever.Normal; up=lever.Up; size=.018f;
             }
             else
             {

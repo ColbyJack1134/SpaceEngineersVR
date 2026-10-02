@@ -8,13 +8,21 @@ namespace SpaceEngineersVR.Player
 {
     internal static class CockpitButtons
     {
-        private static readonly float[] positions=new float[CockpitSwitchGeometry.Count+1];
-        private static readonly DateTime[] pulses=new DateTime[CockpitSwitchGeometry.Count+1];
-        private static readonly float[] covers=Enumerable.Range(0,CockpitCoverGeometry.Count).Select(CockpitCoverGeometry.Initial).ToArray();
-        private static readonly bool[] open=Enumerable.Range(0,CockpitCoverGeometry.Count).Select(i=>CockpitCoverGeometry.Initial(i)>0).ToArray();
+        private static readonly float[] positions=new float[CockpitLayout.MaximumCount];
+        private static readonly DateTime[] pulses=new DateTime[CockpitLayout.MaximumCount];
+        private static readonly float[] covers=new float[CockpitLayout.MaximumCount];
+        private static readonly bool[] open=new bool[CockpitLayout.MaximumCount];
+        private static string subtype=FighterProfile.Subtype;
+        static CockpitButtons() { ResetCovers(); }
+        private static int CoverIndex(int slot) => subtype==FighterProfile.Subtype ? CockpitSwitchGeometry.CoverIndex(slot) : CockpitRig.Find(subtype)?.Levers[slot]?.CoverActor>=0 ? slot : -1;
         private static DateTime lastUpdate;
-        internal static float SwitchPosition(int slot) => positions[slot];
-        internal static float CoverPosition(int slot) => covers[CockpitSwitchGeometry.CoverIndex(slot)];
+        internal static float SwitchPosition(int slot,string model=null) => model!=null && model!=subtype ? 0 : positions[slot];
+        internal static float CoverPosition(int slot,string model=null)
+        {
+            if(model!=null && model!=subtype) return model==FighterProfile.Subtype ? CockpitCoverGeometry.Initial(CockpitSwitchGeometry.CoverIndex(slot)) : CockpitRig.Find(model)?.Levers[slot]?.CoverInitial ?? 0;
+            int index=CoverIndex(slot);
+            return index<0 ? 0 : covers[index];
+        }
         private static object owner;
         private static bool failed;
         public static SurfaceView[] Views { get; private set; }=new SurfaceView[0];
@@ -29,7 +37,17 @@ namespace SpaceEngineersVR.Player
         }
         private static void Release() { HoveredSwitch=-1; Targets=new CockpitTouch.Target[0]; Views=new SurfaceView[0]; }
         private static void ResetCovers()
-        { for(int i=0;i<covers.Length;i++) { covers[i]=CockpitCoverGeometry.Initial(i); open[i]=covers[i]>0; } }
+        {
+            Array.Clear(covers,0,covers.Length); Array.Clear(open,0,open.Length);
+            if(subtype==FighterProfile.Subtype)
+                for(int i=0;i<CockpitCoverGeometry.Count;i++) covers[i]=CockpitCoverGeometry.Initial(i);
+            else
+            {
+                var rig=CockpitRig.Find(subtype);
+                if(rig!=null) for(int i=0;i<rig.Levers.Length;i++) covers[i]=rig.Levers[i]?.CoverInitial ?? 0;
+            }
+            for(int i=0;i<covers.Length;i++) open[i]=covers[i]>0;
+        }
         public static void Reset()
         {
             failed=false; Release(); ResetCovers(); CockpitTouch.Reset();
@@ -45,40 +63,42 @@ namespace SpaceEngineersVR.Player
                 bool eligible=SeatFit.Eligible(seat) && CockpitLayout.Supported(seat.BlockDefinition.Id.SubtypeName);
                 CockpitActions.Update(eligible ? seat : null);
                 if(!ReferenceEquals(owner,seat))
-                { owner=seat; Release(); ResetCovers(); Array.Clear(positions,0,positions.Length); Array.Clear(pulses,0,pulses.Length); }
+                { owner=seat; subtype=seat?.BlockDefinition.Id.SubtypeName; Release(); ResetCovers(); Array.Clear(positions,0,positions.Length); Array.Clear(pulses,0,pulses.Length); }
                 Release();
                 if(!eligible || InputRouter.Mode!=InputMode.Piloting || Main.MenuOpen || CockpitControls.Adjusting) return;
-                string subtype=seat.BlockDefinition.Id.SubtypeName;
+                subtype=seat.BlockDefinition.Id.SubtypeName;
+                var rig=CockpitRig.Find(subtype);
                 bool fighter=subtype==FighterProfile.Subtype;
                 int count=CockpitLayout.Count(subtype);
                 var targets=new List<CockpitTouch.Target>();
                 for(int i=0;i<count;i++)
                 {
                     bool bar=fighter && i==CockpitBarGeometry.Slot;
-                    int coverIndex=CockpitSwitchGeometry.CoverIndex(i);
-                    bool covered=fighter && coverIndex>=0;
+                    var lever=rig?.Levers[i];
+                    int coverIndex=CoverIndex(i);
+                    bool covered=coverIndex>=0;
                     if(covered && CockpitRender.Ready)
                     {
                         var cover=new SurfaceView { Id="CockpitCover"+i,Style=SurfaceStyle.ModelControl,GeometryFeedback=true,
-                            Pose=CockpitCoverGeometry.TouchPose(coverIndex,covers[coverIndex])*seat.WorldMatrix,Width=.019f,Height=.035f,
+                            Pose=(fighter ? CockpitCoverGeometry.TouchPose(coverIndex,covers[coverIndex]) : lever.CoverPose(covers[coverIndex]))*seat.WorldMatrix,Width=.019f,Height=.035f,
                             Keys=new[] {new SurfaceKey("",0,0,1,1)} };
                         var head=SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation;
                         if(Vector3D.Dot(cover.Pose.Backward,head-cover.Pose.Translation)<0) cover.Pose=MatrixD.CreateRotationY(Math.PI)*cover.Pose;
                         targets.Add(new CockpitTouch.Target { Surface=cover,Slot=i,Cover=true,Position=covers[coverIndex],
-                            Pivot=CockpitCoverGeometry.Hinges[coverIndex],Axis=CockpitSwitchGeometry.AxisFor(i),Travel=CockpitCoverGeometry.Travel });
+                            Pivot=fighter ? CockpitCoverGeometry.Hinges[coverIndex] : lever.Hinge,Axis=fighter ? CockpitSwitchGeometry.AxisFor(i) : lever.Axis,Travel=CockpitCoverGeometry.Travel });
                     }
-                    bool accessible=!fighter || (CockpitRender.Ready ? !covered || open[coverIndex] && covers[coverIndex]>.98f : i<9);
+                    bool accessible=fighter ? CockpitRender.Ready ? !covered || open[coverIndex] && covers[coverIndex]>.98f : i<9 : lever==null || CockpitRender.Ready && (!covered || open[coverIndex] && covers[coverIndex]>.98f);
                     if(!accessible) continue;
                     var s=Preview(subtype,i);
-                    s.GeometryFeedback=fighter && CockpitRender.Ready;
-                    if(s.GeometryFeedback) s.Pose*=bar ? CockpitBarGeometry.Visual(positions[i]) : CockpitSwitchGeometry.Visual(i,positions[i]);
+                    s.GeometryFeedback=(fighter || lever!=null) && CockpitRender.Ready;
+                    if(s.GeometryFeedback) s.Pose*=bar ? CockpitBarGeometry.Visual(positions[i]) : fighter ? CockpitSwitchGeometry.Visual(i,positions[i]) : lever.Visual(positions[i]);
                     var native=s.Pose*seat.WorldMatrix;
                     string key=Alignment.SeatKey("control"+i);
                     s.Pose=Alignment.Apply(key,native); s.Width*=Alignment.Scale(key); s.Height*=Alignment.Scale(key);
                     MatrixD correction=seat.WorldMatrix*MatrixD.Invert(native)*s.Pose*seat.PositionComp.WorldMatrixNormalizedInv;
-                    targets.Add(new CockpitTouch.Target { Surface=s,Slot=i,Lever=fighter && !bar && CockpitRender.Ready,Pull=bar,Position=positions[i],
-                        Pivot=bar ? Vector3.Zero : (Vector3)Vector3D.Transform(CockpitSwitchGeometry.Pivots[i],correction),
-                        Axis=(Vector3)Vector3D.TransformNormal(bar ? CockpitBarGeometry.Normal : CockpitSwitchGeometry.AxisFor(i),correction),
+                    targets.Add(new CockpitTouch.Target { Surface=s,Slot=i,Lever=(fighter || lever!=null) && !bar && CockpitRender.Ready,Pull=bar,Position=positions[i],
+                        Pivot=bar ? Vector3.Zero : (Vector3)Vector3D.Transform(fighter ? CockpitSwitchGeometry.Pivots[i] : lever?.Pivot ?? Vector3.Zero,correction),
+                        Axis=(Vector3)Vector3D.TransformNormal(bar ? CockpitBarGeometry.Normal : fighter ? CockpitSwitchGeometry.AxisFor(i) : lever?.Axis ?? Vector3.Right,correction),
                         Travel=bar ? CockpitBarGeometry.Travel : CockpitSwitchGeometry.Travel });
                 }
                 Targets=targets.ToArray(); Views=targets.Select(t=>t.Surface).ToArray();
@@ -105,7 +125,7 @@ namespace SpaceEngineersVR.Player
                     s.Hover=input.Hover; s.Pressed=input.Held;
                     if(target.Cover)
                     {
-                        int coverIndex=CockpitSwitchGeometry.CoverIndex(i);
+                        int coverIndex=CoverIndex(i);
                         if(input.Requested.HasValue) { open[coverIndex]=input.Requested.Value; CockpitFeedback.Click(input.Actor,cover:true); }
                         covers[coverIndex]=input.Position ?? covers[coverIndex]+MathHelper.Clamp((open[coverIndex] ? 1 : 0)-covers[coverIndex],-step*.65f,step*.65f);
                         continue;

@@ -113,6 +113,7 @@ namespace SpaceEngineersVR.Plugin
         public void Dispose()
         {
             Player.ThirdPersonView.Reset();
+            Player.NativeGloves.Reset();
             Player.MenuPointer.Release();
             Player.TouchScreenBridge.Reset();
             Player.CockpitButtons.Reset();
@@ -153,6 +154,7 @@ namespace SpaceEngineersVR.Plugin
                     Player.TouchScreenBridge.Reset();
                     Player.CockpitButtons.Reset();
                     Player.ThirdPersonView.Reset();
+                    Player.NativeGloves.Reset();
                     VRGUIManager.Hide();
                     Player.EssentialHud.Hide();
                     Player.BuildOrientationHud.Hide();
@@ -166,7 +168,7 @@ namespace SpaceEngineersVR.Plugin
                 try
                 {
                     WorldAvailable = MySession.Static != null && Sandbox.Game.Gui.MyGuiScreenGamePlay.Static?.LoadingDone == true;
-                    MenuOpen = MySession.Static == null || VRGUIManager.IsAnyDialogOpen();
+                    MenuOpen = MySession.Static == null || VRGUIManager.IsAnyDialogOpen() || Player.MenuKeyboard.Standalone;
                     bool chord = (MyInput.Static.IsKeyPress(MyKeys.LeftControl) || MyInput.Static.IsKeyPress(MyKeys.RightControl)) &&
                         (MyInput.Static.IsKeyPress(MyKeys.LeftAlt) || MyInput.Static.IsKeyPress(MyKeys.RightAlt));
                     if (chord && MyInput.Static.IsNewKeyPressed(MyKeys.R)) Player.Player.Headset.RequestRecenter();
@@ -239,9 +241,10 @@ namespace SpaceEngineersVR.Plugin
             Player.Player.MainUpdate();
             Player.InputRouter.Update();
             Player.Controls.Static.Poll(Player.InputRouter.Mode);
-            Player.ThirdPersonView.Update();
-            Player.SeatFit.Update();
             Player.HelmetHud.Update();
+            Player.ThirdPersonView.Update();
+            Player.NativeGloves.Update();
+            Player.SeatFit.Update();
             if(MenuOpen && MySession.Static?.LocalCharacter!=null)
                 Player.TrackedArms.Update(MySession.Static.LocalCharacter);
             Player.FloatingKeyboard.Update();
@@ -252,7 +255,10 @@ namespace SpaceEngineersVR.Plugin
             Player.TouchScreenBridge.Update();
             Player.HandInteraction.UpdateTouch();
             Player.ToolbarWheel.Update();
+            Player.GameActions.RunScheduled();
+            Player.PlacementControls.Update();
             Player.NativeActions.Update();
+            Player.DampenerTargeting.Update();
             Player.CameraRig.Publish();
             Player.WeaponHandling.Update();
             Player.CockpitControls.Update();
@@ -294,6 +300,7 @@ namespace SpaceEngineersVR.Plugin
             Player.CockpitControls.Reset();
             Player.SeatFit.Reset();
             Player.SpatialUi.Reset();
+            Player.NativeGloves.Reset();
             Player.TouchScreenBridge.Reset();
             Player.CockpitButtons.Reset();
             Player.CameraRig.Reset(forgetHeight:true);

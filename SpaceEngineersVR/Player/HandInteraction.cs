@@ -24,6 +24,7 @@ namespace SpaceEngineersVR.Player
     {
         private static bool disabled;
         private static bool rayVisible;
+        internal static bool HoldingRight => hands[0].Input.Surface!=null;
         private sealed class Contact
         {
             public readonly CockpitTouch.Hand Input=new CockpitTouch.Hand();
@@ -73,6 +74,13 @@ namespace SpaceEngineersVR.Player
             return true;
         }
 
+        internal static float ObstacleDistance(MatrixD pose,float maximum)
+        {
+            if(MyAPIGateway.Physics!=null && MyAPIGateway.Physics.CastRay(pose.Translation,pose.Translation+pose.Forward*maximum,out IHitInfo hit) &&
+                hit.HitEntity!=MySession.Static?.LocalCharacter)
+                return Math.Min(maximum,(float)Vector3D.Distance(pose.Translation,hit.Position));
+            return maximum;
+        }
         internal static LineD RayForPose(MatrixD pose) =>
             new LineD(pose.Translation, pose.Translation + pose.Forward * MyConstants.DEFAULT_INTERACTIVE_DISTANCE);
 
@@ -275,11 +283,13 @@ namespace SpaceEngineersVR.Player
                     // Grip marker belongs at the raw tracked controller origin, not at
                     // its tip attachment. Only the aiming ray/tool uses the tip pose.
                     MatrixD grip=CameraRig.DeviceWorld(hand.pose.deviceToAbsolute.matrix);
-                    if(Common.Config.DeveloperTools) MySimpleObjectDraw.DrawLine(grip.Translation-grip.Up*0.035,grip.Translation+grip.Up*0.035,
+                    if(Common.Config.DeveloperTools && !SpatialUi.Pointing && !SpatialUi.OwnsRight && !SpatialUi.RayTargeted) MySimpleObjectDraw.DrawLine(grip.Translation-grip.Up*0.035,grip.Translation+grip.Up*0.035,
                         MyStringId.GetOrCompute("Square"),ref lineColor,0.025f);
-                    if (hand == Player.HandR && rayVisible && TryInteractionRay(out LineD ray))
+                    if (hand == Player.HandR && rayVisible && !SpatialUi.RayTargeted && !SpatialUi.OwnsRight && !CockpitTouch.OwnsRight && !HoldingRight && !TouchScreenBridge.Pointing && TryInteractionRay(out LineD ray))
                     {
-                        MySimpleObjectDraw.DrawLine(ray.From, ray.To,
+                        var aim=MatrixD.CreateWorld(ray.From,ray.Direction,Vector3D.CalculatePerpendicularVector(ray.Direction));
+                        var end=ray.From+ray.Direction*ObstacleDistance(aim,(float)ray.Length);
+                        MySimpleObjectDraw.DrawLine(ray.From, end,
                             MyStringId.GetOrCompute("Square"), ref lineColor, 0.002f);
                     }
                 }

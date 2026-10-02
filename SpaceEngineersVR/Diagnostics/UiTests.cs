@@ -16,6 +16,16 @@ namespace SpaceEngineersVR.Diagnostics
 {
     public static class UiTests
     {
+        public static void Tablet(string game,string output,Action<string> log)
+        {
+            Directory.CreateDirectory(output);
+            MyFileSystem.Init(Path.Combine(game,"..","Content"),Path.Combine(output,"data"));
+            SpatialUiTests.Run(log);
+            using(var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport))
+                foreach(float fold in new[] {0f,.5f,1f})
+                    Save(MenuHands.PreviewGlove(device,true,0,new Vector3(0,-1,0),fold),Path.Combine(output,"tablet-"+fold+".png"));
+            log("PASS folded/open production tablet previews");
+        }
         public static void Run(string game, string output, Action<string> log)
         {
             Directory.CreateDirectory(output);
@@ -35,6 +45,12 @@ namespace SpaceEngineersVR.Diagnostics
             using (var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport))
 
             {
+                Save(MenuHands.PreviewGlove(device,true,0,new Vector3(0,-1,0)),Path.Combine(output,"glove-left.png"));
+                Save(MenuHands.PreviewGlove(device,false,0,new Vector3(0,-1,0)),Path.Combine(output,"glove-right.png"));
+                Save(MenuHands.PreviewGlove(device,false,1,new Vector3(0,.8f,0)),Path.Combine(output,"glove-closed-red.png"));
+                Save(MenuHands.PreviewGlove(device,true,0,new Vector3(0,-1,0),palm:true),Path.Combine(output,"glove-fingers.png"));
+                foreach(float fold in new[] {0f,1f})
+                    Save(MenuHands.PreviewGlove(device,true,0,new Vector3(0,-1,0),fold),Path.Combine(output,"glove-tablet-"+fold+".png"));
                 using (var hud=new OverlayCanvas("HUD test",1280,560,1,false,device))
                 {
                     var model=new EssentialHud.View {
@@ -42,13 +58,14 @@ namespace SpaceEngineersVR.Diagnostics
                         Icons=new[] { @"Textures\GUI\Icons\WeaponWelder.dds" }, Selected="Enhanced Welder",Ammo="",
                         Helmet=true,Jetpack=true,Dampeners=false,Flying=true,Broadcasting=true,Flashlight=true,
                         OxygenBottles="2",HydrogenBottles="3",OxygenRefilling=true,EnvironmentOxygen="High",Temperature="Warm",
-                        Speed="24.6",SpeedLevel=.246f,Gravity="1.00 / 0.00 g",Down=new Vector3(.2f,-.9f,.3f) };
+                        Speed="24.6",SpeedLevel=.246f,NaturalGravity="1.00",ArtificialGravity="0.00",Down=new Vector3(.2f,-.9f,.3f) };
                     Render(hud,()=>EssentialHud.Paint(hud,model));
                     Save(hud.Texture,Path.Combine(output,"hud-preview.png"));
                     model.FoodEnabled=true; model.RadiationEnabled=true; model.Food="64"; model.FoodLevel=.64f;
                     model.Radiation="21"; model.RadiationLevel=.21f; model.RadiationImmunity=true;
                     Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"hud-survival-preview.png"));
                     model.FoodEnabled=false; model.RadiationEnabled=false;
+                    model.Selected="Gatling Gun"; model.Icons=new[] {@"Textures\GUI\Icons\Cubes\gatling_gun.dds"}; model.Ammo="2,400";
                     model.Piloting=true; model.ShipHydrogen="78%"; model.ShipBattery="61%  12.4 MWh"; model.ShipLoad="43%"; model.ShipEndurance="2 h 12 min";
                     model.ShipMass="872,000 kg"; model.ShipPower=true; model.ShipBroadcasting=true; model.ShipPark=false; model.Dampeners=true;
                     model.ShipHydrogenLevel=.78f; model.ShipBatteryLevel=.61f; model.ShipLoadLevel=.43f;
@@ -56,37 +73,71 @@ namespace SpaceEngineersVR.Diagnostics
                     Save(hud.Texture,Path.Combine(output,"ship-hud-preview.png"));
                     model.FoodEnabled=true; model.RadiationEnabled=true;
                     Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"ship-hud-survival-preview.png"));
+                    model.Selected="Very long selected ship weapon name"; model.Ammo="2,400,000";
+                    Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"ship-hud-long-equipment.png"));
+                    model.Selected="Gatling Gun"; model.Ammo="2,400";
                     model.Speed="0.00"; model.SpeedLevel=.00001f;
                     Render(hud,()=>EssentialHud.Paint(hud,model));
                     Save(hud.Texture,Path.Combine(output,"ship-hud-zero-speed.png"));
                     model.Prompt="This switch action is unavailable or access is denied.";
                     Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"ship-hud-error.png"));
-                    model.Piloting=false;
+                    model.Piloting=false; model.Selected="Enhanced Welder"; model.Icons=new[] {@"Textures\GUI\Icons\WeaponWelder.dds"}; model.Ammo=null;
                     model.Prompt="Select a block before adding it to the build planner";
                     Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"hud-error.png"));
+                    string rotation=Path.Combine(output,"..","physical-renderer","native-rotation-2.png");
+                    if(File.Exists(rotation))
+                    {
+                        model.Selected="Light Armor Block"; model.Icons=new[] {@"Textures\GUI\Icons\Cubes\light_armor_cube.dds"}; model.Prompt=null;
+                        Render(hud,()=>EssentialHud.Paint(hud,model));
+                        using(var guide=new OverlayCanvas("rotation fixture",384,384,1,false,device))
+                        using(var scene=new OverlayCanvas("building HUD fixture",2048,1536,1,false,device))
+                        using(var source=System.Drawing.Image.FromFile(rotation))
+                        using(var hudTexture=new ShaderResourceView(device,hud.Texture))
+                        using(var guideTexture=new ShaderResourceView(device,guide.Texture))
+                        {
+                            guide.Clear(System.Drawing.Color.Transparent); guide.Graphics.DrawImage(source,0,0,384,384); guide.Upload();
+                            scene.Clear(System.Drawing.Color.FromArgb(255,12,20,28)); scene.Upload();
+                            var projection=VrMath.Projection(-1,1,-.75f,.75f,.03);
+                            float half=BuildOrientationHud.Width/2;
+                            NativeSprites.Draw(scene.Texture,new[] {
+                                PhysicalSurface.Quad(hudTexture,MatrixD.CreateTranslation(0,EssentialHud.OverlayY,-EssentialHud.OverlayDepth),
+                                    new VRageMath.RectangleF(-EssentialHud.OverlayWidth/2,EssentialHud.OverlayHeight/2,EssentialHud.OverlayWidth,EssentialHud.OverlayHeight),new Vector4(0,0,1,1),Vector4.One,MatrixD.Identity,projection),
+                                PhysicalSurface.Quad(guideTexture,BuildOrientationHud.Mount,new VRageMath.RectangleF(-half,half,2*half,2*half),new Vector4(0,0,1,1),Vector4.One,MatrixD.Identity,projection) });
+                            Save(scene.Texture,Path.Combine(output,"building-hud-composite.png"));
+                        }
+                    }
                 }
                 using (var wheel=new OverlayCanvas("Wheel test",1024,1024,1,false,device))
                 {
                     var model=new ToolbarWheel.View {
-                        Title="Actions 1/3",Hint=ToolbarWheel.ControlsHint,Group=1,Pages=3,
-                        Labels=GameActions.Quick.Take(9).Select(a=>a.Label).ToArray(),Icons=GameActions.Quick.Take(9).Select(a=>new[] { a.Icon }).ToArray(),
+                        Title="Quick actions",Hint=ToolbarWheel.ControlsHint,Group=1,Pages=1,
+                        Labels=GameActions.WheelActions(false,false,false).Select(a=>a.Label).ToArray(),Icons=GameActions.WheelActions(false,false,false).Select(a=>new[] { a.Icon }).ToArray(),
                         Enabled=Enumerable.Repeat(true,9).ToArray(),SubIcons=new string[9],ItemText=new string[9],Selected=0 };
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
                     Save(wheel.Texture,Path.Combine(output,"wheel-actions-preview.png"));
-                    var third=GameActions.Quick.Skip(18).ToArray();
-                    model.Title="Actions 3/3"; model.Page=2; model.Selected=2;
-                    model.Labels=Enumerable.Range(0,9).Select(i=>i<third.Length ? third[i].Label : "").ToArray();
-                    model.Icons=Enumerable.Range(0,9).Select(i=>i<third.Length ? new[] { third[i].Icon } : new string[0]).ToArray();
-                    model.Enabled=Enumerable.Range(0,9).Select(i=>i<third.Length).ToArray();
-                    Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
-                    Save(wheel.Texture,Path.Combine(output,"wheel-third-person-preview.png"));
-                    model.Selected=4;
-                    foreach(Player.Control.ObserverMode mode in Enum.GetValues(typeof(Player.Control.ObserverMode)))
+                    foreach(var entry in new[] { Tuple.Create("third-person",false,true,true),Tuple.Create("building",true,false,false),Tuple.Create("character",false,false,false),Tuple.Create("jetpack",false,false,false) })
                     {
-                        model.Labels[4]=ThirdPersonView.Label(mode);
-                        Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
-                        Save(wheel.Texture,Path.Combine(output,"wheel-camera-"+mode+".png"));
+                        var choices=GameActions.WheelActions(entry.Item2,entry.Item3,entry.Item4,entry.Item1=="jetpack");
+                        model.Title="Quick actions"; model.Group=1; model.Page=0; model.Pages=1;
+                        model.Labels=choices.Select(c=>c.Label).ToArray(); model.Icons=choices.Select(c=>new[] { c.Icon }).ToArray();
+                        Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"wheel-"+entry.Item1+"-preview.png"));
                     }
+                    var variantIcons=new[] { "light_armor_cube","light_armor_slope","light_armor_corner","light_armor_inv_corner","Slope2x1x1Base","Slope2x1x1Tip","LightArmorSquareSlab","LightArmorSlopeSlab" };
+                    foreach(var icon in variantIcons)
+                        if(!File.Exists(Path.Combine(MyFileSystem.ContentPath,@"Textures\GUI\Icons\Cubes\"+icon+".dds"))) throw new FileNotFoundException("Variant artwork",icon);
+                    var variants=new[] { "Light Armor Block","Light Armor Slope","Light Armor Corner","Light Armor Inv. Corner","Light Armor Slope 2x1x1 Base","Light Armor Slope 2x1x1 Tip","Light Armor Half Block","Light Armor Half Slope" }
+                        .Select((label,i)=>new ActionChoice(label,()=> {},icon:@"Textures\GUI\Icons\Cubes\"+variantIcons[i]+".dds")).ToArray();
+                    var buildingPages=BlockVariants.Pages(variants,GameActions.WheelActions(true,false,false));
+                    for(int p=0;p<buildingPages.Length;p++)
+                    {
+                        var choices=buildingPages[p]; model.Title="Building "+(p+1)+" / "+buildingPages.Length;
+                        model.Variants=p<(variants.Length+8)/9; model.Group=1; model.Page=p; model.Pages=buildingPages.Length; model.Selected=p==0 ? 0:-1;
+                        model.Hint="Hold Y · Right stick selects · Release Y confirms\nLeft / right trigger: previous / next page";
+                        model.Labels=choices.Select(c=>c?.Label ?? "").ToArray(); model.Icons=choices.Select(c=>c==null ? new string[0]:new[] {c.Icon}).ToArray();
+                        model.Enabled=choices.Select(c=>c!=null).ToArray();
+                        Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"wheel-variants-"+p+".png"));
+                    }
+                    model.Variants=false; model.Hint=ToolbarWheel.ControlsHint; model.Selected=0;
                     string[] tools={ "WeaponWelder","WeaponGrinder","WeaponDrill","WeaponAutomaticRifle","WeaponWelder_1","WeaponGrinder_1","WeaponDrill_1","WeaponWelder_2","WeaponGrinder_2" };
                     model.Title="Toolbar 1/9"; model.Group=0; model.Pages=9; model.Labels=new[] { "Welder","Grinder","Drill","Automatic rifle","Enhanced welder","Enhanced grinder","Enhanced drill","Proficient welder","Proficient grinder" };
                     model.Icons=tools.Select(t=>new[] { @"Textures\GUI\Icons\"+t+".dds" }).ToArray();
@@ -97,12 +148,7 @@ namespace SpaceEngineersVR.Diagnostics
                     model.Selected=2;
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
                     Save(wheel.Texture,Path.Combine(output,"wheel-empty-assignment.png"));
-                    model.Title="Developer"; model.Group=3; model.Page=0; model.Pages=1;
-                    model.Labels=Enumerable.Range(0,9).Select(i=>i<GameActions.Developer.Length ? GameActions.Developer[i].Label : "").ToArray();
-                    model.Icons=Enumerable.Range(0,9).Select(i=>i<GameActions.Developer.Length ? new[] {GameActions.Developer[i].Icon} : new string[0]).ToArray();
-                    model.Enabled=Enumerable.Range(0,9).Select(i=>i<GameActions.Developer.Length).ToArray();
-                    Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
-                    Save(wheel.Texture,Path.Combine(output,"wheel-performance-preview.png"));
+
                 }
                 using(var performance=new OverlayCanvas("Performance preview",640,540,1,false,device))
                 {
@@ -206,6 +252,26 @@ namespace SpaceEngineersVR.Diagnostics
                 finally { GpuTiming.Reset(); }
             }
         }
+        private static EssentialHud.View WristFixture() => new EssentialHud.View {
+            Levels=new[] {.72f,.46f,.88f,.19f},Values=new[] {"72","46","88","19"},
+            Icons=new[] {@"Textures\GUI\Icons\WeaponWelder.dds"},Selected="Enhanced Welder",Ammo="",
+            Helmet=true,Jetpack=true,Dampeners=true,AutoDampeners=true,Flying=true,Broadcasting=true,Flashlight=true,
+            OxygenBottles="2",HydrogenBottles="3",OxygenRefilling=true,EnvironmentOxygen="High",Temperature="Warm",
+            Speed="24.6",SpeedLevel=.246f,NaturalGravity="1.00",ArtificialGravity="0.00",Food="64",FoodLevel=.64f,
+            Radiation="21",RadiationLevel=.21f,RadiationImmunity=true,
+            ShipHydrogen="78%",ShipBattery="61%  12.4 MWh",ShipLoad="43%",ShipEndurance="2 h 12 min",
+            ShipMass="872,000 kg",ShipPower=true,ShipBroadcasting=true,ShipHydrogenLevel=.78f,ShipBatteryLevel=.61f,ShipLoadLevel=.43f };
+        private static void WristPreview(Device device,OverlayCanvas canvas,SurfaceView wrist,string output,string name)
+        {
+            Render(canvas,()=>PhysicalSurface.Paint(canvas,wrist));
+            using(var face=new OverlayCanvas("wrist face",1024,(int)(1024*wrist.Height/wrist.Width),1,false,device))
+            using(var texture=new ShaderResourceView(device,canvas.Texture))
+            {
+                face.Clear(System.Drawing.Color.Black); face.Upload();
+                NativeSprites.Draw(face.Texture,new[] {new NativeSprite(null,new VRageMath.RectangleF(0,0,face.Width,face.Height),Vector4.One) {Texture=texture}});
+                Save(face.Texture,Path.Combine(output,name+".png"));
+            }
+        }
         private static void SurfacePreviews(Device device,string output,Action<string> log)
         {
             using(var canvas=new OverlayCanvas("keyboard preview",1024,640,1,false,device))
@@ -247,7 +313,7 @@ namespace SpaceEngineersVR.Diagnostics
                         Save(badge.Texture,Path.Combine(output,"switch-label-"+(assigned ? "assigned" : "empty")+".png"));
                     }
                 }
-                var wrist=new SurfaceView { Id="Wrist preview",Style=SurfaceStyle.WristStatus,Width=.133f,Height=.07f,Levels=new[] { .8f,.7f,.6f,.5f } };
+                var wrist=new SurfaceView { Id="Wrist preview",Style=SurfaceStyle.WristStatus,Width=.133f,Height=.07f,Levels=new[] { .8f,.7f,.6f,.5f },Status=WristFixture() };
                 foreach(bool unlocked in new[] {false,true})
                 {
                     SeatPanel.TryMount(FighterProfile.Subtype,out _,out float width,out float height);
@@ -264,12 +330,62 @@ namespace SpaceEngineersVR.Diagnostics
                         Save(canvas.Texture,Path.Combine(output,"cockpit-"+subtype+"-"+index+".png"));
                     }
                 }
-                Render(canvas,()=>PhysicalSurface.Paint(canvas,wrist)); Save(canvas.Texture,Path.Combine(output,"wrist-status-preview.png"));
-                wrist.Style=SurfaceStyle.WristMenu;
-                wrist.Keys=Enumerable.Range(0,7).Select(i=>new SurfaceKey("",.04f+(i%3)*.315f,.08f+(i/3)*.29f,.29f,.25f)).ToArray();
-                Render(canvas,()=>PhysicalSurface.Paint(canvas,wrist)); Save(canvas.Texture,Path.Combine(output,"wrist-menu-preview.png"));
+                WristPreview(device,canvas,wrist,output,"wrist-status-preview");
+                wrist.Status.FoodEnabled=true; wrist.Status.RadiationEnabled=true;
+                WristPreview(device,canvas,wrist,output,"wrist-survival-preview");
+                wrist.Status.RadiationLevel=0; wrist.Status.Radiation="0";
+                WristPreview(device,canvas,wrist,output,"wrist-radiation-immunity-preview");
+                wrist.Status.RadiationLevel=.21f; wrist.Status.Radiation="21";
+                wrist.Status.Piloting=true;
+                wrist.Status.Selected="Gatling Gun"; wrist.Status.Icons=new[] {@"Textures\GUI\Icons\Cubes\gatling_gun.dds"}; wrist.Status.Ammo="2,400";
+                WristPreview(device,canvas,wrist,output,"wrist-ship-preview");
+                wrist.Status.Selected="Very long selected ship weapon name"; wrist.Status.Ammo="2,400,000";
+                WristPreview(device,canvas,wrist,output,"wrist-long-equipment-preview");
+                wrist.Status.Selected="Ship Welder"; wrist.Status.Icons=new[] {@"Textures\GUI\Icons\Cubes\Welder.dds"}; wrist.Status.Ammo=null;
+                WristPreview(device,canvas,wrist,output,"wrist-ship-tool-preview");
+                wrist.Status.Prompt="This action is unavailable or access is denied.";
+                WristPreview(device,canvas,wrist,output,"wrist-alert-preview");
+                wrist.Status.Prompt=null;
+                wrist.Status.Selected=null; wrist.Status.Icons=new string[0];
+                WristPreview(device,canvas,wrist,output,"wrist-ship-empty-preview");
+                wrist.Status.Piloting=false;
+                wrist.Style=SurfaceStyle.WristMenu; wrist.Width=.4f; wrist.Height=.225f;
+                wrist.Keys=WristPanel.Keys(null,false,false,false,true,wrist.Status,false);
+                WristPreview(device,canvas,wrist,output,"wrist-menu-preview");
+                wrist.Hover=5; WristPreview(device,canvas,wrist,output,"wrist-idle-hover");
+                wrist.Pressed=5; WristPreview(device,canvas,wrist,output,"wrist-click-feedback");
+                wrist.Hover=wrist.Pressed=-1;
+                wrist.Keys=WristPanel.Keys(null,false,true,true,false,wrist.Status,false);
+                WristPreview(device,canvas,wrist,output,"wrist-ship-controls");
+                wrist.Keys=WristPanel.Keys(null,false,false,false,false,wrist.Status,true);
+                string[] names={"Welder","Grinder","Drill","Automatic rifle","Enhanced welder","Assign slot","Proficient welder","Elite grinder","Elite drill"};
+                string[] artwork={"WeaponWelder","WeaponGrinder","WeaponDrill","WeaponAutomaticRifle","WeaponWelder_1",null,"WeaponWelder_2","WeaponGrinder_3","WeaponDrill_3"};
+                for(int i=0;i<9;i++)
+                {
+                    var key=wrist.Keys[4+i]; key.Enabled=true; key.Label=names[i]; key.Active=i==0;
+                    if(artwork[i]!=null) key.Icons=new[] {@"Textures\GUI\Icons\"+artwork[i]+".dds"};
+                }
+                wrist.Keys[13].Enabled=true; wrist.Keys[14].Enabled=true; wrist.Keys[15].Enabled=true; wrist.Keys[14].Label="Assign  1 / 9";
+                WristPreview(device,canvas,wrist,output,"wrist-toolbar-preview");
+                WristPanel.Show(2);
+                wrist.Keys=WristPanel.Keys(null,false,false,false,true,wrist.Status);
+                WristPreview(device,canvas,wrist,output,"wrist-search-preview");
+                WristPanel.SetQuery("damp");
+                wrist.Keys=WristPanel.Keys(null,false,false,false,true,wrist.Status);
+                WristPreview(device,canvas,wrist,output,"wrist-search-keyboard");
+                WristPanel.StopEditing();
+                wrist.Keys=WristPanel.Keys(null,false,false,false,true,wrist.Status);
+                WristPreview(device,canvas,wrist,output,"wrist-search-results");
+                WristPanel.Reset();
                 var ray=new SurfaceView { Id="Cockpit ray test",Style=SurfaceStyle.Pointer,Width=.004f,Height=.35f,
                     Pose=MatrixD.CreateWorld(new Vector3D(.1,-.1,-.5),Vector3D.Normalize(new Vector3D(-.3,.1,-.4)),Vector3D.Up) };
+                var capsule=new SurfaceView { Id="Tablet capsule preview",Style=SurfaceStyle.Pointer,
+                    Width=CockpitProbe.Radius*2,Height=CockpitProbe.Length+CockpitProbe.Radius*2,RoundEnds=true,
+                    Pose=MatrixD.CreateWorld(new Vector3D(0,0,-.18),Vector3D.Normalize(new Vector3D(.6,-.3,-.2)),Vector3D.Up) };
+                scene.Clear(System.Drawing.Color.FromArgb(255,7,12,18)); scene.Upload();
+                device.ImmediateContext.ClearDepthStencilView(dsv,DepthStencilClearFlags.Depth,0,0);
+                PhysicalSurface.Draw(scene.Texture,new[] {capsule},MatrixD.Identity,projection,srv);
+                Save(scene.Texture,Path.Combine(output,"tablet-capsule.png"));
                 foreach(int eye in new[] {-1,1}) foreach(bool occluded in new[] {false,true})
                 {
                     device.ImmediateContext.ClearDepthStencilView(dsv,DepthStencilClearFlags.Depth,occluded ? 1 : 0,0);
@@ -316,7 +432,7 @@ namespace SpaceEngineersVR.Diagnostics
                 using(var texture=new ShaderResourceView(device,wheel.Texture))
                 {
                     var model=new ToolbarWheel.View {Title="Actions",Group=1,Pages=3,Selected=0,
-                        Labels=GameActions.Quick.Take(9).Select(a=>a.Label).ToArray(),Icons=GameActions.Quick.Take(9).Select(a=>new[] {a.Icon}).ToArray(),
+                        Labels=GameActions.WheelActions(false,false,false).Select(a=>a.Label).ToArray(),Icons=GameActions.WheelActions(false,false,false).Select(a=>new[] {a.Icon}).ToArray(),
                         Enabled=Enumerable.Repeat(true,9).ToArray(),SubIcons=new string[9],ItemText=new string[9]};
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
                     foreach(int eye in new[] {-1,1}) foreach(bool overlay in new[] {false,true})
@@ -393,14 +509,28 @@ namespace SpaceEngineersVR.Diagnostics
         internal static void Save(Texture2D texture,string path)
         {
             var d=texture.Description;
-            d.BindFlags=BindFlags.None; d.Usage=ResourceUsage.Staging; d.CpuAccessFlags=CpuAccessFlags.Read;
+            d.BindFlags=BindFlags.None; d.Usage=ResourceUsage.Staging; d.CpuAccessFlags=CpuAccessFlags.Read|CpuAccessFlags.Write;
             d.OptionFlags=ResourceOptionFlags.None;
             using (var staging=new Texture2D(texture.Device,d))
             {
                 var context=texture.Device.ImmediateContext;
                 context.CopyResource(texture,staging);
-                var mapped=context.MapSubresource(staging,0,MapMode.Read,MapFlags.None);
-                try { using (var bitmap=new Bitmap(d.Width,d.Height,mapped.RowPitch,PixelFormat.Format32bppArgb,mapped.DataPointer)) bitmap.Save(path,ImageFormat.Png); }
+                var mapped=context.MapSubresource(staging,0,MapMode.ReadWrite,MapFlags.None);
+                try
+                {
+                    if(d.Format==SharpDX.DXGI.Format.R8G8B8A8_UNorm || d.Format==SharpDX.DXGI.Format.R8G8B8A8_UNorm_SRgb)
+                    {
+                        var row=new byte[d.Width*4];
+                        for(int y=0;y<d.Height;y++)
+                        {
+                            var address=IntPtr.Add(mapped.DataPointer,y*mapped.RowPitch);
+                            System.Runtime.InteropServices.Marshal.Copy(address,row,0,row.Length);
+                            for(int x=0;x<row.Length;x+=4) { byte red=row[x]; row[x]=row[x+2]; row[x+2]=red; }
+                            System.Runtime.InteropServices.Marshal.Copy(row,0,address,row.Length);
+                        }
+                    }
+                    using(var bitmap=new Bitmap(d.Width,d.Height,mapped.RowPitch,PixelFormat.Format32bppArgb,mapped.DataPointer)) bitmap.Save(path,ImageFormat.Png);
+                }
                 finally { context.UnmapSubresource(staging,0); }
             }
         }

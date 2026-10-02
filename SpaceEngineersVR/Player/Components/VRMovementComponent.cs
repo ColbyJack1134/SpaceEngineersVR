@@ -51,7 +51,8 @@ namespace SpaceEngineersVR.Player.Components
                 inputOwner = MySession.Static.ControlledEntity;
                 BodyLocomotion.Update(Character);
 
-                if (MySession.Static.ControlledEntity is MyShipController)
+                if(PlacementControls.Adjusting) ApplyMoveAndRotation(Vector3.Zero,Vector2.Zero,0);
+                else if (MySession.Static.ControlledEntity is MyShipController)
                 {
                     ControlShip();
                 }
@@ -119,9 +120,15 @@ namespace SpaceEngineersVR.Player.Components
         {
             var controls = Controls.Static;
 
-            ReadFlightInput(true, out Vector3 move, out Vector2 rotate, out float roll);
+            Vector3 move=Vector3.Zero; Vector2 rotate=Vector2.Zero; float roll=0;
+            bool controllerFlight=FlightAxes.ControllerInputAllowed(true,ThirdPersonView.Active,Common.Config.PhysicalShipControlsOnly);
+            if(controllerFlight || CockpitControls.NeedsControllerTranslation)
+            {
+                ReadFlightInput(true,out move,out rotate,out roll);
+                if(!controllerFlight) { rotate=Vector2.Zero; roll=0; }
+            }
 
-            if (!ThirdPersonView.Active && !CockpitControls.RotationOwned && Common.Config.LegacyShipTilt && controls.ThrustRoll.IsPressed && Player.HandR.pose.isTracked)
+            if (controllerFlight && !ThirdPersonView.Active && !CockpitControls.RotationOwned && Common.Config.LegacyShipTilt && controls.ThrustRoll.IsPressed && Player.HandR.pose.isTracked)
             {
                 Matrix hand = Player.HandR.deviceToPlayer;
                 hand.Translation = Vector3.Zero;
@@ -138,8 +145,7 @@ namespace SpaceEngineersVR.Player.Components
 
             CockpitControls.ApplyFlight(RotationSpeed,ref move,ref rotate,ref roll);
 
-            if (controls.Dampener.HasPressed)
-                MySession.Static.ControlledEntity?.SwitchDamping();
+
 
             ApplyMoveAndRotation(move, rotate, roll);
         }
@@ -185,8 +191,7 @@ namespace SpaceEngineersVR.Player.Components
 
             ReadFlightInput(false, out Vector3 move, out Vector2 rotate, out float roll);
 
-            if (controls.Dampener.HasPressed)
-                MySession.Static.ControlledEntity?.SwitchDamping();
+
 
             ApplyMoveAndRotation(move, rotate, roll);
         }
@@ -197,7 +202,7 @@ namespace SpaceEngineersVR.Player.Components
             move = FlightAxes.Translation(controls.ThrustLRUD.Position, controls.ThrustLRFB.Position,
                 controls.ThrustUp.Position.X, WeaponHandling.ConsumesLeftGrip ? 0 : controls.ThrustDown.Position.X, controls.ThrustForward.Position.X, controls.ThrustBackward.Position.X);
             float rollSensitivity = ship ? Common.Config.ShipRollSensitivity : Common.Config.JetpackRollSensitivity;
-            FlightAxes.Rotation(controls.ThrustRotate.Position, controls.ThrustRoll.IsPressed && !PlacementControls.OwnsTools && !TouchScreenBridge.OwnsInput, ship, RotationSpeed, rollSensitivity, out rotate, out roll);
+            FlightAxes.Rotation(controls.ThrustRotate.Position, controls.ThrustRoll.IsPressed && !PlacementControls.OwnsTools && !TouchScreenBridge.OwnsInput, ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
         }
 
         void ApplyMoveAndRotation(Vector3 move, Vector2 rotate, float roll)

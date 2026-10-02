@@ -63,7 +63,7 @@ namespace SpaceEngineersVR.Player.Components
             eColorSpace=EColorSpace.Auto,eType=ETextureType.DirectX,handle=value.NativePointer };
         public static void Draw()
         {
-            if (Main.MenuOpen || Main.ShowDesktopPanel)
+            if ((Main.MenuOpen && !MenuKeyboard.Standalone) || Main.ShowDesktopPanel)
             {
                 // Anchor once in tracking space, not to the user's face on every frame.
                 var spatial=FloatingMenu.Current;

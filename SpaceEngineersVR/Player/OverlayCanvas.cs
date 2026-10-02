@@ -34,6 +34,21 @@ namespace SpaceEngineersVR.Player
         public void Icon(string path,float x,float y,float width,float height,Vector4 uv,System.Drawing.Color tint)
         { icons.Add(new NativeSprite(path,new VRageMath.RectangleF(x,y,width,height),new Vector4(tint.R/255f,tint.G/255f,tint.B/255f,tint.A/255f)) { UV=uv }); }
 
+        internal void DrawAt(float x,float y,float sx,float sy,Action paint)
+        {
+            var state=Graphics.Save(); int first=icons.Count;
+            try
+            {
+                Graphics.TranslateTransform(x,y); Graphics.ScaleTransform(sx,sy); paint();
+                for(int i=first;i<icons.Count;i++)
+                {
+                    var icon=icons[i]; var b=icon.Bounds;
+                    icon.Bounds=new VRageMath.RectangleF(x+b.X*sx,y+b.Y*sy,b.Width*sx,b.Height*sy); icons[i]=icon;
+                }
+            }
+            finally { Graphics.Restore(state); }
+        }
+
         public OverlayCanvas(string name, int width, int height, float metres, bool overlay = true, Device device = null, bool mipMaps = false)
         {
             this.device = device ?? MyRender11.DeviceInstance;

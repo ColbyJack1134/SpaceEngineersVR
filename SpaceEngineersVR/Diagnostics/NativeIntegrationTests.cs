@@ -12,6 +12,9 @@ using Sandbox.Game.Screens.Helpers;
 using SpaceEngineersVR.Player;
 using VRage.Game;
 using VRage.Game.Entity;
+using VRage.Game.ModAPI;
+using Sandbox.Definitions;
+using Sandbox.Game.Weapons;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
 
@@ -30,6 +33,30 @@ namespace SpaceEngineersVR.Diagnostics
             public override MyObjectBuilder_ToolbarItem GetObjectBuilder() => null;
             public override bool AllowedInToolbarType(MyToolbarType type) => true;
             public override ChangeInfo Update(MyEntity owner,long playerID=0,bool anyoneCanUse=false) => ChangeInfo.None;
+        }
+        private sealed class GunProxy : RealProxy
+        {
+            public MyDefinitionId Id;
+            public int Ammo;
+            public MyDeviceBase Device;
+            public GunProxy() : base(typeof(IMyGunObject<MyDeviceBase>)) { }
+            public override IMessage Invoke(IMessage message)
+            {
+                var call=(IMethodCallMessage)message; object value=null;
+                switch(call.MethodName)
+                {
+                    case "get_DefinitionId": value=Id; break;
+                    case "get_GunBase": value=Device; break;
+                    case "GetTotalAmmunitionAmount": value=Ammo; break;
+                    case "GetHashCode": value=System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this); break;
+                    case "Equals": value=ReferenceEquals(call.Args[0],GetTransparentProxy()); break;
+                    default:
+                        var type=((MethodInfo)call.MethodBase).ReturnType;
+                        if(type.IsValueType && type!=typeof(void)) value=Activator.CreateInstance(type);
+                        break;
+                }
+                return new ReturnMessage(value,null,0,call.LogicalCallContext,call);
+            }
         }
         private sealed class Proxy : RealProxy
         {
@@ -64,6 +91,25 @@ namespace SpaceEngineersVR.Diagnostics
             Require(Alignment.ToolKey(character)==null,"Block placer incorrectly treated as a physical inventory tool");
             Require(Alignment.ToolKey(null)==null,"Missing character crashes tool calibration");
             log("PASS block-placement regression: native MyCubePlacer without a PhysicalObject bypasses tool calibration.");
+            var gunId=new MyDefinitionId(typeof(MyObjectBuilder_SmallGatlingGun));
+            var definition=new MyCubeBlockDefinition { Id=gunId,DisplayNameString="Selected ship gun",Icons=new[] {"gun.dds"} };
+            var device=(MyGunBase)FormatterServices.GetUninitializedObject(typeof(MyGunBase));
+            var gunA=new GunProxy { Id=gunId,Ammo=12,Device=device };
+            var gunB=new GunProxy { Id=gunId,Ammo=17,Device=device };
+            var selection=new Sandbox.Game.GameSystems.MyGridSelectionSystem(null);
+            selection.CurrentGuns.Add((IMyGunObject<MyDeviceBase>)gunA.GetTransparentProxy());
+            selection.CurrentGuns.Add((IMyGunObject<MyDeviceBase>)gunB.GetTransparentProxy());
+            var equipment=new EssentialHud.View { Selected="Old toolbar action",Icons=new[] {"old.dds"},Ammo="Old ammo" };
+            EssentialHud.ReadShipEquipment(selection.CurrentGuns,equipment,id=>definition);
+            Require(equipment.Selected=="Selected ship gun" && equipment.Icons[0]=="gun.dds" && equipment.Ammo=="29","Ship HUD did not use active guns and aggregate their ammo");
+            Require(!ReferenceEquals(equipment.Icons,definition.Icons),"Ship HUD retains mutable definition artwork");
+            selection.CurrentGuns.Clear(); gunA.Device=null; definition.DisplayNameString="Selected ship tool";
+            selection.CurrentGuns.Add((IMyGunObject<MyDeviceBase>)gunA.GetTransparentProxy());
+            EssentialHud.ReadShipEquipment(selection.CurrentGuns,equipment,id=>definition);
+            Require(equipment.Selected=="Selected ship tool" && equipment.Ammo==null,"Ship tool shows stale weapon ammo");
+            selection.CurrentGuns.Clear(); EssentialHud.ReadShipEquipment(selection.CurrentGuns,equipment,id=>definition);
+            Require(equipment.Selected==null && equipment.Icons.Length==0 && equipment.Ammo==null,"Ship equipment remains after deselection");
+            log("PASS ship HUD equipment: native selection set, gun/tool changes, combined ammo, immutable artwork and cleared selection.");
             var toolbar=new MyToolbar(MyToolbarType.Ship,9,2); var first=new Item(); var second=new Item();
             toolbar.SetItemAtIndex(0,first); toolbar.SetItemAtIndex(9,second);
             toolbar.ActivateItemAtSlot(0,playActivationSound:false);
@@ -71,6 +117,30 @@ namespace SpaceEngineersVR.Diagnostics
             second.SetEnabled(false); toolbar.ActivateItemAtSlot(0,playActivationSound:false);
             Require(first.Count==1 && second.Count==1,"Native cockpit toolbar page/disabled activation failed");
             log("PASS native physical-button dispatch: installed MyToolbar selects the current page and refuses disabled items.");
+
+            var toolbarInstance=AccessTools.Field(typeof(MyToolbarComponent),"m_instance");
+            var activeToolbar=AccessTools.Field(typeof(MyToolbarComponent),"m_currentToolbar");
+            object previousComponent=toolbarInstance.GetValue(null);
+            var component=FormatterServices.GetUninitializedObject(typeof(MyToolbarComponent));
+            try
+            {
+                toolbarInstance.SetValue(null,component); activeToolbar.SetValue(component,toolbar);
+                toolbar.SwitchToPage(0);
+                var tablet=WristPanel.Keys(toolbar,false,true,false,false,null,true);
+                tablet[15].Action.Run();
+                Require(toolbar.CurrentPage==1,"Tablet next page failed");
+                tablet=WristPanel.Keys(toolbar,false,true,false,false,null,true);
+                Require(!tablet[4].Enabled && tablet[5].Enabled,"Tablet confuses disabled items with empty assignable slots");
+                tablet[15].Action.Run();
+                Require(toolbar.CurrentPage==0,"Tablet page wrap failed");
+                tablet[13].Action.Run();
+                Require(toolbar.CurrentPage==1,"Tablet previous page wrap failed");
+                activeToolbar.SetValue(component,null);
+                tablet[4].Action.Run(); tablet[13].Action.Run();
+                Require(first.Count==1 && second.Count==1 && toolbar.CurrentPage==1,"Stale tablet retained control after toolbar ownership changed");
+            }
+            finally { toolbarInstance.SetValue(null,previousComponent); }
+            log("PASS native tablet toolbar: page wrap, disabled/empty distinction and stale-owner rejection.");
 
             foreach(var toolbarType in new[] { MyToolbarType.Character,MyToolbarType.Ship })
             {

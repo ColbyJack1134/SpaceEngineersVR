@@ -22,7 +22,8 @@ internal static class Program
         try
         {
             if(args.Length==4 && args[1]=="--export-model") { ModelInspection.Export(game,args[2],args[3]); return 0; }
-            if(args.Length==2 && args[1]=="--benchmark-geometry") { GeometryBenchmark.Run(game,Console.WriteLine); return 0; }
+            if(args.Length==3 && args[1]=="--tablet-test") { UiTests.Tablet(game,args[2],Console.WriteLine); return 0; }
+            if((args.Length==2 || args.Length==3) && args[1]=="--benchmark-geometry") { GeometryBenchmark.Run(game,Console.WriteLine,args.Length==3 ? args[2] : null); return 0; }
             return Run(game, Array.IndexOf(args, "--vr") >= 0, Array.IndexOf(args,"--self-test") >= 0, Array.IndexOf(args,"--ui-test") >= 0);
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }

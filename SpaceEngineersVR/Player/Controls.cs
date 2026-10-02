@@ -21,6 +21,7 @@ namespace SpaceEngineersVR.Player
         public Button Recenter;
         public Button Options;
         public readonly Button MenuKeyboardFallback;
+        public readonly Button QuickMenu;
         public readonly Analog MenuNavigate;
         public readonly Analog MenuPage;
         public readonly Button WheelNextPage, WheelPreviousPage;
@@ -111,6 +112,7 @@ namespace SpaceEngineersVR.Player
                 throw new System.InvalidOperationException("SteamVR action manifest failed: " + error);
             Logger.Info("SteamVR action manifest loaded: " + Common.ActionJsonPath);
 
+            QuickMenu = new Button("/actions/common/in/QuickMenu");
             MenuKeyboardFallback = new Button("/actions/menu/in/KeyboardFallback");
             MenuNavigate = new Analog("/actions/menu/in/Navigate");
             MenuPage = new Analog("/actions/menu/in/Page");

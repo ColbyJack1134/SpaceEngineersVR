@@ -15,9 +15,9 @@ namespace SpaceEngineersVR.GUI
         public override void LoadContent() { base.LoadContent(); RecreateControls(true); }
         public override void RecreateControls(bool constructor)
         {
-            base.RecreateControls(constructor); AddCaption("Fighter Cockpit Sticks");
+            base.RecreateControls(constructor); AddCaption("Physical Cockpit Sticks");
             var config=Common.Config;
-            Controls.Add(new MyGuiControlLabel(new Vector2(-0.30f,-0.21f),text:"Enable physical fighter sticks",
+            Controls.Add(new MyGuiControlLabel(new Vector2(-0.30f,-0.21f),text:"Enable physical cockpit sticks",
                 originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER));
             var enabled=new MyGuiControlCheckbox(new Vector2(0.29f,-0.21f)) { IsChecked=config.FighterCockpitSticks };
             enabled.IsCheckedChanged+=c=>config.FighterCockpitSticks=c.IsChecked;

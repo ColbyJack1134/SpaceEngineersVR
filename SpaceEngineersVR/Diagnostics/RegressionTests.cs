@@ -292,9 +292,12 @@ namespace SpaceEngineersVR.Diagnostics
             PhysicalControlTests.Run(log);
             SpatialUiTests.Run(log);
             CockpitTests.Run(log);
+            CockpitRigTests.Run(log);
             CockpitStateTests.Run(log);
             CockpitProbeTests.Run(log);
 
+            VRage.ObjectBuilders.MyObjectBuilderType.RegisterFromAssembly(typeof(VRage.Game.MyDefinitionId).Assembly);
+            VRage.ObjectBuilders.MyObjectBuilderType.RegisterFromAssembly(Assembly.Load("SpaceEngineers.ObjectBuilders"));
             var harmony=new Harmony("SpaceEngineersVR.BootstrapTests");
             try
             {

@@ -257,6 +257,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Draw()
         {
+            if(SpatialUi.OwnsRight || SpatialUi.RayTargeted || CockpitTouch.OwnsRight || HandInteraction.HoldingRight) return;
             if(!OwnsInput || !InputRouter.Gameplay || Main.MenuOpen) return;
             var color=new Color(85,235,255).ToVector4();
             MySimpleObjectDraw.DrawLine(hitPoint-Vector3D.Up*.004,hitPoint+Vector3D.Up*.004,MyStringId.GetOrCompute("Square"),ref color,.007f);

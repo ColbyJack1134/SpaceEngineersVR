@@ -50,7 +50,7 @@ namespace SpaceEngineersVR.Player
         [ThreadStatic] private static Capture capturing;
         internal static Capture Capturing => capturing;
         internal static Capture Begin(bool draw) => capturing=new Capture(draw);
-        internal static readonly Matrix Mount=Matrix.CreateTranslation(-.49f,-.57f,-1.5f);
+        internal static readonly Matrix Mount=Matrix.CreateTranslation(.025f,-.5f,-1.5f);
         internal const float Width=.32f;
         private static volatile View current;
         private static OverlayCanvas canvas;

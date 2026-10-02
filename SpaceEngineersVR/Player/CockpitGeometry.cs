@@ -27,7 +27,7 @@ namespace SpaceEngineersVR.Player
     {
         public readonly MyModelData[] Parts;
         public readonly int NativeTriangles;
-        private CockpitGeometry(MyModelData[] parts,int triangles) { Parts=parts; NativeTriangles=triangles; }
+        internal CockpitGeometry(MyModelData[] parts,int triangles) { Parts=parts; NativeTriangles=triangles; }
         public static CockpitGeometry Load(string content)
         {
             long started=FeatureTiming.Start();

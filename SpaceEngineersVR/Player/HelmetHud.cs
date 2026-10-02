@@ -12,20 +12,21 @@ namespace SpaceEngineersVR.Player
     internal static class HelmetHud
     {
         // Zero really means empty; notifications do not temporarily resurrect the HUD.
-        public static int Mode => Common.Config.HelmetHudMode;
+        public static int Mode => Common.Config.WaypointMode;
         public static bool VisorClosed { get; private set; }
         public static bool Visible
         {
             get
             {
                 var current=transition;
-                return VisorClosed && Mode > 0 && (current==null || !current.Closing || Elapsed(current)>=Duration);
+                return Common.Config.HudWithVisorOpen || (VisorClosed && (current==null || !current.Closing || Elapsed(current)>=Duration));
             }
         }
-        public static bool Markers => Visible && Mode >= 2;
-        public static bool Names => Visible && Mode == 3;
+        public static bool Markers => Visible && Mode >= 1;
+        public static bool Names => Visible && Mode == 2;
         private static int lastMode=-1;
-        private static readonly InputGate leftTrigger=new InputGate();
+        private static readonly InputGate leftTrigger=new InputGate(),leftGrip=new InputGate();
+        internal static bool ViewGestureHeld { get; private set; }
         private static bool leftConsumed,rightConsumed;
         private static long characterId;
         private sealed class Transition
@@ -56,8 +57,8 @@ namespace SpaceEngineersVR.Player
             VisorClosed=closed;
             if(Mode!=lastMode)
             {
-                if(Mode>=2) AccessTools.Property(typeof(MyHudMarkerRender),nameof(MyHudMarkerRender.SignalDisplayMode))
-                    .SetValue(null,Mode==3 ? MyHudMarkerRender.SignalMode.FullDisplay : MyHudMarkerRender.SignalMode.NoNames,null);
+                AccessTools.Property(typeof(MyHudMarkerRender),nameof(MyHudMarkerRender.SignalDisplayMode))
+                    .SetValue(null,Mode==2 ? MyHudMarkerRender.SignalMode.FullDisplay : Mode==1 ? MyHudMarkerRender.SignalMode.NoNames : MyHudMarkerRender.SignalMode.Off,null);
                 lastMode=Mode;
             }
             var c=Controls.Static;
@@ -65,6 +66,15 @@ namespace SpaceEngineersVR.Player
             if(leftPressure<=.025f) leftConsumed=false;
             if(c.PointerPressure.RawPosition.X<=.025f && !c.Primary.RawPressed) rightConsumed=false;
             bool active=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && MenuPointer.GameFocused && Player.Headset.pose.isTracked;
+            float grip=c.LeftGripPressure.RawPosition.X;
+            if(grip<=.025f) ViewGestureHeld=false;
+            leftGrip.Update(active && Player.HandL.pose.isTracked && c.LeftGripPressure.Active,grip>.55f);
+            if(leftGrip.Pressed && InputRouter.Mode==InputMode.Piloting && !CockpitControls.Held(Player.HandL) &&
+                !CockpitTouch.Owns(Player.HandL) && NearTemple(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,true))
+            {
+                ViewGestureHeld=true; ThirdPersonView.Toggle(); Player.HandL.Vibrate(0,.035f,120,.25f);
+            }
+            if(ViewGestureHeld) { c.LeftGripPressure.BlockUntilRelease(); c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); }
             leftTrigger.Update(active && Player.HandL.pose.isTracked && c.LeftTriggerPressure.Active,leftPressure>.55f);
             if(active && Player.HandL.pose.isTracked && !leftConsumed && leftTrigger.Pressed &&
                 !CockpitControls.Held(Player.HandL) && !CockpitTouch.Owns(Player.HandL) &&
@@ -83,7 +93,7 @@ namespace SpaceEngineersVR.Player
                 !NearTemple(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix)) return;
             if (c.Primary.HasPressed && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandR))
             {
-                Common.Config.HelmetHudMode=(Mode+1)%4;
+                Common.Config.CycleHud();
                 rightConsumed=true;
                 c.Primary.BlockUntilRelease();
                 Player.HandR.Vibrate(0,0.035f,130,0.35f);

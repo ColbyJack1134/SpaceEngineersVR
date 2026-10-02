@@ -13,6 +13,9 @@ namespace SpaceEngineersVR.Player
     {
         private static MyGuiControlTextbox target;
         private static MyGuiScreenBase screen;
+        private static Func<bool> valid;
+        private static Action closed;
+        public static bool Standalone => target!=null && valid!=null;
         public static bool IsOpen => target != null;
         private static bool shift;
         private static DateTime navigateAfter;
@@ -38,7 +41,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Activate(int key)
         {
-            if(!IsOpen || key<0 || key>=Keys.Length || screen!=VRGUIManager.TopScreen || !target.Enabled || !target.Visible) return;
+            if(!IsOpen || key<0 || key>=Keys.Length || !TargetValid() || !target.Enabled || !target.Visible) return;
             string label=Keys[key].Label;
             switch(label)
             {
@@ -56,9 +59,28 @@ namespace SpaceEngineersVR.Player
             if (textbox==null && current?.FocusedControl is MyGuiControlSearchBox focusedSearch && focusedSearch.Enabled && focusedSearch.Visible)
                 textbox=focusedSearch.TextBox;
             // G-menu search remains reachable after clicking a category, grid item or toolbar slot.
-            if (textbox==null && (current is MyGuiScreenToolbarConfigBase || current is MyGuiBlueprintScreen_Reworked))
+            if (textbox==null && (current is MyGuiScreenToolbarConfigBase || current is MyGuiBlueprintScreen_Reworked || current is GUI.ActionBrowser))
                 textbox=current.Controls.OfType<MyGuiControlSearchBox>().FirstOrDefault(s=>s.Visible && s.Enabled)?.TextBox;
             return textbox!=null && textbox.Enabled && textbox.Visible ? textbox : null;
+        }
+
+        private static bool TargetValid() => screen==VRGUIManager.TopScreen && (valid?.Invoke() ?? true);
+        internal static void Open(string text,Action<string> changed,Func<bool> isValid,Action onClosed)
+        {
+            if(!FloatingKeyboard.Available || !Player.Headset.pose.isTracked) return;
+            Close();
+            target=CreateTextTarget(text,changed); screen=VRGUIManager.TopScreen;
+            valid=isValid; closed=onClosed; Selected=0;
+            Main.MenuOpen=true;
+            InputRouter.Update();
+            FloatingKeyboard.Show(false);
+            MenuPointer.Release(); Controls.Static.BlockUntilRelease();
+        }
+        internal static MyGuiControlTextbox CreateTextTarget(string text,Action<string> changed)
+        {
+            var textbox=new MyGuiControlTextbox(defaultText:text,maxLength:60);
+            textbox.TextChanged+=box=>changed(box.Text);
+            return textbox;
         }
 
         public static void Open(bool reposition = false)
@@ -76,7 +98,7 @@ namespace SpaceEngineersVR.Player
 
         public static void Update()
         {
-            if (target != null && (!Main.MenuOpen || screen != VRGUIManager.TopScreen || !MenuPointer.GameFocused || !target.Enabled || !target.Visible)) Close();
+            if (target != null && (!Main.MenuOpen || !TargetValid() || !MenuPointer.GameFocused || !target.Enabled || !target.Visible)) Close();
             if(!IsOpen) return;
             var c=Controls.Static;
             var stick=c.MenuNavigate.Position;
@@ -94,9 +116,17 @@ namespace SpaceEngineersVR.Player
         public static void Close()
         {
             if (target == null) return;
+            bool standalone=Standalone; var callback=closed;
             FloatingKeyboard.Close();
+            valid=null; closed=null;
             target = null;
             screen = null;
+            callback?.Invoke();
+            if(standalone)
+            {
+                Main.MenuOpen=Sandbox.Game.World.MySession.Static==null || VRGUIManager.IsAnyDialogOpen();
+                InputRouter.Update();
+            }
             Controls.Static.BlockUntilRelease();
         }
     }

@@ -43,7 +43,8 @@ namespace SpaceEngineersVR.Config
         private bool trackedArms = true;
         private bool adaptiveArms = true;
         public bool AdaptiveArms { get => adaptiveArms; set => SetValue(ref adaptiveArms,value); }
-        private bool legacyShipTilt;
+        private bool legacyShipTilt,physicalShipControlsOnly;
+        public bool PhysicalShipControlsOnly { get => physicalShipControlsOnly; set => SetValue(ref physicalShipControlsOnly,value); }
         private bool developerTools;
         public bool DeveloperTools { get => developerTools; set => SetValue(ref developerTools,value); }
         private bool stableShadows=true,distantFlares=true,mirrorDesktop=true;
@@ -52,6 +53,32 @@ namespace SpaceEngineersVR.Config
         public bool MirrorDesktop { get => mirrorDesktop; set => SetValue(ref mirrorDesktop,value); }
         private float eyeRenderScale=1;
         public float EyeRenderScale { get => eyeRenderScale; set => SetValue(ref eyeRenderScale,Bound(value,.5f,1.5f,1)); }
+        private bool invertShipPitch,invertJetpackPitch,hudWithVisorOpen;
+        private bool? showVitals;
+        private int waypointMode=-1;
+        public bool InvertShipPitch { get => invertShipPitch; set => SetValue(ref invertShipPitch,value); }
+        public bool InvertJetpackPitch { get => invertJetpackPitch; set => SetValue(ref invertJetpackPitch,value); }
+        public bool HudWithVisorOpen { get => hudWithVisorOpen; set => SetValue(ref hudWithVisorOpen,value); }
+        public bool ShowVitals { get => showVitals ?? helmetHudMode>0; set => SetValue(ref showVitals,(bool?)value); }
+        public int WaypointMode { get => waypointMode<0 ? Math.Max(0,helmetHudMode-1):waypointMode; set => SetValue(ref waypointMode,Math.Max(0,Math.Min(2,value))); }
+        internal void CycleHud()
+        {
+            if(!ShowVitals) { ShowVitals=true; WaypointMode=0; }
+            else if(WaypointMode<2) WaypointMode++;
+            else { ShowVitals=false; WaypointMode=0; }
+        }
+        private float thirdPersonPanSensitivity=1;
+        public float ThirdPersonPanSensitivity { get => thirdPersonPanSensitivity; set => SetValue(ref thirdPersonPanSensitivity,Bound(value,.25f,2,1)); }
+        private float thirdPersonZoomSensitivity=1;
+        public float ThirdPersonZoomSensitivity { get => thirdPersonZoomSensitivity; set => SetValue(ref thirdPersonZoomSensitivity,Bound(value,.25f,2,1)); }
+        private float thirdPersonRotationSensitivity=1;
+        public float ThirdPersonRotationSensitivity { get => thirdPersonRotationSensitivity; set => SetValue(ref thirdPersonRotationSensitivity,Bound(value,.25f,2,1)); }
+        private float thirdPersonPanGlide=1;
+        public float ThirdPersonPanGlide { get => thirdPersonPanGlide; set => SetValue(ref thirdPersonPanGlide,Bound(value,0,2,1)); }
+        private float thirdPersonZoomGlide=1;
+        public float ThirdPersonZoomGlide { get => thirdPersonZoomGlide; set => SetValue(ref thirdPersonZoomGlide,Bound(value,0,2,1)); }
+        private float thirdPersonRotationGlide=1;
+        public float ThirdPersonRotationGlide { get => thirdPersonRotationGlide; set => SetValue(ref thirdPersonRotationGlide,Bound(value,0,2,1)); }
         private int thirdPersonMode;
         public int ThirdPersonMode { get => thirdPersonMode; set => SetValue(ref thirdPersonMode,value>=0 && value<=2 ? value : 0); }
         private AnchorOffsetSetting[] anchorOffsets=new AnchorOffsetSetting[0];

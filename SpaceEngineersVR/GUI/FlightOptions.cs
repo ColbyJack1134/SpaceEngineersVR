@@ -12,7 +12,7 @@ namespace SpaceEngineersVR.GUI
     internal sealed class FlightOptions : MyGuiScreenBase
     {
         public override string GetFriendlyName() => "SEVR flight options";
-        public FlightOptions() : base(new Vector2(0.5f), MyGuiConstants.SCREEN_BACKGROUND_COLOR, new Vector2(0.80f,0.64f),
+        public FlightOptions() : base(new Vector2(0.5f), MyGuiConstants.SCREEN_BACKGROUND_COLOR, new Vector2(0.80f,0.82f),
             false, null, MySandboxGame.Config.UIBkOpacity, MySandboxGame.Config.UIOpacity)
         {
             EnabledBackgroundFade=true; m_closeOnEsc=true; m_drawEvenWithoutFocus=true;
@@ -24,19 +24,23 @@ namespace SpaceEngineersVR.GUI
             base.RecreateControls(constructor);
             AddCaption("VR Flight Options");
             var config=Common.Config;
-            AddSensitivity(-0.13f,"Jetpack roll",config.JetpackRollSensitivity,PluginConfig.DefaultJetpackRollSensitivity,v=>config.JetpackRollSensitivity=v);
-            AddSensitivity(0.01f,"Ship roll",config.ShipRollSensitivity,PluginConfig.DefaultShipRollSensitivity,v=>config.ShipRollSensitivity=v);
-            Controls.Add(new MyGuiControlLabel(new Vector2(-0.3f,0.12f),text:"100% = original roll rate. Pitch / yaw are unchanged.",textScale:0.65f,
+            AddSensitivity(-0.23f,"Jetpack roll",config.JetpackRollSensitivity,PluginConfig.DefaultJetpackRollSensitivity,v=>config.JetpackRollSensitivity=v);
+            AddSensitivity(-0.09f,"Ship roll",config.ShipRollSensitivity,PluginConfig.DefaultShipRollSensitivity,v=>config.ShipRollSensitivity=v);
+            Controls.Add(new MyGuiControlLabel(new Vector2(-.3f,.055f),text:"Invert ship thumbstick pitch",originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER));
+            var invert=new MyGuiControlCheckbox(new Vector2(.29f,.055f)) { IsChecked=config.InvertShipPitch };
+            invert.IsCheckedChanged+=v=>config.InvertShipPitch=v.IsChecked; Controls.Add(invert);
+            Controls.Add(new MyGuiControlLabel(new Vector2(-.3f,.13f),text:"Physical ship sticks only (first person)",textScale:.75f,originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER));
+            var physicalOnly=new MyGuiControlCheckbox(new Vector2(.29f,.13f)) { IsChecked=config.PhysicalShipControlsOnly };
+            physicalOnly.IsCheckedChanged+=v=>config.PhysicalShipControlsOnly=v.IsChecked; Controls.Add(physicalOnly);
+            Controls.Add(new MyGuiControlLabel(new Vector2(-0.3f,0.21f),text:"Third-person controller flight stays available.",textScale:0.65f,
                 originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER));
-            Controls.Add(new MyGuiControlLabel(new Vector2(-0.3f,0.16f),text:"Changes apply immediately and save automatically.",textScale:0.65f,
-                originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER));
-            Controls.Add(new MyGuiControlButton(new Vector2(-0.26f,0.25f),size:new Vector2(0.22f,0.055f),text:new StringBuilder("Reset roll"),onButtonClick:b=> {
+            Controls.Add(new MyGuiControlButton(new Vector2(-0.26f,0.32f),size:new Vector2(0.22f,0.055f),text:new StringBuilder("Reset roll"),onButtonClick:b=> {
                 config.JetpackRollSensitivity=PluginConfig.DefaultJetpackRollSensitivity;
                 config.ShipRollSensitivity=PluginConfig.DefaultShipRollSensitivity;
                 RecreateControls(false);
             }));
-            Controls.Add(new MyGuiControlButton(new Vector2(0,0.25f),size:new Vector2(0.23f,0.055f),text:new StringBuilder("Physical sticks"),onButtonClick:b=>MyGuiSandbox.AddScreen(new PhysicalFlightOptions())));
-            Controls.Add(new MyGuiControlButton(new Vector2(0.26f,0.25f),size:new Vector2(0.22f,0.055f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
+            Controls.Add(new MyGuiControlButton(new Vector2(0,0.32f),size:new Vector2(0.23f,0.055f),text:new StringBuilder("Physical sticks"),onButtonClick:b=>MyGuiSandbox.AddScreen(new PhysicalFlightOptions())));
+            Controls.Add(new MyGuiControlButton(new Vector2(0.26f,0.32f),size:new Vector2(0.22f,0.055f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
         }
         private void AddSensitivity(float y,string title,float value,float defaultValue,Action<float> store)
         {

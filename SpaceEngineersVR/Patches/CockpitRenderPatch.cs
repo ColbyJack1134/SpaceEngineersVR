@@ -17,7 +17,7 @@ namespace SpaceEngineersVR.Patches
         private static MethodBase TargetMethod() => AccessTools.Method(AccessTools.TypeByName("VRageRender.MyMeshes"),"CreateRuntimeMesh");
         private static void Postfix(MyStringId nameKey,object __result)
         {
-            if (nameKey.ToString().StartsWith("SEVR_Fighter_",System.StringComparison.Ordinal)) CockpitRender.InitializeRuntimeSections(__result);
+            if (nameKey.ToString().StartsWith("SEVR_Fighter_",System.StringComparison.Ordinal) || nameKey.ToString().StartsWith("SEVR_Glove_",System.StringComparison.Ordinal) || nameKey.ToString().StartsWith("SEVR_Cockpit_",System.StringComparison.Ordinal)) CockpitRender.InitializeRuntimeSections(__result);
         }
     }
 }

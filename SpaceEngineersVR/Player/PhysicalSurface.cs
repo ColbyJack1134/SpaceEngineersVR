@@ -13,26 +13,32 @@ namespace SpaceEngineersVR.Player
     internal sealed class SurfaceKey
     {
         public string Label;
-        public bool Enabled=true;
+        public bool Enabled=true,Active;
+        public string[] Icons=new string[0];
+        public string SubIcon,Text;
+        public ActionChoice Action;
         public VRageMath.RectangleF Bounds;
         public SurfaceKey(string label,float x,float y,float w,float h) { Label=label; Bounds=new VRageMath.RectangleF(x,y,w,h); }
     }
     internal sealed class SurfaceView
     {
         public string Id,Title,Text;
+        public EssentialHud.View Status;
         public string[] Icons=new string[0];
         public string SubIcon;
         public bool Enabled=true;
         public MatrixD Pose;
+        public MatrixD? HandLocal;
+        internal SurfaceView At(MatrixD pose) { var copy=(SurfaceView)MemberwiseClone(); copy.Pose=pose; return copy; }
         public float Width,Height;
         public SurfaceKey[] Keys=new SurfaceKey[0];
         public int Hover=-1,Pressed=-1;
-        public bool TrackingSpace,GeometryFeedback;
+        public bool TrackingSpace,GeometryFeedback,RoundEnds;
         public SurfaceStyle Style;
         public float[] Levels;
         public int Handle;
         public Vector3? TouchPoint;
-        public string ContentKey => Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Hover+"|"+Pressed+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled))+
+        public string ContentKey => Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Hover+"|"+Pressed+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
             "|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
         public int KeyAt(Vector2 uv)
@@ -62,7 +68,7 @@ namespace SpaceEngineersVR.Player
     }
     internal static class PhysicalSurface
     {
-        private sealed class Cache { public OverlayCanvas Canvas; public ShaderResourceView Texture; public string Content; public int Revision; }
+        private sealed class Cache { public OverlayCanvas Canvas; public ShaderResourceView Texture; public string Content; public int Revision; public EssentialHud.View Status; }
         private static readonly Dictionary<string,Cache> cache=new Dictionary<string,Cache>();
         private static readonly Font title=new Font("Segoe UI",32,FontStyle.Bold,GraphicsUnit.Pixel),text=new Font("Segoe UI",27,FontStyle.Regular,GraphicsUnit.Pixel);
         private static readonly StringFormat centered=new StringFormat { Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center };
@@ -76,6 +82,7 @@ namespace SpaceEngineersVR.Player
         internal static Vector3 Point(SurfaceView surface,Vector3D world)
         { return (Vector3)Vector3D.Transform(world,MatrixD.Invert(surface.Pose)); }
         internal static Vector2 UV(SurfaceView s,Vector3 local) => new Vector2(local.X/s.Width+0.5f,0.5f-local.Y/s.Height);
+        internal static float KeyHeight(SurfaceView s) => s.Style==SurfaceStyle.ModelControl ? 0 : s.Style==SurfaceStyle.WristStatus ? .001f : .006f;
         internal static void Paint(OverlayCanvas target,SurfaceView s)
         {
             if(s.Style==SurfaceStyle.Pointer) { target.Clear(Color.White); return; }
@@ -189,11 +196,7 @@ namespace SpaceEngineersVR.Player
                                 g.FillRectangle(status,r.X+r.Width*.22f,r.Bottom-.0025f,r.Width*.56f,.0012f);
                         }
                     }
-                    foreach(float x in new[] { .006f,s.Width-.006f }) foreach(float y in new[] { .006f,s.Height-.006f })
-                    {
-                        g.FillEllipse(Brushes.DimGray,x-.002f,y-.002f,.004f,.004f);
-                        g.DrawLine(border,x-.0015f,y,x+.0015f,y);
-                    }
+
                 }
             }
             finally { g.Restore(saved); }
@@ -241,50 +244,26 @@ namespace SpaceEngineersVR.Player
             }
             g.Restore(saved);
         }
-        private static void PaintWrist(OverlayCanvas target,SurfaceView s)
-        {
-            target.Clear(Color.FromArgb(255,12,20,28));
-            string[] art={ "HealthIcon","OxygenIcon","HydrogenIcon","EnergyIcon" };
-            Color[] colors={ Color.MediumSeaGreen,Color.SkyBlue,Color.SandyBrown,Color.Khaki };
-            for(int i=0;i<4;i++)
-            {
-                int x=54+i*240;
-                target.Icon(NativeSprites.Hud(art[i]),x,195,190,colors[i]);
-                float level=s.Levels!=null && i<s.Levels.Length ? s.Levels[i] : 0;
-                using(var back=new Pen(Color.FromArgb(80,colors[i]),20) { StartCap=System.Drawing.Drawing2D.LineCap.Round,EndCap=System.Drawing.Drawing2D.LineCap.Round })
-                using(var fill=new Pen(level<.2f ? Color.OrangeRed : colors[i],20) { StartCap=System.Drawing.Drawing2D.LineCap.Round,EndCap=System.Drawing.Drawing2D.LineCap.Round })
-                {
-                    target.Graphics.DrawLine(back,x+20,440,x+170,440);
-                    if(level>0) target.Graphics.DrawLine(fill,x+20,440,x+20+150*MathHelper.Clamp(level,0,1),440);
-                }
-            }
-            using(var pen=new Pen(Color.LightSteelBlue,14) { StartCap=System.Drawing.Drawing2D.LineCap.Round,EndCap=System.Drawing.Drawing2D.LineCap.Round })
-                target.Graphics.DrawLine(pen,422,561,602,561);
-            target.Graphics.FillRectangle(Brushes.White,1020,636,4,4);
-        }
+        private static void PaintWrist(OverlayCanvas target,SurfaceView s) => EssentialHud.PaintWrist(target,s.Status,s.Width,s.Height);
         private static void PaintWristMenu(OverlayCanvas target,SurfaceView s)
         {
             target.Clear(Color.FromArgb(255,12,20,28));
-            string[] icons={ GameActions.InventoryAction.Icon,GameActions.TerminalAction.Icon,GameActions.ConfigureToolbarAction.Icon,
-                null,GameActions.HelmetAction.Icon,NativeSprites.Hud("Dampeners"),null };
             var g=target.Graphics;
+            using(var labelFont=new Font("Segoe UI",23,FontStyle.Regular,GraphicsUnit.Pixel))
+            using(var format=new StringFormat { Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center,Trimming=StringTrimming.EllipsisWord })
             for(int i=0;i<s.Keys.Length;i++)
             {
-                var b=s.Keys[i].Bounds;
+                var key=s.Keys[i]; var b=key.Bounds;
                 var r=new System.Drawing.RectangleF(b.X*1024,b.Y*640,b.Width*1024,b.Height*640);
-                using(var path=Rounded(r,14))
-                using(var brush=new SolidBrush(i==s.Pressed ? Color.FromArgb(40,133,151) : i==s.Hover ? Color.FromArgb(55,83,100) : Color.FromArgb(31,47,60)))
-                    g.FillPath(brush,path);
-                float x=r.X+r.Width/2,y=r.Y+r.Height/2;
-                if(icons[i]!=null) target.Icon(icons[i],x-48,y-48,96);
-                else if(i==3)
-                {
-                    using(var pen=new Pen(Color.LightCyan,7)) g.DrawRectangle(pen,x-62,y-35,124,70);
-                    for(int row=0;row<2;row++) for(int col=0;col<5;col++) g.FillRectangle(Brushes.LightCyan,x-48+col*21,y-23+row*20,12,12);
-                    g.FillRectangle(Brushes.LightCyan,x-28,y+17,56,8);
-                }
-                else using(var pen=new Pen(Color.LightCyan,10) { LineJoin=System.Drawing.Drawing2D.LineJoin.Round })
-                    g.DrawLines(pen,new[] { new PointF(x-40,y-18),new PointF(x,y+18),new PointF(x+40,y-18) });
+                using(var path=Rounded(r,10))
+                using(var brush=new SolidBrush(i==s.Pressed ? Color.FromArgb(40,133,151) : i==s.Hover ? Color.FromArgb(55,83,100) : Color.FromArgb(31,47,60))) g.FillPath(brush,path);
+                var label=key.Icons.Length>0 ? new System.Drawing.RectangleF(r.X+4,r.Bottom-40,r.Width-8,36):r;
+                g.DrawString(key.Label,labelFont,key.Enabled ? Brushes.White:Brushes.Gray,label,format);
+                float size=Math.Min(66,r.Height-43),x=r.X+(r.Width-size)/2,y=r.Y+4;
+                foreach(string icon in key.Icons) target.Icon(icon,x,y,size,key.Enabled);
+                if(key.SubIcon!=null) target.Icon(key.SubIcon,x+size*.6f,y+size*.6f,size*.4f,key.Enabled);
+                if(!string.IsNullOrEmpty(key.Text)) g.DrawString(key.Text,labelFont,Brushes.LightCyan,r.X+8,r.Y+3);
+                if(key.Active) using(var pen=new Pen(Color.FromArgb(125,224,159),3)) g.DrawLine(pen,r.X+12,r.Bottom-4,r.Right-12,r.Bottom-4);
             }
             g.FillRectangle(Brushes.White,1020,636,4,4);
         }
@@ -306,7 +285,7 @@ namespace SpaceEngineersVR.Player
         public static void Draw(Texture2D target,IEnumerable<SurfaceView> surfaces,MatrixD view,MatrixD projection,ShaderResourceView depth)
         {
             sprites.Clear();
-            foreach(var s in surfaces.OrderBy(s=>s.Style==SurfaceStyle.Label).ThenBy(s=>Vector3D.Transform(s.Pose.Translation,view).Z))
+            foreach(var s in surfaces.OrderBy(s=>s.Style==SurfaceStyle.Pointer ? 2 : s.Style==SurfaceStyle.Label ? 1 : 0).ThenBy(s=>Vector3D.Transform(s.Pose.Translation,view).Z))
             {
                 if(!cache.TryGetValue(s.Id,out var c))
                 {
@@ -314,8 +293,8 @@ namespace SpaceEngineersVR.Player
                     cache[s.Id]=c=new Cache { Canvas=canvas,Texture=new ShaderResourceView(target.Device,canvas.Texture) };
                 }
                 string content=s.ContentKey;
-                if(c.Content!=content || c.Revision!=NativeSprites.Revision)
-                { Paint(c.Canvas,s); c.Canvas.Upload(); target.Device.ImmediateContext.GenerateMips(c.Texture); c.Content=content; c.Revision=NativeSprites.Revision; }
+                if(c.Content!=content || c.Revision!=NativeSprites.Revision || (s.Style==SurfaceStyle.WristStatus && !ReferenceEquals(c.Status,s.Status)))
+                { Paint(c.Canvas,s); c.Canvas.Upload(); target.Device.ImmediateContext.GenerateMips(c.Texture); c.Content=content; c.Revision=NativeSprites.Revision; c.Status=s.Status; }
                 var full=new VRageMath.RectangleF(-s.Width/2,s.Height/2,s.Width,s.Height);
                 if(s.Style==SurfaceStyle.Pointer)
                 {
@@ -323,7 +302,9 @@ namespace SpaceEngineersVR.Player
                     Vector3D normal=toward-s.Pose.Forward*Vector3D.Dot(toward,s.Pose.Forward);
                     if(normal.LengthSquared()<1e-10) continue;
                     var pose=MatrixD.CreateWorld(s.Pose.Translation,-Vector3D.Normalize(normal),s.Pose.Forward);
-                    sprites.Add(Quad(c.Texture,pose,full,new Vector4(0,0,1,1),new Vector4(.33f,.92f,1,1),view,projection));
+                    var pointer=Quad(c.Texture,pose,full,new Vector4(0,0,1,1),new Vector4(.33f,.92f,1,s.RoundEnds ? .55f : 1),view,projection);
+                    if(s.RoundEnds) pointer.Rounded=new Vector2(.5f,s.Width/(2*s.Height));
+                    sprites.Add(pointer);
                     continue;
                 }
                 if(s.Style==SurfaceStyle.ModelControl || s.Style==SurfaceStyle.Label)
@@ -336,14 +317,14 @@ namespace SpaceEngineersVR.Player
                     }
                     continue;
                 }
-                // Back plate plus four dark edge faces make a tangible 8mm slab.
-                sprites.Add(Quad(c.Texture,s.Pose,full,new Vector4(.01f,.01f,.001f,.001f),Vector4.One,view,projection,-.008f));
+                float thickness=s.Style==SurfaceStyle.WristStatus ? .002f : .008f;
+                sprites.Add(Quad(c.Texture,s.Pose,full,new Vector4(.01f,.01f,.001f,.001f),Vector4.One,view,projection,-thickness));
                 for(int edge=0;edge<4;edge++)
                 {
                     MatrixD side=MatrixD.CreateRotationY(edge<2 ? (edge==0 ? Math.PI/2 : -Math.PI/2) : 0);
                     if(edge>=2) side=MatrixD.CreateRotationX(edge==2 ? Math.PI/2 : -Math.PI/2);
-                    side.Translation=edge<2 ? new Vector3D((edge==0 ? -1 : 1)*s.Width/2,0,-.004) : new Vector3D(0,(edge==2 ? -1 : 1)*s.Height/2,-.004);
-                    float w=edge<2 ? .008f : s.Width,h=edge<2 ? s.Height : .008f;
+                    side.Translation=edge<2 ? new Vector3D((edge==0 ? -1 : 1)*s.Width/2,0,-thickness/2) : new Vector3D(0,(edge==2 ? -1 : 1)*s.Height/2,-thickness/2);
+                    float w=edge<2 ? thickness : s.Width,h=edge<2 ? s.Height : thickness;
                     sprites.Add(Quad(c.Texture,side*s.Pose,new VRageMath.RectangleF(-w/2,h/2,w,h),new Vector4(.01f,.01f,.001f,.001f),Vector4.One,view,projection));
                 }
                 if(Vector3D.Dot(s.Pose.Backward,MatrixD.Invert(view).Translation-s.Pose.Translation)<=0) continue;
@@ -352,7 +333,7 @@ namespace SpaceEngineersVR.Player
                 {
                     var b=k.Bounds;
                     int index=Array.IndexOf(s.Keys,k);
-                    float raised=index==s.Pressed ? .001f : .006f;
+                    float raised=index==s.Pressed ? .001f : KeyHeight(s);
                     // Extruded key walls prevent the face from looking like a hovering label.
                     var bounds=new VRageMath.RectangleF((b.X-.5f)*s.Width,(.5f-b.Y)*s.Height,b.Width*s.Width,b.Height*s.Height);
                     for(int edge=0;edge<4;edge++)
@@ -370,7 +351,7 @@ namespace SpaceEngineersVR.Player
                 {
                     var p=s.TouchPoint.Value;
                     sprites.Add(Quad(c.Texture,s.Pose,new VRageMath.RectangleF(p.X-.003f,p.Y+.003f,.006f,.006f),new Vector4(1022f/1024,638f/640,0,0),
-                        s.Pressed>=0 ? new Vector4(.5f,1,.5f,1) : new Vector4(.2f,.9f,1,1),view,projection,p.Z));
+                        new Vector4(.2f,.9f,1,1),view,projection,p.Z));
                 }
             }
             NativeSprites.Draw(target,sprites,depth);

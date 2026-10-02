@@ -142,20 +142,23 @@ namespace SpaceEngineersVR.Player
                 int slot=Array.FindIndex(centers,c=>Vector3.DistanceSquared(c,bounds.Center)<.000002f*.000002f);
                 if(slot>=0 && group.Count!=counts[slot]) throw new InvalidDataException("Fighter lever topology changed.");
                 foreach(int triangle in group)
-                    for(int j=0;j<3;j++) buckets[slot+1].Add(indices[triangle*3+j]);
+                    buckets[slot+1].Add(triangle);
             }
-            if(buckets.Skip(1).Where((b,i)=>b.Count!=counts[i]*3).Any() || buckets[0].Count!=(triangles-counts.Sum())*3)
+            if(buckets.Skip(1).Where((b,i)=>b.Count!=counts[i]).Any() || buckets[0].Count!=triangles-counts.Sum())
                 throw new InvalidDataException("Could not isolate the inspected fighter controls.");
             return buckets.Select(bucket=>
             {
                 var model=new MyModelData(); model.Clear();
-                foreach(int v in bucket)
+                // Coplanar details depend on the installed mesh's triangle order.
+                foreach(int triangle in bucket.OrderBy(t=>t))
+                for(int corner=0;corner<3;corner++)
                 {
+                    int v=indices[triangle*3+corner];
                     model.Indices.Add(model.Positions.Count); model.Positions.Add(vertices[v]); model.AABB.Include(vertices[v]);
                     model.Normals.Add(VF_Packer.UnpackNormal(normals[v].PackedValue));
                     model.Tangents.Add(VF_Packer.UnpackNormal(tangents[v].PackedValue)); model.TexCoords.Add(uv[v].ToVector2());
                 }
-                model.Sections.Add(new MyRuntimeSectionInfo { IndexStart=0,TriCount=bucket.Count/3,MaterialName=name });
+                model.Sections.Add(new MyRuntimeSectionInfo { IndexStart=0,TriCount=bucket.Count,MaterialName=name });
                 return model;
             }).ToArray();
         }

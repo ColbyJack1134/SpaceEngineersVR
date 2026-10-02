@@ -20,13 +20,22 @@ namespace SpaceEngineersVR.Diagnostics
         }
         private static float[] Elements(Matrix m) => new[] {m.M11,m.M12,m.M13,m.M14,m.M21,m.M22,m.M23,m.M24,m.M31,m.M32,m.M33,m.M34,m.M41,m.M42,m.M43,m.M44};
         private static Vector3 Tip(MyCharacterBone bone) => Vector3.Transform(new Vector3(-.025f,0,0),bone.AbsoluteTransform);
-        private static void Curl(MyCharacterBone[] bones,string side,bool pinch)
+        private static void Curl(MyCharacterBone[] bones,string side,bool pinch,bool stick=false)
         {
-            foreach(var bone in bones.Where(b=>b.Name.StartsWith("SE_Rig"+side+"_"))) bone.Rotation=CockpitHandPose.Rotation(bone.Name,pinch);
+            foreach(var bone in bones.Where(b=>b.Name.StartsWith("SE_Rig"+side+"_"))) bone.Rotation=CockpitHandPose.Rotation(bone.Name,pinch,stick);
             bones.Single(b=>b.Name=="SE_Rig"+side+"Palm").ComputeAbsoluteTransform(true,true);
         }
         public static void Run(Action<string> log)
         {
+            string content=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(MyCharacterBone).Assembly.Location),"..","Content"));
+            var glove=GloveGeometry.Load(content,GloveGeometry.DefaultModel,false);
+            for(int i=0;i<80;i++)
+            {
+                var aim=Matrix.CreateFromYawPitchRoll(i*.07f,i*.04f,-i*.03f)*Matrix.CreateTranslation(.2f,-.4f,-.6f);
+                var aligned=glove.PointFrame*MenuHands.MenuPose(glove.PointFrame,aim);
+                if(Vector3.Distance(aligned.Translation,aim.Translation)>.00001f || Vector3.Dot(aligned.Forward,aim.Forward)<.99999f)
+                    throw new Exception("Menu glove moved away from fixed controller ray");
+            }
             var bones=ArmTests.InstalledBones();
             foreach(string side in new[] {"L","R"}) foreach(bool pinch in new[] {false,true})
             {
@@ -119,6 +128,45 @@ namespace SpaceEngineersVR.Diagnostics
         }
         public static void Preview(string output)
         {
+            string content=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(MyCharacterBone).Assembly.Location),"..","Content"));
+            var glove=GloveGeometry.Load(content,GloveGeometry.DefaultModel,false);
+            var reference=new PoseExport { pointer=Elements(glove.PointFrame),grip=Elements(CockpitHandPose.GripWrist(Matrix.Identity)) };
+            using(var file=File.Create(Path.Combine(output,"menu-glove-reference.json")))
+                new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,reference);
+            foreach(bool extended in new[] {false,true}) foreach(bool rigid in new[] {false,true})
+            {
+                var arm=ArmTests.InstalledBones();
+                var palm=arm.Single(b=>b.Name=="SE_RigLPalm");
+                var lower=arm.Single(b=>b.Name=="SE_RigLForearm1"); var upper=lower.Parent;
+                Matrix desired=Matrix.Identity;
+                desired.Right=new Vector3(-.9470054f,-.2854625f,-.1475649f);
+                desired.Up=new Vector3(-.3211800f,.8273234f,.4607469f);
+                desired.Backward=new Vector3(-.0094374f,.4837239f,-.8751677f);
+                desired.Translation=new Vector3(-.0685918f,1.2402833f,-.4206055f);
+                var correction=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),-1);
+                if(extended)
+                {
+                    desired=correction*CockpitHandPose.GripWrist(Matrix.Identity);
+                    desired.Translation=new Vector3(-.25f,1.35f,-.55f);
+                }
+                if(!ArmMath.ApplyPose(upper,lower,palm,Matrix.Invert(correction)*desired,correction,new Vector3(-.55f,-1,.3f),rigidWrist:rigid))
+                    throw new Exception("Wrist inspection solve failed");
+                Curl(arm,"L",false);
+                var export=new PoseExport(); foreach(var bone in arm) export.absolute[bone.Name]=Elements(bone.AbsoluteTransform);
+                using(var file=File.Create(Path.Combine(output,(extended ? "left-extended-":"left-wrist-")+(rigid ? "rigid.json":"articulated.json"))))
+                    new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
+            }
+            foreach(bool left in new[] {true,false})
+            {
+                var arm=ArmTests.InstalledBones(); string side=left ? "L":"R";
+                var rig=CockpitRig.Find("SmallBlockCockpitIndustrial");
+                var pose=(left ? rig.Left:rig.Right).Palm(left);
+                arm.Single(b=>b.Name=="SE_Rig"+side+"Palm").SetCompleteTransformFromAbsoluteMatrix(ref pose,false);
+                Curl(arm,side,false,true);
+                var export=new PoseExport(); foreach(var bone in arm) export.absolute[bone.Name]=Elements(bone.AbsoluteTransform);
+                using(var file=File.Create(Path.Combine(output,"industrial-grip-"+side+".json")))
+                    new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
+            }
             var bones=ArmTests.InstalledBones();
             foreach(bool pressed in new[] {false,true})
             {

@@ -65,8 +65,44 @@ namespace SpaceEngineersVR.Diagnostics
                 Near(Vector3.Distance(twist.Right,Vector3.Right),0,"Forearm twist moved hand axis");
             }
             log("PASS tracked arms: 1,000 mirrored engine-bone poses in fixed and adaptive modes, accurate controller reach, bounded shoulders, twist chains, wrist orientation, singular/invalid targets");
+            RigidLeftWrist(log);
             RecordedWatchPose(log);
             CockpitHandTests.Run(log);
+        }
+        private static void RigidLeftWrist(Action<string> log)
+        {
+            var bones=InstalledBones();
+            var upper=bones.Single(b=>b.Name=="SE_RigLUpperarm");
+            var lower=bones.Single(b=>b.Name=="SE_RigLForearm1");
+            var display=bones.Single(b=>b.Name=="SE_RigLForearm2");
+            var palm=bones.Single(b=>b.Name=="SE_RigLPalm");
+            var correction=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),-1);
+            Matrix expected=display.GetAbsoluteRigTransform()*Matrix.Invert(palm.GetAbsoluteRigTransform());
+            Matrix forearm=lower.GetAbsoluteRigTransform()*Matrix.Invert(palm.GetAbsoluteRigTransform());
+            int independent=0;
+            for(int i=0;i<120;i++)
+            {
+                foreach(var bone in bones) { bone.Rotation=Quaternion.Identity; bone.Translation=Vector3.Zero; }
+                bones[0].ComputeAbsoluteTransform(true,true);
+                var target=Matrix.CreateFromYawPitchRoll(i*.021f-.8f,i*.015f-.5f,i*.035f);
+                target.Translation=new Vector3(-.25f+(float)Math.Sin(i*.04f)*.15f,1.2f,-.35f);
+                if(!ArmMath.ApplyPose(upper,lower,palm,target,correction,new Vector3(-.55f,-1,.3f),rigidWrist:true))
+                    throw new Exception("Rigid left wrist solve failed");
+                Near(Vector3.Distance(palm.AbsoluteTransform.Translation,target.Translation),0,"Rigid wrist loses controller");
+                Matrix relative=display.AbsoluteTransform*Matrix.Invert(palm.AbsoluteTransform);
+                Matrix actualForearm=lower.AbsoluteTransform*Matrix.Invert(palm.AbsoluteTransform);
+                Near(Vector3.Distance(actualForearm.Translation,forearm.Translation),0,"Rigid forearm changes length");
+                Near(Vector3.Distance(relative.Translation,expected.Translation),0,"Tablet slides relative to wrist");
+                Near(Vector3.Distance(relative.Up,expected.Up),0,"Tablet bends relative to wrist");
+                Near(Vector3.Distance(relative.Right,expected.Right),0,"Tablet rolls relative to wrist");
+                if(Vector3.Distance(actualForearm.Up,forearm.Up)>.01f) independent++;
+                Vector3 sleeve=lower.AbsoluteTransform.Up;
+                for(int repeat=0;repeat<3;repeat++)
+                    ArmMath.ApplyPose(upper,lower,palm,target,correction,new Vector3(-.55f,-1,.3f),rigidWrist:true);
+                Near(Vector3.Distance(lower.AbsoluteTransform.Up,sleeve),0,"Sleeve twist drifts while holding a pose");
+            }
+            if(independent<100) throw new Exception("Sleeve remains locked to tablet roll");
+            log("PASS rigid left cuff: 120 installed-bone wrist rotations, tracked palm retained, sleeve roll independent and cuff/display fixed relative to palm; articulated right arm covered separately.");
         }
         internal static MyCharacterBone[] InstalledBones()
         {

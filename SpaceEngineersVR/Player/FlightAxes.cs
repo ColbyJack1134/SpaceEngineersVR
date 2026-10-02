@@ -4,12 +4,15 @@ namespace SpaceEngineersVR.Player
 {
     internal static class FlightAxes
     {
+        public static bool ControllerInputAllowed(bool ship,bool thirdPerson,bool physicalOnly) => !ship || thirdPerson || !physicalOnly;
+
         public static Vector3 Translation(Vector2 lateralVertical, Vector2 lateralForward, float up, float down, float forward, float back) =>
             new Vector3(lateralVertical.X + lateralForward.X, lateralVertical.Y + up - down, -lateralForward.Y - forward + back);
 
-        public static void Rotation(Vector2 stick, bool rollModifier, bool ship, float speed, float rollSensitivity, out Vector2 rotation, out float roll)
+        public static void Rotation(Vector2 stick, bool rollModifier, bool ship, float speed, float rollSensitivity, out Vector2 rotation, out float roll, bool invertPitch=false)
         {
             rotation = new Vector2((ship ? -stick.Y : stick.Y) * speed, rollModifier ? 0 : stick.X * speed);
+            if(invertPitch) rotation.X=-rotation.X;
             roll = rollModifier ? Roll(stick.X, ship, speed, rollSensitivity) : 0;
         }
 

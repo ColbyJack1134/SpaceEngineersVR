@@ -131,6 +131,18 @@ namespace SpaceEngineersVR.Diagnostics
         }
         private static void ToolbarShortcuts(Action<string> log)
         {
+            var jumpHold=new JumpHold(); var holdTime=DateTime.UtcNow;
+            Require(!jumpHold.Update(true,true,true,holdTime),"Jump press toggles jetpack immediately");
+            Require(!jumpHold.Update(true,false,false,holdTime.AddSeconds(.2)),"Short jump toggles jetpack");
+            jumpHold.Update(true,true,true,holdTime.AddSeconds(1));
+            Require(jumpHold.Update(true,false,true,holdTime.AddSeconds(1.51)),"Jump hold did not toggle jetpack");
+            Require(!jumpHold.Update(true,false,true,holdTime.AddSeconds(5)),"Jump hold toggles jetpack repeatedly");
+            jumpHold.Update(true,false,false,holdTime.AddSeconds(6));
+            jumpHold.Update(true,true,true,holdTime.AddSeconds(7));
+            Require(jumpHold.Update(true,false,true,holdTime.AddSeconds(7.51)),"Fresh jump hold cannot toggle jetpack off");
+            jumpHold.Update(true,true,true,holdTime.AddSeconds(8)); jumpHold.Reset();
+            Require(!jumpHold.Update(true,false,true,holdTime.AddSeconds(9)),"Context change resumes a held jetpack shortcut");
+            Require(!jumpHold.Update(false,true,true,holdTime.AddSeconds(10)),"Unavailable character toggles jetpack");
             var gesture=new ToolbarGesture(); var cockpit=new object(); var now=DateTime.UtcNow;
             foreach(int slot in new[] {0,3,8,9,12})
             {
@@ -166,7 +178,15 @@ namespace SpaceEngineersVR.Diagnostics
                 gesture.Update(interruption!=0,false,true,false,interruption==1 ? new object() : cockpit,-1,now.AddSeconds(.05),interruption!=2);
                 Require(gesture.Update(true,false,false,true,cockpit,-1,now.AddSeconds(.1),true)==ToolbarGesture.Action.None,"Interrupted B tap still changes camera");
             }
-            log("PASS B gestures: switch assignment, third-person return, hold-B radial and owner/menu/camera cancellation.");
+            gesture.Update(true,true,true,false,cockpit,-1,now,alternate:true);
+            Require(gesture.Update(true,false,false,true,cockpit,-1,now.AddSeconds(.1))==ToolbarGesture.Action.Unequip && gesture.Alternate,"Modified Y tap lost its press-time modifier");
+            gesture.Update(true,true,true,false,cockpit,-1,now,alternate:true);
+            Require(gesture.Update(true,false,true,false,cockpit,-1,now.AddSeconds(.3),alternate:true)==ToolbarGesture.Action.OpenWheel && !gesture.Alternate,"Modified Y hold toggles dampeners instead of opening wheel");
+            Require(gesture.Update(true,false,false,true,cockpit,-1,now.AddSeconds(.4))==ToolbarGesture.Action.None,"Modified wheel release also toggles dampeners");
+            gesture.Update(true,true,true,false,cockpit,-1,now,alternate:true);
+            gesture.Update(false,false,true,false,cockpit,-1,now.AddSeconds(.05));
+            Require(gesture.Update(true,false,false,true,cockpit,-1,now.AddSeconds(.1))==ToolbarGesture.Action.None && !gesture.Alternate,"Modified Y tap escaped focus cancellation");
+            log("PASS modified Y tap/hold/release/focus gates and B gestures: switch assignment, third-person return, hold-B radial and owner/menu/camera cancellation.");
         }
     }
 }

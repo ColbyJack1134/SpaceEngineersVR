@@ -62,7 +62,7 @@ namespace SpaceEngineersVR.Diagnostics
                 double heldScale=zoom.UnitsPerMeter;
                 var pivot=(left.Translation+right.Translation)*.5;
                 var offset=(zoom.Center-pivot)*heldScale;
-                Require(25/heldScale>2.05 && 25/heldScale<2.2,"Zoom response lost precision gain or stalled");
+                Require(25/heldScale>1.85 && 25/heldScale<1.95,"Zoom response lost the gentler sensitivity or stalled");
                 LetGo(zoom,hz,0,.6,out left,out right);
                 Require(zoom.Coasting,"Moving zoom release did not glide");
                 Finish(zoom,hz,left,right);
@@ -103,6 +103,7 @@ namespace SpaceEngineersVR.Diagnostics
             Require(maxZoom/minZoom<1.003,"Zoom response changed substantially with frame cadence");
             log("PASS independent pan/zoom response and bounded release motion at 36/72/90 Hz. Synthetic replay does not establish headset comfort.");
             DioramaGestureTests.Run(log);
+            DioramaRotationTests.Run(log);
         }
         private static void RegrabAndTransitions(int hz)
         {
@@ -217,7 +218,7 @@ namespace SpaceEngineersVR.Diagnostics
             var orientation=view.Orientation; var center=view.Center; double scale=view.UnitsPerMeter;
             view.Input(true,0,0); view.Move(a,b,1d/hz); Finish(view,hz,a,b);
             Near(view.Center,center,"Orbit's moving center was mistaken for pan velocity");
-            Near(view.Orientation.Forward,orientation.Forward,"Release added angular momentum");
+            Near(view.Orientation.Forward,orientation.Forward,"Stationary release added angular momentum");
             Require(view.UnitsPerMeter==scale,"Pure orbit seeded zoom momentum");
 
             var reverse=Drag(hz,.3,.6,out a,out b);

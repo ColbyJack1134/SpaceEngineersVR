@@ -22,6 +22,7 @@ namespace SpaceEngineersVR.Diagnostics
             Near(config.JetpackRollSensitivity,0.25f,"Old config jetpack default");
             Near(config.ShipRollSensitivity,0.6f,"Old config ship default");
             Near(config.PlayerHeight,1.81f,"Existing calibration retained");
+            if(config.PhysicalShipControlsOnly) throw new Exception("Old config disables controller flight by default");
             if (config.TrackedArms) throw new Exception("Existing config option changed");
             foreach (bool ship in new[] { false,true })
             foreach (float horizontal in new[] { -1f,-0.7f,-0.2f,0,0.2f,0.7f,1f })
@@ -31,6 +32,10 @@ namespace SpaceEngineersVR.Diagnostics
                 var stick=new Vector2(horizontal,0.6f);
                 FlightAxes.Rotation(stick,modifier,ship,10,1,out var oldRotation,out var oldRoll);
                 FlightAxes.Rotation(stick,modifier,ship,10,sensitivity,out var rotation,out var roll);
+                FlightAxes.Rotation(stick,modifier,ship,10,sensitivity,out var inverted,out var invertedRoll,true);
+                Near(inverted.X,-rotation.X,"Pitch inversion failed");
+                Near(inverted.Y,rotation.Y,"Pitch inversion changed yaw");
+                Near(invertedRoll,roll,"Pitch inversion changed roll");
                 Near(rotation.X,oldRotation.X,"Roll setting changed pitch");
                 Near(rotation.Y,oldRotation.Y,"Roll setting changed yaw ownership");
                 Near(roll,oldRoll*(ship ? 0.6f : 0.25f),"Requested roll reduction");
@@ -40,8 +45,49 @@ namespace SpaceEngineersVR.Diagnostics
                     Near(MathHelper.Clamp(roll*0.2f,-1,1),previousTorque*0.6f,"Ship reduction lost at engine saturation");
                 }
             }
+            for(int legacy=0;legacy<4;legacy++)
+            {
+                PluginConfig migrated;
+                using(var xml=new StringReader("<PluginConfig><HelmetHudMode>"+legacy+"</HelmetHudMode></PluginConfig>")) migrated=(PluginConfig)serializer.Deserialize(xml);
+                if(migrated.ShowVitals!=(legacy>0) || migrated.WaypointMode!=Math.Max(0,legacy-1)) throw new Exception("Legacy HUD visibility changed");
+                for(int press=1;press<=4;press++)
+                {
+                    migrated.CycleHud();
+                    int expected=(legacy+press)%4;
+                    if(migrated.ShowVitals!=(expected>0) || migrated.WaypointMode!=Math.Max(0,expected-1))
+                        throw new Exception("Head gesture HUD cycle differs after legacy migration");
+                    using(var xml=new StringWriter())
+                    {
+                        serializer.Serialize(xml,migrated);
+                        using(var saved=new StringReader(xml.ToString())) migrated=(PluginConfig)serializer.Deserialize(saved);
+                    }
+                }
+                migrated.ShowVitals=false; migrated.WaypointMode=2; migrated.HudWithVisorOpen=true;
+                migrated.PhysicalShipControlsOnly=true;
+                migrated.InvertShipPitch=true; migrated.InvertJetpackPitch=false; migrated.ThirdPersonRotationGlide=0;
+                using(var xml=new StringWriter())
+                {
+                    serializer.Serialize(xml,migrated);
+                    using(var saved=new StringReader(xml.ToString())) migrated=(PluginConfig)serializer.Deserialize(saved);
+                }
+                if(!migrated.PhysicalShipControlsOnly || migrated.ShowVitals || migrated.WaypointMode!=2 || !migrated.HudWithVisorOpen || !migrated.InvertShipPitch || migrated.InvertJetpackPitch || migrated.ThirdPersonRotationGlide!=0)
+                    throw new Exception("Independent HUD/flight/glide settings lost after save");
+                migrated.ThirdPersonZoomSensitivity=float.NaN; migrated.ThirdPersonPanGlide=float.PositiveInfinity;
+                Near(migrated.ThirdPersonZoomSensitivity,1,"Invalid zoom sensitivity"); Near(migrated.ThirdPersonPanGlide,1,"Invalid pan glide");
+            }
+            log("PASS settings migration: all legacy HUD modes, independent vitals/waypoints/visor and ship/jetpack inversion, zero-glide persistence and invalid sensitivity fallback.");
+            foreach(bool enabled in new[] {false,true})
+            {
+                if(!FlightAxes.ControllerInputAllowed(false,false,enabled) || !FlightAxes.ControllerInputAllowed(true,true,enabled))
+                    throw new Exception("Physical-only setting suppresses jetpack or third-person flight");
+                if(FlightAxes.ControllerInputAllowed(true,false,enabled)==enabled)
+                    throw new Exception("First-person controller flight ignores physical-only setting");
+            }
+            log("PASS physical-only flight preference: legacy default off, enabled persistence, first-person ship gate and third-person/jetpack exceptions.");
             string changed=null;
             config.PropertyChanged+=(sender,args)=>changed=args.PropertyName;
+            config.PhysicalShipControlsOnly=true;
+            if(changed!=nameof(config.PhysicalShipControlsOnly)) throw new Exception("Physical-only setting cannot trigger automatic save");
             config.JetpackRollSensitivity=0.4f;
             if (changed!=nameof(config.JetpackRollSensitivity)) throw new Exception("Jetpack setting cannot trigger automatic save");
             config.ShipRollSensitivity=0.85f;

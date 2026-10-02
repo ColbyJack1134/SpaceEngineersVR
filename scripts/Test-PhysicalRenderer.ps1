@@ -1,14 +1,23 @@
-param([string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype'))
+param([string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype'),[switch]$CockpitsOnly,[string]$Cockpit)
 $ErrorActionPreference = 'Stop'
 if (Get-Process Legacy,SpaceEngineers -ErrorAction SilentlyContinue) {
     throw 'A game is already running. Physical renderer test did not launch or stop anything.'
 }
 $started = Get-Date
-$process = & (Join-Path $PSScriptRoot 'Launch.ps1') -PhysicalRenderTest -PassThru -PrototypeRoot $PrototypeRoot
+$previousScope = $env:SEVR_PHYSICAL_COCKPITS_ONLY
+$previousCockpit = $env:SEVR_PHYSICAL_COCKPIT
+try {
+    $env:SEVR_PHYSICAL_COCKPITS_ONLY = if ($CockpitsOnly -or $Cockpit) { '1' } else { $null }
+    $env:SEVR_PHYSICAL_COCKPIT = $Cockpit
+    $process = & (Join-Path $PSScriptRoot 'Launch.ps1') -PhysicalRenderTest -PassThru -PrototypeRoot $PrototypeRoot
+} finally {
+    $env:SEVR_PHYSICAL_COCKPITS_ONLY = $previousScope
+    $env:SEVR_PHYSICAL_COCKPIT = $previousCockpit
+}
 $passed = $false
 $logPath = $null
 try {
-    $deadline = $started.AddSeconds(165)
+    $deadline = $started.AddSeconds(550)
     while ((Get-Date) -lt $deadline -and !$process.HasExited) {
         $log = Get-ChildItem (Join-Path $PrototypeRoot 'GameData\SpaceEngineersVR_*.log') |
             Where-Object { $_.CreationTime -ge $started } | Sort-Object CreationTime -Descending | Select-Object -First 1

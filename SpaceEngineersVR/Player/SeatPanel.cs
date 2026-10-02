@@ -65,15 +65,12 @@ namespace SpaceEngineersVR.Player
                     new Vector3D(0,-.9007,-.4344),new Vector3D(0,.4344,-.9007));
                 width=.108f; height=.120f;
             }
-            else if(subtype=="OpenCockpitLarge")
+            else
             {
-                // Red ship bridge chair: replace the cosmetic right keypad with
-                // this module. Highest native key cap is y=-.48486; do not mount
-                // on the backing face at -.5732, which is buried under the keys.
-                local=MatrixD.CreateWorld(new Vector3D(.7664,-.48486,-.1177),Vector3D.Down,Vector3D.Forward);
-                width=.23f; height=.24f;
+                var rig=CockpitRig.Find(subtype);
+                if(rig==null) return false;
+                local=rig.SeatMount; width=.108f; height=.120f;
             }
-            else return false;
             local.Translation+=local.Backward*.009;
             return true;
         }
