@@ -20,7 +20,8 @@ namespace SpaceEngineersVR.Player
     internal static class TouchScreenBridge
     {
         private const long Channel=2668820525;
-        private static readonly InputGate primary=new InputGate(),secondary=new InputGate();
+        private static readonly InteractionPress primary=new InteractionPress();
+        private static readonly InputGate secondary=new InputGate();
         private static readonly SurfaceTouch touch=new SurfaceTouch();
         private static readonly Dictionary<object,Screen> screens=new Dictionary<object,Screen>();
         private static object session,manager,selected,owner;
@@ -165,15 +166,20 @@ namespace SpaceEngineersVR.Player
                 foreach(var value in list) if(!screens.ContainsKey(value)) screens.Add(value,new Screen(value));
                 // A held native trigger is firing; screen-owned squeezes already blocked that gate.
                 bool firing=SeatFit.Eligible(SeatFit.Seat) && Controls.Static.Primary.IsPressed && !Controls.Static.Primary.HasPressed;
+                bool grabbingStick=Controls.Static.RightGripPressure.RawPosition.X>.025f && CockpitControls.NearGrip(Player.HandR) ||
+                    Controls.Static.LeftGripPressure.RawPosition.X>.025f && CockpitControls.NearGrip(Player.HandL);
                 bool allowed=(bool)enabledProperty.GetValue(session) && Main.VrActive && !ThirdPersonView.Active && InputRouter.Gameplay && !Main.MenuOpen && MenuPointer.GameFocused &&
-                    !firing &&
+                    !firing && !grabbingStick && !RemoteView.OwnsInput &&
                     MySession.Static?.LocalCharacter?.IsDead==false && MySession.Static.LocalCharacter.CurrentWeapon==null &&
                     Player.Headset.pose.isTracked && Player.HandR.pose.isTracked && Player.HandL.pose.isTracked &&
                     !CockpitControls.Adjusting && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandL) && !CockpitControls.Held(Player.HandR) &&
                     !PlacementControls.OwnsTools;
                 Screen best=null; SurfaceView bestPlane=null; float bestDistance=float.MaxValue; Vector3D intersection=Vector3D.Zero;
-                MatrixD aim=SpatialUi.DeviceWorld(Player.HandR.AimTracking); rayOrigin=aim.Translation;
-                Vector3D tip=aim.Translation+aim.Forward*.025;
+                bool bestDirect=false;
+                MatrixD aim=SpatialUi.DeviceWorld(Player.HandR.AimTracking);
+                if(TrackedArms.TryFreePointPose(Player.HandR,out var pointing)) aim=pointing;
+                rayOrigin=aim.Translation;
+                Vector3D tip=aim.Translation;
                 foreach(var candidate in screens.Values)
                 {
                     candidate.Aiming.SetValue(candidate.Value,false);
@@ -203,7 +209,7 @@ namespace SpaceEngineersVR.Player
                         obstacle.HitEntity!=MySession.Static.LocalCharacter && Vector3D.Distance(rayOrigin,obstacle.Position)+.025<distance) continue;
                     float priority=direct ? Math.Abs(local.Z)-1 : distance;
                     if(priority>=bestDistance) continue;
-                    best=candidate; bestPlane=plane; bestDistance=priority; intersection=point;
+                    best=candidate; bestPlane=plane; bestDistance=priority; intersection=point; bestDirect=direct;
                 }
                 // Existing physical controls have priority over a screen behind their plate.
                 if(CockpitTouch.OwnsRight || SpatialUi.Current.Any(s=>s.Hover>=0)) best=null;
@@ -214,17 +220,21 @@ namespace SpaceEngineersVR.Player
                     primary.Block(); secondary.Block(); touch.Reset();
                 }
                 selected=next; owner=controlled; origin=Player.PlayerToAbsolute.matrix;
-                primary.Update(best!=null,Controls.Static.Primary.RawPressed); secondary.Update(best!=null,Controls.Static.Secondary.RawPressed);
+                var input=primary.Read(Player.HandR,primary.Held ? primary.Near:bestDirect);
+                primary.Update(best!=null,input); secondary.Update(best!=null && !input.Near,Controls.Static.Secondary.RawPressed);
                 if(best==null) { touch.Reset(); return; }
                 best.Intersection.SetValue(best.Value,intersection); best.Coordinates.Invoke(best.Value,null); best.Aiming.SetValue(best.Value,true);
-                OwnsInput=true; hitPoint=intersection;
+                hitPoint=intersection;
                 Vector3D touchTip=tip;
                 if(Pointing && TrackedArms.TryFingertip(out var touchFinger)) touchTip=touchFinger;
                 var touchLocal=PhysicalSurface.Point(bestPlane,touchTip); var touchUv=PhysicalSurface.UV(bestPlane,touchLocal);
                 int key=touchUv.X>=0 && touchUv.X<=1 && touchUv.Y>=0 && touchUv.Y<=1 ? 0 : -1;
                 int clicked=touch.Update(best.Block.EntityId+":"+best.Index,touchLocal,key);
                 down=primary.Held || touch.Held>=0; secondaryDown=secondary.Held;
-                Controls.Static.Primary.BlockUntilRelease(); Controls.Static.Secondary.BlockUntilRelease(); Controls.Static.ThrustRoll.BlockUntilRelease();
+                OwnsInput=down || secondaryDown;
+                if(OwnsInput) input.Consume();
+                Controls.Static.Primary.BlockUntilRelease(); Controls.Static.Secondary.BlockUntilRelease();
+                if(OwnsInput) Controls.Static.ThrustRoll.BlockUntilRelease();
                 if(primary.Pressed || secondary.Pressed || clicked>=0) Player.HandR.Vibrate(0,.025f,100,.28f);
             }
             catch(Exception ex) { failed=true; primary.Block(); secondary.Block(); selected=null; OwnsInput=Pointing=false; Logger.Warning(ex,"TouchScreenAPI VR adapter disabled; LCD rendering retained"); }

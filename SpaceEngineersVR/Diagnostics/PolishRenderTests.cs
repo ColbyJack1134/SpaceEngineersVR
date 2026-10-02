@@ -10,6 +10,40 @@ namespace SpaceEngineersVR.Diagnostics
 {
     internal static class PolishRenderTests
     {
+        internal static void HudRetention(Device device,RemoteView.View remote,string output)
+        {
+            var original=Wrappers.MyManagers.RwTexturesPool.BorrowRtv("SEVR.HudRetention",64,64,SharpDX.DXGI.Format.R8G8B8A8_UNorm);
+            var resource=(Texture2D)original.GetResource();
+            IntPtr identity=resource.NativePointer;
+            try
+            {
+                using(var target=new RenderTargetView(device,resource))
+                    device.ImmediateContext.ClearRenderTargetView(target,new SharpDX.Mathematics.Interop.RawColor4(.25f,.75f,.5f,1));
+                RemoteHud.Store(resource);
+            }
+            finally { original.Release(); }
+            var reused=Wrappers.MyManagers.RwTexturesPool.BorrowRtv("SEVR.HudOverwrite",64,64,SharpDX.DXGI.Format.R8G8B8A8_UNorm);
+            try
+            {
+                if(reused.GetResource().NativePointer!=identity) throw new Exception("HUD regression did not reuse its original borrowed texture");
+                using(var target=new RenderTargetView(device,(Texture2D)reused.GetResource()))
+                    device.ImmediateContext.ClearRenderTargetView(target,new SharpDX.Mathematics.Interop.RawColor4(1,0,1,1));
+                using(var result=new OverlayCanvas("Retained HUD",64,64,1,false,device))
+                {
+                    result.Clear(System.Drawing.Color.Black); result.Upload();
+                    RemoteHud.Composite(result.Texture,remote);
+                    string path=Path.Combine(output,"hud-retention.png"); UiTests.Save(result.Texture,path);
+                    using(var pixels=new System.Drawing.Bitmap(path))
+                    {
+                        var pixel=pixels.GetPixel(32,32);
+                        if(Math.Abs(pixel.R-64)>2 || Math.Abs(pixel.G-191)>2 || Math.Abs(pixel.B-128)>2)
+                            throw new Exception("Retained HUD pixels changed when the engine reused its borrowed texture: "+pixel);
+                    }
+                }
+            }
+            finally { reused.Release(); }
+            Plugin.Logger.Info("PASS owned HUD pixels survived native texture-pool release, reuse and overwrite");
+        }
         internal static void BeginHands(int width,int height)
         {
             var state=AccessTools.Field(typeof(NativeGloves),"current").GetValue(null);
@@ -19,6 +53,8 @@ namespace SpaceEngineersVR.Diagnostics
         internal static void Hands(Texture2D target,string output,MatrixD view,MatrixD projection)
         {
             NativeHandLayer.End();
+            if(!NativeHandLayer.Drawn(true) || NativeHandLayer.Drawn(false))
+                throw new Exception("Native glove draw ownership did not match the left-hand actor");
             using(var source=NativeHandLayer.Depth.ResourceAs<Texture2D>())
             {
                 var description=source.Description;

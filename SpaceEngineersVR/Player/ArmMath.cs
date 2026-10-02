@@ -242,9 +242,7 @@ namespace SpaceEngineersVR.Player
             Matrix grip=Matrix.CreateWorld(Vector3.Zero,forward,up);
             // Correct the suit palm axes in grip space: left +90 degrees, right -90.
             // Inward-pointing thumbs then point up with an upright controller.
-            // Pitch the corrected palms down 55 degrees in grip space; keep the
-            // driver tip ray unchanged while calibrating the visible hand pose.
-            return palmRig.GetOrientation()*Matrix.Transpose(grip.GetOrientation())*Matrix.CreateRotationZ(-side*MathHelper.PiOver2)*Matrix.CreateRotationX(MathHelper.ToRadians(-55f));
+            return palmRig.GetOrientation()*Matrix.Transpose(grip.GetOrientation())*Matrix.CreateRotationZ(-side*MathHelper.PiOver2)*Matrix.CreateRotationX(MathHelper.ToRadians(-39f));
         }
     }
 }

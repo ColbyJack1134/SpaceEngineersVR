@@ -263,7 +263,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Matrix turn=CockpitStickMath.RightVisual(new Vector3(.6f,-.4f,.3f));
                 Matrix wrist=captured*turn;
                 Vector3 palm=Vector3.Transform(new Vector3(-.105f,-.035f,0),wrist);
-                Require(Vector3.Distance(palm,Vector3.Transform(FighterProfile.RightContact,turn))<1e-5,"Grasp separated from stick");
+                Require(Vector3.Distance(palm,Vector3.Transform(FighterProfile.RightContact+captured.Backward*.035f+captured.Up*.015f,turn))<1e-5,"Raised grasp separated from stick");
                 Matrix head=Matrix.CreateRotationY(i*.07f); head.Translation=new Vector3(1,1.4f,-2);
                 Matrix hand=Matrix.CreateTranslation(.3f,1.1f,-2.4f);
                 var wheel=ToolbarWheel.HandPose(hand,head);

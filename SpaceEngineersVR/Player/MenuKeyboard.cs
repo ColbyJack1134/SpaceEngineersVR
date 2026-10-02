@@ -29,7 +29,7 @@ namespace SpaceEngineersVR.Player
             string[] rows=caps ? new[] { "!@#$%^&*()","QWERTYUIOP","ASDFGHJKL:","ZXCVBNM<>?" } : new[] { "1234567890","qwertyuiop","asdfghjkl;","zxcvbnm,./" };
             for(int row=0;row<rows.Length;row++)
                 for(int col=0;col<rows[row].Length;col++) keys.Add(new SurfaceKey(rows[row][col].ToString(),.025f+col*.095f,.28f+row*.125f,.085f,.108f));
-            keys.AddRange(new[] { new SurfaceKey("SHIFT",.025f,.79f,.14f,.115f),new SurfaceKey("SPACE",.18f,.79f,.25f,.115f),
+            keys.AddRange(new[] { new SurfaceKey(caps ? "⇧ 123" : "⇧ #@",.025f,.79f,.14f,.115f),new SurfaceKey("SPACE",.18f,.79f,.25f,.115f),
                 new SurfaceKey("'",.445f,.79f,.08f,.115f),new SurfaceKey("-",.54f,.79f,.08f,.115f),
                 new SurfaceKey("BKSP",.635f,.79f,.155f,.115f),new SurfaceKey("DONE",.805f,.79f,.17f,.115f) });
             foreach(var key in keys)
@@ -45,7 +45,7 @@ namespace SpaceEngineersVR.Player
             string label=Keys[key].Label;
             switch(label)
             {
-                case "SHIFT": shift=!shift; Keys=MakeKeys(shift); break;
+                case "⇧ 123": case "⇧ #@": shift=!shift; Keys=MakeKeys(shift); break;
                 case "BKSP": target.KeypressBackspace(true); break;
                 case "DONE": Close(); break;
                 case "SPACE": target.InsertChar(true,' '); break;

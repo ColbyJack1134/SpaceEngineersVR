@@ -49,7 +49,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Matrix grip=Matrix.CreateFromYawPitchRoll(.3f,.1f,-.2f);
                 Matrix attached=CockpitStickMath.GripPalm(left);
                 Matrix wrist=attached*visual;
-                Near(Vector3.Transform(new Vector3(-.105f,-.035f,0),wrist),Vector3.Transform(contact,visual),"Attached palm left moved handle");
+                Near(Vector3.Transform(new Vector3(-.105f,-.035f,0),wrist),Vector3.Transform(contact+attached.Backward*(left ? -.035f:.035f)+attached.Up*.015f,visual),"Raised palm left moved handle");
                 MatrixD ship=MatrixD.CreateFromYawPitchRoll(i*.02,i*.03,i*.01); ship.Translation=new Vector3D(2e6+i*40,-3e6,4e6);
                 Near((Vector3)Vector3D.Transform(Vector3D.Transform(contact,(MatrixD)visual*ship),MatrixD.Invert(ship)),Vector3.Transform(contact,visual),"Moving ship corrupted placement");
             }

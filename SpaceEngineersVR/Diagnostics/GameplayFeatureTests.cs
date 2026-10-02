@@ -79,6 +79,13 @@ namespace SpaceEngineersVR.Diagnostics
                 new MyHudBlockInfo.ComponentInfo {DefinitionId=id,ComponentName="Steel Plate",TotalCount=10,MountedCount=3,StockpileCount=2,AvailableAmount=4},
                 new MyHudBlockInfo.ComponentInfo {DefinitionId=id,ComponentName="Steel Plate",TotalCount=5,MountedCount=1,StockpileCount=1,AvailableAmount=4} };
             string info=BlockInspection.Describe(.5f,.3f,false,25,rows);
+            var armor=(Sandbox.Game.Entities.Cube.MySlimBlock)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.Cube.MySlimBlock));
+            var door=(Sandbox.Game.Entities.Cube.MySlimBlock)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.Cube.MySlimBlock));
+            foreach(var hit in new[] {door,armor,door,armor})
+                if(BlockInspection.BlockForHit(new Sandbox.Game.Entities.MyCube {CubeBlock=hit},null)!=hit)
+                    throw new Exception("Inspection failed to follow the native geometry hit, including non-interactable armor");
+            if(BlockInspection.BlockForHit(null,null)!=null)
+                throw new Exception("Inspection retained the previous block after pointing into empty space");
             if(!info.Contains("7/15  need 8  have 4") || !info.Contains("Damaged") || info.Split('\n').Length!=3)
                 throw new Exception("Component stack grouping, stockpile or damage lost: "+info);
             if(BlockInspection.Describe(.5f,.5f,false,25,rows).Contains("Damaged") || !BlockInspection.Describe(0,0,true,25,rows).StartsWith("Component cost"))

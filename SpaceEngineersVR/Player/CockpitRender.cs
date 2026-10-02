@@ -153,7 +153,7 @@ namespace SpaceEngineersVR.Player
                 for(int i=0;i<CockpitSwitchGeometry.Count;i++) UpdatePose(check,7+i,(MatrixD)(nativeRest ? Matrix.Identity : CockpitSwitchGeometry.Visual(i,switchPreview ?? CockpitButtons.SwitchPosition(i)))*world);
                 UpdatePose(check,CoverBase,world);
                 for(int i=0;i<CockpitCoverGeometry.Count;i++) UpdatePose(check,CoverBase+1+i,
-                    (MatrixD)CockpitCoverGeometry.Visual(i,coverPreview ?? CockpitButtons.CoverPosition(CockpitCoverGeometry.Slot(i),FighterProfile.Subtype))*world);
+                    (MatrixD)CockpitCoverGeometry.Visual(i,nativeRest ? CockpitCoverGeometry.Initial(i) : coverPreview ?? CockpitButtons.CoverPosition(CockpitCoverGeometry.Slot(i),FighterProfile.Subtype))*world);
                 UpdatePose(check,BarActor,(MatrixD)CockpitBarGeometry.Visual(nativeRest ? 0 : barPreview ?? CockpitButtons.SwitchPosition(CockpitBarGeometry.Slot))*world);
                 var bar=CockpitTouch.Read("CockpitControl"+CockpitBarGeometry.Slot);
                 SetFeedback(check.Actors[BarActor],CockpitCoverGeometry.Material,

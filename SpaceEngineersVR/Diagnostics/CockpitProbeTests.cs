@@ -27,8 +27,8 @@ namespace SpaceEngineersVR.Diagnostics
             }
             var face=new BoundingBox(new Vector3(-.02f,-.06f,0),new Vector3(.02f,.06f,0));
             Require(new CockpitProbe(MatrixD.CreateTranslation(0,0,-.0001)).Intersects(face),"Fingertip tangent misses face");
-            Require(new CockpitProbe(MatrixD.CreateTranslation(0,0,.002)).Intersects(face),"Fingertip approach tolerance misses the face");
-            Require(!new CockpitProbe(MatrixD.CreateTranslation(0,0,.006)).Intersects(face),"Fingertip approach tolerance reaches too far ahead");
+            Require(new CockpitProbe(MatrixD.CreateTranslation(0,0,.0029)).Intersects(face),"Fingertip approach tolerance misses the face");
+            Require(!new CockpitProbe(MatrixD.CreateTranslation(0,0,.0031)).Intersects(face),"Fingertip approach tolerance reaches too far ahead");
             Require(!new CockpitProbe(MatrixD.CreateTranslation(double.NaN,0,0)).Intersects(face),"Invalid capsule enters control");
 
             var surface=CockpitButtons.Preview(FighterProfile.Subtype,CockpitBarGeometry.Slot);

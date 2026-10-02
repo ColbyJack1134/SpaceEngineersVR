@@ -22,7 +22,7 @@ namespace SpaceEngineersVR.Player
     }
     internal sealed class SurfaceView
     {
-        public string Id,Title,Text;
+        public string Id,Title,Text,Action,Argument;
         public EssentialHud.View Status;
         public BlockInspection.Data Block;
         public string[] Icons=new string[0];
@@ -39,7 +39,7 @@ namespace SpaceEngineersVR.Player
         public float[] Levels;
         public int Handle;
         public Vector3? TouchPoint;
-        public string ContentKey => Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Hover+"|"+Pressed+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
+        public string ContentKey => Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
             "|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
         public int KeyAt(Vector2 uv)
@@ -69,7 +69,7 @@ namespace SpaceEngineersVR.Player
     }
     internal static class PhysicalSurface
     {
-        internal static Vector2I TextureSize(SurfaceStyle style) => style==SurfaceStyle.Label ? new Vector2I(1536,308) : style==SurfaceStyle.BlockInfo ? new Vector2I(2048,1280) : new Vector2I(1024,640);
+        internal static Vector2I TextureSize(SurfaceStyle style) => style==SurfaceStyle.Label ? new Vector2I(1536,236) : style==SurfaceStyle.BlockInfo ? new Vector2I(2048,1280) : new Vector2I(1024,640);
         private sealed class Cache { public OverlayCanvas Canvas; public ShaderResourceView Texture; public string Content; public int Revision; public EssentialHud.View Status; }
         private static readonly Dictionary<string,Cache> cache=new Dictionary<string,Cache>();
         private static readonly Font title=new Font("Segoe UI",32,FontStyle.Bold,GraphicsUnit.Pixel),text=new Font("Segoe UI",27,FontStyle.Regular,GraphicsUnit.Pixel);
@@ -135,23 +135,52 @@ namespace SpaceEngineersVR.Player
             target.Clear(Color.Transparent);
             var g=target.Graphics;
             var saved=g.Save();
-            g.ScaleTransform(target.Width/768f,target.Height/154f);
-            using(var shape=Rounded(new System.Drawing.RectangleF(2,2,764,150),15))
+            g.ScaleTransform(target.Width/768f,target.Height/118f);
+            using(var shape=Rounded(new System.Drawing.RectangleF(2,2,764,114),12))
             using(var fill=new SolidBrush(Color.FromArgb(230,12,24,33))) g.FillPath(fill,shape);
             using(var font=new Font("Segoe UI",39,FontStyle.Regular,GraphicsUnit.Pixel))
-            using(var format=new StringFormat { LineAlignment=StringAlignment.Center,Trimming=StringTrimming.EllipsisCharacter,FormatFlags=StringFormatFlags.NoWrap })
-                g.DrawString(s.Title ?? "",font,s.Enabled ? Brushes.White : Brushes.Gray,new System.Drawing.RectangleF(153,8,568,138),format);
+            using(var format=new StringFormat(StringFormat.GenericTypographic) { LineAlignment=StringAlignment.Center,FormatFlags=StringFormatFlags.NoWrap })
+            {
+                bool details=!string.IsNullOrEmpty(s.Action);
+                bool argument=details && !string.IsNullOrEmpty(s.Argument);
+                float width=s.Levels?.Length>0 ? 624:642;
+                float split=width*2/3,topHeight=argument ? 54:110;
+                g.DrawString(FitLabelText(g,s.Title,font,details ? split-17:width,format),font,s.Enabled ? Brushes.White : Brushes.Gray,new System.Drawing.RectangleF(110,4,details ? split-17:width,topHeight),format);
+                if(details)
+                {
+                    using(var separator=new SolidBrush(s.Enabled ? Color.SlateGray:Color.DimGray))
+                        g.FillEllipse(separator,105.5f+split,topHeight/2-.5f,9,9);
+                    g.DrawString(FitLabelText(g,s.Action,font,width-split-17,format),font,s.Enabled ? Brushes.LightCyan:Brushes.Gray,new System.Drawing.RectangleF(127+split,4,width-split-17,topHeight),format);
+                    if(argument) g.DrawString(FitLabelText(g,s.Argument,font,width,format),font,s.Enabled ? Brushes.White:Brushes.Gray,new System.Drawing.RectangleF(110,58,width,54),format);
+                }
+            }
             if(s.Icons.Length==0 && !string.IsNullOrEmpty(s.Text))
-                using(var symbol=new Font("Segoe UI",90,FontStyle.Regular,GraphicsUnit.Pixel))
-                    g.DrawString(s.Text,symbol,Brushes.LightCyan,new System.Drawing.RectangleF(12,5,130,139),centered);
+                using(var symbol=new Font("Segoe UI",72,FontStyle.Regular,GraphicsUnit.Pixel))
+                    g.DrawString(s.Text,symbol,Brushes.LightCyan,new System.Drawing.RectangleF(8,5,94,108),centered);
             if(s.Levels?.Length>0)
                 using(var state=new SolidBrush(s.Levels[0]>.99f ? Color.LightGreen : s.Levels[0]>.01f ? Color.Orange : Color.FromArgb(83,103,111)))
-                    g.FillEllipse(state,735,64,20,20);
+                    g.FillEllipse(state,741,51,16,16);
             g.Restore(saved);
             foreach(string icon in s.Icons)
-                target.Icon(icon,target.Width*12f/768,target.Height*12f/154,target.Width*130f/768,target.Height*130f/154,new Vector4(0,0,1,1),s.Enabled ? Color.White : Color.Gray);
+                target.Icon(icon,target.Width*8f/768,target.Height*12f/118,target.Width*94f/768,target.Height*94f/118,new Vector4(0,0,1,1),s.Enabled ? Color.White : Color.Gray);
             if(!string.IsNullOrEmpty(s.SubIcon))
-                target.Icon(s.SubIcon,target.Width*91f/768,target.Height*91f/154,target.Width*51f/768,target.Height*51f/154,new Vector4(0,0,1,1),Color.White);
+                target.Icon(s.SubIcon,target.Width*65f/768,target.Height*69f/118,target.Width*37f/768,target.Height*37f/118,new Vector4(0,0,1,1),Color.White);
+        }
+        private static string FitLabelText(Graphics g,string value,Font font,float width,StringFormat format)
+        {
+            if(string.IsNullOrEmpty(value)) return "";
+            if(g.MeasureString(value,font,int.MaxValue,format).Width<=width) return value;
+            const string more="…";
+            var starts=System.Globalization.StringInfo.ParseCombiningCharacters(value);
+            int low=0,high=starts.Length;
+            while(low<high)
+            {
+                int middle=(low+high+1)/2;
+                string candidate=value.Substring(0,middle==starts.Length ? value.Length:starts[middle])+more;
+                if(g.MeasureString(candidate,font,int.MaxValue,format).Width<=width) low=middle;
+                else high=middle-1;
+            }
+            return value.Substring(0,low==starts.Length ? value.Length:starts[low])+more;
         }
 
         private static void DrawLock(Graphics g,System.Drawing.RectangleF r,bool unlocked,bool enabled)

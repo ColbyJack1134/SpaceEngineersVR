@@ -21,6 +21,7 @@ namespace SpaceEngineersVR.Player.Components
         private bool hadControllerMovement;
         private bool wasShooting;
         private bool wasSecondary;
+        private System.DateTime nextInputTrace;
 
         public static bool UsingControllerMovement;
 
@@ -39,6 +40,7 @@ namespace SpaceEngineersVR.Player.Components
             TrackedArms.Restore(Character);
             if (Character != MySession.Static?.LocalCharacter) { StopInput(); return; }
             active = this;
+            TraceInput();
             if (firstMovementTick) { Logger.Info("MOVEMENT component is receiving simulation ticks"); firstMovementTick = false; }
             if (!Main.VrActive || !InputRouter.Gameplay || Main.MenuOpen || MySandboxGame.IsPaused || Character.IsDead || ThirdPersonView.Manipulating)
             {
@@ -99,6 +101,18 @@ namespace SpaceEngineersVR.Player.Components
         }
 
         internal static void StopActive() => active?.StopInput();
+        private void TraceInput()
+        {
+            var c=Controls.Static;
+            if(System.DateTime.UtcNow<nextInputTrace || !(c.Primary.RawPressed || c.LeftGripPressure.RawPosition.X>.55f || c.RightGripPressure.RawPosition.X>.55f || c.ThrustRotate.RawPosition.LengthSquared()>.1f)) return;
+            nextInputTrace=System.DateTime.UtcNow.AddSeconds(5);
+            var ship=MySession.Static?.ControlledEntity as MyShipController;
+            Logger.Info("INPUT ownership: mode="+InputRouter.Mode+"; trigger="+c.Primary.RawPressed+"/"+c.Primary.IsPressed+
+                "; flightActive="+c.ThrustRotate.Active+"; clipboard="+PlacementControls.ClipboardActive+"; adjust="+PlacementControls.Adjusting+
+                "; screen="+TouchScreenBridge.OwnsInput+"; feed="+RemoteView.OwnsInput+"; viewGrab="+ThirdPersonView.Manipulating+
+                "; physicalOnly="+Common.Config.PhysicalShipControlsOnly+"; ship="+ship?.EntityId+"; control="+ship?.EnableShipControl+
+                "; sticks="+CockpitControls.Status);
+        }
 
         public override void OnCharacterDead() => StopInput();
 
@@ -205,7 +219,7 @@ namespace SpaceEngineersVR.Player.Components
         {
             var controls = Controls.Static;
             move = FlightAxes.Translation(controls.ThrustLRUD.Position, controls.ThrustLRFB.Position,
-                controls.ThrustUp.Position.X, WeaponHandling.ConsumesLeftGrip ? 0 : controls.ThrustDown.Position.X, controls.ThrustForward.Position.X, controls.ThrustBackward.Position.X);
+                controls.ThrustUp.Position.X, WeaponHandling.ConsumesLeftGrip || !ThirdPersonView.DescentReady ? 0 : controls.ThrustDown.Position.X, controls.ThrustForward.Position.X, controls.ThrustBackward.Position.X);
             float rollSensitivity = ship ? Common.Config.ShipRollSensitivity : Common.Config.JetpackRollSensitivity;
             FlightAxes.Rotation(controls.ThrustRotate.Position, controls.ThrustRoll.IsPressed && !PlacementControls.OwnsTools && !TouchScreenBridge.OwnsInput, ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
         }
@@ -232,7 +246,8 @@ namespace SpaceEngineersVR.Player.Components
 
             var controlledEntity = MySession.Static.ControlledEntity;
             bool primaryPressed=!RemoteView.OwnsInput && controls.Primary.IsPressed && !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput;
-            bool secondaryPressed=!RemoteView.Turret && !RemoteView.OwnsInput && !BlockInspection.ConsumesSecondary && (controls.Secondary.IsPressed && !InputRouter.Flying || controls.Primary.IsPressed && GameActions.AlternateTrigger) && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput;
+            bool secondaryPressed=!RemoteView.Turret && !RemoteView.OwnsInput && !BlockInspection.ConsumesSecondary && (controls.Secondary.IsPressed && FlightAxes.SecondaryGrip(InputRouter.Flying,controlledEntity is MyShipController,
+                CockpitControls.RotationOwned,CockpitControls.NearGrip(Player.HandR),controls.ThrustRotate.RawPosition) || controls.Primary.IsPressed && GameActions.AlternateTrigger) && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput;
             if(controlledEntity is Sandbox.Game.Entities.Character.MyCharacter character && character.CurrentWeapon==null)
                 secondaryPressed=false;
 

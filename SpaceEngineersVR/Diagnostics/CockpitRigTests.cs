@@ -28,7 +28,7 @@ namespace SpaceEngineersVR.Diagnostics
                     if(stick==null) continue;
                     var grip=stick.Palm(hand);
                     var cavity=Vector3.Transform(new Vector3(-.105f,-.035f,0),grip);
-                    if(Vector3.Distance(cavity,stick.Contact)>.00001f || !grip.IsValid())
+                    if(Vector3.Distance(cavity,stick.Contact+stick.Shaft*stick.GripLift+grip.Up*stick.GripInset)>.00001f || !grip.IsValid())
                         throw new Exception("Cockpit grip cavity missed handle: "+rig.Subtype);
                     var visual=CockpitStickMath.Visual(stick.Pivot,new Vector3(.6f,-.3f,.5f));
                     if(Vector3.Distance(Vector3.Transform(stick.Pivot,visual),stick.Pivot)>.00001f)

@@ -156,12 +156,6 @@ float4 PS(P p):SV_TARGET {
                 Mount=left ? geometry.WristMount : previous?.Model==model ? previous.Mount : Matrix.Identity,
                 RightPoint=!left ? geometry.PointFrame : previous?.Model==model ? previous.RightPoint : Matrix.Identity };
         }
-        internal static bool TryMenuPose(Matrix aim,out MatrixD pose)
-        {
-            var state=wrist; pose=MatrixD.Identity;
-            if(state==null || state.Model!=CharacterModel || state.RightPoint==Matrix.Identity) return false;
-            pose=MenuPose(state.RightPoint,aim); return true;
-        }
         internal static bool TryPointPose(Matrix grip,out MatrixD point)
         {
             var pose=wrist; point=MatrixD.Identity;
@@ -276,7 +270,7 @@ float4 PS(P p):SV_TARGET {
         internal static Matrix PointerTracking(bool render=false)
         {
             var hand=Player.HandR;
-            if(Main.WorldAvailable && TryPointPose(render ? hand.RenderGripTracking:hand.GripTracking,out var point)) return (Matrix)point;
+            if(TryPointPose(render ? hand.RenderGripTracking:hand.GripTracking,out var point)) return (Matrix)point;
             return render ? hand.RenderAimTracking:hand.AimTracking;
         }
         internal static MatrixD AttachWrist(MatrixD pose)
@@ -288,7 +282,6 @@ float4 PS(P p):SV_TARGET {
             var attached=CockpitHandPose.Attach(captured,Matrix.Identity,state.RightPoint.Translation,contact);
             return CockpitHandPose.Blend(pose,attached,blend);
         }
-        internal static Matrix MenuPose(Matrix pointFrame,Matrix aim) => Matrix.Invert(pointFrame)*aim;
         private static void DrawEye(RenderTargetView target, EVREye eye, Vector2I size, Controller[] hands, Mesh[] meshes, bool clear,bool pointer=true)
         {
             Setup(target,size);
@@ -301,17 +294,16 @@ float4 PS(P p):SV_TARGET {
             {
                 var hand=hands[h]; if(!hand.renderPose.isTracked) continue;
                 Matrix raw=hand.renderPose.deviceToAbsolute.matrix;
-                if(!NativeGloves.Visible && (!Main.WorldAvailable || !TrackedArms.Applied || !pointer))
+                if(!NativeGloves.Visible && (!Main.WorldAvailable || !Common.Config.TrackedArms || !NativeHandLayer.Drawn(h==0) || !pointer))
                 {
                     if(meshes[h]!=null)
                     {
                         var grip=hand.RenderGripTracking;
                         var pose=(Matrix)Alignment.Apply(Alignment.HandKey(hand),CockpitHandPose.GripWrist(grip));
                         var c=Controls.Static;
-                        if(h==1 && pointer && !Main.WorldAvailable) pose=MenuPose(meshes[h].PointFrame,hand.RenderAimTracking);
                         if(h==1 && Main.WorldAvailable) pose=(Matrix)AttachWrist(pose);
                         float curl=h==0 ? Math.Max(c.LeftTriggerPressure.RawPosition.X,c.LeftGripPressure.RawPosition.X):Math.Max(c.PointerPressure.RawPosition.X,c.RightGripPressure.RawPosition.X);
-                        DrawMesh(meshes[h],pose,vp,CharacterColor,h==1 && pointer ? 0:MathHelper.Clamp(curl,0,1));
+                        DrawMesh(meshes[h],pose,vp,CharacterColor,pointer ? 0:MathHelper.Clamp(curl,0,1));
                     }
                     else DrawMesh(box,Matrix.CreateScale(0.035f,0.075f,0.04f)*raw,vp,new Vector4(0.6f,0.7f,0.8f,1));
                 }

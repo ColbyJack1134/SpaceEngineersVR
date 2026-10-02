@@ -14,6 +14,8 @@ namespace SpaceEngineersVR.Player
     internal static class ThirdPersonView
     {
         private static readonly Diorama view=new Diorama();
+        private static readonly GripDescent descent=new GripDescent();
+        internal static bool DescentReady => !Active || descent.Ready;
         private static readonly ObserverFollow follow=new ObserverFollow();
         private static readonly object sync=new object();
         private static MyCockpit seat;
@@ -126,7 +128,11 @@ namespace SpaceEngineersVR.Player
             float left=c.LeftGripPressure.RawPosition.X,right=c.RightGripPressure.RawPosition.X;
             if(left<=.025f && right<=.025f) consumed=false;
             bool allowed=InputRouter.Mode==InputMode.Piloting && !Main.MenuOpen && !HelmetHud.ViewGestureHeld && transition==null &&
+                !CockpitTouch.OwnsRight && !CockpitTouch.Owns(Player.HandL) && !SpatialUi.OwnsRight && !RemoteView.OwnsInput &&
+                !CockpitControls.NearGrip(Player.HandL) && !CockpitControls.NearGrip(Player.HandR) &&
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked && MenuPointer.GameFocused;
+            descent.Update(allowed,left,DateTime.UtcNow);
+            if(allowed && left>.025f && right>.025f) consumed=true;
             bool started;
             lock(sync)
             {
@@ -197,7 +203,7 @@ namespace SpaceEngineersVR.Player
         {
             lock(sync)
             {
-                seat=null; Volatile.Write(ref frame,null); view.Cancel(); consumed=false;
+                seat=null; Volatile.Write(ref frame,null); view.Cancel(); consumed=false; descent.Update(false,0,DateTime.UtcNow);
                 transition=null; epoch--; renderTime=0; traceRequested=false;
             }
             OpenVR.Compositor?.FadeToColor(.1f,0,0,0,0,false);

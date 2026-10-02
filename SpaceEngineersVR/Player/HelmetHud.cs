@@ -25,7 +25,7 @@ namespace SpaceEngineersVR.Player
         public static bool Markers => Visible && Mode >= 1;
         public static bool Names => Visible && Mode == 2;
         private static int lastMode=-1;
-        private static readonly InputGate leftTrigger=new InputGate(),leftGrip=new InputGate();
+        private static readonly InputGate leftTrigger=new InputGate(),leftGrip=new InputGate(),rightTrigger=new InputGate(),rightGrip=new InputGate();
         internal static bool ViewGestureHeld { get; private set; }
         private static bool leftConsumed,rightConsumed;
         private static long characterId;
@@ -45,8 +45,14 @@ namespace SpaceEngineersVR.Player
         {
             Vector3 p=(hand*Matrix.Invert(head)).Translation;
             if(left) p.X=-p.X;
-            return p.X>0.10f && p.X<0.34f && p.Y> -0.18f && p.Y<0.17f && p.Z> -0.18f && p.Z<0.20f;
+            return p.X>0.10f && InHeadZone(p);
         }
+        internal static bool NearHead(Matrix hand,Matrix head)
+        {
+            Vector3 p=(hand*Matrix.Invert(head)).Translation;
+            return InHeadZone(p);
+        }
+        private static bool InHeadZone(Vector3 p) => Math.Abs(p.X)<.24f && p.Y>-.12f && p.Y<.16f && p.Z>-.13f && p.Z<.27f;
         public static void Update()
         {
             var character=MySession.Static?.LocalCharacter;
@@ -66,6 +72,11 @@ namespace SpaceEngineersVR.Player
             if(leftPressure<=.025f) leftConsumed=false;
             if(c.PointerPressure.RawPosition.X<=.025f && !c.Primary.RawPressed) rightConsumed=false;
             bool active=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && MenuPointer.GameFocused && Player.Headset.pose.isTracked;
+            bool guard=InputRouter.Gameplay && !Main.MenuOpen && Player.Headset.pose.isTracked;
+            bool nearLeft=guard && Player.HandL.pose.isTracked && NearHead(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix);
+            bool nearRight=guard && Player.HandR.pose.isTracked && NearHead(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix);
+            rightTrigger.Update(active && Player.HandR.pose.isTracked && c.Primary.Active,c.Primary.RawPressed);
+            rightGrip.Update(active && Player.HandR.pose.isTracked && c.Secondary.Active,c.Secondary.RawPressed);
             float grip=c.LeftGripPressure.RawPosition.X;
             if(grip<=.025f) ViewGestureHeld=false;
             leftGrip.Update(active && Player.HandL.pose.isTracked && c.LeftGripPressure.Active,grip>.55f);
@@ -76,7 +87,7 @@ namespace SpaceEngineersVR.Player
             }
             if(ViewGestureHeld) { c.LeftGripPressure.BlockUntilRelease(); c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); }
             leftTrigger.Update(active && Player.HandL.pose.isTracked && c.LeftTriggerPressure.Active,leftPressure>.55f);
-            if(active && Player.HandL.pose.isTracked && !leftConsumed && leftTrigger.Pressed &&
+            if(active && Player.HandL.pose.isTracked && leftTrigger.Pressed &&
                 !CockpitControls.Held(Player.HandL) && !CockpitTouch.Owns(Player.HandL) &&
                 !WeaponHandling.ConsumesLeftGrip && NearTemple(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,true))
             {
@@ -84,6 +95,12 @@ namespace SpaceEngineersVR.Player
                 leftConsumed=true;
                 Player.HandL.Vibrate(0,.035f,120,.25f);
             }
+            if(nearLeft && leftPressure>.025f) leftConsumed=true;
+            if(nearRight && (c.PointerPressure.RawPosition.X>.025f || c.Primary.RawPressed)) rightConsumed=true;
+            if(nearLeft)
+            { c.LeftGripPressure.BlockUntilRelease(); c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); }
+            if(nearRight || rightConsumed) c.Primary.BlockUntilRelease();
+            if(nearRight) { c.RightGripPressure.BlockUntilRelease(); c.Secondary.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); }
             if(leftConsumed)
             {
                 c.LeftTriggerPressure.BlockUntilRelease(); c.ThrustUp.BlockUntilRelease();
@@ -91,14 +108,14 @@ namespace SpaceEngineersVR.Player
             }
             if(!active || !Player.HandR.pose.isTracked ||
                 !NearTemple(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix)) return;
-            if (c.Primary.HasPressed && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandR))
+            if (rightTrigger.Pressed && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandR))
             {
                 Common.Config.CycleHud();
                 rightConsumed=true;
                 c.Primary.BlockUntilRelease();
                 Player.HandR.Vibrate(0,0.035f,130,0.35f);
             }
-            if (c.Secondary.HasPressed)
+            if (rightGrip.Pressed)
             {
                 GameActions.HelmetAction.Run();
                 c.Secondary.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease();

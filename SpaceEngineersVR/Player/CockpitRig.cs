@@ -16,9 +16,11 @@ namespace SpaceEngineersVR.Player
             public readonly Vector3 Contact,Pivot,Shaft;
             public readonly int Actor,BaseActor;
             private readonly float gripPitch;
-            public Stick(Vector3 contact,Vector3 pivot,Vector3 shaft,int actor,int baseActor,float gripPitch=0)
-            { Contact=contact; Pivot=pivot; Shaft=Vector3.Normalize(shaft); Actor=actor; BaseActor=baseActor; this.gripPitch=gripPitch; }
-            public Matrix Palm(bool left) => CockpitStickMath.GripPalm(left,Contact,Shaft)*CockpitStickMath.Around(Contact,Matrix.CreateRotationX(gripPitch));
+            public readonly float GripLift,GripInset;
+            public Stick(Vector3 contact,Vector3 pivot,Vector3 shaft,int actor,int baseActor,float gripPitch=0,float gripLift=0,float gripInset=0)
+            { Contact=contact; Pivot=pivot; Shaft=Vector3.Normalize(shaft); Actor=actor; BaseActor=baseActor; this.gripPitch=gripPitch; GripLift=gripLift; GripInset=gripInset; }
+            public Matrix Palm(bool left) => CockpitStickMath.RaiseGrip(
+                CockpitStickMath.GripPalm(left,Contact,Shaft)*CockpitStickMath.Around(Contact,Matrix.CreateRotationX(gripPitch)),Shaft,GripLift,GripInset);
         }
         internal sealed class Piece
         {

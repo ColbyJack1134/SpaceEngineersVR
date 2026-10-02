@@ -24,7 +24,7 @@ namespace SpaceEngineersVR.Player
             public Vector3D? RayStart,RayEnd;
         }
         private static readonly MenuWindow window=new MenuWindow { BarOffset=.035f };
-        private static readonly InputGate press=new InputGate();
+        private static readonly InteractionPress press=new InteractionPress();
         private static readonly Action<MyLargeTurretBase,float> turretZoom=AccessTools.MethodDelegate<Action<MyLargeTurretBase,float>>(AccessTools.Method(typeof(MyLargeTurretBase),"ChangeZoomPrecise"));
         private static object source;
         private static MyCockpit seat;
@@ -32,7 +32,10 @@ namespace SpaceEngineersVR.Player
         private static DateTime last;
         private static int epoch=100000;
         private static string key;
+        private static string world;
+        private static bool placementDirty;
         private static bool recenter,directHeld;
+        private static int zoomHeld;
         private static Matrix heldWrist;
         private static Vector3 heldPoint;
         private static DateTime grabbed;
@@ -58,11 +61,14 @@ namespace SpaceEngineersVR.Player
             MySession.Static?.ControlledEntity is MyLargeTurretBase turret ? turret.PreviousControlledEntity :
             MySession.Static?.ControlledEntity is MyTurretControlBlock custom ? custom.PreviousControlledEntity : MySession.Static?.ControlledEntity;
         public static bool CharacterAnchor => Active && seat==null && MySession.Static?.LocalCharacter==Previous;
-        public static bool UsesSeat(MyCockpit candidate) => Active && candidate!=null && candidate==seat;
+        // Native control can change during a switch action, before UpdateContext runs again.
+        public static bool UsesSeat(MyCockpit candidate) => candidate!=null &&
+            (Active && candidate==seat || (Turret || MySession.Static?.CameraController is MyCameraBlock) && Previous==candidate);
         public static void Reset()
         {
+            if(placementDirty) Save();
             source=null; seat=null; Current=null; SeatedRig=null; OwnsInput=false;
-            window.Cancel(); press.Block(); recenter=directHeld=false; rayStart=rayEnd=null; lastHover=0; epoch++;
+            window.Cancel(); press.Block(); recenter=directHeld=false; rayStart=rayEnd=null; lastHover=zoomHeld=0; epoch++;
         }
         public static void Recenter() { recenter=true; }
         public static void Exit()
@@ -84,6 +90,7 @@ namespace SpaceEngineersVR.Player
                 seat=character.Parent as MyCockpit ?? Previous as MyCockpit;
                 stationary=MatrixD.CreateTranslation(character.WorldMatrix.Translation);
                 key="Remote/"+(seat?.BlockDefinition.Id.SubtypeName ?? "Character");
+                world=MySession.Static.CurrentPath;
                 if(seat==null) { CameraRig.Begin(character); CameraRig.End(character); }
                 Place(); Restore();
             }
@@ -111,7 +118,7 @@ namespace SpaceEngineersVR.Player
         {
             OwnsInput=false; rayStart=rayEnd=null;
             if(!Active) { press.Block(); return; }
-            if(recenter) Place();
+            if(recenter) { Place(); Save(); }
             var now=DateTime.UtcNow; float seconds=(float)Math.Min(.05,Math.Max(0,(now-last).TotalSeconds)); last=now;
             var controls=Controls.Static;
             if(!Turret && InputRouter.Gameplay && !Main.MenuOpen && !CockpitControls.Adjusting && CockpitControls.Held(Player.HandL))
@@ -121,24 +128,25 @@ namespace SpaceEngineersVR.Player
             }
             bool available=InputRouter.Gameplay && !Main.MenuOpen && MenuPointer.GameFocused && Player.HandR.pose.isTracked &&
                 !SpatialUi.OwnsRight && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandR);
-            press.Update(available,controls.Primary.RawPressed);
-            if(!available) { window.Cancel(); directHeld=false; lastHover=0; Publish(); return; }
+            if(!available) { press.Block(); if(placementDirty) Save(); window.Cancel(); directHeld=false; lastHover=zoomHeld=0; Publish(); return; }
             MatrixD aim=SpatialUi.DeviceWorld(Player.HandR.AimTracking);
             if(TrackedArms.TryFreePointPose(Player.HandR,out var finger)) aim=finger;
             Matrix local=(Matrix)(aim*MatrixD.Invert(Parent));
             int hover=0;
             var onPanel=local*Matrix.Invert(window.Pose);
             bool near=onPanel.Translation.Z>=-.025f && onPanel.Translation.Z<=.05f;
+            var input=press.Read(Player.HandR,window.Drag!=0 || zoomHeld!=0 ? directHeld:near);
+            press.Update(true,input);
             Vector3 point=onPanel.Translation; point.Z=0;
             bool hitPanel=near || window.Pointer(local,out point);
-            if(!controls.Primary.RawPressed) directHeld=false;
+            if(!input.Down && window.Drag==0) { directHeld=false; zoomHeld=0; }
             if(window.Drag!=0)
             {
                 OwnsInput=true;
-                if(!controls.Primary.RawPressed) { window.Stop(); Save(); }
+                if(!input.Down) { window.Stop(); directHeld=false; Save(); }
                 else if(window.Pointer(local,out point,true) || window.Drag==1)
-                    window.Move(local,point,controls.ThrustRotate.RawPosition,seconds);
-                controls.Primary.BlockUntilRelease(); controls.ThrustRotate.BlockUntilRelease(); controls.WalkRotate.BlockUntilRelease();
+                { window.Move(local,point,controls.ThrustRotate.RawPosition,seconds); placementDirty=true; }
+                input.Consume(); controls.ThrustRotate.BlockUntilRelease(); controls.WalkRotate.BlockUntilRelease();
             }
             else if(hitPanel)
             {
@@ -160,17 +168,17 @@ namespace SpaceEngineersVR.Player
                 }
                 if(press.Pressed && hover!=0)
                 {
-                    controls.Primary.BlockUntilRelease(); OwnsInput=true;
+                    input.Consume(); OwnsInput=true;
                     if(near)
                     {
                         directHeld=true; grabbed=now; heldPoint=point;
                         heldWrist=(Matrix)(TrackedArms.FreeWristWorld(Player.HandR)*MatrixD.Invert((MatrixD)window.Pose*Parent));
                     }
-                    if(hover<=2) { window.Begin(hover,local,point); press.Block(); }
-                    else Zoom(hover==3 ? .12f : -.12f);
+                    if(hover<=2) { window.Begin(hover,local,point); }
+                    else { zoomHeld=hover; Zoom(hover==3 ? .12f : -.12f); }
                     CockpitFeedback.Click(Player.HandR);
                 }
-                else if(press.Held && hover>=3) { OwnsInput=true; controls.Primary.BlockUntilRelease(); Zoom((hover==3 ? 1:-1)*seconds*.6f); }
+                else if(press.Held && hover>=3 && zoomHeld==hover) { OwnsInput=true; input.Consume(); Zoom((hover==3 ? 1:-1)*seconds*.6f); }
             }
             lastHover=hover;
             Publish(window.Drag!=0 ? window.Drag:hover);
@@ -205,14 +213,17 @@ namespace SpaceEngineersVR.Player
         }
         private static void Save()
         {
+            placementDirty=false;
+            if(seat==null) return;
             var p=window.Pose.Translation; var q=Quaternion.CreateFromRotationMatrix(window.Pose);
-            var saved=new MenuWindowSetting { Screen=key,Width=window.Width,X=p.X,Y=p.Y,Z=p.Z,QX=q.X,QY=q.Y,QZ=q.Z,QW=q.W };
-            Common.Config.MenuWindows=Common.Config.MenuWindows.Where(s=>s.Screen!=key).Concat(new[] {saved}).ToArray();
+            var saved=new MenuWindowSetting { Screen=key,World=world,Cockpit=seat.EntityId,Width=window.Width,X=p.X,Y=p.Y,Z=p.Z,QX=q.X,QY=q.Y,QZ=q.Z,QW=q.W };
+            Common.Config.MenuWindows=Common.Config.MenuWindows.Where(s=>s.Screen!=key || s.World!=world || s.Cockpit!=seat.EntityId).Concat(new[] {saved}).ToArray();
         }
         private static void Restore()
         {
             if(seat==null) return;
-            var saved=Common.Config.MenuWindows.FirstOrDefault(s=>s.Screen==key);
+            var saved=Common.Config.MenuWindows.FirstOrDefault(s=>s.Screen==key && s.World==world && s.Cockpit==seat.EntityId) ??
+                Common.Config.MenuWindows.FirstOrDefault(s=>s.Screen==key && s.World==null && s.Cockpit==0);
             if(saved==null) return;
             var p=new Vector3(saved.X,saved.Y,saved.Z); var q=new Quaternion(saved.QX,saved.QY,saved.QZ,saved.QW);
             if(!p.IsValid() || p.Length()>10 || !q.LengthSquared().IsValid() || q.LengthSquared()<.9f || q.LengthSquared()>1.1f ||

@@ -69,8 +69,8 @@ namespace SpaceEngineersVR.Player
                 },new Lever[] {
                 }),
             new CockpitRig("OpenCockpitSmall","Models/Cubes/Small/OpenCockpitSmall.mwm","Models/Cubes/small/OpenCockpitSmall_LOD0.mwm",new Vector3(0.000000000f,-0.210000000f,0.240000000f),new Vector3(0.000000000f,0.900000000f,0.435889900f),
-                new Stick(new Vector3(-0.320841626f,0.078925535f,-0.002151319f),new Vector3(-0.321228025f,-0.040374756f,0.012436390f),new Vector3(0.003214916f,0.992601812f,-0.121372597f),1,2),
-                new Stick(new Vector3(0.321151109f,0.078102197f,-0.002357841f),new Vector3(0.321228025f,-0.040374756f,0.012436390f),new Vector3(-0.000644202f,0.992293525f,-0.123907808f),3,4),
+                new Stick(new Vector3(-0.320841626f,0.078925535f,-0.002151319f),new Vector3(-0.321228025f,-0.040374756f,0.012436390f),new Vector3(0.003214916f,0.992601812f,-0.121372597f),1,2,gripLift:.025f,gripInset:.015f),
+                new Stick(new Vector3(0.321151109f,0.078102197f,-0.002357841f),new Vector3(0.321228025f,-0.040374756f,0.012436390f),new Vector3(-0.000644202f,0.992293525f,-0.123907808f),3,4,gripLift:.025f,gripInset:.015f),
                 new Piece[] {
                     new Piece("BlackMattePlastic",1668,828,new Vector3(-0.321167000f,0.079589844f,0.002777100f),1),
                     new Piece("Chrome",14178,12,new Vector3(-0.321166993f,-0.020791054f,0.012436867f),1),
@@ -145,8 +145,8 @@ namespace SpaceEngineersVR.Player
                     new Lever(new Vector3(0.486572265f,-0.144714356f,0.176330565f),new Vector3(0.486460507f,-0.150726273f,0.173420488f),new Vector3(-0.001806746f,0.999935996f,0.011168702f),new Vector3(-0.999992197f,-0.001845858f,0.003492662f),43,new Vector3(0.486572265f,-0.132751465f,0.155944824f),new Vector3(0.486385397f,-0.149043955f,0.156164802f),44,1f),
                 }),
             new CockpitRig("OpenCockpitLarge","Models/Cubes/Large/OpenCockpitLarge.mwm","Models/Cubes/large/OpenCockpitLarge_LOD0.mwm",new Vector3(0.000000000f,-0.640000000f,-0.420000000f),new Vector3(0.000000000f,0.900000000f,0.435889900f),
-                new Stick(new Vector3(-0.308087921f,-0.402247620f,-0.401349640f),new Vector3(-0.339233395f,-0.523071295f,-0.365417475f),new Vector3(0.239868004f,0.930527944f,-0.276732877f),1,2),
-                new Stick(new Vector3(0.294082507f,-0.399757588f,-0.417839118f),new Vector3(0.333544916f,-0.519531250f,-0.373950192f),new Vector3(-0.295540539f,0.897004857f,-0.328691461f),3,4),
+                new Stick(new Vector3(-0.308087921f,-0.402247620f,-0.401349640f),new Vector3(-0.339233395f,-0.523071295f,-0.365417475f),new Vector3(0.239868004f,0.930527944f,-0.276732877f),1,2,gripLift:.025f,gripInset:.015f),
+                new Stick(new Vector3(0.294082507f,-0.399757588f,-0.417839118f),new Vector3(0.333544916f,-0.519531250f,-0.373950192f),new Vector3(-0.295540539f,0.897004857f,-0.328691461f),3,4,gripLift:.025f,gripInset:.015f),
                 new Piece[] {
                     new Piece("PaintedMetal_Darker",8052,5,new Vector3(-0.299316406f,-0.365966792f,-0.432128907f),1),
                     new Piece("Rubber",6295,828,new Vector3(-0.309448250f,-0.410034185f,-0.391845703f),1),
@@ -366,8 +366,8 @@ namespace SpaceEngineersVR.Player
                 },new Lever[] {
                 }),
             new CockpitRig("SmallBlockCockpitIndustrial","Models/Cubes/small/CockpitIndustrialInterior.mwm","Models/Cubes/small/CockpitIndustrialInterior.mwm",new Vector3(0.000000000f,-0.395000000f,-0.085000000f),new Vector3(0.000000000f,0.600000000f,0.800000000f),
-                new Stick(new Vector3(-0.326023853f,-0.388315080f,-0.155654246f),new Vector3(-0.355305990f,-0.488688152f,-0.123057046f),new Vector3(0.231258443f,0.908314970f,-0.348544757f),1,2,0.052359878f),
-                new Stick(new Vector3(0.319676308f,-0.389497100f,-0.155448028f),new Vector3(0.351074221f,-0.489306640f,-0.122851563f),new Vector3(-0.251408695f,0.902948002f,-0.348537764f),3,4,0.052359878f),
+                new Stick(new Vector3(-0.326023853f,-0.388315080f,-0.155654246f),new Vector3(-0.355305990f,-0.488688152f,-0.123057046f),new Vector3(0.231258443f,0.908314970f,-0.348544757f),1,2,0.052359878f,gripLift:.035f,gripInset:.015f),
+                new Stick(new Vector3(0.319676308f,-0.389497100f,-0.155448028f),new Vector3(0.351074221f,-0.489306640f,-0.122851563f),new Vector3(-0.251408695f,0.902948002f,-0.348537764f),3,4,0.052359878f,gripLift:.035f,gripInset:.015f),
                 new Piece[] {
                     new Piece("CockpitSmall",498,170,new Vector3(-0.327514650f,-0.351928709f,-0.158233644f),1),
                     new Piece("CockpitSmall",498,16,new Vector3(-0.352172851f,-0.467407230f,-0.123748780f),1),
@@ -488,8 +488,8 @@ namespace SpaceEngineersVR.Player
                     new Lever(new Vector3(-0.428842691f,-0.484063483f,-0.004879543f),new Vector3(-0.428730134f,-0.490120895f,-0.007754756f),new Vector3(0.000031225f,0.999999968f,-0.000252976f),new Vector3(-0.999999965f,0.000031291f,0.000263357f),79,new Vector3(-0.428710938f,-0.481323242f,-0.011493683f),new Vector3(-0.428818080f,-0.488603235f,-0.025017662f),80,0f,16,new Matrix(0.999998037f,-0.000786129f,0.001818899f,0.000000000f,0.000784422f,0.999999252f,0.000938683f,0.000000000f,-0.001819636f,-0.000937254f,0.999997905f,0.000000000f,-0.023936248f,-0.000257979f,0.003751273f,1.000000000f),new Piece("CockpitFighter_Interior",4040,24,new Vector3(-0.404418950f,-0.488891608f,-0.010406494f),0)),
                 }),
             new CockpitRig("LargeBlockCockpitIndustrial","Models/Cubes/large/CockpitIndustrialInterior.mwm","Models/Cubes/large/CockpitIndustrialInterior.mwm",new Vector3(0.000000000f,-0.630000000f,-0.250000000f),new Vector3(0.000000000f,0.900000000f,0.435889900f),
-                new Stick(new Vector3(-0.311375209f,-0.554330009f,-0.406903949f),new Vector3(-0.355143229f,-0.730387362f,-0.339640303f),new Vector3(0.226209509f,0.909930284f,-0.347643692f),1,2),
-                new Stick(new Vector3(0.300845495f,-0.555818256f,-0.402091043f),new Vector3(0.350341796f,-0.730566401f,-0.337890620f),new Vector3(-0.256942585f,0.907143346f,-0.333273848f),3,4),
+                new Stick(new Vector3(-0.311375209f,-0.554330009f,-0.406903949f),new Vector3(-0.355143229f,-0.730387362f,-0.339640303f),new Vector3(0.226209509f,0.909930284f,-0.347643692f),1,2,gripLift:.020f),
+                new Stick(new Vector3(0.300845495f,-0.555818256f,-0.402091043f),new Vector3(0.350341796f,-0.730566401f,-0.337890620f),new Vector3(-0.256942585f,0.907143346f,-0.333273848f),3,4,gripLift:.020f),
                 new Piece[] {
                     new Piece("CockpitSmall",512,182,new Vector3(-0.327514650f,-0.593627930f,-0.374755865f),1),
                     new Piece("CockpitSmall",512,16,new Vector3(-0.352172851f,-0.708984369f,-0.340332031f),1),
@@ -827,7 +827,7 @@ namespace SpaceEngineersVR.Player
                 }),
             new CockpitRig("SmallBlockStandingCockpit","Models/Cubes/Small/StandingBridge.mwm","Models/Cubes/small/StandingBridge_LOD0.mwm",new Vector3(0.000000000f,-0.030000000f,-0.190000000f),new Vector3(0.000000000f,0.900000000f,0.435889900f),
                 null,
-                new Stick(new Vector3(0.292930312f,0.228222136f,-0.310784782f),new Vector3(0.293334964f,0.130004883f,-0.300109863f),new Vector3(-0.004095810f,0.994137070f,-0.108049578f),1,2),
+                new Stick(new Vector3(0.292930312f,0.228222136f,-0.310784782f),new Vector3(0.293334964f,0.130004883f,-0.300109863f),new Vector3(-0.004095810f,0.994137070f,-0.108049578f),1,2,gripLift:.025f),
                 new Piece[] {
                     new Piece("PaintedMetal_VeryDark",3678,828,new Vector3(0.293334958f,0.235717774f,-0.308715824f),1),
                     new Piece("Chrome",2774,12,new Vector3(0.293334967f,0.147216797f,-0.300170899f),1),
@@ -857,7 +857,7 @@ namespace SpaceEngineersVR.Player
                 }),
             new CockpitRig("LargeBlockStandingCockpit","Models/Cubes/Large/StandingBridge.mwm","Models/Cubes/large/StandingBridge_LOD0.mwm",new Vector3(0.000000000f,-0.280000000f,-0.690000000f),new Vector3(0.000000000f,0.900000000f,0.435889900f),
                 null,
-                new Stick(new Vector3(0.292850784f,-0.021996482f,-0.810932575f),new Vector3(0.293334964f,-0.119995117f,-0.800170902f),new Vector3(-0.004911096f,0.994012390f,-0.109156994f),1,2),
+                new Stick(new Vector3(0.292850784f,-0.021996482f,-0.810932575f),new Vector3(0.293334964f,-0.119995117f,-0.800170902f),new Vector3(-0.004911096f,0.994012390f,-0.109156994f),1,2,gripLift:.025f),
                 new Piece[] {
                     new Piece("PaintedMetal_VeryDark",3724,828,new Vector3(0.293334958f,-0.014373780f,-0.808593750f),1),
                     new Piece("PaintedMetal_VeryDark",3724,40,new Vector3(0.305297850f,0.053802490f,-0.817138678f),1),

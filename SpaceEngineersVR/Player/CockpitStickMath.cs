@@ -46,7 +46,7 @@ namespace SpaceEngineersVR.Player
         {
             float side=left ? -1 : 1;
             Vector3 shaft=Vector3.Normalize(new Vector3(-side*.30f,.9539f,-.015f));
-            return GripPalm(left,left ? FighterProfile.LeftContact : FighterProfile.RightContact,shaft);
+            return RaiseGrip(GripPalm(left,left ? FighterProfile.LeftContact : FighterProfile.RightContact,shaft),shaft,.035f,.015f);
         }
         internal static Matrix GripPalm(bool left,Vector3 contact,Vector3 shaft)
         {
@@ -57,6 +57,11 @@ namespace SpaceEngineersVR.Player
             // Grip cavity measured with the astronaut's curled finger bones.
             palm.Translation=contact-
                 Vector3.TransformNormal(new Vector3(-.105f,-.035f,0),palm);
+            return palm;
+        }
+        internal static Matrix RaiseGrip(Matrix palm,Vector3 shaft,float lift,float inset)
+        {
+            palm.Translation+=shaft*lift+palm.Up*inset;
             return palm;
         }
         internal static int Detents(Vector3 axes)

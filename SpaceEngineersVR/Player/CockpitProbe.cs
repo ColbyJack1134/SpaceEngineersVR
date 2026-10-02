@@ -5,12 +5,15 @@ namespace SpaceEngineersVR.Player
 {
     internal struct CockpitProbe
     {
-        internal const float Radius=.010f,Length=.012f,TipExtension=.003f;
+        internal const float Radius=.011f,Length=.028f,TipExtension=.003f;
+        internal const float CenterSide=.0025f,CenterUp=-.0005f;
         internal Vector3D Tip,Start,End;
-        internal CockpitProbe(MatrixD pointer)
+        internal CockpitProbe(MatrixD pointer,bool left=false)
         {
             Tip=pointer.Translation;
-            Start=Tip+pointer.Forward*(TipExtension-Radius);
+            // The index bone axis is offset from the glove mesh center, mirrored between hands.
+            var center=Tip+pointer.Right*(left ? CenterSide:-CenterSide)+pointer.Up*CenterUp;
+            Start=center+pointer.Forward*(TipExtension-Radius);
             End=Start-pointer.Forward*Length;
         }
         internal CockpitProbe Transform(MatrixD matrix) => new CockpitProbe {

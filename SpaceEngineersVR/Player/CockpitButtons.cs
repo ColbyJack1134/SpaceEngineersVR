@@ -19,11 +19,11 @@ namespace SpaceEngineersVR.Player
         internal static float SwitchPosition(int slot,string model=null) => model!=null && model!=subtype ? 0 : positions[slot];
         internal static float CoverPosition(int slot,string model=null)
         {
-            if(model!=null && model!=subtype) return model==FighterProfile.Subtype ? CockpitCoverGeometry.Initial(CockpitSwitchGeometry.CoverIndex(slot)) : CockpitRig.Find(model)?.Levers[slot]?.CoverInitial ?? 0;
+            if(model!=null && model!=subtype) return 0;
             int index=CoverIndex(slot);
             return index<0 ? 0 : covers[index];
         }
-        private static object owner;
+        private static Sandbox.Game.Entities.MyCockpit owner;
         private static bool failed;
         public static SurfaceView[] Views { get; private set; }=new SurfaceView[0];
         internal static CockpitTouch.Target[] Targets { get; private set; }=new CockpitTouch.Target[0];
@@ -39,20 +39,21 @@ namespace SpaceEngineersVR.Player
         private static void ResetCovers()
         {
             Array.Clear(covers,0,covers.Length); Array.Clear(open,0,open.Length);
-            if(subtype==FighterProfile.Subtype)
-                for(int i=0;i<CockpitCoverGeometry.Count;i++) covers[i]=CockpitCoverGeometry.Initial(i);
-            else
-            {
-                var rig=CockpitRig.Find(subtype);
-                if(rig!=null) for(int i=0;i<rig.Levers.Length;i++) covers[i]=rig.Levers[i]?.CoverInitial ?? 0;
-            }
-            for(int i=0;i<covers.Length;i++) open[i]=covers[i]>0;
+            var saved=owner==null ? null : Common.Config.CockpitStates.FirstOrDefault(s=>s.World==Sandbox.Game.World.MySession.Static.CurrentPath && s.Cockpit==owner.EntityId)?.Covers;
+            if(saved!=null) for(int i=0;i<Math.Min(saved.Length,covers.Length);i++) { open[i]=saved[i]; covers[i]=saved[i] ? 1 : 0; }
+        }
+        private static void SaveCovers()
+        {
+            if(owner==null) return;
+            string world=Sandbox.Game.World.MySession.Static.CurrentPath;
+            var entry=new Config.CockpitStateSetting { World=world,Cockpit=owner.EntityId,Covers=(bool[])open.Clone() };
+            Common.Config.CockpitStates=Common.Config.CockpitStates.Where(s=>s.World!=world || s.Cockpit!=owner.EntityId).Concat(new[] {entry}).ToArray();
         }
         public static void Reset()
         {
-            failed=false; Release(); ResetCovers(); CockpitTouch.Reset();
+            failed=false; owner=null; Release(); ResetCovers(); CockpitTouch.Reset();
             Array.Clear(positions,0,positions.Length); Array.Clear(pulses,0,pulses.Length);
-            lastUpdate=DateTime.MinValue; owner=null; CockpitActions.Reset();
+            lastUpdate=DateTime.MinValue; CockpitActions.Reset();
         }
         public static void Prepare()
         {
@@ -126,7 +127,7 @@ namespace SpaceEngineersVR.Player
                     if(target.Cover)
                     {
                         int coverIndex=CoverIndex(i);
-                        if(input.Requested.HasValue) { open[coverIndex]=input.Requested.Value; CockpitFeedback.Click(input.Actor,cover:true); }
+                        if(input.Requested.HasValue) { open[coverIndex]=input.Requested.Value; SaveCovers(); CockpitFeedback.Click(input.Actor,cover:true); }
                         covers[coverIndex]=input.Position ?? covers[coverIndex]+MathHelper.Clamp((open[coverIndex] ? 1 : 0)-covers[coverIndex],-step*.65f,step*.65f);
                         continue;
                     }
@@ -154,12 +155,23 @@ namespace SpaceEngineersVR.Player
         }
         internal static SurfaceView Label(CockpitTouch.Target target,int key)
         {
-            var label=new SurfaceView { Style=SurfaceStyle.Label,Width=.14f,Height=.028f };
+            var label=new SurfaceView { Style=SurfaceStyle.Label,Width=.14f,Height=.0215f };
             if(target.Slot>=0)
             {
                 var item=CockpitActions.Toolbar?.GetItemAtIndex(target.Slot);
                 string name=item?.DisplayName?.ToString();
                 label.Title=target.Cover ? "Cover · "+(target.Slot+1) : string.IsNullOrWhiteSpace(name) ? "Assign · "+(target.Slot+1) : name;
+                if(!target.Cover && item is Sandbox.Game.Screens.Helpers.MyToolbarItemTerminalBlock block)
+                {
+                    label.Title=block.GetBlockName(); label.Action=block.GetActionName();
+                    label.Argument=string.Join(", ",block.Parameters.Select(p=>p.Value?.ToString()).Where(p=>!string.IsNullOrEmpty(p)));
+                }
+                else if(!target.Cover && item is Sandbox.Game.Screens.Helpers.MyToolbarItemTerminalGroup group)
+                {
+                    label.Title=((Sandbox.Common.ObjectBuilders.MyObjectBuilder_ToolbarItemTerminalGroup)group.GetObjectBuilder()).GroupName;
+                    label.Action=group.AllActions.FirstOrDefault(a=>a.Id==group.ActionId)?.Name.ToString() ?? group.ActionId;
+                    label.Argument=string.Join(", ",group.Parameters.Select(p=>p.Value?.ToString()).Where(p=>!string.IsNullOrEmpty(p)));
+                }
                 label.Text=target.Cover ? "↕" : item==null ? "+" : null;
                 label.Icons=item?.Icons ?? new string[0]; label.SubIcon=item?.SubIcon; label.Enabled=item?.Enabled ?? true;
                 label.Levels=CockpitActions.ReadState(target.Slot,out float state) ? new[] { state } : null;

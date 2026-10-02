@@ -25,6 +25,7 @@ namespace SpaceEngineersVR.Player
         private static bool disabled;
         private static bool rayVisible;
         internal static bool HoldingRight => hands[0].Input.Surface!=null;
+        internal static bool OwnsRight => hands[0].Input.Consumed;
         private sealed class Contact
         {
             public readonly CockpitTouch.Hand Input=new CockpitTouch.Hand();
@@ -127,13 +128,7 @@ namespace SpaceEngineersVR.Player
         }
         private static void Consume(int i)
         {
-            var c=Controls.Static;
-            if(i==0) c.Primary.BlockUntilRelease();
-            else
-            {
-                c.LeftTriggerPressure.BlockUntilRelease(); c.ThrustUp.BlockUntilRelease();
-                c.ThrustForward.BlockUntilRelease(); c.JumpOrClimbUp.BlockUntilRelease();
-            }
+            InteractionInput.Read(i==0 ? Player.HandR:Player.HandL,true).Consume();
         }
         public static void UpdateTouch()
         {
@@ -158,13 +153,12 @@ namespace SpaceEngineersVR.Player
             for(int i=0;i<2;i++)
             {
                 var h=hands[i]; var hand=i==0 ? Player.HandR : Player.HandL;
-                float pressure=i==0 ? c.PointerPressure.RawPosition.X : c.LeftTriggerPressure.RawPosition.X;
-                bool down=i==0 ? c.Primary.RawPressed : pressure>.55f;
+                var input=InteractionInput.Read(hand,true);
                 bool free=available && (i==0 ? rightPose : leftPose) && !HelmetHud.Consumes(hand);
                 h.Pointing=false;
                 if(!free)
                 {
-                    h.Input.Sample(false,pressure,down,null,-1); h.Hover=h.Pressed=null; h.Label=null;
+                    h.Input.Sample(false,input,null,-1); h.Hover=h.Pressed=null; h.Label=null;
                     if(h.Input.Consumed) Consume(i);
                     continue;
                 }
@@ -178,8 +172,8 @@ namespace SpaceEngineersVR.Player
                 }
                 bool reachable=h.Pressed?.Owner!=null && !h.Pressed.Owner.Closed &&
                     Vector3D.Distance(tip,Vector3D.Transform(h.LocalPoint,h.Pressed.WorldMatrix))<.28;
-                h.Input.Sample(true,pressure,down,target==null ? null : RuntimeHelpers.GetHashCode(target).ToString(),0,
-                    i==0 ? c.Primary.HasPressed : c.LeftTriggerPressure.Position.X>0,reachable,softCapture:false);
+                h.Input.Sample(true,input,target==null ? null : RuntimeHelpers.GetHashCode(target).ToString(),0,
+                    reachable,softCapture:false);
                 if(h.Input.Pressed)
                 {
                     if(SurfaceContact(target,tip,out var point))
@@ -201,7 +195,7 @@ namespace SpaceEngineersVR.Player
                 }
                 if(h.Input.Held<0) h.Pressed=null;
                 if(h.Input.Consumed) Consume(i);
-                bool aiming=i==0 && (ShowRay(pressure,rayVisible) || down);
+                bool aiming=i==0 && (ShowRay(c.PointerPressure.RawPosition.X,rayVisible) || c.Primary.RawPressed);
                 bool keepHover=h.Hover?.Owner!=null && !h.Hover.Owner.Closed && Pressable(h.Hover) &&
                     Vector3D.Distance(tip,ClosestControlPoint(h.Hover.ActivationMatrix,tip))<PressReach+.025;
                 h.Pointing=target!=null || h.Pressed!=null || aiming || keepHover;
@@ -256,7 +250,7 @@ namespace SpaceEngineersVR.Player
             if(MySession.Static?.LocalCharacter?.GetDetectorComponent()?.UseObject!=null) CockpitFeedback.Activate(Player.HandR);
         }
 
-        public static void RefreshTarget()
+        public static void RefreshTarget(bool trace=true)
         {
             // Native hover updates run every ten ticks. Refresh on an action so a
             // moved controller cannot activate the object highlighted on an old ray.
@@ -264,7 +258,7 @@ namespace SpaceEngineersVR.Player
             var detector = MySession.Static.LocalCharacter.GetDetectorComponent();
             if (detector == null) return;
             detect(detector, true);
-            if(Common.Config.DeveloperTools) Logger.Info("INTERACTION detector=" + detector.GetType().Name + "; origin=" + detector.StartPosition +
+            if(trace && Common.Config.DeveloperTools) Logger.Info("INTERACTION detector=" + detector.GetType().Name + "; origin=" + detector.StartPosition +
                 "; use=" + (detector.UseObject?.GetType().Name ?? "none") +
                 "; target=" + (detector.UseObject?.Owner?.DisplayName ?? "none"));
         }

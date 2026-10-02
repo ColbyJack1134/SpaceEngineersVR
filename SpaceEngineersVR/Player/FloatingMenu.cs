@@ -23,7 +23,8 @@ namespace SpaceEngineersVR.Player
             public int Hover;
         }
         private static readonly MenuWindow window=new MenuWindow();
-        private static readonly InputGate press=new InputGate();
+        private static readonly InteractionPress press=new InteractionPress();
+        private static bool directDrag;
         private static volatile Snapshot current;
         private static volatile bool recenter=true;
         private static volatile float aspect=9f/16;
@@ -61,20 +62,24 @@ namespace SpaceEngineersVR.Player
                 press.Block();
             }
             if(Math.Abs(window.Aspect-aspect)>.0001f) { window.Cancel(); window.Aspect=aspect; press.Block(); }
-            press.Update(available,Controls.Static.Primary.RawPressed); hover=0;
-            if(!available) window.Cancel();
+            hover=0;
+            if(!available) { window.Cancel(); press.Block(); }
             else
             {
                 Matrix aim=MenuHands.PointerTracking();
+                var local=aim*Matrix.Invert(window.Pose);
+                bool near=local.Translation.Z>=-.025f && local.Translation.Z<=.05f;
+                var input=press.Read(Player.HandR,window.Drag!=0 ? directDrag:near);
+                press.Update(true,input);
                 if(window.Drag!=0)
                 {
                     OwnsInput=true;
-                    if(!Controls.Static.Primary.RawPressed) { window.Stop(); Save(); }
+                    if(!input.Down) { window.Stop(); Save(); }
                     else
                     {
                         if(window.Pointer(aim,out var point,true) || window.Drag==1)
                             window.Move(aim,point,Controls.Static.MenuNavigate.RawPosition,seconds);
-                        Controls.Static.Primary.BlockUntilRelease();
+                        input.Consume();
                     }
                 }
                 else if(window.Pointer(aim,out var point))
@@ -82,7 +87,7 @@ namespace SpaceEngineersVR.Player
                     hover=window.Handle(point); OwnsInput=hover!=0;
                     if(hover!=0 && press.Pressed)
                     {
-                        Controls.Static.Primary.BlockUntilRelease(); press.Block(); MenuPointer.Release();
+                        input.Consume(); MenuPointer.Release(); directDrag=near;
                         window.Begin(hover,aim,point);
                         Controls.Static.MenuNavigate.BlockUntilRelease();
                         Player.HandR.Vibrate(0,.022f,100,.28f);
@@ -134,8 +139,12 @@ namespace SpaceEngineersVR.Player
             var sprite=PhysicalSurface.Quad(contents,s.Pose,new VRageMath.RectangleF(-s.Width/2,s.Height/2,s.Width,s.Height),
                 new Vector4(0,0,1,1),Vector4.One,view,projection,.001f);
             sprite.Rounded=new Vector2(.014f/s.Width,.014f/s.Height);
+            sprite.EncodeSrgb=NeedsSrgbEncoding(contents.Description.Format,target.Description.Format);
             NativeSprites.Draw(target,new[] {sprite},handDepth:handDepth);
         }
+        internal static bool NeedsSrgbEncoding(SharpDX.DXGI.Format source,SharpDX.DXGI.Format target) =>
+            (source==SharpDX.DXGI.Format.R8G8B8A8_UNorm_SRgb || source==SharpDX.DXGI.Format.B8G8R8A8_UNorm_SRgb) &&
+            target!=SharpDX.DXGI.Format.R8G8B8A8_UNorm_SRgb && target!=SharpDX.DXGI.Format.B8G8R8A8_UNorm_SRgb;
         public static void DrawFrame(Texture2D target,Snapshot s,MatrixD view,MatrixD projection,ShaderResourceView handDepth=null)
         {
             if(!Available) return;

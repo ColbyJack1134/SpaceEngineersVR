@@ -26,6 +26,7 @@ namespace SpaceEngineersVR.Player
             private readonly InputGate squeeze=new InputGate();
             private readonly PointerIntent pointer=new PointerIntent();
             private bool guardedSqueeze;
+            private bool? gripSource,heldGrip;
             public string Surface { get; private set; }
             public int Held { get; private set; }=-1;
             public bool Captured { get; private set; }
@@ -34,17 +35,26 @@ namespace SpaceEngineersVR.Player
             public bool Consumed { get; private set; }
             public void Reset()
             {
-                press.Block(); squeeze.Block(); pointer.Reset(); guardedSqueeze=false; Surface=null; Held=-1; Captured=Committed=Pressed=false;
+                press.Block(); squeeze.Block(); pointer.Reset(); heldGrip=null; guardedSqueeze=false; Surface=null; Held=-1; Captured=Committed=Pressed=false;
             }
-            public void Sample(bool available,float pressure,bool down,string target,int key,bool canAcquire=true,bool reachable=true,bool guarded=false,bool softCapture=true)
+            internal void Sample(bool available,InteractionInput input,string target,int key,bool reachable=true,bool guarded=false,bool softCapture=true,bool retainSqueeze=false)
+            {
+                if(gripSource!=input.Near) { Reset(); gripSource=input.Near; }
+                if(input.Near && Surface!=null && heldGrip.HasValue) input=input.Select(heldGrip.Value);
+                Sample(available,input.Pressure,input.Down,target,key,input.CanAcquire,reachable,guarded,softCapture && !input.Near,retainSqueeze,input.Near);
+                if(Captured) heldGrip=input.Near ? input.Grip:(bool?)null;
+            }
+            public void Sample(bool available,float pressure,bool down,string target,int key,bool canAcquire=true,bool reachable=true,bool guarded=false,bool softCapture=true,bool retainSqueeze=false,bool clickOnly=false)
             {
                 Captured=Pressed=false;
+                if(clickOnly && !down && !(retainSqueeze && Surface!=null && Committed))
+                { Surface=null; Held=-1; Committed=Consumed=guardedSqueeze=false; }
                 if(pressure<=.025f && !down) Consumed=guardedSqueeze=false;
                 if(!available || float.IsNaN(pressure)) { Reset(); return; }
                 press.Update(true,down);
                 squeeze.Update(true,VrMath.Deadzone(pressure)>0 || down);
-                pointer.Begin(true,pressure,down,target!=null);
-                if(!reachable || (Committed ? !down : pressure<.08f && !down))
+                pointer.Begin(true,clickOnly ? down ? 1:0:pressure,down,target!=null);
+                if(!reachable || (Committed && !retainSqueeze ? !down : pressure<.08f && !down))
                 { Surface=null; Held=-1; Committed=false; }
                 if(Surface==null && (!Consumed || guardedSqueeze) && (softCapture && pressure>=.20f || press.Pressed) && canAcquire &&
                     target!=null && key>=0 && pointer.Capture(target,true))
@@ -52,8 +62,8 @@ namespace SpaceEngineersVR.Player
                 if(Surface!=null && !Committed && press.Pressed) { Committed=Pressed=true; }
                 if(press.Pressed && canAcquire && guarded) Consumed=true;
                 if(press.Pressed) guardedSqueeze=false;
-                // Left-trigger thrust starts before its click threshold; reserve a nearby squeeze early.
-                if(!Consumed && squeeze.Pressed && !down && canAcquire && guarded) Consumed=guardedSqueeze=true;
+                // Reserve a nearby squeeze before its flight-action threshold.
+                if(!Consumed && (squeeze.Pressed || clickOnly && pressure>.025f) && !down && canAcquire && guarded) Consumed=guardedSqueeze=true;
             }
         }
         internal sealed class HoverGrace
@@ -119,13 +129,7 @@ namespace SpaceEngineersVR.Player
         private static Controller Controller(int i) => i==0 ? Player.HandR : Player.HandL;
         private static void Consume(int i)
         {
-            var c=Controls.Static;
-            if(i==0) c.Primary.BlockUntilRelease();
-            else
-            {
-                c.ThrustUp.BlockUntilRelease(); c.ThrustForward.BlockUntilRelease();
-                c.JumpOrClimbUp.BlockUntilRelease();
-            }
+            InteractionInput.Read(Controller(i),true).Consume();
         }
         public static void Reset()
         {
@@ -167,9 +171,7 @@ namespace SpaceEngineersVR.Player
             {
                 for(int i=0;i<2;i++) if(hands[i].Input.Consumed)
                 {
-                    var c=Controls.Static;
-                    float pressure=i==0 ? c.PointerPressure.RawPosition.X : c.LeftTriggerPressure.RawPosition.X;
-                    hands[i].Input.Sample(false,pressure,i==0 ? c.Primary.RawPressed : pressure>.55f,null,-1);
+                    hands[i].Input.Sample(false,InteractionInput.Read(Controller(i),true),null,-1);
                     if(hands[i].Input.Consumed) Consume(i);
                 }
                 Reset();
@@ -186,15 +188,15 @@ namespace SpaceEngineersVR.Player
             for(int i=0;i<2;i++)
             {
                 var h=hands[i]; var hand=Controller(i); var c=Controls.Static;
-                float pressure=i==0 ? c.PointerPressure.RawPosition.X : c.LeftTriggerPressure.RawPosition.X;
-                bool down=i==0 ? c.Primary.RawPressed : pressure>.55f;
+                var input=InteractionInput.Read(hand,true);
                 bool flying=i==0 ? c.ThrustRotate.RawPosition.LengthSquared()>.04f :
                     c.ThrustLRUD.RawPosition.LengthSquared()>.04f || c.ThrustLRFB.RawPosition.LengthSquared()>.04f;
-                bool free=available && !CockpitControls.Held(hand) && !HelmetHud.Consumes(hand);
+                bool free=available && !CockpitControls.Held(hand) && !HelmetHud.Consumes(hand) &&
+                    (i!=0 || !RemoteView.OwnsInput && !SpatialUi.OwnsRight && !TouchScreenBridge.OwnsInput);
                 h.Change=-1;
                 if(!free)
                 {
-                    h.Input.Sample(false,pressure,down,null,-1); h.Grace.Reset(); h.Target=h.Hover=null; h.HoverKey=-1;
+                    h.Input.Sample(false,input,null,-1); h.Grace.Reset(); h.Target=h.Hover=null; h.HoverKey=-1;
                     if(h.Input.Consumed) Consume(i);
                     continue;
                 }
@@ -204,7 +206,7 @@ namespace SpaceEngineersVR.Player
                 var pointer=SpatialUi.DeviceWorld(hand.AimTracking);
                 pointer.Translation+=pointer.Forward*.025;
                 if(TrackedArms.TryFreePointPose(hand,out var finger)) pointer=finger;
-                var probe=new CockpitProbe(pointer);
+                var probe=new CockpitProbe(pointer,hand==Player.HandL);
                 Vector3D head=SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation;
                 bool guarded=CockpitPanelGuard.Contains(seat.BlockDefinition.Id.SubtypeName,probe.Transform(seat.PositionComp.WorldMatrixNormalizedInv)) ||
                     panel!=null && CockpitPanelGuard.NearSurface(panel,probe);
@@ -242,8 +244,7 @@ namespace SpaceEngineersVR.Player
                 var held=targets.FirstOrDefault(t=>t.Surface.Id==h.Input.Surface);
                 Vector3 motion=Compensate(raw,SeatFit.Offset,h.FitAtGrab);
                 bool reachable=held!=null && h.Reachable(motion);
-                bool canAcquire=i==0 ? c.PointerPressure.Position.X>0 || c.Primary.HasPressed : c.LeftTriggerPressure.Position.X>0;
-                h.Input.Sample(true,pressure,down,chosen?.Surface.Id,key,canAcquire,reachable,guarded);
+                h.Input.Sample(true,input,chosen?.Surface.Id,key,reachable,guarded,retainSqueeze:held?.Draggable==true);
                 if(h.Input.Captured)
                 {
                     held=chosen; h.StartHand=raw; h.FitAtGrab=SeatFit.Offset; h.Wrist=localWrist; h.Grabbed=DateTime.UtcNow;

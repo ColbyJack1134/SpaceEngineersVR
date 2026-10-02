@@ -3,6 +3,7 @@ namespace SpaceEngineersVR.Player.Control
     internal sealed class InputGate
     {
         private bool blocked = true;
+        internal bool Ready => !blocked;
         public bool Held { get; private set; }
         public bool Pressed { get; private set; }
         public bool Released { get; private set; }

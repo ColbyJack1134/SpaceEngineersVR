@@ -245,18 +245,19 @@ namespace SpaceEngineersVR.Plugin
             Player.InputRouter.Update();
             Player.Controls.Static.Poll(Player.InputRouter.Mode);
             Player.HelmetHud.Update();
-            Player.ThirdPersonView.Update();
             Player.NativeGloves.Update();
             Player.SeatFit.Update();
             if(MenuOpen && MySession.Static?.LocalCharacter!=null)
                 Player.TrackedArms.Update(MySession.Static.LocalCharacter);
             Player.FloatingKeyboard.Update();
             Player.FloatingMenu.Update();
+            Player.RemoteView.Update();
             Player.CockpitTouch.BeginFrame();
             Player.CockpitButtons.Update();
             Player.SpatialUi.Update();
             Player.TouchScreenBridge.Update();
             Player.HandInteraction.UpdateTouch();
+            Player.ThirdPersonView.Update();
             Player.BlockInspection.Update();
             Player.ToolbarWheel.Update();
             Player.GameActions.RunScheduled();
@@ -266,7 +267,6 @@ namespace SpaceEngineersVR.Plugin
             Player.CameraRig.Publish();
             Player.WeaponHandling.Update();
             Player.CockpitControls.Update();
-            Player.RemoteView.Update();
             Player.BodyProximity.Update();
             if(Player.SeatFit.Eligible(Player.SeatFit.Seat))
                 Player.TrackedArms.Update(Player.SeatFit.Seat.Pilot);

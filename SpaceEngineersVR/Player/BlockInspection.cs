@@ -5,12 +5,9 @@ using System.Text;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Cube;
 using Sandbox.Game.Gui;
-using Sandbox.Game.Weapons;
 using Sandbox.Game.World;
-using Sandbox.ModAPI;
 using SpaceEngineersVR.Plugin;
 using VRage.Game;
-using VRage.Game.ModAPI;
 using VRageMath;
 using Color=System.Drawing.Color;
 
@@ -42,13 +39,10 @@ namespace SpaceEngineersVR.Player
             if(!grip && !Common.Config.InspectWithoutGrip) return;
             if(!InputRouter.Gameplay || Main.MenuOpen || character==null || character.IsSitting ||
                 MySession.Static.ControlledEntity!=character ||
-                SpatialUi.Pointing || SpatialUi.OwnsRight || CockpitTouch.OwnsRight || !Player.HandR.pose.isTracked) return;
+                HelmetHud.NearHead(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix) ||
+                SpatialUi.Pointing || SpatialUi.OwnsRight || CockpitTouch.OwnsRight || HandInteraction.OwnsRight || !Player.HandR.pose.isTracked) return;
             if(!TrackedArms.TryFreePointPose(Player.HandR,out var finger) || !HandInteraction.TryInteractionRay(out var ray)) return;
-            if(character.CurrentWeapon==null) ray=HandInteraction.RayForPose(finger);
-            var block=character.CurrentWeapon is MyEngineerToolBase tool ? tool.GetTargetBlock() : null;
-            if(block==null && character.CurrentWeapon==null)
-                block=Target(new LineD(finger.Translation-finger.Forward*.04,finger.Translation+finger.Forward*.12));
-            if(block==null) block=Target(ray);
+            var block=Target(ray);
             var definition=block?.BlockDefinition ?? (PlacementControls.OwnsTools ? MyCubeBuilder.Static?.CurrentBlockDefinition : null);
             if(definition==null) { title=text=null; return; }
             ConsumesSecondary=grip && InputRouter.Mode==InputMode.Walking;
@@ -72,11 +66,14 @@ namespace SpaceEngineersVR.Player
         }
         private static MySlimBlock Target(LineD ray)
         {
-            if(MyAPIGateway.Physics==null || !MyAPIGateway.Physics.CastRay(ray.From,ray.To,out IHitInfo hit)) return null;
-            var grid=hit.HitEntity as MyCubeGrid;
-            if(grid==null) return null;
-            var cell=grid.RayCastBlocks(ray.From,hit.Position+ray.Direction*.02);
-            return cell.HasValue ? grid.GetCubeBlock(cell.Value) : null;
+            var hit=MyEntities.GetIntersectionWithLine(ref ray,MySession.Static.LocalCharacter,null,ignoreChildren:false,ignoreFloatingObjects:false);
+            return hit.HasValue ? BlockForHit(hit.Value.UserObject,hit.Value.Entity):null;
+        }
+        internal static MySlimBlock BlockForHit(object geometry,VRage.ModAPI.IMyEntity entity)
+        {
+            if(geometry is MyCube cube) return cube.CubeBlock;
+            while(entity!=null && !(entity is MyCubeBlock)) entity=entity.Parent;
+            return (entity as MyCubeBlock)?.SlimBlock;
         }
         internal static string Describe(float built,float integrity,bool preview,int pcu,MyHudBlockInfo.ComponentInfo[] components)
         {

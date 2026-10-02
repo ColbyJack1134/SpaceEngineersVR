@@ -19,11 +19,13 @@ namespace SpaceEngineersVR.Player
         private static Texture2D texture;
         private static DepthStencilView target;
         private static volatile bool active;
+        private static volatile bool leftDrawn,rightDrawn;
+        internal static bool Drawn(bool left) => left ? leftDrawn:rightDrawn;
         private static readonly FieldInfo parentField=AccessTools.Field(AccessTools.TypeByName("VRageRender.MyRenderableProxy"),"Parent");
         private static MethodBase TargetMethod() => AccessTools.Method(AccessTools.TypeByName("VRageRender.MyGBufferPass"),"RecordCommandsInternal",new[] {AccessTools.TypeByName("VRageRender.MyRenderableProxy")});
         internal static void Begin(int width,int height,bool enabled)
         {
-            active=ready=false;
+            active=ready=leftDrawn=rightDrawn=false;
             if(!enabled || Actor==uint.MaxValue) return;
             if(texture==null || texture.Description.Width!=width || texture.Description.Height!=height)
             {
@@ -39,7 +41,7 @@ namespace SpaceEngineersVR.Player
         internal static void End() { active=false; }
         internal static void Reset()
         {
-            active=ready=false; view?.Dispose(); view=null; target?.Dispose(); target=null; texture?.Dispose(); texture=null;
+            active=ready=leftDrawn=rightDrawn=false; view?.Dispose(); view=null; target?.Dispose(); target=null; texture?.Dispose(); texture=null;
         }
         private static void Postfix(object __instance,object proxy)
         {
@@ -48,6 +50,7 @@ namespace SpaceEngineersVR.Player
             if(parent?.Owner.ID!=Actor) return;
             string material=CockpitRender.Member(CockpitRender.Member(CockpitRender.Member(proxy,"Material"),"Info"),"Name").ToString();
             if(material!="LeftGlove" && material!="RightGlove") return;
+            if(material=="LeftGlove") leftDrawn=true; else rightDrawn=true;
             var context=(DeviceContext)CockpitRender.Member(CockpitRender.Member(__instance,"RC"),"DeviceContext");
             var buffer=CockpitRender.Member(__instance,"GBuffer");
             var depth=(DepthStencilView)CockpitRender.Member(CockpitRender.Member(CockpitRender.Member(buffer,"DepthStencil"),"Dsv"),"Dsv");

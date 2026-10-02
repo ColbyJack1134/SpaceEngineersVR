@@ -137,10 +137,10 @@ namespace SpaceEngineersVR.Player
             Dampener = new Button("/actions/flying/in/Dampener");
             SeatTerminal = new Button("/actions/flying/in/SeatTerminal");
             Primary = new Button("/actions/common/in/Primary");
-            PointerPressure = new Analog("/actions/common/in/PointerPressure");
-            LeftTriggerPressure = new Analog("/actions/common/in/LeftTriggerPressure");
-            LeftGripPressure = new Analog("/actions/common/in/LeftGripPressure");
-            RightGripPressure = new Analog("/actions/common/in/RightGripPressure");
+            PointerPressure = new Analog("/actions/common/in/PointerPressure",.55f);
+            LeftTriggerPressure = new Analog("/actions/common/in/LeftTriggerPressure",.55f);
+            LeftGripPressure = new Analog("/actions/common/in/LeftGripPressure",InteractionInput.GripThreshold);
+            RightGripPressure = new Analog("/actions/common/in/RightGripPressure",InteractionInput.GripThreshold);
             Secondary = new Button("/actions/common/in/Secondary");
             Reload = new Button("/actions/common/in/Reload");
             Unequip = new Button("/actions/common/in/Unequip");

@@ -45,6 +45,7 @@ namespace SpaceEngineersVR.Player
             bool flying = Flying;
             if (next != Mode || !ReferenceEquals(nextOwner, owner) || flying != wasFlying)
             {
+                if(Main.WorldAvailable) Logger.Info("INPUT transition: "+Mode+" -> "+next+"; owner="+nextOwner?.GetType().Name+"; clipboard="+PlacementControls.ClipboardActive);
                 if (!ReferenceEquals(nextOwner, owner) || next == InputMode.Blocked) GameActions.Reset();
                 Reset(CanContinueLocomotion(Mode, next, owner, nextOwner));
                 Mode = next;

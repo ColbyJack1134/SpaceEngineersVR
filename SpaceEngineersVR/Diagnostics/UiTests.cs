@@ -115,9 +115,9 @@ namespace SpaceEngineersVR.Diagnostics
                         Enabled=Enumerable.Repeat(true,9).ToArray(),SubIcons=new string[9],ItemText=new string[9],Selected=0 };
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
                     Save(wheel.Texture,Path.Combine(output,"wheel-actions-preview.png"));
-                    foreach(var entry in new[] { Tuple.Create("third-person",false,true,true),Tuple.Create("building",true,false,false),Tuple.Create("character",false,false,false),Tuple.Create("jetpack",false,false,false) })
+                    foreach(var entry in new[] { Tuple.Create("third-person",false,true,true),Tuple.Create("building",true,false,false),Tuple.Create("blueprint",true,false,false),Tuple.Create("character",false,false,false),Tuple.Create("jetpack",false,false,false) })
                     {
-                        var choices=GameActions.WheelActions(entry.Item2,entry.Item3,entry.Item4,entry.Item1=="jetpack");
+                        var choices=entry.Item1=="blueprint" ? GameActions.ClipboardActions():GameActions.WheelActions(entry.Item2,entry.Item3,entry.Item4,entry.Item1=="jetpack");
                         model.Title="Quick actions"; model.Group=1; model.Page=0; model.Pages=1;
                         model.Labels=choices.Select(c=>c.Label).ToArray(); model.Icons=choices.Select(c=>new[] { c.Icon }).ToArray();
                         Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"wheel-"+entry.Item1+"-preview.png"));
@@ -196,6 +196,7 @@ namespace SpaceEngineersVR.Diagnostics
                     log("PASS native rotation artwork: linear texture sampling is encoded for the gamma-space overlay.");
                 }
                 MarkerPreviews(device,output);
+                MenuColors(device,output,log);
                 SurfacePreviews(device,output,log);
                 CockpitHandTests.Preview(output);
                 GameplayFeatureTests.Run(log,output);
@@ -257,6 +258,37 @@ namespace SpaceEngineersVR.Diagnostics
                     }
                 }
             }
+        }
+        private static void MenuColors(Device device,string output,Action<string> log)
+        {
+            using(var pixels=new OverlayCanvas("Menu colour source",8,8,1,false,device))
+            {
+                pixels.Clear(System.Drawing.Color.FromArgb(255,128,64,192)); pixels.Upload();
+                var description=pixels.Texture.Description;
+                description.Format=SharpDX.DXGI.Format.B8G8R8A8_UNorm_SRgb;
+                using(var source=new Texture2D(device,description))
+                using(var view=new ShaderResourceView(device,source))
+                {
+                    device.ImmediateContext.CopyResource(pixels.Texture,source);
+                    foreach(var format in new[] {SharpDX.DXGI.Format.B8G8R8A8_UNorm,SharpDX.DXGI.Format.B8G8R8A8_UNorm_SRgb})
+                    {
+                        description.Width=description.Height=256; description.Format=format;
+                        using(var target=new Texture2D(device,description))
+                        {
+                            FloatingMenu.DrawPanel(target,view,new FloatingMenu.Snapshot {Pose=Matrix.CreateTranslation(0,0,-1),Width=1,Height=1},
+                                MatrixD.Identity,VrMath.Projection(-1,1,-1,1,.03));
+                            string path=Path.Combine(output,"menu-colour-"+format+".png"); Save(target,path);
+                            using(var image=new Bitmap(path))
+                            {
+                                var color=image.GetPixel(128,128);
+                                if(Math.Abs(color.R-128)>2 || Math.Abs(color.G-64)>2 || Math.Abs(color.B-192)>2)
+                                    throw new Exception("Native menu colour changed on "+format+": "+color);
+                            }
+                        }
+                    }
+                }
+            }
+            log("PASS native menu colour: sRGB contents preserve encoded pixels on menu and world eye targets");
         }
         private static void GpuQueries(Action<string> log)
         {
@@ -326,6 +358,8 @@ namespace SpaceEngineersVR.Diagnostics
                 Save(scene.Texture,Path.Combine(output,"keyboard-3d-preview.png"));
                 using(var bitmap=new Bitmap(Path.Combine(output,"keyboard-3d-preview.png")))
                     if(bitmap.GetPixel(512,320).R==7) throw new Exception("Keyboard hidden with clear controller depth");
+                keyboard.Keys=MenuKeyboard.MakeKeys(true);
+                PhysicalSurface.Paint(canvas,keyboard); canvas.Upload(); Save(canvas.Texture,Path.Combine(output,"keyboard-symbols-preview.png"));
                 foreach(string subtype in new[] { FighterProfile.Subtype,"OpenCockpitLarge" })
                 {
                     SeatPanel.TryMount(subtype,out _,out float width,out float height);
@@ -347,6 +381,14 @@ namespace SpaceEngineersVR.Diagnostics
                         var view=new SurfaceView { Style=SurfaceStyle.Label,Title=assigned ? "Power · Reactor" : "Assign · 10",Text=assigned ? null : "+",Icons=assigned ? new[] { NativeSprites.Hud("GridPowerOn") } : new string[0],Levels=assigned ? new[] {1f} : null };
                         Render(badge,()=>PhysicalSurface.Paint(badge,view));
                         Save(badge.Texture,Path.Combine(output,"switch-label-"+(assigned ? "assigned" : "empty")+".png"));
+                    }
+                    foreach(var entry in new[] { Tuple.Create("long-name","Run","fire"),Tuple.Create("long-argument","Run","fire all forward batteries with a long argument"),
+                        Tuple.Create("long-action","Increase velocity limit","fire"),Tuple.Create("no-argument","On/Off","") })
+                    {
+                        var view=new SurfaceView { Style=SurfaceStyle.Label,Title="Forward battery programmable block with a very long custom name",Action=entry.Item2,
+                            Argument=entry.Item3,Icons=new[] {NativeSprites.Hud("GridPowerOn")} };
+                        Render(badge,()=>PhysicalSurface.Paint(badge,view));
+                        Save(badge.Texture,Path.Combine(output,"switch-label-"+entry.Item1+".png"));
                     }
                 }
                 var wrist=new SurfaceView { Id="Wrist preview",Style=SurfaceStyle.WristStatus,Width=.133f,Height=.07f,Levels=new[] { .8f,.7f,.6f,.5f },Status=WristFixture() };

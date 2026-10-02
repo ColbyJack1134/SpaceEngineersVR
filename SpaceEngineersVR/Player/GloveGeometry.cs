@@ -61,8 +61,6 @@ namespace SpaceEngineersVR.Player
             var normals=(Byte4[])tags["Normals"]; var tangents=(Byte4[])tags["Tangents"];
             var native=new MyModelData(); native.Clear();
             int indexTip=Array.IndexOf(names,"SE_Rig"+side+"_Index_3");
-            Matrix point=posed[0][indexTip]*localPalm;
-            Vector3 retract=Vector3.TransformNormal(new Vector3(-.025f-CockpitHandPose.CockpitTip,0,0),point);
             var positions=(HalfVector4[])tags["Vertices"]; var texcoords=(HalfVector2[])tags["TexCoords0"];
             var weights=(Array)tags["BlendWeights"]; var blends=(Array)tags["BlendIndices"];
             var part=((List<MyMeshPartInfo>)tags["MeshParts"]).Single(p=>p.m_MaterialDesc?.MaterialName==(left ? "LeftGlove":"RightGlove"));
@@ -86,9 +84,9 @@ namespace SpaceEngineersVR.Player
                         }
                     }
                     mapped=checked((ushort)vertices.Count); map[index]=mapped;
-                    vertices.Add(new Vertex { Position=points[0]+retract,Closed=points[1]+retract,Normal=Vector3.Normalize(ns[0]),ClosedNormal=Vector3.Normalize(ns[1]),UV=texcoords[index].ToVector2() });
-                    native.Positions.Add(points[0]+retract); native.Normals.Add(Vector3.Normalize(ns[0]));
-                    native.Tangents.Add(Vector3.Normalize(tangent)); native.TexCoords.Add(texcoords[index].ToVector2()); native.AABB.Include(points[0]+retract);
+                    vertices.Add(new Vertex { Position=points[0],Closed=points[1],Normal=Vector3.Normalize(ns[0]),ClosedNormal=Vector3.Normalize(ns[1]),UV=texcoords[index].ToVector2() });
+                    native.Positions.Add(points[0]); native.Normals.Add(Vector3.Normalize(ns[0]));
+                    native.Tangents.Add(Vector3.Normalize(tangent)); native.TexCoords.Add(texcoords[index].ToVector2()); native.AABB.Include(points[0]);
                 }
                 indices.Add(mapped);
             }
@@ -100,8 +98,7 @@ namespace SpaceEngineersVR.Player
             if(string.IsNullOrEmpty(color) || string.IsNullOrEmpty(extra)) throw new InvalidDataException("Character glove materials unavailable: "+model);
             int wrist=Array.IndexOf(names,"SE_Rig"+side+"Forearm2");
             Matrix mount=TrackedArms.WristScreenLocal*(wrist<0 ? bind[forearm]:bind[wrist])*localPalm;
-            mount.Translation+=retract;
-            point=(Matrix)CockpitHandPose.PointPose(Matrix.Identity,correction,posed[0][indexTip]*Matrix.Invert(bind[palm]));
+            Matrix point=(Matrix)CockpitHandPose.PointPose(Matrix.Identity,correction,posed[0][indexTip]*Matrix.Invert(bind[palm]));
             return new GloveGeometry { Vertices=output,Indices=indices.ToArray(),ColorTexture=color,ExtraTexture=extra,
                 WristMount=mount,PointFrame=point,NativeModel=native };
         }

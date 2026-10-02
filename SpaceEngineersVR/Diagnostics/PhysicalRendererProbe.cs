@@ -227,7 +227,7 @@ namespace SpaceEngineersVR.Diagnostics
                     Matrix r=moved ? CockpitStickMath.RightVisual(new Vector3(0.5f,0.4f,0.6f)) : Matrix.Identity;
                     Vector3 lo=phase>=10 && phase<14 ? new Vector3(.07f,.10f,.10f) : Vector3.Zero;
                     Vector3 ro=phase>=10 && phase<14 ? new Vector3(-.07f,.12f,.08f) : Vector3.Zero;
-                    CockpitRender.UpdateScene(native,modelWorld,StickPlacement.Visual(l,lo),StickPlacement.Visual(r,ro),moved,moved,lo,ro,moved || phase==30 || phase==32 || phase==34 ? 1f : 0f,phase>=31 ? phase==32 ? 1f : 0f : moved ? 1f : (float?)null,colorMask:phase>=14 ? new Vector3(.58f,0,.02f) : neutralPaint,
+                    CockpitRender.UpdateScene(native,modelWorld,StickPlacement.Visual(l,lo),StickPlacement.Visual(r,ro),moved,moved,lo,ro,moved || phase==30 || phase==32 || phase==34 ? 1f : 0f,phase>=31 ? phase==32 ? 1f : 0f : moved || phase>=16 && phase<=19 ? 1f : (float?)null,colorMask:phase>=14 ? new Vector3(.58f,0,.02f) : neutralPaint,
                         previewHover:phase==17 ? 0 : phase==18 ? 9 : -1,previewHeld:phase==17 ? 1 : phase==18 ? 10 : phase==30 ? 19 : -1,previewCover:phase==18,nativeRest:phase<16 && !moved,barPreview:phase==36 ? 1f : 0f);
                 }
                 if(phase>=14 && native!=uint.MaxValue) MyRenderProxy.UpdateRenderEntity(native,null,new Vector3(.58f,0,.02f));
@@ -410,6 +410,13 @@ namespace SpaceEngineersVR.Diagnostics
                         RemoteFeed.Draw(physicalTarget,remote,camera.ViewMatrix,Wrappers.MyRender11.Environment_Matrices.Projection);
                         UiTests.Save(physicalTarget,Path.Combine(output,"remote-feed-native.png"));
                         RemoteFeed.Reset();
+                        int retained=RemoteHud.SpriteCount;
+                        for(int i=0;i<120;i++) RemoteHud.CollectFrame(int.MinValue+i,remote,new Vector2(size.X,size.Y));
+                        if(RemoteHud.SpriteCount!=retained) throw new InvalidOperationException("Camera-only frames cleared the native HUD");
+                        PolishRenderTests.HudRetention(physicalTarget.Device,remote,output);
+                        RemoteHud.CollectFrame(int.MinValue+120,new RemoteView.View {Source=456},new Vector2(size.X,size.Y));
+                        if(RemoteHud.SpriteCount!=0) throw new InvalidOperationException("Native HUD crossed camera ownership");
+                        Logger.Info("PASS native HUD retained over 120 camera-only batches and cleared on source change");
                     }
                     MatrixD surfacePose=MatrixD.CreateTranslation(0,-.10,-.5)*MatrixD.Invert(camera.ViewMatrix);
                     PhysicalSurface.Draw(physicalTarget,new[] { new SurfaceView { Id="Physical probe",Title="SEAT FIT",Text="Scene depth probe",Width=.24f,Height=.18f,Pose=surfacePose,

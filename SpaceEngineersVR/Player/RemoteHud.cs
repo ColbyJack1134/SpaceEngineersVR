@@ -17,7 +17,8 @@ namespace SpaceEngineersVR.Player
     {
         private const string queue="SEVR.CameraHud";
         [ThreadStatic] private static int capturing;
-        private static BorrowedRtvTexture hud;
+        private static Texture2D hud;
+        private static ShaderResourceView hudView;
         private static long source;
         internal static RemoteView.View Fixture;
         internal static int SpriteCount { get; private set; }
@@ -31,12 +32,20 @@ namespace SpaceEngineersVR.Player
         private static readonly MethodInfo draw=renderer.GetMethods(BindingFlags.Static|BindingFlags.Public).Single(m=>m.Name=="DrawSpritesOffscreen" && m.GetParameters().Length==7);
         internal static void Install(Harmony harmony)
         {
+            harmony.Patch(AccessTools.Method(typeof(Sandbox.Game.Gui.MyGuiScreenHudBase),"Draw"),new HarmonyMethod(typeof(RemoteHud),nameof(HudFrame)));
             foreach(string method in new[] {"DrawSprite","DrawSpriteExt","DrawSpriteAtlas","SpriteScissorPop","SpriteScissorPush","DrawString","DrawStringAligned"})
                 harmony.Patch(AccessTools.Method(typeof(MyRenderProxy),method),new HarmonyMethod(typeof(RemoteHud),nameof(Route)));
             foreach(string type in new[] {"Sandbox.Game.GUI.MyHudCameraOverlay","Sandbox.Game.Gui.MyHudCrosshair","Sandbox.Game.Gui.MyHudTargetingMarkers"})
                 harmony.Patch(AccessTools.Method(AccessTools.TypeByName(type),"Draw"),new HarmonyMethod(typeof(RemoteHud),nameof(Begin)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(End)));
             var main=renderer.GetMethods(BindingFlags.Static|BindingFlags.NonPublic).Single(m=>m.Name=="RenderMainSprites" && m.GetParameters().Length==5);
             harmony.Patch(main,new HarmonyMethod(typeof(RemoteHud),nameof(Collect)));
+        }
+        private static void HudFrame()
+        {
+            if(!Main.VrActive || Main.MenuOpen || RemoteView.Current==null) return;
+            // An explicit empty HUD draw must clear old sprites; a camera-only batch must not.
+            MyRenderProxy.SpriteScissorPush(new Rectangle(0,0,1,1),queue);
+            MyRenderProxy.SpriteScissorPop(queue);
         }
         private static void Begin(out bool __state)
         {
@@ -52,31 +61,54 @@ namespace SpaceEngineersVR.Player
         private static void Collect(object[] __args)
         {
             int frame=(int)frameCounter.GetValue(null);
+            var remote=Fixture ?? (Main.VrActive && !Main.MenuOpen ? RenderFrameBridge.Remote:null);
+            CollectFrame(frame,remote,(Vector2)__args[3]);
+        }
+        internal static void CollectFrame(int frame,RemoteView.View remote,Vector2 size)
+        {
             if(frame==collectedFrame) return;
-            Reset();
             // Screenshots may draw sprites again after the same message frame was consumed.
             collectedFrame=frame;
+            if(remote==null || source!=remote.Source) Release();
             object sprites=manager.GetValue(null),messages=acquire.Invoke(sprites,new object[] {queue});
             if(messages==null) return;
             try
             {
-                var remote=Fixture ?? (Main.VrActive && !Main.MenuOpen ? RenderFrameBridge.Remote:null);
                 if(remote==null) return;
-                var size=(Vector2)__args[3];
                 SpriteCount=Convert.ToInt32(CockpitRender.Member(CockpitRender.Member(messages,"Messages"),"Count"));
                 if(Fixture!=null)
                     FixtureSprites=string.Join(",",((System.Collections.IEnumerable)CockpitRender.Member(messages,"Messages")).Cast<object>().Select(m=>m.GetType().Name+":"+(AccessTools.Field(m.GetType(),"Texture")?.GetValue(m) ?? "")));
-                hud=new BorrowedRtvTexture(draw.Invoke(null,new object[] {messages,queue,(int)size.X,(int)size.Y,Format.R8G8B8A8_UNorm_SRgb,new RawColor4(0,0,0,0),null}));
+                var rendered=draw.Invoke(null,new object[] {messages,queue,(int)size.X,(int)size.Y,Format.R8G8B8A8_UNorm_SRgb,new RawColor4(0,0,0,0),null});
+                if(rendered!=null)
+                {
+                    var borrowed=new BorrowedRtvTexture(rendered);
+                    try { Store(borrowed.GetResource()); }
+                    finally { borrowed.Release(); }
+                }
+                else Release();
                 source=remote.Source;
             }
             finally { dispose.Invoke(sprites,new[] {messages}); }
         }
+        internal static void Store(Texture2D rendered)
+        {
+            var description=rendered.Description;
+            if(hud==null || hud.Description.Width!=description.Width || hud.Description.Height!=description.Height || hud.Description.Format!=description.Format)
+            {
+                hudView?.Dispose(); hud?.Dispose();
+                description.BindFlags=BindFlags.ShaderResource;
+                hud=new Texture2D(rendered.Device,description);
+                hudView=new ShaderResourceView(rendered.Device,hud);
+            }
+            // The native pool forcibly releases borrowed textures at frame end.
+            rendered.Device.ImmediateContext.CopyResource(rendered,hud);
+        }
         public static void Composite(Texture2D target,RemoteView.View view)
         {
             if(hud==null || source==0 || source!=view?.Source) return;
-            using(var texture=new ShaderResourceView(target.Device,(Texture2D)hud.GetResource()))
-                NativeSprites.Draw(target,new[] {new NativeSprite(null,new RectangleF(0,0,target.Description.Width,target.Description.Height),Vector4.One) { Texture=texture }});
+            NativeSprites.Draw(target,new[] {new NativeSprite(null,new RectangleF(0,0,target.Description.Width,target.Description.Height),Vector4.One) { Texture=hudView }});
         }
-        public static void Reset() { hud?.Release(); hud=null; source=0; SpriteCount=0; collectedFrame=int.MinValue; }
+        private static void Release() { hudView?.Dispose(); hudView=null; hud?.Dispose(); hud=null; source=0; SpriteCount=0; }
+        public static void Reset() { Release(); collectedFrame=int.MinValue; }
     }
 }

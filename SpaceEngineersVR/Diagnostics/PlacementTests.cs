@@ -26,7 +26,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(Read(MyControlsSpace.SECONDARY_TOOL_ACTION)==(mode==InputMode.Building && primary && secondary),"Building remove ownership depends on flight/alternate trigger");
                 Require(Read(MyControlsSpace.PRIMARY_TOOL_ACTION)==(mode==InputMode.Building && primary && !secondary),"Building trigger changed to implicit remove");
                 Require(Read(MyControlsSpace.COPY_PASTE_ACTION)==(mode==InputMode.Clipboard && primary && !secondary),"Clipboard paste leaks or conflicts with cancel");
-                Require(Read(MyControlsSpace.COPY_PASTE_CANCEL)==(mode==InputMode.Clipboard && secondary),"Clipboard cancel unavailable");
+                Require(!Read(MyControlsSpace.COPY_PASTE_CANCEL),"Blueprint adjustment grip cancelled the preview");
             }
             foreach (var mode in new[] { InputMode.Building,InputMode.Clipboard })
             {

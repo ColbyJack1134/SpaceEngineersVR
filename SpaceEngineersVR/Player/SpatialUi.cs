@@ -97,7 +97,7 @@ namespace SpaceEngineersVR.Player
                 wristHoverFeedback=feedback;
                 if(clicked>=0)
                 {
-                    c.Primary.BlockUntilRelease(); CockpitFeedback.Click(Player.HandR);
+                    InteractionInput.Read(Player.HandR,wristDirect).Consume(); CockpitFeedback.Click(Player.HandR);
                     if(!wristDirect)
                     {
                         rayPressedSurface=target.Id; rayPressedKey=target.Keys[clicked];
@@ -126,14 +126,15 @@ namespace SpaceEngineersVR.Player
                 if(!holding && held>=0 && held<seatDirections.Length) SeatFit.Move(seatDirections[held],held==4);
             }
             // A touch owns its input while the finger is on a surface, preventing tool use.
-            if(wristTouch.Consumed || seatPressed>=0 || (wristHover>=0 && trigger)) c.Primary.BlockUntilRelease();
+            if(wristTouch.Consumed) InteractionInput.Read(Player.HandR,wristDirect).Consume();
+            if(seatPressed>=0 || (wristHover>=0 && trigger)) c.Primary.BlockUntilRelease();
             Publish();
         }
         private static int Interact(SurfaceView s,MatrixD pointer,ref int hover,ref int pressed)
         {
             var c=Controls.Static;
             if(wristTouch.Surface!=null && wristTouch.Surface!=s.Id) wristTouch.Reset();
-            bool free=!CockpitControls.Held(Player.HandR) && !CockpitTouch.OwnsRight && !WeaponHandling.ConsumesLeftGrip;
+            bool free=!CockpitControls.Held(Player.HandR) && !CockpitTouch.OwnsRight && !RemoteView.OwnsInput && !WeaponHandling.ConsumesLeftGrip;
             Matrix headTracking=Player.Headset.pose.deviceToAbsolute.matrix;
             Vector3D head=s.TrackingSpace ? (Vector3D)headTracking.Translation : DeviceWorld(headTracking).Translation;
             bool front=Vector3D.Dot(s.Pose.Backward,head-s.Pose.Translation)>.015;
@@ -146,7 +147,8 @@ namespace SpaceEngineersVR.Player
             MatrixD rawWrist=s.TrackingSpace ? Alignment.Apply(Alignment.HandKey(Player.HandR),CockpitHandPose.GripWrist(Player.HandR.GripTracking)) : TrackedArms.FreeWristWorld(Player.HandR);
             Matrix local=(Matrix)(rawWrist*MatrixD.Invert(s.Pose));
             bool held=wristTouch.Surface==s.Id;
-            wristTouch.Sample(free,c.PointerPressure.RawPosition.X,c.Primary.RawPressed,key>=0 ? s.Id:null,key,
+            if(!wristTouch.Consumed) wristDirect=direct;
+            wristTouch.Sample(free,InteractionInput.Read(Player.HandR,wristDirect),key>=0 ? s.Id:null,key,
                 reachable:!held || !wristDirect || wristContact.Reachable(local.Translation),guarded:key>=0,softCapture:false);
             if(wristTouch.Captured)
             {

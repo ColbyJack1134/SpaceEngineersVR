@@ -24,7 +24,7 @@ namespace SpaceEngineersVR.Player
 
     internal static class WeaponPose
     {
-        // The wrist remains at (0,.02,.04); the grasp center lies 4 cm ahead of it.
+        // Interaction grasp center in controller grip space.
         public static Vector3 Palm(Matrix grip) => Vector3.Transform(new Vector3(0,0.02f,0),grip);
         public static Matrix Anchor(WeaponProfile profile, Matrix orientation, Vector3 primary)
         {

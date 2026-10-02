@@ -105,11 +105,13 @@ namespace SpaceEngineersVR.Player
         {
             if(RemoteView.Active) return new[] { PauseAction,Options,TerminalAction,ExitFeed,ResetFeed,ConfigureToolbarAction,Native("Previous camera",MyControlsSpace.SWITCH_LEFT),Native("Next camera",MyControlsSpace.SWITCH_RIGHT),Inspect };
             if(thirdPerson) return new[] { PauseAction,Options,TerminalAction,Quick[22],LightsAction,Dampeners,PowerAction,ParkAction,BroadcastAction };
+            if(building && PlacementControls.ClipboardActive) return ClipboardActions();
             if(building) return new[] { PauseAction,Options,TerminalAction,Building[17],PlacementAction,Building[8],Building[9],Building[10],PaletteAction };
             if(seated) return new[] { PauseAction,Options,TerminalAction,LightsAction,Dampeners,PowerAction,ParkAction,HelmetAction,BroadcastAction };
             if(jetpack) return new[] { PauseAction,Options,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,BroadcastAction };
             return new[] { PauseAction,Options,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],Quick[12] };
         }
+        internal static ActionChoice[] ClipboardActions() => new[] { PauseAction,Options,TerminalAction,AlignGravity,Building[21],Building[20],Building[6],Building[7],BlueprintsAction };
         public static ActionChoice[] TabletActions(bool building,bool seated,bool thirdPerson,bool jetpack)
         {
             var actions=new List<ActionChoice> { PauseAction,Options,InventoryAction,TerminalAction,LightsAction,HelmetAction,
@@ -127,7 +129,8 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice TerminalAction = new ActionChoice("Terminal", () => MySession.Static.ControlledEntity?.ShowTerminal(), true);
         public static readonly ActionChoice ConfigureToolbarAction = new ActionChoice("G menu / toolbar", ToolbarConfig, true);
         public static readonly ActionChoice LightsAction = new ActionChoice("Lights", () => new MyActionToggleLights().ExecuteAction());
-        public static readonly ActionChoice HelmetAction = new ActionChoice("Helmet", () => new MyActionToggleVisor().ExecuteAction());
+        public static readonly ActionChoice HelmetAction = new ActionChoice("Helmet", () => ((IMyControllableEntity)MySession.Static?.LocalCharacter)?.SwitchHelmet());
+        public static readonly ActionChoice AlignGravity = new ActionChoice("Align to gravity",PlacementControls.AlignGravity);
         public static readonly ActionChoice JetpackAction = new ActionChoice("Jetpack", () => { if (MySession.Static.ControlledEntity == MySession.Static.LocalCharacter) ((IMyCharacter)MySession.Static.LocalCharacter).SwitchThrusts(); });
         public static readonly ActionChoice PauseAction = new ActionChoice("Pause", PauseMenu, true);
         public static readonly ActionChoice ParkAction = new ActionChoice("Landing gear / park", () => {
@@ -207,7 +210,8 @@ namespace SpaceEngineersVR.Player
             BlueprintsAction,
             new ActionChoice("Preview clipboard", PlacementControls.PreviewClipboard),
             new ActionChoice("Cancel preview", PlacementControls.Cancel),
-            new ActionChoice("Preview free rotation", PlacementControls.FreeRotation)
+            new ActionChoice("Preview free rotation", PlacementControls.FreeRotation),
+            AlignGravity
         };
 
         public static void Execute(ActionChoice choice)

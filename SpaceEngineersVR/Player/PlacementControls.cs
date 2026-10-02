@@ -26,7 +26,7 @@ namespace SpaceEngineersVR.Player
             elapsed=(float)Math.Max(0,Math.Min(.05,(now-sampled).TotalSeconds)); sampled=now;
             distanceFactor=1.1f;
             var c=Controls.Static;
-            bool active=InputRouter.Mode==InputMode.Building && c.Secondary.IsPressed && !Main.MenuOpen;
+            bool active=OwnsTools && c.Secondary.IsPressed && !Main.MenuOpen;
             if(active && !Adjusting)
             {
                 leftReady=rightReady=false; Array.Clear(repeat,0,repeat.Length);
@@ -45,7 +45,9 @@ namespace SpaceEngineersVR.Player
         }
         private static void Axis(int index,float value,VRage.Utils.MyStringId positive,VRage.Utils.MyStringId negative)
         {
-            bool continuous=Sandbox.Game.Entities.MyCubeBuilder.Static?.DynamicMode==true;
+            var clipboard=MyClipboardComponent.Static?.Clipboard;
+            bool continuous=InputRouter.Mode==InputMode.Clipboard ? index==3 || clipboard!=null && (clipboard.EnableStationRotation && !clipboard.IsSnapped || clipboard.EnablePreciseRotationWhenSnapped) :
+                Sandbox.Game.Entities.MyCubeBuilder.Static?.DynamicMode==true;
             if(index==3 && continuous) distanceFactor=DistanceStep(value,elapsed);
             if(AxisDue(ref repeat[index],value,continuous,DateTime.UtcNow))
                 NativeActions.Pulse(value>0 ? positive:negative);
@@ -81,9 +83,7 @@ namespace SpaceEngineersVR.Player
         {
             if (mode == InputMode.Clipboard)
             {
-                // Cancel wins if both are pressed; clipboard actions cannot also shoot/remove.
-                if (secondary) frame.Queue(MyControlsSpace.COPY_PASTE_CANCEL);
-                else if (primary) frame.Queue(MyControlsSpace.COPY_PASTE_ACTION);
+                if (primary && !secondary) frame.Queue(MyControlsSpace.COPY_PASTE_ACTION);
             }
             else if (mode == InputMode.Building)
             {
@@ -97,5 +97,12 @@ namespace SpaceEngineersVR.Player
             if (!ClipboardActive) NativeActions.Pulse(MyControlsSpace.PASTE_OBJECT);
         }
         public static void FreeRotation() { if (ClipboardActive) NativeActions.Pulse(MyControlsSpace.FREE_ROTATION); }
+        public static void AlignGravity()
+        {
+            if(!ClipboardActive) return;
+            var clipboard=MyClipboardComponent.Static.Clipboard;
+            clipboard.EnableStationRotation=true;
+            clipboard.AlignClipboardToGravity();
+        }
     }
 }

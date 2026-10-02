@@ -118,12 +118,20 @@ namespace SpaceEngineersVR.Diagnostics
             Require(seatView.KeyAt(seatView.Keys[8].Bounds.Center)==-1,"Locked stick reset remained active");
             Require(seatView.Keys[8].Bounds==seatKeys[8].Bounds && seatView.Keys[12].Bounds==seatKeys[12].Bounds,"Locking sticks moved Reset or Lights");
             var config=new PluginConfig { ShipRollSensitivity=.77f,SeatFits=new[] { new SeatFitSetting { Subtype=FighterProfile.Subtype,Y=.1f } },
-                MenuWindows=new[] { new MenuWindowSetting { Screen="Inventory",Width=1.2f,Z=-1.4f,QW=1 } } };
+                MenuWindows=new[] { new MenuWindowSetting { Screen="Inventory",Width=1.2f,Z=-1.4f,QW=1 },
+                    new MenuWindowSetting { Screen="Remote/FighterCockpit",World="world-a",Cockpit=123,Width=.9f,Z=-.8f,QW=1 } },
+                CockpitStates=new[] { new CockpitStateSetting { World="world-a",Cockpit=123,Covers=new[] {true,false,true} },
+                    new CockpitStateSetting { World="world-b",Cockpit=123,Covers=new[] {false,true,false} } } };
             var serializer=new XmlSerializer(typeof(PluginConfig));
             using(var writer=new StringWriter())
             {
                 serializer.Serialize(writer,config); var copy=(PluginConfig)serializer.Deserialize(new StringReader(writer.ToString()));
                 Require(copy.MenuWindows[0].Width==1.2f && copy.MenuWindows[0].Z==-1.4f && copy.ShipRollSensitivity==.77f && copy.SeatFits[0].Y==.1f,"Menu persistence changed existing calibration");
+                Require(copy.MenuWindows[0].World==null && copy.MenuWindows[0].Cockpit==0 &&
+                    copy.MenuWindows[1].World=="world-a" && copy.MenuWindows[1].Cockpit==123 && copy.MenuWindows[1].Width==.9f &&
+                    copy.CockpitStates.Length==2 && copy.CockpitStates[0].World=="world-a" && copy.CockpitStates[1].World=="world-b" &&
+                    copy.CockpitStates[0].Cockpit==123 && copy.CockpitStates[1].Cockpit==123 &&
+                    copy.CockpitStates[0].Covers[0] && !copy.CockpitStates[1].Covers[0],"Cockpit persistence lost world, seat, cover or legacy window identity");
             }
             log("PASS interaction regression checks: menu drag/resize/cancel across four aspects; thumbstick direction/deadzone/release/bounds; rounded/localized zero speed; independent cockpit levers/keys; touch/owner release gates; 200 moving LCD coordinate checks; native weapon fallback, compositor menu selection, moving model control hits and seat lock/reset; menu/config round trip.");
         }

@@ -31,6 +31,18 @@ namespace SpaceEngineersVR.Player
         public static bool RotationOwned => Adjusting || right.Consumed || Rig!=null && Rig.Right==null && left.Consumed;
         internal static bool NeedsControllerTranslation => Rig!=null && (Rig.Left==null || Rig.Right==null);
         public static bool Held(Controller hand) => hand==Player.HandL ? left.Held : right.Held;
+        internal static bool NearGrip(Controller hand) => seat!=null && Eligible(seat) && CockpitRender.Ready && hand.pose.isTracked && GripDistance(hand)<FighterProfile.CaptureRadius;
+        private static float GripDistance(Controller hand)
+        {
+            bool isLeft=hand==Player.HandL;
+            var stick=isLeft ? Rig?.Left:Rig?.Right;
+            if(Rig!=null && stick==null) return float.MaxValue;
+            return GripDistance(HandLocal(hand),TrackedArms.WristForPalm(hand,StickPalm(isLeft)));
+        }
+        internal static float GripDistance(Matrix controller,Matrix attachedWrist) =>
+            Vector3.Distance(CockpitHandPose.GripWrist(controller).Translation,attachedWrist.Translation);
+        private static Matrix StickPalm(bool isLeft) =>
+            (Rig==null ? CockpitStickMath.GripPalm(isLeft):(isLeft ? Rig.Left:Rig.Right).Palm(isLeft))*(isLeft ? leftVisual:rightVisual);
         public static string Status => seat==null ? null : Adjusting ? "STICKS UNLOCKED: grip to move; padlock saves" : CockpitRender.Status+(left.Held ? Rig!=null && Rig.Right==null ? " | LEFT: rotation" : " | LEFT: translation" : "")+(right.Held ? " | RIGHT: rotation" : "");
 
         public static void Reset()
@@ -116,7 +128,7 @@ namespace SpaceEngineersVR.Player
             if (Held(hand))
             {
                 bool isLeft=hand==Player.HandL;
-                Matrix attached=TrackedArms.WristForPalm(hand,(Rig==null ? CockpitStickMath.GripPalm(isLeft) : (isLeft ? Rig.Left : Rig.Right).Palm(isLeft))*(isLeft ? leftVisual : rightVisual));
+                Matrix attached=TrackedArms.WristForPalm(hand,StickPalm(isLeft));
                 float t=MathHelper.Clamp((float)(DateTime.UtcNow-(isLeft ? grabLeft : grabRight)).TotalSeconds/0.12f,0,1);
                 Quaternion q=Quaternion.Slerp(Quaternion.CreateFromRotationMatrix(local),Quaternion.CreateFromRotationMatrix(attached),t);
                 Matrix blended=Matrix.CreateFromQuaternion(q);
@@ -155,10 +167,8 @@ namespace SpaceEngineersVR.Player
             Matrix l=available ? HandLocal(Player.HandL) : Matrix.Identity;
             Matrix r=available ? HandLocal(Player.HandR) : Matrix.Identity;
             Vector3 lp=WeaponPose.Palm(l),rp=WeaponPose.Palm(r);
-            float leftDistance=Vector3.Distance(lp,Vector3.Transform(Rig?.Left?.Contact ?? FighterProfile.LeftContact,leftVisual));
-            float rightDistance=Vector3.Distance(rp,Vector3.Transform(Rig?.Right?.Contact ?? FighterProfile.RightContact,rightVisual));
-            if(Rig!=null && Rig.Left==null) leftDistance=float.MaxValue;
-            if(Rig!=null && Rig.Right==null) rightDistance=float.MaxValue;
+            float leftDistance=available ? GripDistance(Player.HandL):float.MaxValue;
+            float rightDistance=available ? GripDistance(Player.HandR):float.MaxValue;
             leftNear=available && leftDistance<FighterProfile.CaptureRadius;
             rightNear=available && rightDistance<FighterProfile.CaptureRadius;
             if(leftHover.Sample(available,leftDistance,FighterProfile.CaptureRadius,leftDown || left.Consumed || CockpitTouch.Owns(Player.HandL)))

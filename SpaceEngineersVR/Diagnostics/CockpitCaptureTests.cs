@@ -10,6 +10,24 @@ namespace SpaceEngineersVR.Diagnostics
         private static void Require(bool value,string reason) { if(!value) throw new Exception(reason); }
         public static void Run(Action<string> log)
         {
+            var sources=new InteractionPress();
+            sources.Update(true,false,false,false,true);
+            Require(!sources.Update(true,false,true,false,true),"Grip activated a distant ray target");
+            Require(!sources.Update(true,true,true,false,true),"Held grip activated on entering near range");
+            sources.Update(true,true,false,false,true);
+            Require(sources.Update(true,true,true,false,true),"Fresh near grip was lost");
+            Require(!sources.Update(true,true,true,true,true),"Trigger repeated a held near grip action");
+            sources.Update(true,false,false,false,true);
+            Require(sources.Update(true,false,false,true,true),"Fresh ray trigger was lost");
+            sources.Block();
+            Require(!sources.Update(true,false,false,true,true),"Focus return reused a held trigger");
+            var modality=new CockpitTouch.Hand();
+            modality.Sample(true,new InteractionInput(false,true,0,false,true),"Panel",0);
+            modality.Sample(true,new InteractionInput(true,true,1,true,true),"Panel",0);
+            Require(!modality.Captured,"Changing source captured an already held grip");
+            modality.Sample(true,new InteractionInput(true,true,0,false,true),"Panel",0);
+            modality.Sample(true,new InteractionInput(true,true,1,true,true),"Panel",0);
+            Require(modality.Pressed,"Fresh grip did not rearm after source change");
             var hands=new[] {new CockpitTouch.Hand(),new CockpitTouch.Hand()};
             foreach(var hand in hands)
             {
@@ -60,8 +78,53 @@ namespace SpaceEngineersVR.Diagnostics
             }
             hands[0].Reset();
             Require(hands[1].Held==0,"Releasing one hand released the other");
+            GripPresses();
+            DualPresses();
             NearMisses();
             SoftCapture();
+            var heldLever=new CockpitTouch.Hand();
+            var repeatDrag=new ControlDrag();
+            heldLever.Sample(true,0,false,"Lever",0);
+            heldLever.Sample(true,1,true,"Lever",0);
+            repeatDrag.Begin(Vector3.Zero,new Vector3(0,0,.04f),Vector3.Zero,Vector3.Right,0,1);
+            int activations=0;
+            for(int i=0;i<20;i++)
+            {
+                heldLever.Sample(true,.3f,false,null,-1,retainSqueeze:true);
+                Require(heldLever.Surface=="Lever" && heldLever.Committed,"Relaxing a held lever detached it");
+                var radial=new Vector3(0,0,.04f);
+                var hand=Vector3.Transform(radial,Matrix.CreateRotationX(i%2==0 ? 1:0))-radial;
+                if(repeatDrag.Move(hand,heldLever.Committed)==1) activations++;
+                Require(repeatDrag.Move(hand)==-1,"Held momentary lever repeated without a new detent");
+            }
+            Require(activations==10,"Repeated momentary flicks were lost");
+            heldLever.Sample(true,0,false,null,-1,retainSqueeze:true);
+            Require(heldLever.Surface==null,"Lever retained attachment after full release");
+            var descent=new GripDescent(); var pressed=DateTime.UtcNow;
+            descent.Update(true,.2f,pressed);
+            descent.Update(true,1,pressed.AddMilliseconds(149));
+            Require(!descent.Ready,"Partial third-person squeeze leaked descent");
+            descent.Update(true,1,pressed.AddMilliseconds(151));
+            Require(descent.Ready,"Deliberate grip descent did not start");
+            descent.Update(true,1,pressed.AddSeconds(5));
+            Require(descent.Ready,"Held descent acquired another delay");
+            descent.Update(true,0,pressed.AddSeconds(6));
+            descent.Update(true,1,pressed.AddSeconds(7));
+            Require(!descent.Ready,"Fresh grip inherited the previous delay");
+            foreach(float side in new[] {-1f,1f})
+            {
+                var headPose=Matrix.CreateRotationY(.7f)*Matrix.CreateTranslation(20,2,30);
+                Require(HelmetHud.NearHead(Matrix.CreateTranslation(side*.21f,0,0)*headPose,headPose),"Head protection missed a temple");
+                Require(HelmetHud.NearHead(Matrix.CreateTranslation(0,0,.25f)*headPose,headPose),"Head protection missed the rear of the helmet");
+                foreach(var outside in new[] {new Vector3(side*.26f,0,0),new Vector3(0,-.15f,0),new Vector3(0,.18f,0),new Vector3(0,0,-.16f)})
+                    Require(!HelmetHud.NearHead(Matrix.CreateTranslation(outside)*headPose,headPose),"Head protection retained oversized bounds");
+                for(int i=0;i<40;i++)
+                {
+                    var hand=Matrix.CreateTranslation(side*(.1f+i*.006f),0,0)*headPose;
+                    Require(!HelmetHud.NearTemple(hand,headPose,side<0) || HelmetHud.NearHead(hand,headPose),"Temple gesture extends outside early input protection");
+                }
+                Require(!HelmetHud.NearHead(Matrix.CreateTranslation(side*.5f,-.3f,0)*headPose,headPose),"Head protection captured ordinary flight input");
+            }
             foreach(bool linear in new[] {false,true})
                 foreach(float end in new[] {.2f,.8f})
                 {
@@ -143,6 +206,76 @@ namespace SpaceEngineersVR.Diagnostics
                 "Helmet beam lost headset direction or eye-relative light offset");
             log("PASS cockpit capture: deliberate trigger, partial/full release, no seat-to-power slide, 180-frame seat movement, pullaway/focus/tracking cancellation, firing ownership, independent hands; hinged travel and detents; gentle movement pulses; left temple and headset light transform.");
         }
+        private static void GripPresses()
+        {
+            foreach(float preload in new[] {.3f,.5f,.7f})
+            {
+                var analog=new Analog(77,InteractionInput.GripThreshold);
+                var hand=new CockpitTouch.Hand();
+                void Sample(float value,string target,bool active=true,bool retain=false)
+                {
+                    analog.AcceptSample(new Valve.VR.InputAnalogActionData_t { bActive=active,x=value,activeOrigin=77 });
+                    hand.Sample(active,new InteractionInput(true,true,value,value>InteractionInput.GripThreshold,analog.CanPress),
+                        target,target==null ? -1:0,guarded:target!=null,retainSqueeze:retain);
+                    if(hand.Consumed) analog.BlockUntilRelease(value>InteractionInput.GripThreshold);
+                }
+                // Approaching from a ray changes source while the fingers are already partly curled.
+                hand.Sample(true,new InteractionInput(false,true,0,false,true),null,-1);
+                Sample(preload,null); Sample(preload,"A");
+                Require(!hand.Pressed && hand.Surface==null,"Partial grip clicked or attached before a firm squeeze");
+                Sample(1,"A"); Require(hand.Pressed && hand.Surface=="A","Pre-grip approach lost the completed squeeze");
+                Sample(1,"B"); Require(!hand.Pressed && hand.Surface=="A","Held grip slid onto another button");
+                Sample(preload,"B"); Sample(1,"B");
+                Require(hand.Pressed && hand.Surface=="B","Partial release failed to rearm the next button");
+                Sample(1,"B",false); Sample(1,"B");
+                Require(!hand.Pressed && hand.Surface==null,"Tracking return reused a full grip");
+                Sample(preload,null); Sample(1,null); Sample(1,"B");
+                Require(!hand.Pressed,"Already-full grip activated on entering a button");
+                Sample(preload,"Lever"); Sample(1,"Lever");
+                Sample(preload,"Other",retain:true);
+                Require(hand.Surface=="Lever" && hand.Committed,"Relaxing a grabbed lever lost its ownership");
+                Sample(0,"Other",retain:true);
+                Require(hand.Surface==null,"Lever failed to release with the hand");
+            }
+        }
+        private static void DualPresses()
+        {
+            foreach(bool firstGrip in new[] {false,true})
+            {
+                var grip=new Analog(81,InteractionInput.GripThreshold); var trigger=new Analog(82,.55f);
+                var hand=new CockpitTouch.Hand();
+                void Sample(float g,float t,string target,bool retain=false)
+                {
+                    grip.AcceptSample(new Valve.VR.InputAnalogActionData_t { bActive=true,x=g,activeOrigin=81 });
+                    trigger.AcceptSample(new Valve.VR.InputAnalogActionData_t { bActive=true,x=t,activeOrigin=82 });
+                    var input=new InteractionInput(true,g,t,grip.CanPress,trigger.CanPress);
+                    hand.Sample(true,input,target,0,guarded:true,retainSqueeze:retain);
+                    if(hand.Consumed) { grip.BlockUntilRelease(input.Down); trigger.BlockUntilRelease(input.Down); }
+                }
+                Sample(.5f,.2f,"A");
+                Sample(firstGrip ? 1:.5f,firstGrip ? .2f:1,"A");
+                Require(hand.Pressed && hand.Surface=="A","Either-input fingertip click was lost");
+                Sample(1,1,"B");
+                Require(!hand.Pressed && hand.Surface=="A","Second input double-clicked or transferred a held control");
+                Sample(firstGrip ? 0:1,firstGrip ? 1:0,"B");
+                Require(hand.Surface==null,"Releasing the original button failed to release the control");
+                Sample(firstGrip ? 0:1,firstGrip ? 1:0,"B");
+                Require(!hand.Pressed && hand.Surface==null,"Already-held alternate button recaptured after release");
+                Sample(.5f,.2f,"B"); Sample(firstGrip ? .5f:1,firstGrip ? 1:.2f,"B");
+                Require(hand.Pressed,"Fresh alternate input did not rearm");
+                Sample(0,0,"Lever"); Sample(firstGrip ? 1:0,firstGrip ? 0:1,"Lever");
+                Sample(firstGrip ? .3f:0,firstGrip ? 0:.3f,"Lever",true);
+                Require(hand.Surface=="Lever" && hand.Committed,"Relaxing the owning input detached the lever");
+                Sample(0,0,"Lever",true); Require(hand.Surface==null,"Dual-input lever did not release");
+            }
+            var press=new InteractionPress();
+            press.Update(true,false,false,false,true);
+            Require(!press.Update(true,false,true,false,true,true),"Grip clicked a distant ray");
+            press.Update(true,true,false,false,true,true);
+            Require(press.Update(true,true,false,true,true,true) && !press.Grip,"Near trigger failed to acquire window");
+            Require(!press.Update(true,true,true,true,true,true) && !press.Grip,"Grip stole a trigger-owned window");
+            Require(!press.Update(true,true,true,false,false,false) && !press.Held,"Alternate grip retained a released window");
+        }
         private static void SoftCapture()
         {
             var onFoot=new CockpitTouch.Hand();
@@ -203,7 +336,7 @@ namespace SpaceEngineersVR.Diagnostics
             var panel=new SurfaceView { Pose=MatrixD.Identity,Width=.108f,Height=.120f,Keys=SeatPanel.Keys(true,true) };
             var miss=new CockpitProbe(MatrixD.CreateTranslation(.075,0,.02));
             Require(CockpitTouch.NearKey(panel,miss,out _,out _)<0 && CockpitPanelGuard.NearSurface(panel,miss),"Panel near miss is clickable or not protected");
-            foreach(var point in new[] {new Vector3(.11f,0,.02f),new Vector3(0,0,.10f),new Vector3(0,0,-.08f),new Vector3(float.NaN,0,0)})
+            foreach(var point in new[] {new Vector3(.11f,0,.02f),new Vector3(0,0,.10f),new Vector3(0,0,-.11f),new Vector3(float.NaN,0,0)})
                 Require(!CockpitPanelGuard.NearSurface(panel,new CockpitProbe(MatrixD.CreateTranslation(point))),"Control margin blocks distant or invalid input");
             foreach(var hand in new[] {new CockpitTouch.Hand(),new CockpitTouch.Hand()})
             {
