@@ -29,10 +29,16 @@ namespace SpaceEngineersVR.Diagnostics
             var bounds=EyeResolution.MirrorBounds(recommendation,new Vector2I(1280,720),true);
             if(Math.Abs(bounds.Height-720)>.01 || bounds.X<300 || Math.Abs(bounds.Width/bounds.Height-2112f/2304)>.001)
                 throw new Exception("Desktop mirror crops or stretches the eye image");
+            for(int percent=50;percent<=150;percent++)
+            {
+                var feed=RemoteFeed.Size(percent/100f);
+                if(feed.X*9!=feed.Y*16) throw new Exception("Camera feed is not exactly 16:9 at "+percent+"%");
+            }
+            if(RemoteFeed.Size(1)!=new Vector2I(1920,1080)) throw new Exception("Camera feed 100% is not 1920x1080");
             var serializer=new XmlSerializer(typeof(PluginConfig));
             PluginConfig config;
             using(var reader=new StringReader("<PluginConfig><TrackedArms>false</TrackedArms></PluginConfig>")) config=(PluginConfig)serializer.Deserialize(reader);
-            if(config.EyeRenderScale!=1 || !config.MirrorDesktop || config.TrackedArms) throw new Exception("Existing profiles lost their rendering defaults");
+            if(config.EyeRenderScale!=1 || RemoteFeed.Size(config.RemoteFeedScale)!=new Vector2I(1600,900) || !config.MirrorDesktop || config.TrackedArms) throw new Exception("Existing profiles lost their rendering defaults");
             config.EyeRenderScale=.75f;
             using(var writer=new StringWriter())
             {
@@ -104,16 +110,16 @@ namespace SpaceEngineersVR.Diagnostics
                         {
                             var cameraBuffer=bufferField.GetValue(null);
                             if(ReferenceEquals(cameraBuffer,previousEye) || (pass==1 && !ReferenceEquals(cameraBuffer,previousCamera)))
-                                throw new Exception("1080p camera resources were not isolated and retained");
+                                throw new Exception("Camera resources were not isolated and retained");
                             previousCamera=cameraBuffer;
                             var cameraDepth=(Texture2D)CockpitRender.Member(aoField.GetValue(null),"Resource");
-                            if(cameraDepth.Description.Width!=1920 || cameraDepth.Description.Height!=1080)
-                                throw new Exception("Camera AO target is not 1080p");
+                            if(cameraDepth.Description.Width!=RemoteFeed.Resolution.X || cameraDepth.Description.Height!=RemoteFeed.Resolution.Y)
+                                throw new Exception("Camera AO target does not match the feed resolution");
                         }
                     }
                 }
                 if(EyeResolution.Scene.Allocations!=allocations+3) throw new Exception("Eye/camera resources were reallocated between fixed-size frames");
-                Plugin.Logger.Info("PASS native independent resolution: retained eye and 1920x1080 camera scene/depth/AO resources, eye resize, 1280x720 mirror, desktop restored");
+                Plugin.Logger.Info("PASS native independent resolution: retained eye and camera feed scene/depth/AO resources, eye resize, 1280x720 mirror, desktop restored");
             }
             finally { matrices.Restore(snapshot); EyeResolution.Scene.RestoreNative(); }
         }

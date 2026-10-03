@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
+using SpaceEngineersVR.Plugin;
 using SpaceEngineersVR.Wrappers;
 using VRageMath;
 using Color=System.Drawing.Color;
@@ -16,20 +17,27 @@ namespace SpaceEngineersVR.Player
         private static string painted;
         private static long source;
         private static bool skip;
-        internal static readonly Vector2I Resolution=new Vector2I(1600,900);
+        internal static Vector2I Resolution => Size(Common.Config?.RemoteFeedScale ?? 5f/6);
+        // A width in 16-pixel steps keeps the height an exact 16:9 integer.
+        internal static Vector2I Size(float scale)
+        {
+            int width=(int)Math.Round(1920*scale/16)*16;
+            return new Vector2I(width,width*9/16);
+        }
         public static void Render(RemoteView.View view)
         {
             if(view==null) { image.Dispose(); source=0; return; }
             // Refresh every second headset frame; a new camera renders immediately.
             if(source==view.Source && (skip=!skip)) return;
             source=0;
-            var feed=MyManagers.RwTexturesPool.BorrowRtv("SEVR.Remote",Resolution.X,Resolution.Y,Format.R8G8B8A8_UNorm_SRgb);
+            var size=Resolution;
+            var feed=MyManagers.RwTexturesPool.BorrowRtv("SEVR.Remote",size.X,size.Y,Format.R8G8B8A8_UNorm_SRgb);
             object ambient=null;
             long started=FeatureTiming.Start();
             GpuTiming.Begin(GpuTiming.Area.RemoteFeed);
             try
             {
-                using(var resources=MyRender11.Resolution==Resolution ? null:new EyeResolution.Scene(Resolution,true))
+                using(var resources=MyRender11.Resolution==size ? null:new EyeResolution.Scene(size,true))
                 using(var exposure=new RemoteExposure())
                 using(var isolated=new RemoteScene()) MyRender11.DrawGameScene(feed,out ambient);
                 var rendered=(Texture2D)feed.GetResource();

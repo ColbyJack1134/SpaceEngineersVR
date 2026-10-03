@@ -71,6 +71,8 @@ namespace SpaceEngineersVR.Config
         public bool MirrorDesktop { get => mirrorDesktop; set => SetValue(ref mirrorDesktop,value); }
         private float eyeRenderScale=1;
         public float EyeRenderScale { get => eyeRenderScale; set => SetValue(ref eyeRenderScale,Bound(value,.5f,1.5f,1)); }
+        private float remoteFeedScale=5f/6;
+        public float RemoteFeedScale { get => remoteFeedScale; set => SetValue(ref remoteFeedScale,Bound(value,.5f,1.5f,5f/6)); }
         private bool invertShipPitch,invertJetpackPitch,hudWithVisorOpen;
         private bool? showVitals;
         private int waypointMode=-1;
