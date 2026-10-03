@@ -153,11 +153,8 @@ namespace SpaceEngineersVR.Player
             if(recenter) { Place(); Save(); }
             var now=DateTime.UtcNow; float seconds=(float)Math.Min(.05,Math.Max(0,(now-last).TotalSeconds)); last=now;
             var controls=Controls.Static;
-            if(!Turret && !RemoteGrid && InputRouter.Gameplay && !Main.MenuOpen && !CockpitControls.Adjusting && CockpitControls.Held(Player.HandL))
-            {
-                Zoom(-VrMath.Deadzone(controls.ThrustLRFB.RawPosition.Y)*seconds*.6f);
-                controls.ThrustLRFB.BlockUntilRelease();
-            }
+            if(!Turret && !RemoteGrid && InputRouter.Gameplay && !Main.MenuOpen && CockpitControls.OwnsRightThumb)
+                Zoom(-controls.ThrustRotate.Position.Y*seconds*.6f);
             bool available=InputRouter.Gameplay && !Main.MenuOpen && MenuPointer.GameFocused && Player.HandR.pose.isTracked &&
                 !ThirdPersonView.Manipulating && !SpatialUi.OwnsRight && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandR);
             if(!available) { press.Block(); if(placementDirty) Save(); window.Stop(); directHeld=false; lastHover=zoomHeld=0; Publish(); return; }

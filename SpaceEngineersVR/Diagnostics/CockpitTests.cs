@@ -18,31 +18,41 @@ namespace SpaceEngineersVR.Diagnostics
             const float deadzone=0.12f;
             Matrix neutral=Matrix.CreateFromYawPitchRoll(0.7f,-0.45f,0.18f);
             neutral.Translation=new Vector3(0.31f,-0.23f,0.37f);
-            Near(CockpitStickMath.Rotation(neutral,neutral,deadzone),Vector3.Zero,"Neutral rotation kicks");
-            Near(CockpitStickMath.Translation(neutral,neutral,deadzone),Vector3.Zero,"Neutral translation kicks");
+            Near(CockpitStickMath.Rotation(neutral,neutral,deadzone,true),Vector3.Zero,"Neutral rotation kicks");
+            Near(CockpitStickMath.Translation(neutral,neutral,deadzone,true),Vector3.Zero,"Neutral translation kicks");
             foreach (int sign in new[] {-1,1})
             {
-                Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationZ(-sign*FighterProfile.Tilt),deadzone),sign*Vector3.Right,"Tilt strafe sign/axis");
-                Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationY(-sign*FighterProfile.Twist),deadzone),sign*Vector3.Up,"Clockwise twist must lift");
-                Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationX(-sign*FighterProfile.Tilt),deadzone),sign*Vector3.Forward,"Forward tilt must move forward");
-                Near(CockpitStickMath.Rotation(neutral,neutral*Matrix.CreateRotationX(sign*FighterProfile.Tilt),deadzone),-sign*Vector3.Right,"Pitch sign/axis");
-                Near(CockpitStickMath.Rotation(neutral,neutral*Matrix.CreateRotationY(sign*FighterProfile.Twist),deadzone),-sign*Vector3.Up,"Yaw twist sign/axis");
-                Near(CockpitStickMath.Rotation(neutral,neutral*Matrix.CreateRotationZ(sign*FighterProfile.Tilt),deadzone),-sign*Vector3.Backward,"Roll tilt sign/axis");
+                Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationZ(-sign*FighterProfile.Tilt),deadzone,true),sign*Vector3.Right,"Tilt strafe sign/axis");
+                Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationY(-sign*FighterProfile.Twist),deadzone,true),sign*Vector3.Up,"Clockwise twist must lift");
+                Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationX(-sign*FighterProfile.Tilt),deadzone,true),sign*Vector3.Forward,"Forward tilt must move forward");
+                Near(CockpitStickMath.Rotation(neutral,neutral*Matrix.CreateRotationX(sign*FighterProfile.Tilt),deadzone,true),-sign*Vector3.Right,"Pitch sign/axis");
+                Near(CockpitStickMath.Rotation(neutral,neutral*Matrix.CreateRotationY(sign*FighterProfile.Twist),deadzone,true),-sign*Vector3.Up,"Yaw twist sign/axis");
+                Near(CockpitStickMath.Rotation(neutral,neutral*Matrix.CreateRotationZ(sign*FighterProfile.Tilt),deadzone,true),-sign*Vector3.Backward,"Roll tilt sign/axis");
             }
-            Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationY(-1.1f),deadzone),Vector3.Up,"Twist not clamped");
-            Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationX(0.01f),deadzone),Vector3.Zero,"Translation deadzone");
-            Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateTranslation(0.1f,-0.2f,0.15f),deadzone),Vector3.Zero,"Arm displacement drives thrust");
+            Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationY(-1.1f),deadzone,true),Vector3.Up,"Twist not clamped");
+            Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationX(0.01f),deadzone,true),Vector3.Zero,"Translation deadzone");
+            Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateTranslation(0.1f,-0.2f,0.15f),deadzone,true),Vector3.Zero,"Arm displacement drives thrust");
             Require(Vector3.TransformNormal(Vector3.Forward,Matrix.CreateRotationY(-0.1f)).X>0,"Clockwise convention must turn forward toward right from above");
-            Near(CockpitStickMath.Rotation(neutral,neutral*Matrix.CreateRotationX(0.01f),deadzone),Vector3.Zero,"Rotation deadzone");
+            Near(CockpitStickMath.Rotation(neutral,neutral*Matrix.CreateRotationX(0.01f),deadzone,true),Vector3.Zero,"Rotation deadzone");
+            Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationY(-FighterProfile.Twist),deadzone,false),Vector3.Zero,"Disabled twist lifts");
+            Near(CockpitStickMath.Rotation(neutral,neutral*Matrix.CreateRotationY(FighterProfile.Twist),deadzone,false),Vector3.Zero,"Disabled twist yaws");
+            Require(CockpitStickMath.Tilt(new Vector2(1),deadzone)==Vector2.One,"Full diagonal tilt cannot reach both limits");
+            Require(Math.Abs(CockpitStickMath.Response(.2f,1))<.2f && CockpitStickMath.Response(-1,1)==-1,"Center response is not softened");
+            {
+                Vector3 move=Vector3.Zero; Vector2 rotate=Vector2.Zero; float roll=0;
+                CockpitStickMath.ApplyFlight(true,true,new Vector3(0,0,-CockpitStickMath.FullThrust),Vector3.Zero,1,.5f,10,1,.6f,ref move,ref rotate,ref roll);
+                Near(move,new Vector3(0,1,-1),"Strong tilt must reach full thrust; thumb must lift");
+                Require(rotate==new Vector2(0,5) && roll==0,"Thumb yaw sign or scale");
+            }
             foreach (bool l in new[] {false,true})
             foreach (bool r in new[] {false,true})
             {
                 Vector3 move=new Vector3(0.2f,0.3f,0.4f);
                 Vector2 rotate=new Vector2(2,3); float roll=0.7f;
-                CockpitStickMath.ApplyFlight(l,r,Vector3.One,-Vector3.One,10,1,0.6f,ref move,ref rotate,ref roll);
+                CockpitStickMath.ApplyFlight(l,r,Vector3.One,-Vector3.One,0,0,10,1,0.6f,ref move,ref rotate,ref roll);
                 Near(move,l ? Vector3.One : new Vector3(0.2f,0.3f,0.4f),"Translation has two input owners");
                 Require(rotate==(r ? new Vector2(-10) : new Vector2(2,3)) && Math.Abs(roll-(r ? -3f : 0.7f))<1e-6,"Rotation ownership or ship roll scaling changed");
-                CockpitStickMath.ApplyFlight(l,r,Vector3.Zero,Vector3.Zero,10,1,0.6f,ref move,ref rotate,ref roll);
+                CockpitStickMath.ApplyFlight(l,r,Vector3.Zero,Vector3.Zero,0,0,10,1,0.6f,ref move,ref rotate,ref roll);
                 if (l) Near(move,Vector3.Zero,"Released physical translation leaks held fallback");
                 if (r) Require(rotate==Vector2.Zero && roll==0,"Released physical rotation leaks held fallback");
             }
@@ -53,8 +63,8 @@ namespace SpaceEngineersVR.Diagnostics
                 Matrix local=neutral*Matrix.CreateRotationX(0.19f);
                 local.Translation+=new Vector3(0.035f,0.018f,-0.072f);
                 Matrix recovered=(Matrix)((MatrixD)local*ship*MatrixD.Invert(ship));
-                Near(CockpitStickMath.Rotation(neutral,recovered,deadzone),CockpitStickMath.Rotation(neutral,local,deadzone),"Moving ship drives rotation");
-                Near(CockpitStickMath.Translation(neutral,recovered,deadzone),CockpitStickMath.Translation(neutral,local,deadzone),"Moving ship drives translation");
+                Near(CockpitStickMath.Rotation(neutral,recovered,deadzone,true),CockpitStickMath.Rotation(neutral,local,deadzone,true),"Moving ship drives rotation");
+                Near(CockpitStickMath.Translation(neutral,recovered,deadzone,true),CockpitStickMath.Translation(neutral,local,deadzone,true),"Moving ship drives translation");
                 Vector3 axes=new Vector3((float)Math.Sin(i),(float)Math.Sin(i*0.3),(float)Math.Cos(i));
                 Matrix left=CockpitStickMath.LeftVisual(axes);
                 Matrix right=CockpitStickMath.RightVisual(axes);

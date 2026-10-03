@@ -44,7 +44,7 @@ namespace SpaceEngineersVR.GUI
                 case "Turrets and cameras":
                     Slider(-.24f,"Turret aim sensitivity",c.TurretAimSensitivity,.25f,v=>c.TurretAimSensitivity=v,400);
                     Slider(-.10f,"Camera zoom sensitivity",c.CameraZoomSensitivity,.25f,v=>c.CameraZoomSensitivity=v,400);
-                    Label(.20f,"Camera zoom: left thumbstick while holding left cockpit stick.",.55f);
+                    Label(.20f,"Camera zoom: right thumbstick while holding right cockpit stick.",.55f);
                     Reset(()=> { c.TurretAimSensitivity=c.CameraZoomSensitivity=2; });
                     break;
                 case "Third person":
