@@ -20,7 +20,7 @@ namespace SpaceEngineersVR.Player
             (MySession.Static?.LocalCharacter is IMyCharacter character && character.EnabledThrusts);
         public static bool Gameplay => Mode == InputMode.Walking || Mode == InputMode.Building ||
             Mode == InputMode.Jetpack || Mode == InputMode.Piloting || Mode == InputMode.Turret || Mode == InputMode.Clipboard;
-        internal static bool TrackedItems => AllowsTrackedItems(Mode,Main.MenuOpen);
+        internal static bool TrackedItems => !ThirdPersonView.Character && AllowsTrackedItems(Mode,Main.MenuOpen);
         internal static bool AllowsTrackedItems(InputMode mode,bool menuOpen) => !menuOpen &&
             (mode==InputMode.Walking || mode==InputMode.Building || mode==InputMode.Jetpack ||
              mode==InputMode.Clipboard || mode==InputMode.Radial);
@@ -35,6 +35,7 @@ namespace SpaceEngineersVR.Player
             else if (Main.MenuOpen) next = InputMode.Menu;
             else if (Player.IsCalibrating || character == null || character.IsDead || MySandboxGame.IsPaused ||
                 !Player.HandL.pose.isTracked || !Player.HandR.pose.isTracked) next = InputMode.Blocked;
+            else if (!RemoteView.Live(MySession.Static.ControlledEntity)) next = InputMode.Blocked;
             else if (RadialOpen) next = InputMode.Radial;
             else if (RemoteView.Turret) next = InputMode.Turret;
             else if (MySession.Static.ControlledEntity is MyShipController) next = InputMode.Piloting;

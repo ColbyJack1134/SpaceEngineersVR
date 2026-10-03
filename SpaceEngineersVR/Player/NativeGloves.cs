@@ -22,6 +22,12 @@ namespace SpaceEngineersVR.Player
         private static int sequence;
         private static bool failed;
         internal static bool Visible { get; private set; }
+        internal static bool IsHand(uint id,out bool left)
+        {
+            var actors=Volatile.Read(ref current)?.Actors;
+            left=actors?.Length>0 && actors[0]==id;
+            return left || actors?.Length>1 && actors[1]==id;
+        }
         internal static void Reset()
         {
             var previous=Interlocked.Exchange(ref current,null);
@@ -80,7 +86,9 @@ namespace SpaceEngineersVR.Player
                 actor.SetVisibility(visible);
                 if(!visible) { actor.UpdateBeforeDraw(); continue; }
                 MatrixD pose=Alignment.Apply(Alignment.HandKey(hands[h]),CockpitHandPose.GripWrist(hands[h].RenderGripTracking));
-                if(h==1) pose=MenuHands.AttachWrist(pose);
+                if(RemoteView.HomeSeat!=null && CockpitControls.Held(hands[h]))
+                    pose=Alignment.Apply(Alignment.HandKey(hands[h]),CockpitControls.WristWorld(hands[h]))*MatrixD.Invert(RemoteView.PhysicalTrackingToWorld);
+                else if(h==1) pose=MenuHands.AttachWrist(pose);
                 pose*=frame.TrackingToWorld;
                 actor.SetMatrix(ref pose); actor.UpdateBeforeDraw(); Visible=true;
             }

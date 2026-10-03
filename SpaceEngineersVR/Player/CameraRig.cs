@@ -101,9 +101,9 @@ namespace SpaceEngineersVR.Player
                 up=up.LengthSquared()>0.01 ? -Vector3D.Normalize(up) : body.Up;
                 anchor=VrMath.Level(anchor,up);
             }
-            character.EnableHead(false);
+            character.EnableHead(ThirdPersonView.Character);
             character.Render.NearFlag=false;
-            if ((bool)(bagField?.GetValue(character) ?? true)) character.EnableBag(false);
+            character.EnableBag(ThirdPersonView.Character);
             eyeOffset.Y=BodyFit.Fitting(character) ? BodyFit.DesiredEye(character) : standingEye;
             anchor.Translation=body.Translation+Vector3D.TransformNormal(eyeOffset,anchor);
         }

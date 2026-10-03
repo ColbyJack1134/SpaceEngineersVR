@@ -2,6 +2,9 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using Sandbox.Game.Entities;
+using Sandbox.Game.Entities.Character;
+using VRage.Game.Entity;
+using VRage.Game.ModAPI.Interfaces;
 using Sandbox.Game.World;
 using SpaceEngineersVR.Player.Control;
 using SpaceEngineersVR.Player.Components;
@@ -18,7 +21,9 @@ namespace SpaceEngineersVR.Player
         internal static bool DescentReady => !Active || descent.Ready;
         private static readonly ObserverFollow follow=new ObserverFollow();
         private static readonly object sync=new object();
-        private static MyCockpit seat;
+        private static MyEntity subject;
+        private static IMyCameraController SubjectCamera => subject as IMyCameraController;
+        private static MyEntity Target => subject is MyCockpit cockpit ? cockpit.CubeGrid : subject;
         private static CameraRig.Frame frame;
         private static int epoch;
         private static Action transition;
@@ -29,30 +34,43 @@ namespace SpaceEngineersVR.Player
         private static readonly double[] renderTrace=new double[7];
         private static ObserverMode Mode => (ObserverMode)(Common.Config?.ThirdPersonMode ?? 0);
         internal static string Label(ObserverMode mode) => "Camera: "+(mode==ObserverMode.Ship ? "follow ship" : mode==ObserverMode.Heading ? "heading only" : "fixed");
-        public static string ModeLabel => Label(Mode);
+        public static string ModeLabel => Character && Mode==ObserverMode.Ship ? "Camera: follow character" : Label(Mode);
         public static CameraRig.Frame Current => Volatile.Read(ref frame);
         public static bool Active => Current!=null;
         public static bool Manipulating => Active && (consumed || transition!=null);
-        public static bool Owns(MyCockpit cockpit) => Active && cockpit==seat;
+        public static bool Character => Active && subject is MyCharacter;
+        public static bool Owns(MyEntity entity) => Active && entity==subject;
 
-        private static MyCockpit Candidate
+        private static MyEntity Candidate
         {
             get
             {
                 var session=MySession.Static;
-                var cockpit=session?.ControlledEntity as MyCockpit;
-                return Main.VrActive && session!=null && session.Enable3RdPersonView && cockpit!=null && !cockpit.Closed && !cockpit.MarkedForClose &&
-                    cockpit.Pilot==session.LocalCharacter && cockpit.Pilot?.IsDead==false && session.CameraController==cockpit ? cockpit : null;
+                var character=session?.LocalCharacter;
+                if(!Main.VrActive || session==null || !session.Enable3RdPersonView || !RemoteView.Live(character) || character.IsDead) return null;
+                var cockpit=RemoteView.HomeSeat ?? session.ControlledEntity as MyCockpit;
+                if(cockpit!=null) return RemoteView.Live(cockpit) && cockpit.Pilot==character &&
+                    (session.CameraController==cockpit || RemoteView.UsesSeat(cockpit)) ? cockpit : null;
+                return !character.IsSitting && (session.ControlledEntity==character && session.CameraController==character || RemoteView.CharacterAnchor) ? character : null;
             }
         }
         public static void Toggle()
         {
-            var cockpit=Candidate;
-            if(cockpit==null) { EssentialHud.Notify("Third person requires a cockpit and world permission"); return; }
+            var candidate=Candidate;
+            if(candidate==null) { EssentialHud.Notify("Third person is unavailable here"); return; }
             Fade(()=> {
-                if(Candidate!=cockpit) return;
-                if(Owns(cockpit)) { Reset(); cockpit.IsInFirstPersonView=true; }
-                else { seat=cockpit; Fit(); cockpit.IsInFirstPersonView=false; }
+                if(Candidate!=candidate) return;
+                var camera=(IMyCameraController)candidate;
+                if(Owns(candidate))
+                {
+                    if(Character)
+                    {
+                        var offset=Player.Headset.deviceToPlayer.Translation; offset.Y=0;
+                        Player.ConsumeRoomscale(offset);
+                    }
+                    Reset(); camera.IsInFirstPersonView=true;
+                }
+                else { subject=candidate; Fit(); camera.IsInFirstPersonView=false; }
             });
         }
         public static void ResetView()
@@ -78,15 +96,15 @@ namespace SpaceEngineersVR.Player
         {
             if(transition!=null) return;
             lock(sync) view.Cancel();
-            Controls.Static.BlockUntilRelease(); VRMovementComponent.StopActive();
+            NativeActions.Reset(); RemoteView.ReleaseInput();
             transition=action; changeAt=DateTime.UtcNow.AddSeconds(.1);
             OpenVR.Compositor?.FadeToColor(.09f,0,0,0,1,false);
         }
         private static void Fit()
         {
-            if(seat==null || Candidate!=seat || !Player.Headset.pose.isTracked) return;
-            var head=seat.GetHeadMatrix(false,false);
-            var up=seat.CubeGrid.Physics?.Gravity ?? Vector3.Zero;
+            if(subject==null || Candidate!=subject || !Player.Headset.pose.isTracked) return;
+            var head=subject is MyCockpit cockpit ? cockpit.GetHeadMatrix(false,false) : ((MyCharacter)subject).GetHeadMatrix(false);
+            var up=Target.Physics?.Gravity ?? Vector3.Zero;
             Vector3D vertical=up.LengthSquared()>.01 ? -(Vector3D)Vector3.Normalize(up) : head.Up;
             Matrix tracking=Player.Headset.deviceToPlayer;
             var orientation=Mode==ObserverMode.Ship ? head.GetOrientation() : VrMath.Level(head,vertical).GetOrientation();
@@ -94,8 +112,8 @@ namespace SpaceEngineersVR.Player
             var center=tracking.Translation+facing.Forward*1.15-facing.Up*.2;
             lock(sync)
             {
-                follow.Reset(seat.WorldMatrix,vertical);
-                view.Fit(seat.CubeGrid.PositionComp.LocalAABB.Size.Length(),orientation*MatrixD.Transpose(follow.Reference(Mode)),center);
+                follow.Reset(subject.WorldMatrix,vertical);
+                view.Fit(Target.PositionComp.LocalAABB.Size.Length(),orientation*MatrixD.Transpose(follow.Reference(Mode)),center);
                 epoch--;
             }
             TrackedArms.Reset(); CockpitControls.Release(); SpatialUi.ReleaseInput();
@@ -110,25 +128,27 @@ namespace SpaceEngineersVR.Player
         public static void Update()
         {
             var candidate=Candidate;
-            if(seat!=null && candidate!=seat) Reset();
+            if(subject!=null && candidate!=subject) Reset();
             if(transition!=null && DateTime.UtcNow>=changeAt)
             {
                 var action=transition; transition=null;
                 try { action(); }
                 finally { OpenVR.Compositor?.FadeToColor(.15f,0,0,0,0,false); }
             }
-            if(candidate!=null && !candidate.IsInFirstPersonView && seat==null && transition==null)
+            if(candidate!=null && !((IMyCameraController)candidate).IsInFirstPersonView && subject==null && transition==null)
             {
-                // Also handle a saved third-person seat or a native camera toggle.
-                seat=candidate; Fit();
+                // Also handle a saved view or a native camera toggle.
+                subject=candidate; Fit();
             }
             if(!Active) return;
-            if(seat.IsInFirstPersonView) { Reset(); return; }
+            if(SubjectCamera.IsInFirstPersonView) { Reset(); return; }
             var c=Controls.Static;
             float left=c.LeftGripPressure.RawPosition.X,right=c.RightGripPressure.RawPosition.X;
             if(left<=.025f && right<=.025f) consumed=false;
-            bool allowed=InputRouter.Mode==InputMode.Piloting && !Main.MenuOpen && !HelmetHud.ViewGestureHeld && transition==null &&
+            bool previouslyConsumed=consumed;
+            bool allowed=InputRouter.Gameplay && !Main.MenuOpen && !HelmetHud.ViewGestureHeld && transition==null &&
                 !CockpitTouch.OwnsRight && !CockpitTouch.Owns(Player.HandL) && !SpatialUi.OwnsRight && !RemoteView.OwnsInput &&
+                !CockpitControls.Held(Player.HandL) && !CockpitControls.Held(Player.HandR) &&
                 !CockpitControls.NearGrip(Player.HandL) && !CockpitControls.NearGrip(Player.HandR) &&
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked && MenuPointer.GameFocused;
             descent.Update(allowed,left,DateTime.UtcNow);
@@ -143,6 +163,7 @@ namespace SpaceEngineersVR.Player
                 started=view.Input(allowed,left,right,flight);
                 if(view.Held) consumed=true;
             }
+            if(consumed && !previouslyConsumed) NativeActions.Reset();
             if(started)
             {
                 VRMovementComponent.StopActive();
@@ -160,11 +181,11 @@ namespace SpaceEngineersVR.Player
         }
         public static void Publish()
         {
-            if(seat==null || Candidate!=seat) return;
-            var target=Vector3D.Transform(seat.CubeGrid.PositionComp.LocalAABB.Center,seat.CubeGrid.WorldMatrix);
+            if(subject==null || Candidate!=subject) return;
+            var target=Vector3D.Transform(Target.PositionComp.LocalAABB.Center,Target.WorldMatrix);
             lock(sync)
             {
-                follow.Advance(seat.WorldMatrix);
+                follow.Advance(subject.WorldMatrix);
                 var scene=new Diorama.Scene(target,follow.Reference(Mode),Stopwatch.GetTimestamp());
                 Volatile.Write(ref frame,new CameraRig.Frame(view.Anchor(target,scene.Reference),Player.PlayerToAbsolute.inverted,epoch,view.UnitsPerMeter,true,scene));
             }
@@ -186,7 +207,7 @@ namespace SpaceEngineersVR.Player
                     view.Cancel();
                 else view.Move(VrMath.Affine(Player.HandL.RenderGripTracking*packet.OriginInverse),
                     VrMath.Affine(Player.HandR.RenderGripTracking*packet.OriginInverse),seconds);
-                // Keep the ship paired with its native scene batch; late-update only the user's view offset.
+                // Keep the subject paired with its native scene batch; late-update only the view offset.
                 var scene=packet.Observer;
                 renderTrace[0]=(double)Mode; renderTrace[1]=view.Hands; renderTrace[2]=view.UnitsPerMeter;
                 renderTrace[3]=(now-inputTime)*1000d/Stopwatch.Frequency;
@@ -203,7 +224,7 @@ namespace SpaceEngineersVR.Player
         {
             lock(sync)
             {
-                seat=null; Volatile.Write(ref frame,null); view.Cancel(); consumed=false; descent.Update(false,0,DateTime.UtcNow);
+                subject=null; Volatile.Write(ref frame,null); view.Cancel(); consumed=false; descent.Update(false,0,DateTime.UtcNow);
                 transition=null; epoch--; renderTime=0; traceRequested=false;
             }
             OpenVR.Compositor?.FadeToColor(.1f,0,0,0,0,false);

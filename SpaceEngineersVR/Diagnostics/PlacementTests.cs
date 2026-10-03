@@ -9,6 +9,7 @@ using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Player.Control;
 using VRage.Input;
 using VRage.Utils;
+using VRageMath;
 
 namespace SpaceEngineersVR.Diagnostics
 {
@@ -17,6 +18,48 @@ namespace SpaceEngineersVR.Diagnostics
         private static void Require(bool value,string message) { if (!value) throw new Exception(message); }
         public static void Run(Action<string> log)
         {
+            var updates=PatchProcessor.GetOriginalInstructions(AccessTools.Method(typeof(Plugin.Main),"CustomUpdate"))
+                .Where(i=>i.operand is System.Reflection.MethodInfo m && m.Name=="Update")
+                .Select(i=>((System.Reflection.MethodInfo)i.operand).DeclaringType).ToList();
+            Require(updates.IndexOf(typeof(CockpitControls))>=0 && updates.IndexOf(typeof(CockpitControls))<updates.IndexOf(typeof(PlacementControls)) &&
+                updates.IndexOf(typeof(PlacementControls))<updates.IndexOf(typeof(NativeActions)),"Physical grip capture must precede build adjustment and native input in the same frame");
+            foreach(InputMode mode in Enum.GetValues(typeof(InputMode)))
+            foreach(bool grip in new[] {false,true}) foreach(bool a in new[] {false,true}) foreach(bool blocked in new[] {false,true})
+                Require(PlacementControls.PaintChord(mode,grip,a,blocked)==(mode==InputMode.Building && grip && a && !blocked),"Paint chord escaped building ownership");
+            var gripGate=new InputGate(); var paintGate=new InputGate(); var actions=new ActionFrame();
+            gripGate.Update(true,false); paintGate.Update(true,false);
+            for(int cycle=0;cycle<4;cycle++)
+            {
+                gripGate.Update(true,true);
+                for(int tick=0;tick<8;tick++)
+                {
+                    paintGate.Update(true,tick<6);
+                    bool painting=PlacementControls.PaintChord(InputMode.Building,gripGate.Held,paintGate.Held,false);
+                    if(painting) actions.Queue(MyControlsSpace.CUBE_COLOR_CHANGE);
+                    actions.Advance(true);
+                    Require(actions.Read(MyControlsSpace.CUBE_COLOR_CHANGE,MyControlStateType.PRESSED)==(tick<6),"Repeated/held A painting requires a grip release");
+                    Require(!(paintGate.Pressed && !painting),"Painting falls through to use/interact");
+                }
+            }
+            gripGate.Block(); paintGate.Block(); actions.Reset();
+            gripGate.Update(true,true); paintGate.Update(true,true);
+            Require(!PlacementControls.PaintChord(InputMode.Building,gripGate.Held,paintGate.Held,false),"Held painting crosses a menu/owner/view reset");
+            gripGate.Update(true,false); paintGate.Update(true,false);
+            gripGate.Update(true,true); paintGate.Update(true,true);
+            Require(PlacementControls.PaintChord(InputMode.Building,gripGate.Held,paintGate.Held,false),"Painting did not rearm after transition release");
+            foreach(double scale in new[] {.1,1,3,100,100000})
+            foreach(double origin in new[] {0d,1e9})
+            {
+                var pose=VrMath.Rigid(MatrixD.CreateFromYawPitchRoll(.7,.3,-.2)); pose.Translation=new Vector3D(origin,origin+10,origin-30);
+                double distance=5,search=PlacementControls.ObserverDistance(distance,scale);
+                var target=pose.Translation+pose.Forward*search;
+                Require(Math.Abs(pose.Forward.Length()-1)<1e-8,"Observer orientation is not rigid");
+                Require(search>=distance && search<=20000,"Observer ray has unbounded reach");
+                var grid=MatrixD.CreateRotationY(.3); grid.Translation=target;
+                var box=new BoundingBoxD(-Vector3D.One,Vector3D.One);
+                Require(PlacementControls.WithinReach(box,MatrixD.Invert(grid),target+grid.Right*5.9,5),"Reach rejects a nearby large-world block");
+                Require(!PlacementControls.WithinReach(box,MatrixD.Invert(grid),target+grid.Right*6.1,5),"Observer position or scale extends Survival reach");
+            }
             foreach (var mode in new[] { InputMode.Building,InputMode.Clipboard,InputMode.Jetpack,InputMode.Walking,InputMode.Menu,InputMode.Blocked,InputMode.Radial,InputMode.Piloting })
             foreach (bool primary in new[] { false,true }) foreach (bool secondary in new[] { false,true }) foreach (bool alternate in new[] { false,true })
             {
@@ -75,6 +118,7 @@ namespace SpaceEngineersVR.Diagnostics
             }
             // Verify the installed engine still consumes these exact action IDs and
             // retains the vanilla removal/permission path; no destructive world calls.
+            CheckFields(typeof(MyCubeBuilder),"HandleGameInput",MyControlsSpace.CUBE_COLOR_CHANGE);
             CheckFields(typeof(MyCubeBuilder),"HandleCurrentGridInput",MyControlsSpace.SECONDARY_TOOL_ACTION,MyControlsSpace.PRIMARY_TOOL_ACTION);
             CheckFields(typeof(MyClipboardComponent),"HandleLeftMouseButton",MyControlsSpace.COPY_PASTE_ACTION);
             CheckFields(typeof(MyClipboardComponent),"HandleEscape",MyControlsSpace.COPY_PASTE_CANCEL);
@@ -85,14 +129,22 @@ namespace SpaceEngineersVR.Diagnostics
             Require(AccessTools.Method(typeof(MyGridClipboard),"GetPasteMatrix")?.ReturnType==typeof(VRageMath.MatrixD),"Native clipboard pose signature changed");
             Require(PatchProcessor.GetOriginalInstructions(AccessTools.Method(typeof(NativeActions),nameof(NativeActions.Reset)))
                 .Any(i=>i.operand is System.Reflection.MethodInfo m && m.DeclaringType==typeof(MyCubeBuilder) && m.Name=="InputLost"),"VR transition omitted native stroke cancellation");
+            foreach(var type in new[] {typeof(Sandbox.Game.Entities.MyCockpit),typeof(Sandbox.Game.Entities.Character.MyCharacter)})
+            {
+                Require(AccessTools.GetDeclaredMethods(type).Count(m=>m.Name.EndsWith(".ControlCamera"))==1,"Native camera ownership API changed");
+                Require(AccessTools.PropertyGetter(type,"ForceFirstPersonCamera")?.ReturnType==typeof(bool),"Native collision camera API changed");
+            }
+            var nativeReach=PatchProcessor.GetOriginalInstructions(AccessTools.Method(typeof(MyCubeBuilderGizmo),"DefaultGizmoCloseEnough"));
+            Require(nativeReach.Any(i=>i.operand is System.Reflection.MethodInfo m && m.Name=="GetHeadMatrix"),"Installed reach no longer uses character head");
+            Require(AccessTools.Field(typeof(MyCubeBuilder),"m_gizmo")?.FieldType==typeof(MyCubeBuilderGizmo) && AccessTools.Method(typeof(MyCubeBuilder),"Change")!=null,"Native paint/gizmo contract changed");
+            log("PASS observer building: consistent observer distances at five scales and billion-metre origins; independent character reach; paint chord ownership; installed character/cockpit camera, paint and reach APIs.");
             log("PASS placement: continuous free-space and five grid steps/second at 36/72/90 Hz with neutral/reverse/cancel; build/clipboard/tool ownership, simultaneous cancel priority, alternate-trigger isolation, transition release gates; installed native remove/paste/cancel/distance IDs, Creative checks and clipboard pose API. No world modified.");
         }
         internal static void RunNativeFixture(Action<string> log)
         {
             // CubeBuilder's type initializer needs the game's object-builder registry.
             // Run only inside the initialized diagnostic game, still without a world.
-            // Exercise the native cancellation method against its real gizmo. No
-            // session/grid exists, so this cannot place or remove world blocks.
+            // Exercise unregistered objects only; no placement request is sent.
             var builder=(MyCubeBuilder)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(MyCubeBuilder));
             var gizmo=new MyCubeBuilderGizmo();
             AccessTools.Field(typeof(MyCubeBuilder),"m_gizmo").SetValue(builder,gizmo);
@@ -104,7 +156,73 @@ namespace SpaceEngineersVR.Diagnostics
             }
             builder.InputLost();
             Require(gizmo.Spaces.All(s=>!s.m_startBuild.HasValue && !s.m_startRemove.HasValue),"Native InputLost retained a deferred build/remove stroke");
+            NativeCellPicking(builder,log);
+            NativeCockpitToolbar(log);
             log("PASS native build cancellation: InputLost clears all eight symmetry spaces' pending build/remove starts in a disposable gizmo fixture.");
+        }
+        private sealed class RayProvider : IMyPlacementProvider
+        {
+            public Vector3D RayStart { get; set; }
+            public Vector3D RayDirection { get; set; }
+            public Sandbox.Engine.Physics.MyPhysics.HitInfo? HitInfo => null;
+            public MyCubeGrid ClosestGrid => null;
+            public MyVoxelBase ClosestVoxelMap => null;
+            public bool CanChangePlacementObjectSize => false;
+            public float IntersectionDistance { get; set; }
+            public void RayCastGridCells(MyCubeGrid grid,System.Collections.Generic.List<Vector3I> cells,Vector3I inflate,float distance) => throw new NotSupportedException();
+            public void UpdatePlacement() => throw new NotSupportedException();
+        }
+        private static void NativeCellPicking(MyCubeBuilder builder,Action<string> log)
+        {
+            var previous=MyBlockBuilderBase.PlacementProvider;
+            var provider=new RayProvider();
+            var method=AccessTools.Method(typeof(MyBlockBuilderBase),"GetCubeAddAndRemovePositions");
+            var grid=new MyCubeGrid();
+            AccessTools.Field(typeof(MyBlockBuilderBase),"m_currentGrid").SetValue(builder,grid);
+            int cases=0;
+            try
+            {
+                MyBlockBuilderBase.PlacementProvider=provider;
+                foreach(float size in new[] {.5f,2.5f})
+                foreach(double origin in new[] {0d,1e9})
+                foreach(double scale in new[] {.1,1,3,100,100000})
+                foreach(var normal in new[] {Vector3D.Left,Vector3D.Right,Vector3D.Up,Vector3D.Down,Vector3D.Forward,Vector3D.Backward})
+                foreach(double slant in new[] {0d,.7})
+                {
+                    AccessTools.PropertySetter(typeof(MyCubeGrid),nameof(MyCubeGrid.GridSize)).Invoke(grid,new object[] {size});
+                    var world=MatrixD.CreateFromYawPitchRoll(.4,.2,-.3); world.Translation=new Vector3D(origin,origin+5,origin-7);
+                    grid.PositionComp.SetWorldMatrix(ref world);
+                    var tangent=Math.Abs(normal.Y)>.5 ? Vector3D.Right : Vector3D.Up;
+                    var direction=Vector3D.Normalize(-normal+tangent*slant);
+                    var hit=normal*(size/2);
+                    provider.RayDirection=Vector3D.TransformNormal(direction,world);
+                    provider.RayStart=Vector3D.Transform(hit-direction*.05,world);
+                    object[] args={Vector3I.Zero,false,Vector3I.Zero,Vector3I.Zero,Vector3I.Zero};
+                    Require(!(bool)method.Invoke(builder,args),"Old surface-offset regression no longer reproduced by installed cell picking");
+                    provider.RayStart=Vector3D.Transform(hit-direction*PlacementControls.ObserverDistance(5,scale),world);
+                    Require((bool)method.Invoke(builder,args),"Native attachment failed with full observer ray");
+                    Require((Vector3I)args[2]==Vector3I.Round(normal) && (Vector3I)args[3]==Vector3I.Round(normal) && (Vector3I)args[4]==Vector3I.Zero,
+                        "Native attachment selected the wrong face or cell");
+                    cases++;
+                }
+            }
+            finally { MyBlockBuilderBase.PlacementProvider=previous; AccessTools.Field(typeof(MyBlockBuilderBase),"m_currentGrid").SetValue(builder,null); }
+            log("PASS native grid attachment: "+cases+" flat/oblique face, small/large cell, rotated billion-metre origin and observer-scale cases; old 5cm origin rejected, full ray returns the correct adjacent cell. No world loaded or modified.");
+        }
+        private static void NativeCockpitToolbar(Action<string> log)
+        {
+            var cockpit=(MyCockpit)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(MyCockpit));
+            var ship=new Sandbox.Game.Screens.Helpers.MyToolbar(VRage.Game.MyToolbarType.Ship);
+            var build=new Sandbox.Game.Screens.Helpers.MyToolbar(VRage.Game.MyToolbarType.BuildCockpit);
+            AccessTools.Field(typeof(MyShipController),"m_toolbar").SetValue(cockpit,ship);
+            AccessTools.Field(typeof(MyShipController),"m_buildToolbar").SetValue(cockpit,build);
+            for(int i=0;i<4;i++)
+            {
+                cockpit.BuildingMode=true; Require(ReferenceEquals(cockpit.Toolbar,build),"Native cockpit lost its separate build toolbar");
+                cockpit.BuildingMode=false; Require(ReferenceEquals(cockpit.Toolbar,ship),"Native cockpit did not restore its ship toolbar");
+            }
+            Require(!CockpitBuilding.Shortcut(false,cockpit) && CockpitBuilding.Shortcut(true,cockpit),"Native Ctrl+G state was overridden without a request");
+            log("PASS native cockpit toolbar: repeated build/ship toolbar switching retains both native instances; no world or toolbar action executed.");
         }
         private static void CheckFields(Type type,string method,params MyStringId[] actions)
         {

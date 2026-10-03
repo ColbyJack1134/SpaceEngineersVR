@@ -43,7 +43,6 @@ namespace SpaceEngineersVR.Player
             var rig=RenderFrameBridge.ForCurrentOwner(CameraRig.Current);
             var markers=ReferenceEquals(rig,RenderFrameBridge.Current) ? RenderFrameBridge.Markers : null;
             rig=ThirdPersonView.RenderFrame(rig);
-            NativeGloves.Prepare(rig);
             Matrix originInverse=rig?.OriginInverse ?? Player.RenderPlayerToAbsolute.inverted;
             double scale=rig?.UnitsPerMeter ?? 1;
             if(rig!=null) gameView=MatrixD.Invert(rig.Anchor);
@@ -53,7 +52,9 @@ namespace SpaceEngineersVR.Player
             EyeResolution.Scene resources=null;
             try
             {
+                if(RenderFrameBridge.Remote!=null) NativeGloves.Prepare(null);
                 RemoteFeed.Render(RenderFrameBridge.Remote);
+                NativeGloves.Prepare(rig);
                 resources=new EyeResolution.Scene(size);
                 StereoRenderState.Begin(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale),
                     rig?.ThirdPerson==true ? .005*scale : Math.Max(.03,matrices.NearClipping),matrices.LargeDistanceFarClipping);
@@ -131,7 +132,7 @@ namespace SpaceEngineersVR.Player
             GpuTiming.Begin(sceneArea);
             long sceneStart=FeatureTiming.Start();
             var targetSize=((SharpDX.Direct3D11.Texture2D)target.GetResource()).Description;
-            bool handLayer=rig?.ThirdPerson!=true && (RenderFrameBridge.Remote!=null || Main.MenuOpen || Main.ShowDesktopPanel);
+            bool handLayer=RenderFrameBridge.Remote!=null || rig?.ThirdPerson!=true && (Main.MenuOpen || Main.ShowDesktopPanel);
             NativeHandLayer.Begin(targetSize.Width,targetSize.Height,handLayer);
             try { MyRender11.DrawGameScene(target, out ambientOcclusion); }
             finally { NativeHandLayer.End(); }
@@ -139,7 +140,8 @@ namespace SpaceEngineersVR.Player
             GpuTiming.End(sceneArea);
             GpuTiming.Begin(uiArea);
             WorldMarkers.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection);
-            RemoteFeed.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),RenderFrameBridge.Remote,view,projection);
+            MatrixD trackingView=MatrixD.Invert((MatrixD)OpenVR.System.GetEyeToHeadTransform(eye).ToMatrix()*renderPose.deviceToAbsolute.matrix);
+            RemoteFeed.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),RenderFrameBridge.Remote,trackingView,VrMath.Projection(l,r,t,b,.03));
             if (Main.MenuOpen || rig?.ThirdPerson==true) MenuHands.DrawInWorld((SharpDX.Direct3D11.Texture2D)target.GetResource(),eye,Main.MenuOpen);
             SpatialUi.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,RenderFrameBridge.Surfaces);
             if(rig?.ThirdPerson==true && NativeGloves.Visible)

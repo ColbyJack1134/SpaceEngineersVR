@@ -53,8 +53,8 @@ namespace SpaceEngineersVR.Diagnostics
         internal static void Hands(Texture2D target,string output,MatrixD view,MatrixD projection)
         {
             NativeHandLayer.End();
-            if(!NativeHandLayer.Drawn(true) || NativeHandLayer.Drawn(false))
-                throw new Exception("Native glove draw ownership did not match the left-hand actor");
+            if(!NativeHandLayer.Drawn(true) || !NativeHandLayer.Drawn(false))
+                throw new Exception("Native glove draw ownership did not include both observer glove actors");
             using(var source=NativeHandLayer.Depth.ResourceAs<Texture2D>())
             {
                 var description=source.Description;
@@ -96,6 +96,17 @@ namespace SpaceEngineersVR.Diagnostics
                     },view,projection,NativeHandLayer.Depth);
                 UiTests.Save(target,Path.Combine(output,"native-menu-hand-layer.png"));
             }
+            using(var panel=new OverlayCanvas("Camera layering fixture",1920,1080,1,false,target.Device))
+            using(var camera=System.Drawing.Image.FromFile(Path.Combine(output,"remote-feed-native.png")))
+            {
+                panel.Graphics.DrawImage(camera,0,0,1920,1080); panel.Upload();
+                using(var image=new ShaderResourceView(target.Device,panel.Texture))
+                    RemoteFeed.DrawPanel(target,image,new RemoteView.View {
+                        Pose=MatrixD.CreateTranslation(0,0,-.8)*MatrixD.Invert(view),Width=1.2f,Height=.675f
+                    },view,projection,NativeHandLayer.Depth);
+                UiTests.Save(target,Path.Combine(output,"native-remote-observer-hands.png"));
+            }
+            RemoteFeed.Reset();
             NativeHandLayer.Reset(); NativeHandLayer.Actor=uint.MaxValue;
         }
     }

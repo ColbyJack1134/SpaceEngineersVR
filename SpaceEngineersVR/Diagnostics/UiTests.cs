@@ -111,16 +111,23 @@ namespace SpaceEngineersVR.Diagnostics
                 {
                     var model=new ToolbarWheel.View {
                         Title="Quick actions",Hint=ToolbarWheel.ControlsHint,Group=1,Pages=1,
-                        Labels=GameActions.WheelActions(false,false,false).Select(a=>a.Label).ToArray(),Icons=GameActions.WheelActions(false,false,false).Select(a=>new[] { a.Icon }).ToArray(),
+                        Labels=GameActions.WheelActions(false,false,false).Take(9).Select(a=>a.Label).ToArray(),Icons=GameActions.WheelActions(false,false,false).Take(9).Select(a=>new[] { a.Icon }).ToArray(),
                         Enabled=Enumerable.Repeat(true,9).ToArray(),SubIcons=new string[9],ItemText=new string[9],Selected=0 };
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
                     Save(wheel.Texture,Path.Combine(output,"wheel-actions-preview.png"));
-                    foreach(var entry in new[] { Tuple.Create("third-person",false,true,true),Tuple.Create("building",true,false,false),Tuple.Create("blueprint",true,false,false),Tuple.Create("character",false,false,false),Tuple.Create("jetpack",false,false,false) })
+                    foreach(var entry in new[] { Tuple.Create("third-person",false,true,true),Tuple.Create("cockpit-building",true,true,true),Tuple.Create("cockpit-first",false,true,false),Tuple.Create("building",true,false,false),Tuple.Create("blueprint",true,false,false),Tuple.Create("character",false,false,false),Tuple.Create("jetpack",false,false,false) })
                     {
                         var choices=entry.Item1=="blueprint" ? GameActions.ClipboardActions():GameActions.WheelActions(entry.Item2,entry.Item3,entry.Item4,entry.Item1=="jetpack");
-                        model.Title="Quick actions"; model.Group=1; model.Page=0; model.Pages=1;
-                        model.Labels=choices.Select(c=>c.Label).ToArray(); model.Icons=choices.Select(c=>new[] { c.Icon }).ToArray();
-                        Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"wheel-"+entry.Item1+"-preview.png"));
+                        var pages=BlockVariants.Pages(Array.Empty<ActionChoice>(),choices);
+                        for(int page=0;page<pages.Length;page++)
+                        {
+                            var items=pages[page];
+                            model.Title="Quick actions "+(page+1)+" / "+pages.Length; model.Group=1; model.Page=page; model.Pages=pages.Length;
+                            model.Hint="Hold Y · Right stick selects · Release Y confirms\nLeft / right trigger: previous / next page";
+                            model.Labels=items.Select(c=>c?.Label ?? "").ToArray(); model.Icons=items.Select(c=>c==null ? Array.Empty<string>() : new[] {c.Icon}).ToArray();
+                            model.Enabled=items.Select(c=>c!=null).ToArray();
+                            Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"wheel-"+entry.Item1+"-"+page+".png"));
+                        }
                     }
                     var variantIcons=new[] { "light_armor_cube","light_armor_slope","light_armor_corner","light_armor_inv_corner","Slope2x1x1Base","Slope2x1x1Tip","LightArmorSquareSlab","LightArmorSlopeSlab" };
                     foreach(var icon in variantIcons)
@@ -201,6 +208,7 @@ namespace SpaceEngineersVR.Diagnostics
                 CockpitHandTests.Preview(output);
                 GameplayFeatureTests.Run(log,output);
                 BlockPreviews(device,output);
+                RemoteViewTests.Preview(device,output);
                 using(var feed=new OverlayCanvas("remote feed frame",1600,1100,1,false,device))
                     foreach(float width in new[] {.7f,1.2f,3.2f})
                     {
@@ -510,7 +518,7 @@ namespace SpaceEngineersVR.Diagnostics
                 using(var texture=new ShaderResourceView(device,wheel.Texture))
                 {
                     var model=new ToolbarWheel.View {Title="Actions",Group=1,Pages=3,Selected=0,
-                        Labels=GameActions.WheelActions(false,false,false).Select(a=>a.Label).ToArray(),Icons=GameActions.WheelActions(false,false,false).Select(a=>new[] {a.Icon}).ToArray(),
+                        Labels=GameActions.WheelActions(false,false,false).Take(9).Select(a=>a.Label).ToArray(),Icons=GameActions.WheelActions(false,false,false).Take(9).Select(a=>new[] {a.Icon}).ToArray(),
                         Enabled=Enumerable.Repeat(true,9).ToArray(),SubIcons=new string[9],ItemText=new string[9]};
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
                     foreach(int eye in new[] {-1,1}) foreach(bool overlay in new[] {false,true})

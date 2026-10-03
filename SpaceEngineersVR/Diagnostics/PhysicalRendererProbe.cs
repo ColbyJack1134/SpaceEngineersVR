@@ -128,7 +128,7 @@ namespace SpaceEngineersVR.Diagnostics
                 if (MySession.Static!=null) throw new InvalidOperationException("Renderer probe requires the main menu, without a loaded world.");
                 if (renderError!=null) throw new InvalidOperationException(renderError);
                 if (DateTime.UtcNow>deadline) throw new TimeoutException("Native renderer probe timed out in phase "+phase);
-                if(phase>=48) { UpdateRig(); return; }
+                if(phase>=49) { UpdateRig(); return; }
                 if (phase==0)
                 {
                     if (DateTime.UtcNow<next) return;
@@ -141,7 +141,7 @@ namespace SpaceEngineersVR.Diagnostics
                     if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_COCKPITS_ONLY")=="1")
                     {
                         rigs=SelectedRigs();
-                        rigIndex=rigStep=0; phase=48; BeginRig(); return;
+                        rigIndex=rigStep=0; phase=49; BeginRig(); return;
                     }
                     MenuTests.Run(line=>Logger.Info(line));
                     PlacementTests.RunNativeFixture(line=>Logger.Info(line));
@@ -216,6 +216,14 @@ namespace SpaceEngineersVR.Diagnostics
                     eye=new Vector3D(phase==45 ? -.35:.35,.23,.42);
                     view=MatrixD.CreateLookAt(eye,new Vector3D(0,0,-.04),Vector3D.Up); fov=.30f;
                 }
+                if(phase==48)
+                {
+                    var model=VRage.Game.Models.MyModels.GetModelOnlyData(@"Models\Characters\Astronaut\SE_astronaut.mwm");
+                    var miniature=new Player.Control.Diorama();
+                    miniature.Fit(model.BoundingBox.Size.Length(),MatrixD.Identity,new Vector3D(0,-.2,-1.15));
+                    view=VrMath.EyeView(MatrixD.Invert(miniature.Anchor(model.BoundingBox.Center)),Matrix.Identity,Matrix.Identity,Matrix.Identity,miniature.UnitsPerMeter);
+                    eye=MatrixD.Invert(view).Translation; near=(float)(.005*miniature.UnitsPerMeter); fov=.7f;
+                }
                 Matrix projection=(Matrix)VrMath.Projection(-aspect*fov,aspect*fov,-fov,fov,near,100);
                 MyRenderProxy.SetCameraViewMatrix(view,projection,projection,1.3f,1.3f,near,100,100,eye,smooth:false);
                 camera=new MyRenderMessageSetCameraViewMatrix { ViewMatrix=view,ProjectionMatrix=projection,ProjectionFarMatrix=projection,
@@ -281,7 +289,13 @@ namespace SpaceEngineersVR.Diagnostics
                         options=new PausePreview();
                         Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
                     }
-                    if (phase==48)
+                    if(phase==48)
+                    {
+                        options?.CloseScreenNow(); options=null;
+                        native=MyRenderProxy.CreateRenderEntity("SEVR observer character",@"Models\Characters\Astronaut\SE_astronaut.mwm",MatrixD.Identity,MyMeshDrawTechnique.MESH,
+                            RenderFlags.Visible|RenderFlags.CastShadows,(CullingOptions)0,Color.White,neutralPaint);
+                    }
+                    if (phase==49)
                     {
                         options?.CloseScreenNow(); options=null;
                         if(!rotationPreviewsSaved) throw new InvalidOperationException("Native rotation previews not rendered");
@@ -301,7 +315,7 @@ namespace SpaceEngineersVR.Diagnostics
                     phase==6 ? "articulated-right" : phase==7 ? "restored-left" : phase==9 ? "regrab-left" :
                     phase==10 ? "relocated-left" : phase==11 ? "relocated-right" : phase==12 ? "relocated-articulated-left" : phase==13 ? "relocated-articulated-right" : phase==14 ? "repainted-left" : phase==15 ? "repainted-native-left" : phase==16 ? "controls-rest" : phase==17 ? "controls-levers" : phase==18 ? "controls-covers" : phase==19 ? "controls-restored" :
                     phase==20 ? "miniature-left" : phase==21 ? "miniature-right" : phase==22 ? "miniature-enlarged-left" : phase==23 ? "miniature-enlarged-right" :
-                    phase>=45 ? "gloves-scene-"+phase : phase>=37 ? "settings-scene-"+phase : phase==35 ? "bar-rest" : phase==36 ? "bar-pulled" :
+                    phase==48 ? "character-observer" : phase>=45 ? "gloves-scene-"+phase : phase>=37 ? "settings-scene-"+phase : phase==35 ? "bar-rest" : phase==36 ? "bar-pulled" :
                     phase==31 ? "front-closed" : phase==32 ? "front-open" : phase==33 ? "front-right-rest" : phase==34 ? "front-right-on" :
                     phase==29 ? "uncovered-rest" : phase==30 ? "uncovered-on" :
                     phase>=26 ? "camera-"+(Player.Control.ObserverMode)(phase-26) : "rendering-scene-"+phase;

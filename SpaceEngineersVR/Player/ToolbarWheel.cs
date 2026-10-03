@@ -136,8 +136,9 @@ namespace SpaceEngineersVR.Player
             if(quick==ToolbarGesture.Action.OpenWheel) { Open(true); return; }
             var action=gesture.Update(InputRouter.Gameplay && !Main.MenuOpen,
                 controls.Unequip.HasPressed,controls.Unequip.IsPressed,controls.Unequip.HasReleased,
-                MySession.Static?.ControlledEntity,CockpitButtons.HoveredSwitch,DateTime.UtcNow,ThirdPersonView.Active);
+                MySession.Static?.ControlledEntity,CockpitBuilding.Active ? -1:CockpitButtons.HoveredSwitch,DateTime.UtcNow,ThirdPersonView.Active && !ThirdPersonView.Character && !CockpitBuilding.Active);
             if(action==ToolbarGesture.Action.None) return;
+            if(action==ToolbarGesture.Action.Unequip && CockpitBuilding.Active) { CockpitBuilding.Toggle(); return; }
             if(action!=ToolbarGesture.Action.OpenWheel && SpatialUi.CollapseIfOpen()) return;
             if(action==ToolbarGesture.Action.FirstPerson) { ThirdPersonView.Toggle(); InputRouter.Update(); return; }
             if(action==ToolbarGesture.Action.AssignSwitch) { CockpitActions.Configure(gesture.Switch); InputRouter.Update(); return; }
@@ -148,9 +149,9 @@ namespace SpaceEngineersVR.Player
         {
             quickChoices=quick ? GameActions.WheelActions(PlacementControls.OwnsTools,InputRouter.Mode==InputMode.Piloting,ThirdPersonView.Active,InputRouter.Mode==InputMode.Jetpack || MySession.Static?.LocalCharacter?.JetpackComp?.TurnedOn==true):null;
             quickPage=variantPages=0; quickPages=null;
-            if(quick && InputRouter.Mode==InputMode.Building)
+            if(quick)
             {
-                var variants=BlockVariants.Choices(); variantPages=(variants.Length+8)/9;
+                var variants=PlacementControls.Mode==InputMode.Building ? BlockVariants.Choices() : Array.Empty<ActionChoice>(); variantPages=(variants.Length+8)/9;
                 quickPages=BlockVariants.Pages(variants,quickChoices);
                 quickChoices=quickPages[0];
             }
@@ -207,7 +208,7 @@ namespace SpaceEngineersVR.Player
             }
             var next = new View { Pose = pose, Labels = labels, Enabled = enabled, Selected = selection, Icons = icons, SubIcons = subIcons, ItemText = itemText,
                 Title = group == 0 ? "Toolbar " + ((toolbar?.CurrentPage ?? 0) + 1) + "/" + (toolbar?.PageCount ?? 0)
-                    : quickPages?.Length>1 ? "Building "+(quickPage+1)+" / "+quickPages.Length : "Quick actions",
+                    : quickPages?.Length>1 ? (variantPages>0 ? "Building " : "Quick actions ")+(quickPage+1)+" / "+quickPages.Length : "Quick actions",
                 Variants=group==1 && quickPage<variantPages,Group=group,Page=group==0 ? toolbar?.CurrentPage ?? 0 : quickPage,Pages=group==0 ? toolbar?.PageCount ?? 1 : quickPages?.Length ?? 1,
                 Hint = group==0 ? ControlsHint : "Hold Y · Right stick selects · X: inventory · Release Y confirms · B: cancel"+(quickPages?.Length>1 ? "\nLeft / right trigger: previous / next page" : "") };
             if (!next.SameAs(view)) view=next;

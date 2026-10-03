@@ -42,7 +42,7 @@ namespace SpaceEngineersVR.Player.Components
             active = this;
             TraceInput();
             if (firstMovementTick) { Logger.Info("MOVEMENT component is receiving simulation ticks"); firstMovementTick = false; }
-            if (!Main.VrActive || !InputRouter.Gameplay || Main.MenuOpen || MySandboxGame.IsPaused || Character.IsDead || ThirdPersonView.Manipulating)
+            if (!Main.VrActive || !InputRouter.Gameplay || Main.MenuOpen || MySandboxGame.IsPaused || Character.IsDead || !RemoteView.Live(MySession.Static.ControlledEntity) || ThirdPersonView.Manipulating)
             {
                 StopInput();
                 return;
@@ -51,7 +51,7 @@ namespace SpaceEngineersVR.Player.Components
             {
                 if (!ReferenceEquals(inputOwner, MySession.Static.ControlledEntity)) StopInput();
                 inputOwner = MySession.Static.ControlledEntity;
-                if(!RemoteView.Turret) BodyLocomotion.Update(Character);
+                if(!RemoteView.Active) BodyLocomotion.Update(Character);
                 else if(RemoteView.CharacterAnchor) { CameraRig.Begin(Character); CameraRig.End(Character); }
 
                 if(RemoteView.Turret) { RemoteView.ControlTurret(RotationSpeed); UsingControllerMovement=true; hadControllerMovement=true; }
@@ -140,7 +140,7 @@ namespace SpaceEngineersVR.Player.Components
             var controls = Controls.Static;
 
             Vector3 move=Vector3.Zero; Vector2 rotate=Vector2.Zero; float roll=0;
-            bool controllerFlight=FlightAxes.ControllerInputAllowed(true,ThirdPersonView.Active,Common.Config.PhysicalShipControlsOnly);
+            bool controllerFlight=FlightAxes.ControllerInputAllowed(true,ThirdPersonView.Active || RemoteView.RemoteGrid && RemoteView.HomeSeat==null,Common.Config.PhysicalShipControlsOnly);
             if(controllerFlight || CockpitControls.NeedsControllerTranslation)
             {
                 ReadFlightInput(true,out move,out rotate,out roll);

@@ -26,7 +26,7 @@ namespace SpaceEngineersVR.Player
         internal static void Begin(int width,int height,bool enabled)
         {
             active=ready=leftDrawn=rightDrawn=false;
-            if(!enabled || Actor==uint.MaxValue) return;
+            if(!enabled || Actor==uint.MaxValue && !NativeGloves.Visible) return;
             if(texture==null || texture.Description.Width!=width || texture.Description.Height!=height)
             {
                 Reset();
@@ -47,10 +47,16 @@ namespace SpaceEngineersVR.Player
         {
             if(!active) return;
             var parent=(VRage.Render.Scene.Components.MyActorComponent)parentField.GetValue(proxy);
-            if(parent?.Owner.ID!=Actor) return;
-            string material=CockpitRender.Member(CockpitRender.Member(CockpitRender.Member(proxy,"Material"),"Info"),"Name").ToString();
-            if(material!="LeftGlove" && material!="RightGlove") return;
-            if(material=="LeftGlove") leftDrawn=true; else rightDrawn=true;
+            if(parent==null) return;
+            bool observer=NativeGloves.IsHand(parent.Owner.ID,out bool left);
+            if(!observer)
+            {
+                if(parent.Owner.ID!=Actor) return;
+                string material=CockpitRender.Member(CockpitRender.Member(CockpitRender.Member(proxy,"Material"),"Info"),"Name").ToString();
+                if(material!="LeftGlove" && material!="RightGlove") return;
+                left=material=="LeftGlove";
+            }
+            if(left) leftDrawn=true; else rightDrawn=true;
             var context=(DeviceContext)CockpitRender.Member(CockpitRender.Member(__instance,"RC"),"DeviceContext");
             var buffer=CockpitRender.Member(__instance,"GBuffer");
             var depth=(DepthStencilView)CockpitRender.Member(CockpitRender.Member(CockpitRender.Member(buffer,"DepthStencil"),"Dsv"),"Dsv");

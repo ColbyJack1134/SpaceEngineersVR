@@ -276,6 +276,8 @@ float4 PS(P p):SV_TARGET {
         internal static MatrixD AttachWrist(MatrixD pose)
         {
             var state=wrist;
+            if(state!=null && ThirdPersonView.Active && RemoteView.TryAttachment(out var remoteWrist,out var remotePoint,out float remoteBlend,tracking:true))
+                return CockpitHandPose.Blend(pose,CockpitHandPose.Attach(remoteWrist,Matrix.Identity,state.RightPoint.Translation,remotePoint),remoteBlend);
             if(state!=null && FloatingKeyboard.TryAttachment(out var keyboardWrist,out var keyboardPoint,out float keyboardBlend,tracking:true))
                 return CockpitHandPose.Blend(pose,CockpitHandPose.Attach(keyboardWrist,Matrix.Identity,state.RightPoint.Translation,keyboardPoint),keyboardBlend);
             if(state==null || !ThirdPersonView.Active || !SpatialUi.TryWristAttachment(out var captured,out var contact,out float blend,render:true)) return pose;

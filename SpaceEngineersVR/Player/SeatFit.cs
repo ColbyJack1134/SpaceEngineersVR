@@ -17,7 +17,7 @@ namespace SpaceEngineersVR.Player
         public static bool Eligible(MyCockpit seat) => Main.VrActive && seat!=null && !seat.Closed && !seat.MarkedForClose &&
             seat.Pilot!=null && seat.Pilot==MySession.Static?.LocalCharacter && !seat.Pilot.IsDead &&
             ((MySession.Static.ControlledEntity==seat && MySession.Static.CameraController==seat) || RemoteView.UsesSeat(seat)) &&
-            (seat.IsInFirstPersonView || seat.ForceFirstPersonCamera);
+            (seat.IsInFirstPersonView || seat.ForceFirstPersonCamera || RemoteView.UsesSeat(seat));
         internal static Vector3 Limit(Vector3 value) => value.IsValid() ? Vector3.Clamp(value,new Vector3(-0.35f,-0.45f,-0.45f),new Vector3(0.35f,0.3f,0.45f)) : Vector3.Zero;
         internal static Vector3 Step(Vector3 value,Vector3 direction,double seconds) => Limit(value+direction*(float)Math.Min(0.05,Math.Max(0,seconds))*0.12f);
         public static void Update()

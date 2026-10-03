@@ -12,13 +12,17 @@ namespace SpaceEngineersVR.Diagnostics
         {
             foreach(var context in new[] {
                 new[] {false,false,false,false},new[] {false,false,false,true},new[] {true,false,false,false},
-                new[] {true,false,false,true},new[] {false,true,false,false},new[] {false,true,true,false} })
+                new[] {true,false,false,true},new[] {false,true,false,false},new[] {false,true,true,false},new[] {true,false,true,false},new[] {false,false,true,false},new[] {true,true,false,false},new[] {true,true,true,false} })
             {
                 var wheel=GameActions.WheelActions(context[0],context[1],context[2],context[3]);
-                Require(wheel.Distinct().Count()==9 && wheel.Length==9 && wheel[0]==GameActions.PauseAction && wheel[1]==GameActions.Options,"Context moved Pause/Options or changed wheel slot count");
+                Require(wheel.Distinct().Count()==wheel.Length && wheel.Length>=9 && wheel[0]==GameActions.PauseAction && wheel[1]==GameActions.Options,"Context moved Pause/Options or duplicated wheel actions");
                 Require(!wheel.Contains(GameActions.Tablet) && !wheel.Any(a=>a.Label=="Reset ship view"),"Duplicate gesture/button action consumes a radial slot");
                 Require(!wheel.Contains(GameActions.RelativeDampeners) || context[3],"Auto dampeners shown outside jetpack context");
-                Require(wheel.Count(a=>a.Label.StartsWith("Camera:"))==(context[2] ? 1:0),"Camera cycle leaked context or split into multiple slots");
+                Require(wheel.Count(a=>a.Label.StartsWith("Camera:"))==(context[2] && context[1] && !context[0] ? 1:0),"Camera cycle leaked context or split into multiple slots");
+                Require(wheel.Contains(GameActions.BlueprintsAction)==!context[1],"Blueprint browser leaked into cockpit or disappeared on foot");
+                Require(wheel.Contains(GameActions.CockpitBuild)==context[1],"Native cockpit build toggle escaped its cockpit context");
+                var quickPages=BlockVariants.Pages(Array.Empty<ActionChoice>(),wheel);
+                Require(quickPages.All(p=>p.Length==9) && quickPages.SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(wheel),"Action paging drops or duplicates an entry");
                 var panelKeys=WristPanel.Keys(null,context[0],context[1],context[2],context[3],null,false);
                 Require(panelKeys.Length<=20 && panelKeys.All(k=>k.Bounds.X>=0 && k.Bounds.Y>=0 && k.Bounds.Right<=1 && k.Bounds.Bottom<=1),"Tablet context overflows the panel");
                 for(int i=0;i<panelKeys.Length;i++) for(int j=i+1;j<panelKeys.Length;j++)
@@ -33,10 +37,10 @@ namespace SpaceEngineersVR.Diagnostics
             Require(BlockVariants.Family(armorCorner,new[] {armorCorner}).SequenceEqual(new[] {armor,armorCorner}),"Selecting a armorCorner collapsed the radial variant family");
             Require(BlockVariants.Family(small,new[] {armorCorner}).SequenceEqual(new[] {small}),"Variant family leaked the previous block size");
             var pages=BlockVariants.Pages(variants,GameActions.WheelActions(true,false,false));
-            Require(pages.Length==3 && pages.All(p=>p.Length==9),"Building wheel loses fixed actions or overflow pages");
+            Require(pages.Length==4 && pages.All(p=>p.Length==9),"Building wheel loses fixed actions or overflow pages");
             Require(pages.Take(2).SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(variants),"Building variant paging loses or duplicates entries");
-            Require(pages[2].SequenceEqual(GameActions.WheelActions(true,false,false)),"Building actions page moved before variants");
-            Require(BlockVariants.Pages(new ActionChoice[0],GameActions.WheelActions(true,false,false)).Single().SequenceEqual(GameActions.WheelActions(true,false,false)),"No-variant block does not open actions directly");
+            Require(pages.Skip(2).SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(GameActions.WheelActions(true,false,false)),"Building actions page moved before variants");
+            Require(BlockVariants.Pages(new ActionChoice[0],GameActions.WheelActions(true,false,false)).SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(GameActions.WheelActions(true,false,false)),"No-variant block does not open actions directly");
             WristPanel.Reset(); WristPanel.Show(2); WristPanel.SetQuery("damp");
             var search=WristPanel.Keys(null,false,false,false,true,null);
             Require(search.Any(k=>k.Action==GameActions.RelativeDampeners) && search.Any(k=>k.Action==GameActions.Dampeners),"Tablet search loses native actions");

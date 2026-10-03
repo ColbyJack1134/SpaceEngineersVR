@@ -10,6 +10,9 @@ namespace SpaceEngineersVR.Patches
     [HarmonyPatch(typeof(MyCubeBuilder),"HandleBlockCreationMovement")]
     internal static class BuildDistancePatch
     {
+        // Native distance arithmetic must edit the stored metre value once, before observer scaling.
+        private static void Prefix(out bool __state) { __state=PlacementControls.EditingDistance; PlacementControls.EditingDistance=true; }
+        private static void Finalizer(bool __state) => PlacementControls.EditingDistance=__state;
         [HarmonyTranspiler]
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) => DistanceFactors(instructions,2,"build");
         internal static IEnumerable<CodeInstruction> DistanceFactors(IEnumerable<CodeInstruction> instructions,int expected,string context)

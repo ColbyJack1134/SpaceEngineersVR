@@ -66,6 +66,10 @@ namespace SpaceEngineersVR.Player
         public static void Draw(Texture2D target,RemoteView.View remote,MatrixD view,MatrixD projection)
         {
             if(remote==null || texture==null || source!=remote.Source) return;
+            DrawPanel(target,texture,remote,view,projection,NativeHandLayer.Depth);
+        }
+        internal static void DrawPanel(Texture2D target,ShaderResourceView image,RemoteView.View remote,MatrixD view,MatrixD projection,ShaderResourceView hands=null)
+        {
             if(frame==null)
             {
                 frame=new OverlayCanvas("Remote camera frame",1600,1100,1,false,target.Device);
@@ -73,15 +77,15 @@ namespace SpaceEngineersVR.Player
             }
             string key=remote.Width+"|"+remote.Height+"|"+remote.Hover;
             if(key!=painted) { Paint(frame,remote); frame.Upload(); painted=key; }
-            var picture=PhysicalSurface.Quad(texture,remote.Pose,new VRageMath.RectangleF(-remote.Width/2,remote.Height/2,remote.Width,remote.Height),new Vector4(0,0,1,1),Vector4.One,view,projection);
+            var picture=PhysicalSurface.Quad(image,remote.Pose,new VRageMath.RectangleF(-remote.Width/2,remote.Height/2,remote.Width,remote.Height),new Vector4(0,0,1,1),Vector4.One,view,projection);
             var border=PhysicalSurface.Quad(frameTexture,remote.Pose,new VRageMath.RectangleF(-(remote.Width+.06f)/2,remote.Height/2+.03f,remote.Width+.06f,remote.Height+.15f),new Vector4(0,0,1,1),Vector4.One,view,projection,.001f);
-            NativeSprites.Draw(target,new[] {picture,border},handDepth:NativeHandLayer.Depth);
+            NativeSprites.Draw(target,new[] {picture,border},handDepth:hands);
             if(remote.RayStart.HasValue && remote.RayEnd.HasValue)
             {
                 var delta=remote.RayEnd.Value-remote.RayStart.Value;
                 if(delta.LengthSquared()>.0001)
                     PhysicalSurface.Draw(target,new[] {new SurfaceView {Id="CameraRay",Style=SurfaceStyle.Pointer,Width=.002f,Height=(float)delta.Length(),
-                        Pose=MatrixD.CreateWorld((remote.RayStart.Value+remote.RayEnd.Value)*.5,Vector3D.Normalize(delta),remote.Pose.Up)}},view,projection,PhysicalSurface.SceneDepth());
+                        Pose=MatrixD.CreateWorld((remote.RayStart.Value+remote.RayEnd.Value)*.5,Vector3D.Normalize(delta),remote.Pose.Up)}},view,projection,null);
             }
         }
     }

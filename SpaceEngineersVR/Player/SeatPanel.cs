@@ -40,12 +40,15 @@ namespace SpaceEngineersVR.Player
             var seat=SeatFit.Seat;
             if(seat==null) return new float[5];
             var control=(VRage.Game.ModAPI.Interfaces.IMyControllableEntity)seat;
+            var broadcast=seat.CubeGrid.GridSystems.RadioSystem.AntennasBroadcasterEnabled;
             return new[] { control.EnabledReactors ? 1f : 0,control.EnabledDamping ? 1f : 0,
-                seat.CubeGrid.IsParked ? 1f : 0,control.EnabledLights ? 1f : 0,EssentialHud.Current?.ShipBroadcasting==true ? 1f : 0 };
+                seat.CubeGrid.IsParked ? 1f : 0,control.EnabledLights ? 1f : 0,(broadcast==VRage.MyMultipleEnabledEnum.AllEnabled || broadcast==VRage.MyMultipleEnabledEnum.Mixed) ? 1f : 0 };
         }
+        internal static Sandbox.Game.Entities.MyCockpit RemoteOwner(Sandbox.Game.Entities.IMyControllableEntity controlled,Sandbox.Game.Entities.MyCockpit home) =>
+            RemoteView.ExitControlled(controlled) ? home:null;
         internal static void Activate(int key)
         {
-            if(RemoteView.Turret && RemoteView.HomeSeat is Sandbox.Game.Entities.IMyControllableEntity cockpit)
+            if(RemoteOwner(Sandbox.Game.World.MySession.Static?.ControlledEntity,RemoteView.HomeSeat) is Sandbox.Game.Entities.IMyControllableEntity cockpit)
             {
                 switch(key)
                 {

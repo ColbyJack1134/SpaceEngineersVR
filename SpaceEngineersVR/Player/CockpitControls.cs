@@ -104,7 +104,7 @@ namespace SpaceEngineersVR.Player
         private static bool Eligible(MyCockpit cockpit) => cockpit!=null && !cockpit.Closed && !cockpit.MarkedForClose &&
             ModelSupported(cockpit) &&
             cockpit.Pilot==MySession.Static?.LocalCharacter && cockpit.Pilot!=null && !cockpit.Pilot.IsDead &&
-            (MySession.Static.CameraController==cockpit || RemoteView.UsesSeat(cockpit)) && (cockpit.IsInFirstPersonView || cockpit.ForceFirstPersonCamera);
+            (MySession.Static.CameraController==cockpit || RemoteView.UsesSeat(cockpit)) && (cockpit.IsInFirstPersonView || cockpit.ForceFirstPersonCamera || RemoteView.UsesSeat(cockpit));
 
         private static bool ModelSupported(MyCockpit cockpit)
         {
@@ -158,7 +158,7 @@ namespace SpaceEngineersVR.Player
             }
             if (origin!=Player.PlayerToAbsolute.matrix || fit!=SeatFit.Offset) { Release(); origin=Player.PlayerToAbsolute.matrix; fit=SeatFit.Offset; }
             RefreshVisuals();
-            bool available=CockpitRender.Ready && (InputRouter.Mode==InputMode.Piloting || InputRouter.Mode==InputMode.Turret) && !RemoteView.OwnsInput && !Main.MenuOpen && !TouchScreenBridge.OwnsInput &&
+            bool available=!ThirdPersonView.Manipulating && CockpitRender.Ready && (InputRouter.Mode==InputMode.Piloting || InputRouter.Mode==InputMode.Turret) && !RemoteView.OwnsInput && !Main.MenuOpen && !TouchScreenBridge.OwnsInput &&
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;
             if (!available && Adjusting) Release();
             var c=Controls.Static;

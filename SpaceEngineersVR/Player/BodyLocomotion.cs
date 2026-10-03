@@ -21,6 +21,7 @@ namespace SpaceEngineersVR.Player
             try
             {
                 CameraRig.Begin(character);
+                if(ThirdPersonView.Character) return;
                 if (Common.Config.UseHeadRotationForCharacter)
                 {
                     MatrixD head=(MatrixD)Player.Headset.deviceToPlayer*CameraRig.Anchor;
@@ -112,7 +113,7 @@ namespace SpaceEngineersVR.Player
             var source=Common.Config.ControllerRelativeMovement && Player.HandL.pose.isTracked ? Player.HandL.deviceToPlayer : Player.Headset.deviceToPlayer;
             var character=MySession.Static?.LocalCharacter;
             if(character==null || !CameraRig.Owns(character)) return VrMath.DirectedMove(move,source.Forward);
-            Vector3D forward=Vector3D.TransformNormal(source.Forward,CameraRig.Anchor);
+            Vector3D forward=Vector3D.TransformNormal(source.Forward,ThirdPersonView.Character ? ThirdPersonView.Current.Anchor : CameraRig.Anchor);
             Vector3 local=Vector3D.TransformNormal(forward,MatrixD.Transpose(character.WorldMatrix.GetOrientation()));
             return VrMath.DirectedMove(move,local);
         }

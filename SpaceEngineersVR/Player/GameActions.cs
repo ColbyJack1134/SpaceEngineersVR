@@ -82,7 +82,7 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice RelativeDampeners=new ActionChoice("Auto dampeners",DampenerTargeting.Activate);
         public static readonly ActionChoice Dampeners=Native("Dampeners",MyControlsSpace.DAMPING);
         public static readonly ActionChoice ResetFeed=new ActionChoice("Reset camera screen",RemoteView.Recenter);
-        public static readonly ActionChoice ExitFeed=new ActionChoice("Exit camera control",RemoteView.Exit);
+        public static readonly ActionChoice ExitFeed=new ActionChoice(()=>RemoteView.RemoteGrid ? "Exit remote control":"Exit camera control",RemoteView.Exit);
         public static readonly ActionChoice Inspect=new ActionChoice(()=>Common.Config?.InspectWithoutGrip==true ? "Block info: automatic" : "Block info: hold grip",()=>Common.Config.InspectWithoutGrip=!Common.Config.InspectWithoutGrip);
         public static readonly ActionChoice PlayPosture=new ActionChoice(()=>Common.Config?.SeatedPlay==true ? "Switch to standing play":"Switch to seated play",()=>BodyFit.SetSeated(!Common.Config.SeatedPlay));
         public static readonly ActionChoice Tablet=new ActionChoice("Tablet",SpatialUi.Expand);
@@ -101,16 +101,19 @@ namespace SpaceEngineersVR.Player
             if(!InputRouter.Gameplay || Main.MenuOpen) return;
             var action=pending; pending=null; pendingOwner=null; Execute(action);
         }
+        public static readonly ActionChoice CockpitBuild=new ActionChoice(()=>CockpitBuilding.Label,CockpitBuilding.Toggle);
         public static ActionChoice[] WheelActions(bool building,bool seated,bool thirdPerson,bool jetpack=false)
         {
             if(RemoteView.Active) return new[] { PauseAction,Options,TerminalAction,ExitFeed,ResetFeed,ConfigureToolbarAction,Native("Previous camera",MyControlsSpace.SWITCH_LEFT),Native("Next camera",MyControlsSpace.SWITCH_RIGHT),Inspect };
-            if(thirdPerson) return new[] { PauseAction,Options,TerminalAction,Quick[22],LightsAction,Dampeners,PowerAction,ParkAction,BroadcastAction };
+            if(building && seated) return CockpitBuildActions();
+            if(thirdPerson && seated) return new[] { PauseAction,Options,TerminalAction,Quick[22],LightsAction,Dampeners,PowerAction,ParkAction,BroadcastAction,CockpitBuild };
             if(building && PlacementControls.ClipboardActive) return ClipboardActions();
-            if(building) return new[] { PauseAction,Options,TerminalAction,Building[17],PlacementAction,Building[8],Building[9],Building[10],PaletteAction };
-            if(seated) return new[] { PauseAction,Options,TerminalAction,LightsAction,Dampeners,PowerAction,ParkAction,HelmetAction,BroadcastAction };
-            if(jetpack) return new[] { PauseAction,Options,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,BroadcastAction };
-            return new[] { PauseAction,Options,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],Quick[12] };
+            if(building) return new[] { PauseAction,Options,TerminalAction,Building[17],PlacementAction,Building[8],Building[9],Building[10],PaletteAction,BlueprintsAction };
+            if(seated) return new[] { PauseAction,Options,TerminalAction,LightsAction,Dampeners,PowerAction,ParkAction,HelmetAction,BroadcastAction,CockpitBuild };
+            if(jetpack) return new[] { PauseAction,Options,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,BroadcastAction,BlueprintsAction };
+            return new[] { PauseAction,Options,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],Quick[12],BlueprintsAction };
         }
+        internal static ActionChoice[] CockpitBuildActions() => new[] { PauseAction,Options,TerminalAction,CockpitBuild,ConfigureToolbarAction,PaletteAction,Building[17],Building[8],PlacementAction,SymmetryAction,SymmetrySetupAction };
         internal static ActionChoice[] ClipboardActions() => new[] { PauseAction,Options,TerminalAction,AlignGravity,Building[21],Building[20],Building[6],Building[7],BlueprintsAction };
         public static ActionChoice[] TabletActions(bool building,bool seated,bool thirdPerson,bool jetpack)
         {
@@ -173,7 +176,7 @@ namespace SpaceEngineersVR.Player
             new ActionChoice("Signal visibility", () => Common.Config.WaypointMode=(Common.Config.WaypointMode+1)%3),
             BlueprintsAction,
             new ActionChoice("Switch view",ThirdPersonView.Toggle),
-            new ActionChoice("Reset ship view",ThirdPersonView.ResetView),
+            new ActionChoice("Reset view",ThirdPersonView.ResetView),
             new ActionChoice(()=>ThirdPersonView.ModeLabel,ThirdPersonView.CycleMode),
             BroadcastAction,
             DetachBootsAction,
@@ -273,11 +276,11 @@ namespace SpaceEngineersVR.Player
             bool character=InputRouter.Gameplay && InputRouter.Mode!=InputMode.Piloting &&
                 MySession.Static?.ControlledEntity==MySession.Static?.LocalCharacter;
             if(jumpHold.Update(character,jump.HasPressed,jump.IsPressed,DateTime.UtcNow)) Execute(JetpackAction);
-            if (c.Interact.HasPressed || c.Terminal.HasPressed || c.Inventory.HasPressed)
+            if (c.Interact.HasPressed && !PlacementControls.Painting || c.Terminal.HasPressed || c.Inventory.HasPressed)
                 HandInteraction.RefreshTarget();
             if (c.Reload.HasPressed) NativeActions.Pulse(MyControlsSpace.RELOAD);
             if (c.Interact.HasPressed && RemoteView.Active) { RemoteView.Exit(); InputRouter.Update(); return; }
-            if (c.Interact.HasPressed)
+            if (c.Interact.HasPressed && !PlacementControls.Painting)
             {
                 if (!HandInteraction.TryInteract()) { MySession.Static.ControlledEntity?.Use(); HandInteraction.Feedback(); }
                 InputRouter.Update();

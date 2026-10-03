@@ -121,7 +121,7 @@ namespace SpaceEngineersVR.Player
                 left=pair.Left; right=pair.Right;
                 Restore(character);
                 bool seated=SeatFit.Eligible(SeatFit.Seat) && SeatFit.Seat.Pilot==character;
-                if(disabled || !Main.VrActive ||
+                if(disabled || !Main.VrActive || ThirdPersonView.Character ||
                     character!=MySession.Static?.LocalCharacter || (!seated && ((MySession.Static.ControlledEntity!=character && !RemoteView.CharacterAnchor) ||
                     character.IsSitting || !CameraRig.Owns(character))) || character.IsOnLadder || character.IsDead || (!InputRouter.Gameplay && InputRouter.Mode!=InputMode.Menu && InputRouter.Mode!=InputMode.Radial) ||
                     !Player.Headset.pose.isTracked)

@@ -261,12 +261,12 @@ namespace SpaceEngineersVR.Plugin
             Player.BlockInspection.Update();
             Player.ToolbarWheel.Update();
             Player.GameActions.RunScheduled();
+            Player.CockpitControls.Update();
             Player.PlacementControls.Update();
             Player.NativeActions.Update();
             Player.DampenerTargeting.Update();
             Player.CameraRig.Publish();
             Player.WeaponHandling.Update();
-            Player.CockpitControls.Update();
             Player.BodyProximity.Update();
             if(Player.SeatFit.Eligible(Player.SeatFit.Seat))
                 Player.TrackedArms.Update(Player.SeatFit.Seat.Pilot);

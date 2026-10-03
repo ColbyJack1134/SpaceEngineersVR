@@ -80,7 +80,7 @@ namespace SpaceEngineersVR.Player
             float grip=c.LeftGripPressure.RawPosition.X;
             if(grip<=.025f) ViewGestureHeld=false;
             leftGrip.Update(active && Player.HandL.pose.isTracked && c.LeftGripPressure.Active,grip>.55f);
-            if(leftGrip.Pressed && InputRouter.Mode==InputMode.Piloting && !CockpitControls.Held(Player.HandL) &&
+            if(leftGrip.Pressed && InputRouter.Gameplay && !CockpitControls.Held(Player.HandL) &&
                 !CockpitTouch.Owns(Player.HandL) && NearTemple(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,true))
             {
                 ViewGestureHeld=true; ThirdPersonView.Toggle(); Player.HandL.Vibrate(0,.035f,120,.25f);

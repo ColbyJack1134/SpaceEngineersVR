@@ -1,4 +1,7 @@
 using System;
+using Sandbox.Game.Entities;
+using Sandbox.Game.Entities.Cube;
+using VRage.Game;
 using Sandbox.Game;
 using Sandbox.Game.SessionComponents.Clipboard;
 using Sandbox.Game.World;
@@ -11,9 +14,13 @@ namespace SpaceEngineersVR.Player
     internal static class PlacementControls
     {
         public static bool ClipboardActive => MyClipboardComponent.Static?.IsActive == true;
-        public static bool OwnsTools => InputRouter.Mode == InputMode.Building || InputRouter.Mode == InputMode.Clipboard;
+        internal static InputMode Mode => CockpitBuilding.Active && InputRouter.Mode==InputMode.Piloting ? InputMode.Building : InputRouter.Mode;
+        public static bool OwnsTools => Mode==InputMode.Building || Mode==InputMode.Clipboard;
+        public static bool Painting { get; private set; }
+        internal static bool Observer => Main.VrActive && !RemoteView.Active && ThirdPersonView.Active && (ThirdPersonView.Character || CockpitBuilding.Active);
         private static object poseOwner;
         private static MatrixD? lastPose;
+        [ThreadStatic] internal static bool EditingDistance;
 
         public static bool Adjusting { get; private set; }
         private static bool leftReady,rightReady;
@@ -26,7 +33,18 @@ namespace SpaceEngineersVR.Player
             elapsed=(float)Math.Max(0,Math.Min(.05,(now-sampled).TotalSeconds)); sampled=now;
             distanceFactor=1.1f;
             var c=Controls.Static;
-            bool active=OwnsTools && c.Secondary.IsPressed && !Main.MenuOpen;
+            bool grip=c.Secondary.IsPressed && !CockpitControls.RotationOwned && !CockpitTouch.OwnsRight &&
+                !SpatialUi.OwnsRight && !TouchScreenBridge.OwnsInput && !HandInteraction.OwnsRight &&
+                !RemoteView.OwnsInput && !HelmetHud.Consumes(Player.HandR);
+            bool wasPainting=Painting;
+            Painting=PaintChord(Mode,grip,c.Interact.IsPressed,ThirdPersonView.Manipulating || Main.MenuOpen);
+            if(Painting)
+            {
+                if(!wasPainting) NativeActions.Reset();
+                c.Primary.BlockUntilRelease();
+                NativeActions.Pulse(MyControlsSpace.CUBE_COLOR_CHANGE);
+            }
+            bool active=OwnsTools && grip && !Main.MenuOpen;
             if(active && !Adjusting)
             {
                 leftReady=rightReady=false; Array.Clear(repeat,0,repeat.Length);
@@ -35,7 +53,7 @@ namespace SpaceEngineersVR.Player
             if(!active && Adjusting)
             { c.Primary.BlockUntilRelease(); c.WalkLongitudinal.BlockUntilRelease(); c.WalkRotate.BlockUntilRelease(); c.ThrustLRFB.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease(); }
             Adjusting=active;
-            if(!active) return;
+            if(!active || Painting) return;
             Vector2 left=InputRouter.Flying ? c.ThrustLRFB.Position:c.WalkLongitudinal.Position;
             Vector2 right=InputRouter.Flying ? c.ThrustRotate.Position:c.WalkRotate.Position;
             if(left.LengthSquared()<.09f) leftReady=true;
@@ -46,7 +64,7 @@ namespace SpaceEngineersVR.Player
         private static void Axis(int index,float value,VRage.Utils.MyStringId positive,VRage.Utils.MyStringId negative)
         {
             var clipboard=MyClipboardComponent.Static?.Clipboard;
-            bool continuous=InputRouter.Mode==InputMode.Clipboard ? index==3 || clipboard!=null && (clipboard.EnableStationRotation && !clipboard.IsSnapped || clipboard.EnablePreciseRotationWhenSnapped) :
+            bool continuous=Mode==InputMode.Clipboard ? index==3 || clipboard!=null && (clipboard.EnableStationRotation && !clipboard.IsSnapped || clipboard.EnablePreciseRotationWhenSnapped) :
                 Sandbox.Game.Entities.MyCubeBuilder.Static?.DynamicMode==true;
             if(index==3 && continuous) distanceFactor=DistanceStep(value,elapsed);
             if(AxisDue(ref repeat[index],value,continuous,DateTime.UtcNow))
@@ -66,8 +84,10 @@ namespace SpaceEngineersVR.Player
             if(now<next) return false;
             next=now.AddSeconds(.22); return true;
         }
-        // Preserve the preview while a wheel/menu owns the hands. Never use a stale
-        // pose from another character, or move a preview with untracked input.
+        internal static bool PaintChord(InputMode mode,bool grip,bool interact,bool blocked) =>
+            mode==InputMode.Building && grip && interact && !blocked;
+
+        // Retain the preview during menus; discard poses when the owner changes.
         public static bool TryPose(out MatrixD pose)
         {
             object owner = MySession.Static?.ControlledEntity;
@@ -78,6 +98,29 @@ namespace SpaceEngineersVR.Player
             pose = lastPose ?? MatrixD.Identity;
             return lastPose.HasValue;
         }
+
+        public static bool TryBuilderPose(out MatrixD pose)
+        {
+            pose=MatrixD.Identity;
+            if(CockpitBuilding.Active && !ThirdPersonView.Active) return false;
+            if(!TryPose(out pose)) return false;
+            if(Observer) pose=VrMath.Rigid(pose);
+            return true;
+        }
+        internal static float BuildDistance(float native) => Observer && !EditingDistance ?
+            (float)ObserverDistance(native,ThirdPersonView.Current.UnitsPerMeter) : native;
+        internal static double ObserverDistance(double nativeDistance,double scale) => Math.Min(20000,Math.Max(nativeDistance,nativeDistance*scale));
+        internal static double SurvivalRange(float gridSize)
+        {
+            var definition=MyBlockBuilderBase.CubeBuilderDefinition;
+            var size=MyCubeBuilder.Static?.CubeBuilderState?.CurrentBlockDefinition?.CubeSize;
+            bool large=size.HasValue ? size==MyCubeSize.Large : gridSize>1;
+            return MySession.Static?.ControlledEntity is MyShipController ?
+                large ? definition.BuildingDistLargeSurvivalShip : definition.BuildingDistSmallSurvivalShip :
+                large ? definition.BuildingDistLargeSurvivalCharacter : definition.BuildingDistSmallSurvivalCharacter;
+        }
+        internal static bool WithinReach(BoundingBoxD box,MatrixD inverse,Vector3D head,double range) =>
+            box.Distance(Vector3D.Transform(head,inverse))<=range;
 
         internal static void Queue(ActionFrame frame, InputMode mode, bool primary, bool secondary, bool alternate)
         {

@@ -2,6 +2,9 @@ using System.Reflection;
 using System.Linq;
 using HarmonyLib;
 using Sandbox.Game.Entities;
+using Sandbox.Game.Entities.Character;
+using VRage.Game.Entity;
+using System.Collections.Generic;
 using Sandbox.Game.Gui;
 using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Plugin;
@@ -15,29 +18,35 @@ namespace SpaceEngineersVR.Patches
     {
         private static bool Prefix()
         {
-            if(!Main.VrActive || !(Sandbox.Game.World.MySession.Static?.ControlledEntity is MyCockpit)) return true;
+            if(!Main.VrActive || !(Sandbox.Game.World.MySession.Static?.ControlledEntity is MyCockpit) && !(Sandbox.Game.World.MySession.Static?.ControlledEntity is MyCharacter) && !RemoteView.Active) return true;
             ThirdPersonView.Toggle(); return false;
         }
     }
     [HarmonyPatch]
     internal static class ThirdPersonCameraPatch
     {
-        private static MethodBase TargetMethod() => AccessTools.GetDeclaredMethods(typeof(MyCockpit)).Single(m=>m.Name.EndsWith(".ControlCamera"));
-        private static bool Prefix(MyCockpit __instance,MyCamera currentCamera)
+        private static IEnumerable<MethodBase> TargetMethods() => new[] { typeof(MyCockpit),typeof(MyCharacter) }
+            .Select(t=>(MethodBase)AccessTools.GetDeclaredMethods(t).Single(m=>m.Name.EndsWith(".ControlCamera")));
+        private static bool Prefix(MyEntity __instance,MyCamera currentCamera)
         {
             if(!Main.VrActive || !ThirdPersonView.Owns(__instance)) return true;
             ThirdPersonView.Publish();
             var frame=ThirdPersonView.Current;
+            if(frame==null) return true;
             currentCamera.SetViewMatrix(VrMath.EyeView(MatrixD.Invert(frame.Anchor),Player.Player.Headset.pose.deviceToAbsolute.matrix,
                 frame.OriginInverse,Matrix.Identity,frame.UnitsPerMeter),smooth:false);
-            __instance.Pilot?.EnableHead(true);
+            currentCamera.CameraSpring.Enabled=false;
+            var character=__instance is MyCockpit cockpit ? cockpit.Pilot : __instance as MyCharacter;
+            character?.EnableHead(true);
             return false;
         }
     }
-    [HarmonyPatch(typeof(MyCockpit),nameof(MyCockpit.ForceFirstPersonCamera),MethodType.Getter)]
+    [HarmonyPatch]
     internal static class ThirdPersonCollisionPatch
     {
-        private static void Postfix(MyCockpit __instance,ref bool __result)
+        private static IEnumerable<MethodBase> TargetMethods() => new[] { typeof(MyCockpit),typeof(MyCharacter) }
+            .Select(t=>(MethodBase)AccessTools.PropertyGetter(t,"ForceFirstPersonCamera"));
+        private static void Postfix(MyEntity __instance,ref bool __result)
         {
             if(Main.VrActive && ThirdPersonView.Owns(__instance)) __result=false;
         }
