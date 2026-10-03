@@ -69,6 +69,8 @@ namespace SpaceEngineersVR.Config
         public bool StableShadows { get => stableShadows; set => SetValue(ref stableShadows,value); }
         public bool DistantFlares { get => distantFlares; set => SetValue(ref distantFlares,value); }
         public bool MirrorDesktop { get => mirrorDesktop; set => SetValue(ref mirrorDesktop,value); }
+        private bool hiddenAreaMask=true;
+        public bool HiddenAreaMask { get => hiddenAreaMask; set => SetValue(ref hiddenAreaMask,value); }
         private float eyeRenderScale=1;
         public float EyeRenderScale { get => eyeRenderScale; set => SetValue(ref eyeRenderScale,Bound(value,.5f,1.5f,1)); }
         private float remoteFeedScale=5f/6;

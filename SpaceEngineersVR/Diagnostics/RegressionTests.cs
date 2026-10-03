@@ -83,6 +83,7 @@ namespace SpaceEngineersVR.Diagnostics
             ThirdPersonTests.Run(log);
             RemoteViewTests.Run(log);
             ResolutionTests.Run(log);
+            HiddenAreaTests.Run(log);
             PerformanceTests.Run(log);
             GameplayFeatureTests.Run(log);
             PlacementTests.Run(log);
