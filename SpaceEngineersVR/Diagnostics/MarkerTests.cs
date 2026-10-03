@@ -23,6 +23,7 @@ namespace SpaceEngineersVR.Diagnostics
             Crosshair(log);
             Lead(log);
             Motion(log);
+            CharacterFacing(log);
             int count=0;
             foreach (double roll in new[] { 0.0,0.5,-0.8 })
             foreach (double yaw in new[] { -1.15,-0.6,0,0.6,1.15 })
@@ -50,6 +51,13 @@ namespace SpaceEngineersVR.Diagnostics
                     Near((recovered-board.Point(-.5,-.5)).Length()/distance,0,"Per-eye corner reprojection",2e-6);
                     Near(sprite.TopLeft.Y/sprite.TopLeft.W,sprite.TopRight.Y/sprite.TopRight.W,"Peripheral horizontal edge tilted",2e-6);
                     Near(sprite.TopLeft.X/sprite.TopLeft.W,sprite.BottomLeft.X/sprite.BottomLeft.W,"Peripheral vertical edge tilted",2e-6);
+                    var facing=board;
+                    var eyePosition=MatrixD.Invert(view).Translation;
+                    facing.FaceViewer(eyePosition);
+                    Near(Vector3D.Dot(Vector3D.Cross(facing.Right,facing.Up),Vector3D.Normalize(eyePosition-position)),1,"Marker does not face its eye");
+                    Near(Vector3D.Dot(facing.Right,facing.Up),0,"Viewer-facing marker sheared");
+                    Near(facing.Scale,board.Scale,"Facing changed marker scale");
+                    if(!facing.Project(new RectangleF(-.5f,-.5f,1,1),view,projection,ref sprite)) throw new Exception("Viewer-facing marker lost projection");
                 }
                 count++;
             }
@@ -57,7 +65,36 @@ namespace SpaceEngineersVR.Diagnostics
                 MarkerBillboard.TryCreate(new Vector3D(double.NaN,0,-1),MatrixD.Identity,out _)) throw new Exception("Invalid marker accepted");
             if (!MarkerBillboard.TryCreate(Vector3D.Up,MatrixD.Identity,out var pole) || !pole.Right.IsValid() || !pole.Up.IsValid())
                 throw new Exception("Vertical marker billboard singularity");
+            pole.FaceViewer(Vector3D.Zero);
+            if(!pole.Right.IsValid() || !pole.Up.IsValid()) throw new Exception("Viewer-facing pole singularity");
             log("PASS marker billboards: "+count+" peripheral/tilted/distant poses, view-aligned edges, shared stereo corners and world depth");
+        }
+
+        private static void CharacterFacing(Action<string> log)
+        {
+            foreach(double bodyTilt in new[] {0d,.7})
+            foreach(double eyeOffset in new[] {-.033525,.033525})
+            {
+                var body=MatrixD.CreateRotationZ(bodyTilt); body.Translation=new Vector3D(1e9,2e9,-1e9);
+                var position=body.Translation+body.Forward*1000;
+                var eye=body.Translation+body.Right*eyeOffset;
+                MarkerBillboard.TryCreate(position,body,out var expected); expected.FaceViewer(eye,body.Up);
+                double oldDrift=0;
+                foreach(double pitch in new[] {-.7,0,.4,.7})
+                foreach(double yaw in new[] {-.22,0,.22})
+                {
+                    var head=MatrixD.CreateFromYawPitchRoll(yaw,pitch,.15)*body;
+                    var parallel=MarkerBillboard.WithUp(head,body.Up);
+                    MarkerBillboard.TryCreate(position,parallel,out var actual);
+                    var previous=actual; previous.FaceViewer(eye);
+                    oldDrift=Math.Max(oldDrift,Angle(previous.Right,expected.Right));
+                    actual.FaceViewer(eye,body.Up);
+                    Near(Vector3D.Dot(actual.Right,expected.Right),1,"Head pitch/yaw changed character-relative marker roll");
+                    Near(Vector3D.Dot(actual.Up,expected.Up),1,"Head rotation changed viewer-facing marker up");
+                }
+                if(oldDrift<.1) throw new Exception("Double-projected character up no longer reproduces roll drift");
+            }
+            log("PASS character-facing markers: fixed world target retains its roll under head pitch/yaw, both eyes, tilted character and billion-metre origins; double-projection drift reproduced.");
         }
 
         private static void Crosshair(Action<string> log)

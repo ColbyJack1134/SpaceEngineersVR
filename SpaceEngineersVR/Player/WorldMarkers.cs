@@ -75,6 +75,7 @@ namespace SpaceEngineersVR.Player
         }
         private static View renderSnapshot;
         private static MatrixD renderHead,signalHead;
+        private static Vector3D signalUp;
         private static ShipCrosshair.View renderCrosshair;
         internal static MatrixD RenderHead => renderHead;
         internal static View RenderSnapshot => renderSnapshot;
@@ -246,10 +247,11 @@ namespace SpaceEngineersVR.Player
                     Vector3D.Dot(s.Pose.Backward,head.Translation-s.Pose.Translation)>0) windows.Add(s);
             }
             signalHead=head;
+            signalUp=head.Up;
             if(Common.Config.CharacterMarkerRoll)
             {
-                var up=(trackingToWorld ?? MatrixD.Invert(SpaceEngineersVR.Wrappers.MyRender11.Environment_Matrices.ViewD)).Up;
-                signalHead=MarkerBillboard.WithUp(head,up);
+                signalUp=(trackingToWorld ?? MatrixD.Invert(SpaceEngineersVR.Wrappers.MyRender11.Environment_Matrices.ViewD)).Up;
+                signalHead=MarkerBillboard.WithUp(head,signalUp);
             }
             layout=SignalLayout.Build(renderSnapshot,head,options,DateTime.UtcNow);
             foreach(var window in windows) layout=WristSignals.OutsideWindow(layout,window,head);
@@ -264,7 +266,7 @@ namespace SpaceEngineersVR.Player
                 if(ShipCrosshair.Enabled(Common.Config,HelmetHud.Visible)) ShipCrosshair.Draw(target,renderCrosshair,renderHead,view,projection);
                 if(current!=null && (DateTime.UtcNow-current.Time).TotalSeconds<=1 && markersVisible)
                 {
-                    SignalPainter.Draw(target,layout,signalHead,view,projection);
+                    SignalPainter.Draw(target,layout,signalHead,view,projection,Common.Config.FaceMarkersTowardViewer,signalUp);
                     if(Common.Config.SignalRings) NativeLead.Draw(target,current.Lead,renderHead,view,projection);
                 }
             }

@@ -33,14 +33,15 @@ namespace SpaceEngineersVR.Player
             Add(keys,"Distances",.025f,.55f,.46f,.077f,()=>edit(v=>v.Distances=!v.Distances),value:p.Distances ? "On":"Off");
             Step(keys,"Icon size",p.IconScale,.635f,.75f,2.5f,.25f,v=>edit(h=>h.IconScale=v));
             Step(keys,"Text size",p.TextScale,.72f,.75f,1.5f,.125f,v=>edit(h=>h.TextScale=v));
-            Add(keys,"GPS / objectives",.515f,0.380f,.46f,.068f,()=>c.ShowGps=!c.ShowGps,value:c.ShowGps ? "On":"Off");
-            Add(keys,"Contacts",.515f,0.455f,.46f,.068f,()=>c.ShowContacts=!c.ShowContacts,value:c.ShowContacts ? "On":"Off");
-            Add(keys,"Ore / hacking",.515f,0.530f,.46f,.068f,()=>c.ShowResources=!c.ShowResources,value:c.ShowResources ? "On":"Off");
-            Add(keys,"Targeting rings",.515f,0.605f,.46f,.068f,()=>c.SignalRings=!c.SignalRings,value:c.SignalRings ? "On":"Off");
-            Add(keys,"Wrist arrows",.515f,0.680f,.46f,.068f,()=>c.SignalEdges=!c.SignalEdges,value:c.SignalEdges ? "On":"Off");
-            Add(keys,"HUD with visor open",.515f,0.755f,.46f,.068f,()=>c.HudWithVisorOpen=!c.HudWithVisorOpen,value:c.HudWithVisorOpen ? "On":"Off");
-            Add(keys,"Ship crosshair",.515f,.83f,.46f,.068f,()=>c.ShipCrosshair=!c.ShipCrosshair,value:c.ShipCrosshair ? "On":"Off");
-            Add(keys,"Marker roll",.025f,.83f,.46f,.068f,()=>c.CharacterMarkerRoll=!c.CharacterMarkerRoll,value:c.CharacterMarkerRoll ? "Character":"Headset");
+            Add(keys,"GPS / objectives",.515f,.380f,.46f,.052f,()=>c.ShowGps=!c.ShowGps,value:c.ShowGps ? "On":"Off");
+            Add(keys,"Contacts",.515f,.438f,.46f,.052f,()=>c.ShowContacts=!c.ShowContacts,value:c.ShowContacts ? "On":"Off");
+            Add(keys,"Ore / hacking",.515f,.496f,.46f,.052f,()=>c.ShowResources=!c.ShowResources,value:c.ShowResources ? "On":"Off");
+            Add(keys,"Targeting rings",.515f,.554f,.46f,.052f,()=>c.SignalRings=!c.SignalRings,value:c.SignalRings ? "On":"Off");
+            Add(keys,"Wrist arrows",.515f,.612f,.46f,.052f,()=>c.SignalEdges=!c.SignalEdges,value:c.SignalEdges ? "On":"Off");
+            Add(keys,"HUD with visor open",.515f,.670f,.46f,.052f,()=>c.HudWithVisorOpen=!c.HudWithVisorOpen,value:c.HudWithVisorOpen ? "On":"Off");
+            Add(keys,"Ship crosshair",.515f,.728f,.46f,.052f,()=>c.ShipCrosshair=!c.ShipCrosshair,value:c.ShipCrosshair ? "On":"Off");
+            Add(keys,"Marker roll",.515f,.786f,.46f,.052f,()=>c.CharacterMarkerRoll=!c.CharacterMarkerRoll,value:c.CharacterMarkerRoll ? "Character":"Headset");
+            Add(keys,"Face viewer",.515f,.844f,.46f,.052f,()=>c.FaceMarkersTowardViewer=!c.FaceMarkersTowardViewer,value:c.FaceMarkersTowardViewer ? "On":"Off");
             Add(keys,"Back",.025f,.91f,.22f,.07f,()=>WristPanel.Show(0));
             Add(keys,"Reset state",.265f,.91f,.22f,.07f,()=>c.ResetHudProfile(selected));
             if(selected==4) Add(keys,"Remove state",.515f,.91f,.25f,.07f,c.RemoveExtraHudProfile);
@@ -59,13 +60,11 @@ namespace SpaceEngineersVR.Player
             var g=target.Graphics;
             using(var heading=new Font("Segoe UI",27,FontStyle.Bold,GraphicsUnit.Pixel))
             using(var small=new Font("Segoe UI",19,FontStyle.Regular,GraphicsUnit.Pixel))
-            using(var compact=new Font("Segoe UI",14,FontStyle.Regular,GraphicsUnit.Pixel))
             using(var muted=new SolidBrush(Color.FromArgb(157,184,199)))
             {
                 g.DrawString("HUD",heading,Brushes.White,26,95);
                 g.DrawString("THIS STATE",small,muted,26,211);
                 g.DrawString("ALL STATES",small,muted,528,211);
-                g.DrawString("ALL STATES",compact,muted,26,512);
             }
             PhysicalSurface.PaintWristKeys(target,panel);
         }

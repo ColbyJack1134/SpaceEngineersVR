@@ -31,6 +31,17 @@ namespace SpaceEngineersVR.Player
 
         public Vector3D Point(double x, double y) => Center+Scale*(Right*x-Up*y);
 
+        internal void FaceViewer(Vector3D eye,Vector3D? referenceUp=null)
+        {
+            var normal=eye-Center;
+            if(!normal.IsValid() || normal.LengthSquared()<.01) return;
+            normal.Normalize();
+            var right=Vector3D.Cross(referenceUp ?? Up,normal);
+            if(right.LengthSquared()<1e-8) return;
+            Right=Vector3D.Normalize(right);
+            Up=Vector3D.Normalize(Vector3D.Cross(normal,Right));
+        }
+
         internal static bool TryCreatePixels(Vector3D position,double width,MatrixD view,MatrixD projection,int viewportWidth,out MarkerBillboard board)
         {
             var eye=MatrixD.Invert(view);

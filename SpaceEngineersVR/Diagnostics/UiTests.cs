@@ -457,6 +457,9 @@ namespace SpaceEngineersVR.Diagnostics
                 wrist.Hover=wrist.Pressed=-1;
                 wrist.Keys=WristPanel.Keys(null,false,true,true,false,wrist.Status,false);
                 WristPreview(device,canvas,wrist,output,"wrist-ship-controls");
+                wrist.Keys=WristPanel.Keys(null,true,false,true,true,wrist.Status,false);
+                foreach(var key in wrist.Keys.Where(k=>k.Action==GameActions.BuildShapeAction)) key.Enabled=true;
+                WristPreview(device,canvas,wrist,output,"wrist-building-controls");
                 wrist.Keys=WristPanel.Keys(null,false,false,false,false,wrist.Status,true);
                 string[] names={"Welder","Grinder","Drill","Automatic rifle","Enhanced welder","Assign slot","Proficient welder","Elite grinder","Elite drill"};
                 string[] artwork={"WeaponWelder","WeaponGrinder","WeaponDrill","WeaponAutomaticRifle","WeaponWelder_1",null,"WeaponWelder_2","WeaponGrinder_3","WeaponDrill_3"};

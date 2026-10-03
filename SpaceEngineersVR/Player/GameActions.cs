@@ -29,10 +29,11 @@ namespace SpaceEngineersVR.Player
         public bool Enabled => enabled?.Invoke() ?? true;
         public string Icon => icon ?? NativeSprites.Hud(IconName());
         public ActionChoice(string label, Action run, bool opensMenu = false,string icon=null,Func<bool> enabled=null,string searchTerms=null) { SearchTerms=searchTerms; this.label=label; Run=run; OpensMenu=opensMenu; this.icon=icon; this.enabled=enabled; }
-        public ActionChoice(Func<string> label,Action run) { labelProvider=label; Run=run; }
+        public ActionChoice(Func<string> label,Action run,Func<bool> enabled=null) { labelProvider=label; Run=run; this.enabled=enabled; }
         private string IconName()
         {
             if (Label.StartsWith("Yaw") || Label.StartsWith("Pitch") || Label.StartsWith("Roll") || Label.StartsWith("Camera:")) return "BlockRotate";
+            if (Label.StartsWith("Build shape:")) return "MultiBlockBuilding";
             switch (Label)
             {
                 case "Inventory": case "Planner / deposit UI": return "OpenInventory";
@@ -108,12 +109,12 @@ namespace SpaceEngineersVR.Player
             if(building && seated) return CockpitBuildActions();
             if(thirdPerson && seated) return new[] { PauseAction,Options,TerminalAction,Quick[22],LightsAction,Dampeners,PowerAction,ParkAction,BroadcastAction,CockpitBuild };
             if(building && PlacementControls.ClipboardActive) return ClipboardActions();
-            if(building) return new[] { PauseAction,Options,TerminalAction,Building[17],PlacementAction,Building[8],Building[9],Building[10],PaletteAction,BlueprintsAction };
+            if(building) return new[] { PauseAction,Options,TerminalAction,Building[17],PlacementAction,Building[8],Building[9],Building[10],PaletteAction,BuildShapeAction,BlueprintsAction };
             if(seated) return new[] { PauseAction,Options,TerminalAction,LightsAction,Dampeners,PowerAction,ParkAction,HelmetAction,BroadcastAction,CockpitBuild };
             if(jetpack) return new[] { PauseAction,Options,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,BroadcastAction,BlueprintsAction };
             return new[] { PauseAction,Options,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],Quick[12],BlueprintsAction };
         }
-        internal static ActionChoice[] CockpitBuildActions() => new[] { PauseAction,Options,TerminalAction,CockpitBuild,ConfigureToolbarAction,PaletteAction,Building[17],Building[8],PlacementAction,SymmetryAction,SymmetrySetupAction };
+        internal static ActionChoice[] CockpitBuildActions() => new[] { PauseAction,Options,TerminalAction,CockpitBuild,ConfigureToolbarAction,PaletteAction,Building[17],Building[8],PlacementAction,BuildShapeAction,SymmetryAction,SymmetrySetupAction };
         internal static ActionChoice[] ClipboardActions() => new[] { PauseAction,Options,TerminalAction,AlignGravity,Building[21],Building[20],Building[6],Building[7],BlueprintsAction };
         public static ActionChoice[] TabletActions(bool building,bool seated,bool thirdPerson,bool jetpack)
         {
@@ -121,8 +122,8 @@ namespace SpaceEngineersVR.Player
                 seated ? PowerAction:JetpackAction,Dampeners,BroadcastAction,HudOptions };
             if(seated) actions.Add(ParkAction);
             else { if(jetpack) actions.Add(RelativeDampeners); if(!building) actions.Add(Quick[3]); actions.Add(DetachBootsAction); }
-            if(thirdPerson) actions.Add(Quick[22]);
-            if(building) actions.AddRange(new[] { Building[17],Building[8],PaletteAction,SymmetryAction });
+            if(thirdPerson && seated) actions.Add(Quick[22]);
+            if(building) actions.AddRange(new[] { BuildShapeAction,Building[8],PaletteAction,SymmetryAction });
             return actions.ToArray();
         }
         public static readonly ActionChoice HudOptions=new ActionChoice("HUD",()=>MyGuiSandbox.AddScreen(new GUI.SettingsPage("HUD & Interface")),true);
@@ -152,6 +153,8 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice SymmetryAction = new ActionChoice("Symmetry on / off", () => new MyActionToggleSymmetry().ExecuteAction());
         public static readonly ActionChoice SymmetrySetupAction = new ActionChoice("Symmetry planes", () => new MyActionSymmetrySetup().ExecuteAction());
         public static readonly ActionChoice PlacementAction = new ActionChoice("Placement mode", () => new MyActionPlacementMode().ExecuteAction());
+        public static readonly ActionChoice BuildShapeAction = new ActionChoice(()=>PlacementControls.ShapeLabel,PlacementControls.CycleShape,
+            ()=>PlacementControls.Creative && MyCubeBuilder.Static?.IsActivated==true && MyCubeBuilder.Static.IsBuildToolActive());
         public static readonly ActionChoice BlueprintsAction = new ActionChoice("Blueprints", () => new MyActionBlueprintScreen().ExecuteAction(), true);
 
         public static readonly ActionChoice[] Quick = {
@@ -214,7 +217,8 @@ namespace SpaceEngineersVR.Player
             new ActionChoice("Preview clipboard", PlacementControls.PreviewClipboard),
             new ActionChoice("Cancel preview", PlacementControls.Cancel),
             new ActionChoice("Preview free rotation", PlacementControls.FreeRotation),
-            AlignGravity
+            AlignGravity,
+            BuildShapeAction
         };
 
         public static void Execute(ActionChoice choice)

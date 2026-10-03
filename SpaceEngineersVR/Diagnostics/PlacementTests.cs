@@ -60,6 +60,11 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(PlacementControls.WithinReach(box,MatrixD.Invert(grid),target+grid.Right*5.9,5),"Reach rejects a nearby large-world block");
                 Require(!PlacementControls.WithinReach(box,MatrixD.Invert(grid),target+grid.Right*6.1,5),"Observer position or scale extends Survival reach");
             }
+            foreach(double scale in new[] {.1,1,3,100})
+            foreach(double nativeDistance in new[] {1d,20,100})
+                Require(Math.Abs(PlacementControls.CreativeObserverDistance(nativeDistance,scale,20)/scale-nativeDistance/20)<1e-8,
+                    "Creative distance changes with observer scale");
+            Require(PlacementControls.CreativeObserverDistance(100,100000,20)==20000,"Creative observer ray exceeds its world limit");
             foreach (var mode in new[] { InputMode.Building,InputMode.Clipboard,InputMode.Jetpack,InputMode.Walking,InputMode.Menu,InputMode.Blocked,InputMode.Radial,InputMode.Piloting })
             foreach (bool primary in new[] { false,true }) foreach (bool secondary in new[] { false,true }) foreach (bool alternate in new[] { false,true })
             {
@@ -157,6 +162,7 @@ namespace SpaceEngineersVR.Diagnostics
             builder.InputLost();
             Require(gizmo.Spaces.All(s=>!s.m_startBuild.HasValue && !s.m_startRemove.HasValue),"Native InputLost retained a deferred build/remove stroke");
             NativeCellPicking(builder,log);
+            NativeEmptyCellPicking(log);
             NativeCockpitToolbar(log);
             log("PASS native build cancellation: InputLost clears all eight symmetry spaces' pending build/remove starts in a disposable gizmo fixture.");
         }
@@ -208,6 +214,58 @@ namespace SpaceEngineersVR.Diagnostics
             }
             finally { MyBlockBuilderBase.PlacementProvider=previous; AccessTools.Field(typeof(MyBlockBuilderBase),"m_currentGrid").SetValue(builder,null); }
             log("PASS native grid attachment: "+cases+" flat/oblique face, small/large cell, rotated billion-metre origin and observer-scale cases; old 5cm origin rejected, full ray returns the correct adjacent cell. No world loaded or modified.");
+        }
+        private static void NativeEmptyCellPicking(Action<string> log)
+        {
+            var grid=new MyCubeGrid();
+            AccessTools.Field(typeof(MyCubeGrid),"m_min").SetValue(grid,Vector3I.Zero);
+            AccessTools.Field(typeof(MyCubeGrid),"m_max").SetValue(grid,Vector3I.Zero);
+            var cubes=AccessTools.Field(typeof(MyCubeGrid),"m_cubes").GetValue(grid);
+            var cubeType=cubes.GetType().GetGenericArguments()[1];
+            var cube=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(cubeType);
+            var block=(MySlimBlock)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(MySlimBlock));
+            AccessTools.Field(cubeType,"CubeBlock").SetValue(cube,block);
+            cubes.GetType().GetMethod("TryAdd").Invoke(cubes,new[] {(object)Vector3I.Zero,cube});
+            int cases=0;
+            foreach(float size in new[] {.5f,2.5f})
+            foreach(double origin in new[] {0d,1e9})
+            foreach(var face in new[] {Vector3I.Left,Vector3I.Right,Vector3I.Up,Vector3I.Down,Vector3I.Forward,Vector3I.Backward})
+            {
+                grid.GridSizeEnum=size<1 ? VRage.Game.MyCubeSize.Small:VRage.Game.MyCubeSize.Large;
+                // Main-menu definitions have no cube sizes until a world is loaded.
+                AccessTools.PropertySetter(typeof(MyCubeGrid),nameof(MyCubeGrid.GridSize)).Invoke(grid,new object[] {size});
+                AccessTools.PropertySetter(typeof(MyCubeGrid),nameof(MyCubeGrid.GridSizeHalfVector)).Invoke(grid,new object[] {new Vector3(size/2)});
+                var world=MatrixD.CreateFromYawPitchRoll(.4,.2,-.3); world.Translation=new Vector3D(origin,origin+5,origin-7);
+                grid.PositionComp.SetWorldMatrix(ref world);
+                var tangent=face.Z==0 ? Vector3D.Backward:Vector3D.Right;
+                var start=Vector3D.Transform(((Vector3D)face+tangent*4)*size,world);
+                var end=Vector3D.Transform(((Vector3D)face-tangent*4)*size,world);
+                Require(CreativePlacement.TryCell(grid,start,end,out var cell,out var direction,out double distance),"Empty adjacent destination missed: size="+size+", origin="+origin+", face="+face);
+                Require(cell==face && direction==face && Math.Abs(distance-3.5*size)<.00001,"Empty destination selected wrong cell, face or distance");
+                start=Vector3D.Transform(((Vector3D)face*2+tangent*4)*size,world);
+                end=Vector3D.Transform(((Vector3D)face*2-tangent*4)*size,world);
+                Require(!CreativePlacement.TryCell(grid,start,end,out _,out _,out _),"Disconnected destination snapped to grid");
+                start=Vector3D.Transform(Vector3D.Zero,world);
+                Require(!CreativePlacement.TryCell(grid,start,end,out _,out _,out _),"Occupied origin snapped through a block");
+                cases++;
+            }
+            var gizmo=new MyCubeBuilderGizmo();
+            var definition=new Sandbox.Definitions.MyCubeBlockDefinition {Size=Vector3I.One,CubeSize=VRage.Game.MyCubeSize.Large};
+            var mirror=AccessTools.Method(typeof(MyCubeBuilderGizmo),"MirrorGizmoSpace");
+            foreach(string axis in new[] {"XPlane","YPlane","ZPlane"})
+            {
+                var source=gizmo.SpaceDefault; var target=gizmo.Spaces[1];
+                source.m_blockDefinition=definition;
+                source.m_addPos=Vector3I.One; source.m_addDir=Vector3I.Right; source.m_removePos=Vector3I.Zero; source.m_removeBlock=null;
+                mirror.Invoke(gizmo,new object[] {target,source,Enum.Parse(mirror.GetParameters()[2].ParameterType,axis),Vector3I.Zero,false,definition,grid});
+                Require(target.m_removeBlock==block,"Native symmetry no longer reproduces an empty-ray removal target");
+                var add=target.m_addPos;
+                Patches.CreativeSymmetryPatch.ClearRemoval(gizmo);
+                Require(gizmo.Spaces.All(s=>s.m_removeBlock==null && s.m_removeBlocksInMultiBlock.Count==0) && target.m_addPos==add,
+                    "Empty-cell symmetry retains removal targets or loses placement");
+            }
+            log("PASS Creative empty-cell attachment: "+cases+" native grid traversals across all six faces, both cell sizes and rotated billion-metre origins; disconnected cells and occupied origins rejected. No world loaded.");
+            log("PASS native empty-cell symmetry: all three mirror axes clear removal targets while retaining mirrored placement.");
         }
         private static void NativeCockpitToolbar(Action<string> log)
         {

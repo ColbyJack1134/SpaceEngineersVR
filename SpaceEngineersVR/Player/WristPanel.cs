@@ -62,7 +62,8 @@ namespace SpaceEngineersVR.Player
                 var actions=GameActions.TabletActions(building,seated,thirdPerson,jetpack);
                 for(int i=0;i<actions.Length;i++)
                     keys.Add(new SurfaceKey(actions[i].Label,.02f+i%4*.245f,.16f+i/4*.20f,.23f,.185f) {
-                        Action=actions[i]==GameActions.HudOptions ? new ActionChoice("HUD",OpenHud):actions[i],Icons=new[] {actions[i].Icon},Active=Active(actions[i],status) });
+                        Action=actions[i]==GameActions.HudOptions ? new ActionChoice("HUD",OpenHud):actions[i],Icons=new[] {actions[i].Icon},
+                        Enabled=actions[i].Enabled,Active=Active(actions[i],status) });
             }
             return keys.ToArray();
         }

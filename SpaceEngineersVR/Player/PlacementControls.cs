@@ -18,6 +18,16 @@ namespace SpaceEngineersVR.Player
         public static bool OwnsTools => Mode==InputMode.Building || Mode==InputMode.Clipboard;
         public static bool Painting { get; private set; }
         internal static bool Observer => Main.VrActive && !RemoteView.Active && ThirdPersonView.Active && (ThirdPersonView.Character || CockpitBuilding.Active);
+        internal static bool Creative => MySession.Static!=null && (MySession.Static.CreativeMode ||
+            MySession.Static.HasCreativeRights && MySession.Static.CreativeToolsEnabled(Sandbox.Game.Multiplayer.Sync.MyId));
+        internal static string ShapeLabel => "Build shape: "+(Sandbox.MySandboxGame.Config==null ? "Single":
+            MyCubeBuilder.BuildingMode==MyCubeBuilder.BuildingModeEnum.SingleBlock ? "Single":MyCubeBuilder.BuildingMode.ToString());
+        internal static void CycleShape()
+        {
+            if(!Creative || MyCubeBuilder.Static?.IsActivated!=true || !MyCubeBuilder.Static.IsBuildToolActive()) return;
+            NativeActions.Reset(); Controls.Static.Primary.BlockUntilRelease();
+            MyCubeBuilder.BuildingMode=(MyCubeBuilder.BuildingModeEnum)(((int)MyCubeBuilder.BuildingMode+1)%3);
+        }
         private static object poseOwner;
         private static MatrixD? lastPose;
         [ThreadStatic] internal static bool EditingDistance;
@@ -107,8 +117,11 @@ namespace SpaceEngineersVR.Player
             if(Observer) pose=VrMath.Rigid(pose);
             return true;
         }
-        internal static float BuildDistance(float native) => Observer && !EditingDistance ?
-            (float)ObserverDistance(native,ThirdPersonView.Current.UnitsPerMeter) : native;
+        internal static float BuildDistance(float native) => Observer && !EditingDistance ? (float)(Creative ?
+            CreativeObserverDistance(native,ThirdPersonView.Current.UnitsPerMeter,MyBlockBuilderBase.CubeBuilderDefinition.DefaultBlockBuildingDistance) :
+            ObserverDistance(native,ThirdPersonView.Current.UnitsPerMeter)) : native;
+        internal static double CreativeObserverDistance(double nativeDistance,double scale,double defaultDistance) =>
+            Math.Min(20000,nativeDistance*scale/Math.Max(1,defaultDistance));
         internal static double ObserverDistance(double nativeDistance,double scale) => Math.Min(20000,Math.Max(nativeDistance,nativeDistance*scale));
         internal static double SurvivalRange(float gridSize)
         {

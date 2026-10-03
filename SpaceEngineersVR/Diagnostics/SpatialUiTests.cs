@@ -12,7 +12,7 @@ namespace SpaceEngineersVR.Diagnostics
         {
             foreach(var context in new[] {
                 new[] {false,false,false,false},new[] {false,false,false,true},new[] {true,false,false,false},
-                new[] {true,false,false,true},new[] {false,true,false,false},new[] {false,true,true,false},new[] {true,false,true,false},new[] {false,false,true,false},new[] {true,true,false,false},new[] {true,true,true,false} })
+                new[] {true,false,false,true},new[] {false,true,false,false},new[] {false,true,true,false},new[] {true,false,true,false},new[] {false,false,true,false},new[] {true,true,false,false},new[] {true,true,true,false},new[] {true,false,true,true},new[] {false,false,true,true} })
             {
                 var wheel=GameActions.WheelActions(context[0],context[1],context[2],context[3]);
                 Require(wheel.Distinct().Count()==wheel.Length && wheel.Length>=9 && wheel[0]==GameActions.PauseAction && wheel[1]==GameActions.Options,"Context moved Pause/Options or duplicated wheel actions");
@@ -24,6 +24,7 @@ namespace SpaceEngineersVR.Diagnostics
                 var quickPages=BlockVariants.Pages(Array.Empty<ActionChoice>(),wheel);
                 Require(quickPages.All(p=>p.Length==9) && quickPages.SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(wheel),"Action paging drops or duplicates an entry");
                 var panelKeys=WristPanel.Keys(null,context[0],context[1],context[2],context[3],null,false);
+                Require(panelKeys.Any(k=>k.Action==GameActions.Quick[22])==(context[1] && context[2]),"Ship camera action escaped seated third person");
                 Require(panelKeys.Length<=20 && panelKeys.All(k=>k.Bounds.X>=0 && k.Bounds.Y>=0 && k.Bounds.Right<=1 && k.Bounds.Bottom<=1),"Tablet context overflows the panel");
                 for(int i=0;i<panelKeys.Length;i++) for(int j=i+1;j<panelKeys.Length;j++)
                     Require(panelKeys[i].Bounds.Right<=panelKeys[j].Bounds.X || panelKeys[j].Bounds.Right<=panelKeys[i].Bounds.X || panelKeys[i].Bounds.Bottom<=panelKeys[j].Bounds.Y || panelKeys[j].Bounds.Bottom<=panelKeys[i].Bounds.Y,"Tablet panelKeys overlap");

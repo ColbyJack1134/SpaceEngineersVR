@@ -60,7 +60,7 @@ namespace SpaceEngineersVR.Player
                     Project(output,new NativeSprite(@"Textures\HUD\marker_alert.dds",default(RectangleF),Vector4.One),small,new RectangleF(-.3125f,-.3125f,.625f,.625f),view,projection);
             }
         }
-        internal static void Draw(Texture2D target,SignalLayout.Entry[] entries,MatrixD head,MatrixD view,MatrixD projection)
+        internal static void Draw(Texture2D target,SignalLayout.Entry[] entries,MatrixD head,MatrixD view,MatrixD projection,bool faceViewer=false,Vector3D? facingUp=null)
         {
             if(labels==null)
             {
@@ -86,9 +86,11 @@ namespace SpaceEngineersVR.Player
             }
             sprites.Clear();
             int labelIndex=0;
+            var eye=MatrixD.Invert(view).Translation;
             foreach(var e in entries)
             {
                 if(e.Edge || !MarkerBillboard.TryCreate(e.Position,head,out var board)) continue;
+                if(faceViewer) board.FaceViewer(eye,facingUp);
                 board.Scale*=e.Primary.Kind=="Objective" ? 1.1:.55;
                 if(e.Ring) e.Primary.Ring?.AddNative(sprites,e.Position,view,projection,target.Description.Width);
                 board.Scale*=e.IconScale;
@@ -108,7 +110,7 @@ namespace SpaceEngineersVR.Player
                         var textSprite=new NativeSprite(null,default(RectangleF),new Vector4(1,1,1,line==0 ? label.NameAlpha:1)) {Texture=textTexture,
                             UV=new Vector4(labelIndex%2*.5f,(labelIndex/2*WorldMarkers.LabelHeight+(line==0 ? 0:65))/(float)WorldMarkers.AtlasHeight,
                                 b.Width/label.LineHeight*31/WorldMarkers.AtlasWidth,31f/WorldMarkers.AtlasHeight)};
-                        var textBoard=new MarkerBillboard {Center=e.Position,Right=head.Right,Up=head.Up,Scale=depth};
+                        var textBoard=new MarkerBillboard {Center=e.Position,Right=board.Right,Up=board.Up,Scale=depth};
                         float scale=line==0 ? 1:label.DistanceScale;
                         if(!textBoard.Project(new RectangleF(b.X-e.Point.X+b.Width*(1-scale)/2,y-e.Point.Y,b.Width*scale,label.LineHeight*scale),view,projection,ref textSprite)) continue;
                         textSprite.Premultiplied=true; sprites.Add(textSprite);

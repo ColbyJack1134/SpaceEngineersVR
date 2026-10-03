@@ -48,15 +48,18 @@ namespace SpaceEngineersVR.Diagnostics
             Require(!c.ShipCrosshair && c.WristSignalTint==.6f && c.HudWithVisorOpen && !c.SignalEdges && !c.ShowContacts,"Global visibility/tint changed on profile selection");
             Press(c,"Distances"); Require(!c.ShowSignalDistances,"Selected state distance toggle ignored");
             c.SelectHudProfile(2); Require(c.ShowSignalDistances,"Distance visibility leaked across profiles"); c.SelectHudProfile(3);
-            Press(c,"Marker roll"); Require(c.CharacterMarkerRoll && !Panel(c).Keys.Any(k=>k.Label=="Grouping"),"Marker roll selector or grouping removal failed");
+            Require(c.CharacterMarkerRoll && c.FaceMarkersTowardViewer,"HUD orientation defaults lost");
+            Press(c,"Marker roll"); Require(!c.CharacterMarkerRoll && !Panel(c).Keys.Any(k=>k.Label=="Grouping"),"Marker roll selector or grouping removal failed");
             var serializer=new XmlSerializer(typeof(PluginConfig));
+            Press(c,"Face viewer"); Require(!c.FaceMarkersTowardViewer,"Facing toggle ignored");
             using(var text=new StringWriter())
             {
                 serializer.Serialize(text,c);
                 string legacy=text.ToString().Replace("<Vitals>","<Tint>0.15</Tint><VisorOpen>false</VisorOpen><Vitals>");
                 using(var input=new StringReader(legacy)) c=(PluginConfig)serializer.Deserialize(input);
             }
-            c.InitializeHudProfiles(); Require(c.CharacterMarkerRoll && !c.ShowSignalDistances,"Marker roll or profile distances lost after XML round trip"); Require(c.HudProfiles.Length==5 && c.HudProfileIndex==3 && !c.ShowVitals && c.WaypointMode==2 && c.SignalIconScale==2,"Profile XML round trip lost the active state");
+            c.InitializeHudProfiles(); Require(!c.CharacterMarkerRoll && !c.ShowSignalDistances,"Marker roll or profile distances lost after XML round trip"); Require(c.HudProfiles.Length==5 && c.HudProfileIndex==3 && !c.ShowVitals && c.WaypointMode==2 && c.SignalIconScale==2,"Profile XML round trip lost the active state");
+            Require(!c.FaceMarkersTowardViewer,"Explicit marker facing choice lost after XML round trip");
             Require(!c.ShipCrosshair && c.WristSignalTint==.6f && c.HudWithVisorOpen && !c.SignalEdges && !c.ShowContacts,"Legacy profile fields overwrote global XML settings");
             c.SelectHudProfile(4); c.RemoveExtraHudProfile(); Require(c.HudProfiles.Length==4 && c.HudProfileIndex==3,"Removing active extra state left an invalid index");
             c.ResetHudProfile(3); Require(!c.ShowVitals && c.ShowSignalDistances && c.WaypointMode==2 && c.GroupSignals && c.SignalIconScale==1.5f,"Reset state failed");

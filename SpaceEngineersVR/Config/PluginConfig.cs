@@ -90,8 +90,10 @@ namespace SpaceEngineersVR.Config
         public float FriendlySignalRange { get => friendlySignalRange; set => SetValue(ref friendlySignalRange,Bound(value,0,1,1)); }
         public float OtherSignalRange { get => otherSignalRange; set => SetValue(ref otherSignalRange,Bound(value,0,1,1)); }
         public bool GroupSignals { get => true; set { } }
-        private bool characterMarkerRoll;
+        private bool characterMarkerRoll=true;
         public bool CharacterMarkerRoll { get => characterMarkerRoll; set => SetValue(ref characterMarkerRoll,value); }
+        private bool faceMarkersTowardViewer=true;
+        public bool FaceMarkersTowardViewer { get => faceMarkersTowardViewer; set => SetValue(ref faceMarkersTowardViewer,value); }
         public bool SignalEdges { get => signalEdges; set => SetValue(ref signalEdges,value); }
         public bool SignalRings { get => signalRings; set => SetValue(ref signalRings,value); }
         private bool shipCrosshair=true;

@@ -70,7 +70,7 @@ namespace SpaceEngineersVR.GUI
                     break;
                 case "Signals":
                     Toggle(-.25f,"Character marker roll",c.CharacterMarkerRoll,v=>c.CharacterMarkerRoll=v);
-                    Label(-.17f,"Profiles and sizing: wrist Controls > HUD",.65f);
+                    Toggle(-.17f,"Face markers toward viewer",c.FaceMarkersTowardViewer,v=>c.FaceMarkersTowardViewer=v);
                     Toggle(-.09f,"Wrist edge directions",c.SignalEdges,v=>c.SignalEdges=v);
                     Toggle(-.01f,"Targeting rings",c.SignalRings,v=>c.SignalRings=v);
                     Toggle(.07f,"GPS and objectives",c.ShowGps,v=>c.ShowGps=v);
