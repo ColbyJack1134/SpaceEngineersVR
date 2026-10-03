@@ -10,12 +10,23 @@ namespace SpaceEngineersVR.Player
     {
         private readonly List<Action> restore=new List<Action>();
         public static bool Active { get; private set; }
-        private static object Read(object owner,string name) => owner is Type type ? AccessTools.Field(type,name)?.GetValue(null) ?? AccessTools.Property(type,name)?.GetValue(null) : CockpitRender.Member(owner,name);
+        private static readonly Type common=AccessTools.TypeByName("VRageRender.MyCommon"),managers=AccessTools.TypeByName("VRage.Render11.Common.MyManagers");
+        private static MethodInfo changed;
+        private static MemberInfo Find(object owner,string name,out object target)
+        {
+            if(owner==null) throw new InvalidOperationException("Missing renderer member "+name);
+            var type=owner as Type ?? owner.GetType(); target=owner is Type ? null:owner;
+            return CockpitRender.Find(type,name) ?? throw new MissingMemberException(type.FullName,name);
+        }
+        private static object Read(object owner,string name)
+        {
+            var member=Find(owner,name,out object target);
+            return member is FieldInfo field ? field.GetValue(target) : ((PropertyInfo)member).GetValue(target);
+        }
         private static void Write(object owner,string name,object value)
         {
-            var type=owner as Type ?? owner.GetType(); var target=owner is Type ? null:owner;
-            var field=AccessTools.Field(type,name);
-            if(field!=null) field.SetValue(target,value); else AccessTools.Property(type,name).SetValue(target,value);
+            var member=Find(owner,name,out object target);
+            if(member is FieldInfo field) field.SetValue(target,value); else ((PropertyInfo)member).SetValue(target,value);
         }
         private void Set(object owner,string name,object value)
         {
@@ -28,17 +39,15 @@ namespace SpaceEngineersVR.Player
                 var settings=MyRender11.Settings;
                 var saved=settings; restore.Add(()=>MyRender11.Settings=saved);
                 settings.ShadowCameraFrozen=true; MyRender11.Settings=settings;
-                var common=AccessTools.TypeByName("VRageRender.MyCommon");
                 var lodding=Read(common,"LoddingSettings");
                 var global=Read(lodding,"Global");
                 Write(global,"IsUpdateEnabled",false);
                 Set(lodding,"Global",global);
-                var managers=AccessTools.TypeByName("VRage.Render11.Common.MyManagers");
                 var geometry=Read(managers,"GeometryRenderer");
                 Set(geometry,"IsLodUpdateEnabled",false);
                 Set(geometry,"m_globalLoddingSettings",global);
                 var factory=Read(managers,"ModelFactory");
-                var changed=AccessTools.Method(factory.GetType(),"OnLoddingSettingChanged");
+                if(changed==null) changed=AccessTools.Method(factory.GetType(),"OnLoddingSettingChanged");
                 restore.Insert(0,()=>changed.Invoke(factory,null)); changed.Invoke(factory,null);
                 Active=true;
             }

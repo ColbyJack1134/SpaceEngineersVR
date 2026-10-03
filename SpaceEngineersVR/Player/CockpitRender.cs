@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -277,14 +278,18 @@ namespace SpaceEngineersVR.Player
             }
             catch(Exception ex) { check.Error=ex.ToString(); }
         }
+        private static readonly ConcurrentDictionary<(Type,string),MemberInfo> members=new ConcurrentDictionary<(Type,string),MemberInfo>();
+        internal static MemberInfo Find(Type type,string name) =>
+            members.GetOrAdd((type,name),key=>(MemberInfo)AccessTools.Field(key.Item1,key.Item2) ?? AccessTools.Property(key.Item1,key.Item2));
         internal static object Member(object instance,string name)
         {
             if (instance==null) throw new InvalidOperationException("Missing renderer member "+name);
             var type=instance.GetType();
-            var field=AccessTools.Field(type,name);
-            if (field!=null) return field.GetValue(instance);
-            var property=AccessTools.Property(type,name);
-            if (property!=null) return property.GetValue(instance,null);
+            switch (Find(type,name))
+            {
+                case FieldInfo field: return field.GetValue(instance);
+                case PropertyInfo property: return property.GetValue(instance,null);
+            }
             throw new MissingMemberException(type.FullName,name);
         }
     }

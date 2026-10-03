@@ -17,8 +17,7 @@ namespace SpaceEngineersVR.Player
     {
         private const string queue="SEVR.CameraHud";
         [ThreadStatic] private static int capturing;
-        private static Texture2D hud;
-        private static ShaderResourceView hudView;
+        private static readonly TextureCopy hud=new TextureCopy();
         private static long source;
         internal static RemoteView.View Fixture;
         internal static int SpriteCount { get; private set; }
@@ -90,25 +89,13 @@ namespace SpaceEngineersVR.Player
             }
             finally { dispose.Invoke(sprites,new[] {messages}); }
         }
-        internal static void Store(Texture2D rendered)
-        {
-            var description=rendered.Description;
-            if(hud==null || hud.Description.Width!=description.Width || hud.Description.Height!=description.Height || hud.Description.Format!=description.Format)
-            {
-                hudView?.Dispose(); hud?.Dispose();
-                description.BindFlags=BindFlags.ShaderResource;
-                hud=new Texture2D(rendered.Device,description);
-                hudView=new ShaderResourceView(rendered.Device,hud);
-            }
-            // The native pool forcibly releases borrowed textures at frame end.
-            rendered.Device.ImmediateContext.CopyResource(rendered,hud);
-        }
+        internal static void Store(Texture2D rendered) => hud.Store(rendered);
         public static void Composite(Texture2D target,RemoteView.View view)
         {
-            if(hud==null || source==0 || source!=view?.Source) return;
-            NativeSprites.Draw(target,new[] {new NativeSprite(null,new RectangleF(0,0,target.Description.Width,target.Description.Height),Vector4.One) { Texture=hudView }});
+            if(hud.View==null || source==0 || source!=view?.Source) return;
+            NativeSprites.Draw(target,new[] {new NativeSprite(null,new RectangleF(0,0,target.Description.Width,target.Description.Height),Vector4.One) { Texture=hud.View }});
         }
-        private static void Release() { hudView?.Dispose(); hudView=null; hud?.Dispose(); hud=null; source=0; SpriteCount=0; }
+        private static void Release() { hud.Dispose(); source=0; SpriteCount=0; }
         public static void Reset() { Release(); collectedFrame=int.MinValue; }
     }
 }

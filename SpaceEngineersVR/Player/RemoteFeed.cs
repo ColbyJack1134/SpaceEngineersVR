@@ -10,17 +10,20 @@ namespace SpaceEngineersVR.Player
 {
     internal static class RemoteFeed
     {
-        private static BorrowedRtvTexture feed;
-        private static ShaderResourceView texture,frameTexture;
+        private static readonly TextureCopy image=new TextureCopy();
+        private static ShaderResourceView frameTexture;
         private static OverlayCanvas frame;
         private static string painted;
         private static long source;
-        internal static readonly Vector2I Resolution=new Vector2I(1920,1080);
+        private static bool skip;
+        internal static readonly Vector2I Resolution=new Vector2I(1600,900);
         public static void Render(RemoteView.View view)
         {
-            texture?.Dispose(); texture=null; feed?.Release(); feed=null; source=0;
-            if(view==null) return;
-            feed=MyManagers.RwTexturesPool.BorrowRtv("SEVR.Remote",Resolution.X,Resolution.Y,Format.R8G8B8A8_UNorm_SRgb);
+            if(view==null) { image.Dispose(); source=0; return; }
+            // Refresh every second headset frame; a new camera renders immediately.
+            if(source==view.Source && (skip=!skip)) return;
+            source=0;
+            var feed=MyManagers.RwTexturesPool.BorrowRtv("SEVR.Remote",Resolution.X,Resolution.Y,Format.R8G8B8A8_UNorm_SRgb);
             object ambient=null;
             long started=FeatureTiming.Start();
             GpuTiming.Begin(GpuTiming.Area.RemoteFeed);
@@ -29,20 +32,22 @@ namespace SpaceEngineersVR.Player
                 using(var resources=MyRender11.Resolution==Resolution ? null:new EyeResolution.Scene(Resolution,true))
                 using(var exposure=new RemoteExposure())
                 using(var isolated=new RemoteScene()) MyRender11.DrawGameScene(feed,out ambient);
-                RemoteHud.Composite((Texture2D)feed.GetResource(),view);
-                texture=new ShaderResourceView(MyRender11.DeviceInstance,(Texture2D)feed.GetResource());
+                var rendered=(Texture2D)feed.GetResource();
+                RemoteHud.Composite(rendered,view);
+                image.Store(rendered);
                 source=view.Source;
             }
             finally
             {
                 if(ambient!=null) new BorrowedRtvTexture(ambient).Release();
+                feed.Release();
                 FeatureTiming.End(FeatureTiming.Area.RemoteFeed,started);
                 GpuTiming.End(GpuTiming.Area.RemoteFeed);
             }
         }
         public static void Reset()
         {
-            texture?.Dispose(); texture=null; feed?.Release(); feed=null; source=0;
+            image.Dispose(); source=0; skip=false;
             frameTexture?.Dispose(); frameTexture=null; frame?.Dispose(); frame=null; painted=null; RemoteExposure.Reset();
         }
         internal static void Paint(OverlayCanvas canvas,RemoteView.View view)
@@ -65,8 +70,8 @@ namespace SpaceEngineersVR.Player
         }
         public static void Draw(Texture2D target,RemoteView.View remote,MatrixD view,MatrixD projection)
         {
-            if(remote==null || texture==null || source!=remote.Source) return;
-            DrawPanel(target,texture,remote,view,projection,NativeHandLayer.Depth);
+            if(remote==null || image.View==null || source!=remote.Source) return;
+            DrawPanel(target,image.View,remote,view,projection,NativeHandLayer.Depth);
         }
         internal static void DrawPanel(Texture2D target,ShaderResourceView image,RemoteView.View remote,MatrixD view,MatrixD projection,ShaderResourceView hands=null)
         {
