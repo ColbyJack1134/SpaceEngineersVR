@@ -46,9 +46,14 @@ namespace SpaceEngineersVR.Player
                 AddSegment(sprites,rotated,view,projection,FilledTexture,bounds,new Vector4(0,1-fill,1,fill),LockColor);
             }
         }
+        internal void AddNative(List<NativeSprite> sprites,Vector3D position,MatrixD view,MatrixD projection,int viewportWidth)
+        {
+            if(MarkerBillboard.TryCreatePixels(position,Size.X/4.5,view,projection,viewportWidth,out var board))
+                Add(sprites,board,view,projection);
+        }
         private static void AddSegment(List<NativeSprite> sprites,MarkerBillboard board,MatrixD view,MatrixD projection,string texture,RectangleF bounds,Vector4 uv,Vector4 color)
         {
-            var sprite=new NativeSprite(texture,default(RectangleF),color) {UV=uv};
+            var sprite=new NativeSprite(texture,default(RectangleF),color.ToLinearRGB()) {UV=uv,Premultiplied=true};
             if(board.Project(bounds,view,projection,ref sprite)) sprites.Add(sprite);
         }
     }

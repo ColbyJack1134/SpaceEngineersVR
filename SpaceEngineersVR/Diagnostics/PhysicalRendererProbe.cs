@@ -107,7 +107,8 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Start(Harmony harmony)
         {
             RemoteHud.Install(harmony);
-            harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),"DrawScene"),new HarmonyMethod(typeof(PhysicalRendererProbe),nameof(Render)));
+            if(LeadIndicatorTests.Enabled) LeadIndicatorTests.Install(harmony);
+            harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),LeadIndicatorTests.Enabled ? "Present":"DrawScene"),new HarmonyMethod(typeof(PhysicalRendererProbe),nameof(Render)));
             Active=true; phase=0; next=DateTime.UtcNow.AddSeconds(10); deadline=DateTime.UtcNow.AddSeconds(520);
             Directory.CreateDirectory(output);
             foreach (string file in new[] {"native-left.png","rest-left.png","rest-right.png","articulated-left.png","articulated-right.png","restored-left.png","regrab-left.png"})
@@ -125,7 +126,11 @@ namespace SpaceEngineersVR.Diagnostics
             if (!Active) return;
             try
             {
-                if(Environment.GetEnvironmentVariable("SEVR_NATIVE_SIGNALS")=="1") { NativeSignalProbe.Update(); return; }
+                if(Environment.GetEnvironmentVariable("SEVR_NATIVE_SIGNALS")=="1")
+                {
+                    if(renderError!=null) throw new InvalidOperationException(renderError);
+                    NativeSignalProbe.Update(); return;
+                }
                 if (MySession.Static!=null) throw new InvalidOperationException("Renderer probe requires the main menu, without a loaded world.");
                 if (renderError!=null) throw new InvalidOperationException(renderError);
                 if (DateTime.UtcNow>deadline) throw new TimeoutException("Native renderer probe timed out in phase "+phase);
@@ -388,6 +393,12 @@ namespace SpaceEngineersVR.Diagnostics
         }
         public static void Render()
         {
+            if(Active && LeadIndicatorTests.Enabled)
+            {
+                try { LeadIndicatorTests.Render(); }
+                catch(Exception ex) { renderError=ex.ToString(); }
+                return;
+            }
             if(Active && !rotationPreviewsSaved && BuildOrientationTests.Previews.Count==3) RenderRotationPreviews();
             if(Active && phase>=45 && phase<=46) NativeGloves.Preview(
                 CockpitHandPose.GripWrist(Matrix.CreateTranslation(-.11f,0,0)),

@@ -9,6 +9,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{07C2787E
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SEVR.Diagnostics", "tools\SEVR.Diagnostics\SEVR.Diagnostics.csproj", "{89C15EA5-62D0-414A-8665-E84099C994A8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceEngineersVR.Multiplayer", "SpaceEngineersVR.Multiplayer\SpaceEngineersVR.Multiplayer.csproj", "{34B8DFB6-CEBE-4067-BC63-1444CB58A5B3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -44,6 +46,18 @@ Global
 		{89C15EA5-62D0-414A-8665-E84099C994A8}.Release|x64.Build.0 = Release|Any CPU
 		{89C15EA5-62D0-414A-8665-E84099C994A8}.Release|x86.ActiveCfg = Release|Any CPU
 		{89C15EA5-62D0-414A-8665-E84099C994A8}.Release|x86.Build.0 = Release|Any CPU
+		{34B8DFB6-CEBE-4067-BC63-1444CB58A5B3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{34B8DFB6-CEBE-4067-BC63-1444CB58A5B3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{34B8DFB6-CEBE-4067-BC63-1444CB58A5B3}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{34B8DFB6-CEBE-4067-BC63-1444CB58A5B3}.Debug|x64.Build.0 = Debug|Any CPU
+		{34B8DFB6-CEBE-4067-BC63-1444CB58A5B3}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{34B8DFB6-CEBE-4067-BC63-1444CB58A5B3}.Debug|x86.Build.0 = Debug|Any CPU
+		{34B8DFB6-CEBE-4067-BC63-1444CB58A5B3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{34B8DFB6-CEBE-4067-BC63-1444CB58A5B3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{34B8DFB6-CEBE-4067-BC63-1444CB58A5B3}.Release|x64.ActiveCfg = Release|Any CPU
+		{34B8DFB6-CEBE-4067-BC63-1444CB58A5B3}.Release|x64.Build.0 = Release|Any CPU
+		{34B8DFB6-CEBE-4067-BC63-1444CB58A5B3}.Release|x86.ActiveCfg = Release|Any CPU
+		{34B8DFB6-CEBE-4067-BC63-1444CB58A5B3}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

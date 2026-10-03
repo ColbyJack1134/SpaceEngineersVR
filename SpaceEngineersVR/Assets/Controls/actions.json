@@ -469,7 +469,7 @@
       "/actions/menu/in/WheelNextPage": "Wheel next page",
       "/actions/menu/in/WheelPreviousPage": "Wheel previous page",
       "/actions/common/in/PointerPressure": "Show aiming ray (light trigger)",
-      "/actions/flying/in/SeatTerminal": "Terminal (seated)",
+      "/actions/flying/in/SeatTerminal": "Jump (jetpack / wheels)",
       "/actions/common/in/LeftTriggerPressure": "Left trigger pressure",
       "/actions/common/in/LeftGripPressure": "Left grip pressure",
       "/actions/common/in/RightGripPressure": "Right grip pressure"

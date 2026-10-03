@@ -9,6 +9,7 @@ using Sandbox.Graphics.GUI;
 using Sandbox.ModAPI;
 using SpaceEngineersVR.Config;
 using SpaceEngineersVR.Plugin;
+using SpaceEngineersVR.Multiplayer;
 using VRage.Game;
 
 namespace SpaceEngineersVR.Player
@@ -19,14 +20,17 @@ namespace SpaceEngineersVR.Player
         private static MyCockpit owner;
         private static MyToolbar toolbar,previous;
         private static string world;
-        private static bool editing,previousAutoUpdate;
+        private static bool editing,previousAutoUpdate,migrated;
+        private static string loadedXml,pendingXml;
+        private static double pendingUntil;
+        internal static bool SharedReady => owner!=null && MultiplayerRuntime.Get(owner,out _);
         private static MyGuiScreenBase editor;
         private static GUI.CockpitAssignment assignment;
         public static MyToolbar Toolbar => toolbar;
         public static void Update(MyCockpit seat)
         {
             assignment?.Update();
-            if(ReferenceEquals(owner,seat)) return;
+            if(ReferenceEquals(owner,seat)) { Synchronize(); return; }
             Reset();
             if(seat==null) return;
             owner=seat; world=MySession.Static.CurrentPath;
@@ -38,7 +42,38 @@ namespace SpaceEngineersVR.Player
                 try { builder=MyAPIGateway.Utilities.SerializeFromXML<MyObjectBuilder_Toolbar>(stored.ToolbarXml); }
                 catch(Exception ex) { Logger.Warning(ex,"Cockpit switch assignments could not be read; original config retained"); }
             toolbar.Init(builder,seat);
+            loadedXml=stored?.ToolbarXml ?? "";
             toolbar.ItemChanged+=Changed;
+            Synchronize();
+        }
+        private static void Synchronize()
+        {
+            if(owner==null || toolbar==null || !MultiplayerRuntime.Get(owner,out var shared)) return;
+            if(!migrated)
+            {
+                migrated=true;
+                if(shared.Revision==0 && string.IsNullOrEmpty(shared.Toolbar) && shared.Covers.Length==0)
+                {
+                    if(!string.IsNullOrEmpty(loadedXml)) SaveToolbar();
+                    var old=Common.Config.CockpitStates.FirstOrDefault(s=>s.World==world && s.Cockpit==owner.EntityId)?.Covers;
+                    if(old!=null) for(int i=0;i<Math.Min(old.Length,CockpitLayout.Count(owner.BlockDefinition.Id.SubtypeName));i++)
+                        if(old[i]) MultiplayerRuntime.SaveCover(owner,i,true);
+                }
+            }
+            if(pendingXml!=null)
+            {
+                if(shared.Toolbar!=pendingXml && MultiplayerRuntime.Now<pendingUntil) return;
+                pendingXml=null;
+            }
+            if(editing || shared.Toolbar==loadedXml) return;
+            var builder=CockpitMemory.Toolbar(shared.Toolbar);
+            toolbar.ItemChanged-=Changed;
+            try
+            {
+                if(owner.HasInventory) owner.GetInventory().ContentsChanged-=toolbar.CharacterInventory_OnContentsChanged;
+                toolbar.Clear(); toolbar.Init(builder,owner); loadedXml=shared.Toolbar;
+            }
+            finally { toolbar.ItemChanged+=Changed; }
         }
         private static void Changed(MyToolbar source,MyToolbar.IndexArgs index,bool gamepad)
         {
@@ -48,9 +83,13 @@ namespace SpaceEngineersVR.Player
                 if(source.GetItemAtIndex(index.ItemIndex)!=null) source.SetItemAtIndex(index.ItemIndex,null);
                 return;
             }
-            var entry=new CockpitActionSetting { World=world,Cockpit=owner.EntityId,
-                ToolbarXml=MyAPIGateway.Utilities.SerializeToXML(source.GetObjectBuilder()) };
-            Common.Config.CockpitActions=Common.Config.CockpitActions.Where(s=>s.World!=world || s.Cockpit!=owner.EntityId).Concat(new[] { entry }).ToArray();
+            loadedXml=CockpitMemory.Toolbar(source.GetObjectBuilder());
+            SaveToolbar();
+        }
+        private static void SaveToolbar()
+        {
+            pendingXml=loadedXml; pendingUntil=MultiplayerRuntime.Now+5;
+            MultiplayerRuntime.SaveToolbar(owner,loadedXml);
         }
         public static bool Activate(int slot,bool? desired=null)
         {
@@ -61,6 +100,7 @@ namespace SpaceEngineersVR.Player
         private static bool ActivateCore(int slot,bool? desired)
         {
             if(toolbar==null || owner==null || !SeatFit.Eligible(owner) || editing || !((Sandbox.ModAPI.IMyTerminalBlock)owner).HasPlayerAccess(MySession.Static.LocalPlayerId)) return false;
+            if(!SharedReady) { EssentialHud.Notify("Shared cockpit controls require SEVR on the host."); return false; }
             toolbar.UpdateItemForIdentity(slot,MySession.Static.LocalPlayerId,false);
             var item=toolbar.GetItemAtIndex(slot);
             if(item==null) { Configure(slot); return false; }
@@ -88,6 +128,7 @@ namespace SpaceEngineersVR.Player
         public static void Configure(int selected=-1)
         {
             if(owner==null || toolbar==null || editing || MyGuiScreenToolbarConfigBase.Static!=null) return;
+            if(!SharedReady) { EssentialHud.Notify("Shared cockpit controls require SEVR on the host."); return; }
             previous=MyToolbarComponent.CurrentToolbar; previousAutoUpdate=MyToolbarComponent.AutoUpdate;
             try
             {
@@ -124,7 +165,7 @@ namespace SpaceEngineersVR.Player
                 if(owner?.HasInventory==true) owner.GetInventory().ContentsChanged-=toolbar.CharacterInventory_OnContentsChanged;
                 toolbar.ItemChanged-=Changed; toolbar.Clear();
             }
-            toolbar=null; owner=null; world=null;
+            toolbar=null; owner=null; world=null; loadedXml=pendingXml=null; pendingUntil=0; migrated=false;
         }
     }
 }

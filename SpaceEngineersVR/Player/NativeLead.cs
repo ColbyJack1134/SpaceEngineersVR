@@ -21,6 +21,7 @@ namespace SpaceEngineersVR.Player
         {
             public Vector3D Position,Target;
             public Vector4 Color;
+            public Vector2 CircleSize,RangeTextSize;
             public bool InRange;
         }
         private static readonly FieldInfo lead=AccessTools.Field(typeof(MyHudMarkerRender.MyTargetIndicatorRender),"m_targetLeadRender");
@@ -50,22 +51,20 @@ namespace SpaceEngineersVR.Player
             if(!position.IsValid()) return null;
             double range=predictor.CurrentAmmoDefininiton?.MaxTrajectory ?? origin.MaxShootRange;
             bool inRange=Vector3D.DistanceSquared(target.PositionComp.GetPosition(),MyHudMarkerRender.GetDistanceMeasuringMatrix().Translation)<=range*range;
-            return new View {Position=position,Target=Sandbox.Game.EntityComponents.MyTargetingHelper.Instance.GetLockingPosition(target),InRange=inRange,
+            return new View {Position=position,Target=Sandbox.Game.EntityComponents.MyTargetingHelper.Instance.GetLockingPosition(target),InRange=inRange,CircleSize=circle.Size,RangeTextSize=inRange ? Vector2.Zero:MeasureRangeText(),
                 Color=MyHudMarkerRender.MyTargetIndicatorRender.GetTargetingColor(circle.TargetType,inRange).ToVector4()};
         }
         internal static void Draw(Texture2D target,View value,MatrixD head,MatrixD view,MatrixD projection)
         {
             if(value==null || !WorldMarkers.Project(value.Position,view,projection,out _) ||
-                !MarkerBillboard.TryCreate(value.Position,head,out var board)) return;
-            board.Scale*=.55*4.5*.4;
+                !MarkerBillboard.TryCreatePixels(value.Position,value.CircleSize.X*.8,view,projection,target.Description.Width,out var board)) return;
             var output=new List<NativeSprite>();
-            var marker=new NativeSprite(@"Textures\GUI\TargetingPredictionMarker.dds",default(RectangleF),value.Color);
+            var marker=new NativeSprite(@"Textures\GUI\TargetingPredictionMarker.dds",default(RectangleF),value.Color.ToLinearRGB()) {Premultiplied=true};
             if(!board.Project(new RectangleF(-.5f,-.5f,1,1),view,projection,ref marker)) return;
             output.Add(marker);
-            if(MarkerBillboard.TryCreate(value.Target,head,out var ring))
+            if(MarkerBillboard.TryCreatePixels(value.Target,value.CircleSize.X,view,projection,target.Description.Width,out var ring))
             {
-                ring.Scale*=.55*4.5;
-                AddLine(output,ring,board,value.Color,target.Description.Width,target.Description.Height,view,projection);
+                AddLine(output,ring,board,value.CircleSize.X,value.Color,target.Description.Width,target.Description.Height,view,projection);
                 if(!value.InRange)
                 {
                     if(warning==null) { warning=new OverlayCanvas("Native lead range",512,64,1,false,target.Device,true); warningTexture=new ShaderResourceView(target.Device,warning.Texture); }
@@ -73,29 +72,41 @@ namespace SpaceEngineersVR.Player
                     {
                         warning.Clear(System.Drawing.Color.Transparent); warning.Upload();
                         var glyphs=new List<NativeSprite>();
-                        SignalFont.Add(glyphs,MyTexts.GetString(MySpaceTexts.LeadIndicator_OutOfWeaponRange),0,0,28,512,Vector4.One,512,64,true);
+                        SignalFont.Add(glyphs,MyTexts.GetString(MySpaceTexts.LeadIndicator_OutOfWeaponRange),0,0,28,512,Vector4.One,512,64);
                         NativeSprites.Draw(warning.Texture,glyphs); target.Device.ImmediateContext.GenerateMips(warningTexture); warningRevision=NativeSprites.Revision;
                     }
-                    var label=new NativeSprite(null,default(RectangleF),value.Color) {Texture=warningTexture,Premultiplied=true};
-                    if(ring.Project(new RectangleF(-2f,1.2f,4f,.5f),view,projection,ref label)) output.Add(label);
+                    float textWidth=SignalFont.Width(MyTexts.GetString(MySpaceTexts.LeadIndicator_OutOfWeaponRange),28);
+                    var label=new NativeSprite(null,default(RectangleF),value.Color.ToLinearRGB()) {Texture=warningTexture,Premultiplied=true,UV=new Vector4(0,0,textWidth/512,28f/64)};
+                    var size=value.RangeTextSize/value.CircleSize.X;
+                    if(ring.Project(new RectangleF(-size.X/2,(value.CircleSize.Y*.75f+10)/value.CircleSize.X-size.Y/2,size.X,size.Y),view,projection,ref label)) output.Add(label);
                 }
             }
             NativeSprites.Draw(target,output);
         }
-        private static void AddLine(List<NativeSprite> output,MarkerBillboard ring,MarkerBillboard marker,Vector4 color,int width,int height,MatrixD view,MatrixD projection)
+        internal static Vector2 MeasureRangeText() => Sandbox.Graphics.MyGuiManager.GetScreenSizeFromNormalizedSize(
+            Sandbox.Graphics.MyGuiManager.MeasureString((VRage.Game.MyFontEnum)"White",MyTexts.GetString(MySpaceTexts.LeadIndicator_OutOfWeaponRange),
+                Sandbox.Graphics.GUI.MyGuiSandbox.GetDefaultTextScaleWithLanguage()*.7f));
+        internal static NativeSprite LineSprite(Vector4 color) =>
+            new NativeSprite(@"Textures\GUI\TargetingLine.dds",default(RectangleF),color.ToLinearRGB()) {Projected=true,Premultiplied=true};
+        private static void AddLine(List<NativeSprite> output,MarkerBillboard ring,MarkerBillboard marker,float circleWidth,Vector4 color,int width,int height,MatrixD view,MatrixD projection)
         {
             Func<Vector3D,Vector4> clip=p=>(Vector4)Vector4D.Transform(new Vector4D(Vector3D.Transform(p,view),1),projection);
             var a=clip(ring.Center); var b=clip(marker.Center);
             if(a.W<=0 || b.W<=0) return;
             Func<Vector4,Vector2> pixel=p=>new Vector2((p.X/p.W+1)*width/2,(1-p.Y/p.W)*height/2);
             var start=pixel(a); var end=pixel(b); var delta=end-start; float length=delta.Length();
-            float ra=Vector2.Distance(start,pixel(clip(ring.Point(.5,0)))),rb=Vector2.Distance(end,pixel(clip(marker.Point(.5,0))));
-            if(length<=ra+rb+1) return;
-            var direction=delta/length; start+=direction*ra; end-=direction*rb;
-            var normal=new Vector2(-direction.Y,direction.X)*(1.5f*height/1080);
+            float radius=circleWidth/2;
+            if(length*length<radius*radius*1.2f) return;
+            var direction=delta/length;
+            var trimmedStart=start+direction*radius; var trimmedEnd=end-direction*32;
+            var center=(trimmedStart+trimmedEnd)/2;
+            float halfLength=Vector2.Distance(trimmedStart,trimmedEnd)/2;
+            start=center-direction*halfLength; end=center+direction*halfLength;
+            var normal=new Vector2(-direction.Y,direction.X)*1.5f;
             Func<Vector2,Vector4,Vector4> corner=(p,c)=>new Vector4((p.X*2/width-1)*c.W,(1-p.Y*2/height)*c.W,c.Z,c.W);
-            output.Add(new NativeSprite(@"Textures\GUI\TargetingLine.dds",default(RectangleF),color) {Projected=true,
-                TopLeft=corner(start-normal,a),BottomLeft=corner(start+normal,a),TopRight=corner(end-normal,b),BottomRight=corner(end+normal,b)});
+            var line=LineSprite(color);
+            line.TopLeft=corner(start-normal,a); line.BottomLeft=corner(start+normal,a);
+            line.TopRight=corner(end-normal,b); line.BottomRight=corner(end+normal,b); output.Add(line);
         }
     }
 }

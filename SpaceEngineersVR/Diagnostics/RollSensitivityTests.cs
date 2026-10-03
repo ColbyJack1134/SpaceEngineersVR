@@ -38,7 +38,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Near(invertedRoll,roll,"Pitch inversion changed roll");
                 Near(rotation.X,oldRotation.X,"Roll setting changed pitch");
                 Near(rotation.Y,oldRotation.Y,"Roll setting changed yaw ownership");
-                Near(roll,oldRoll*(ship ? 0.6f : 0.25f),"Requested roll reduction");
+                Near(roll,oldRoll*(ship ? 0.6f : 0.25f),"Roll sensitivity");
                 if (ship)
                 {
                     float previousTorque=modifier ? MathHelper.Clamp(horizontal*10*0.2f,-1,1) : 0;
@@ -50,11 +50,12 @@ namespace SpaceEngineersVR.Diagnostics
                 PluginConfig migrated;
                 using(var xml=new StringReader("<PluginConfig><HelmetHudMode>"+legacy+"</HelmetHudMode></PluginConfig>")) migrated=(PluginConfig)serializer.Deserialize(xml);
                 if(migrated.ShowVitals!=(legacy>0) || migrated.WaypointMode!=Math.Max(0,legacy-1)) throw new Exception("Legacy HUD visibility changed");
+                int initialProfile=new[] {0,0,2,3}[legacy];
                 for(int press=1;press<=4;press++)
                 {
                     migrated.CycleHud();
-                    int expected=(legacy+press)%4;
-                    if(migrated.ShowVitals!=(expected>0) || migrated.WaypointMode!=Math.Max(0,expected-1))
+                    int expected=(initialProfile+press)%4;
+                    if(migrated.HudProfileIndex!=expected || migrated.ShowVitals!=(expected==2) || migrated.WaypointMode!=new[] {0,1,1,2}[expected])
                         throw new Exception("Head gesture HUD cycle differs after legacy migration");
                     using(var xml=new StringWriter())
                     {
@@ -75,7 +76,7 @@ namespace SpaceEngineersVR.Diagnostics
                 }
                 if(!migrated.PhysicalShipControlsOnly || migrated.ShowVitals || migrated.WaypointMode!=2 || !migrated.HudWithVisorOpen || !migrated.InvertShipPitch || migrated.InvertJetpackPitch || migrated.ThirdPersonRotationGlide!=0)
                     throw new Exception("Independent HUD/flight/glide settings lost after save");
-                if(migrated.GroupSignals || migrated.SignalEdges || migrated.SignalRings || migrated.ShowGps || migrated.ShowContacts || migrated.ShowResources ||
+                if(!migrated.GroupSignals || migrated.SignalEdges || migrated.SignalRings || migrated.ShowGps || migrated.ShowContacts || migrated.ShowResources ||
                     migrated.OwnSignalRange!=.25f || migrated.FriendlySignalRange!=.5f || migrated.OtherSignalRange!=.75f) throw new Exception("Signal preferences lost after save");
                 migrated.ThirdPersonZoomSensitivity=float.NaN; migrated.ThirdPersonPanGlide=float.PositiveInfinity;
                 Near(migrated.ThirdPersonZoomSensitivity,1,"Invalid zoom sensitivity"); Near(migrated.ThirdPersonPanGlide,1,"Invalid pan glide");

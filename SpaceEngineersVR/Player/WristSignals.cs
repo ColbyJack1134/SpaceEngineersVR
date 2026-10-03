@@ -227,17 +227,16 @@ namespace SpaceEngineersVR.Player
             var visible=candidates.Where(c=>c.Visible).Take(64).ToArray();
             if(atlas==null) {atlas=new OverlayCanvas("Wrist signal names",2048,2048,1,false,device,true); texture=new ShaderResourceView(device,atlas.Texture);}
             string names=string.Join("\n",visible.Select(c=>c.Marker.Id+"|"+c.Marker.Name));
-            string key=names+"\n"+string.Join("\n",visible.Select(c=>WorldMarkers.Distance(c.Marker.Distance)+"|"+c.Marker.Color));
+            string key=names+"\n"+string.Join("\n",visible.Select(c=>WorldMarkers.Distance(c.Marker.Distance)+"|"+c.Marker.FontColor+"|"+c.Marker.Font));
             if((content!=key || revision!=NativeSprites.Revision) && (DateTime.UtcNow>=nextText || revision!=NativeSprites.Revision || content==null || !content.StartsWith(names+"\n",StringComparison.Ordinal)))
             {
-                atlas.Clear(Color.Transparent);
-                atlas.Upload(); glyphs.Clear();
+                atlas.ClearTexture(); glyphs.Clear();
                 for(int i=0;i<visible.Length;i++)
                 {
                     int x=i%4*512,y=i/4*128;
                     var c=visible[i];
-                    for(int line=0;line<c.Lines.Length;line++) SignalFont.Add(glyphs,c.Lines[line],x+6,y+line*28,26,c.Pixels-12,c.Marker.Color,2048,2048);
-                    SignalFont.Add(glyphs,WorldMarkers.Distance(c.Marker.Distance),x+6,y+c.Lines.Length*28+4,24,c.Pixels-12,c.Marker.Color,2048,2048);
+                    for(int line=0;line<c.Lines.Length;line++) SignalFont.Add(glyphs,c.Lines[line],x+6,y+line*28,26,c.Pixels-12,c.Marker.FontColor,2048,2048,font:c.Marker.Font);
+                    SignalFont.Add(glyphs,WorldMarkers.Distance(c.Marker.Distance),x+6,y+c.Lines.Length*28+4,24,c.Pixels-12,c.Marker.FontColor,2048,2048,font:c.Marker.Font);
                 }
                 NativeSprites.Draw(atlas.Texture,glyphs); device.ImmediateContext.GenerateMips(texture); content=key; revision=NativeSprites.Revision; nextText=DateTime.UtcNow.AddMilliseconds(100);
             }
@@ -268,9 +267,9 @@ namespace SpaceEngineersVR.Player
             {
                 var pose=MatrixD.CreateRotationZ(Math.Atan2(-c.Arrow.Y,c.Arrow.X)-Math.PI/2);
                 pose.Translation=new Vector3D((c.UV.X-.5)*panel.Width,(.5-c.UV.Y)*panel.Height,.001);
-                var sprite=SignalPainter.Atlas(MyHudTexturesEnum.DirectionIndicator,c.Marker.Color);
+                var sprite=SignalPainter.Artwork(SignalPainter.Atlas(MyHudTexturesEnum.DirectionIndicator,c.Marker.Color));
                 var quad=PhysicalSurface.Quad(null,pose*panel.Pose,new RectangleF(-.0025f,.0025f,.005f,.005f),sprite.UV,sprite.Tint,view,projection);
-                quad.Path=sprite.Path; sprites.Add(quad);
+                quad.Path=sprite.Path; quad.Premultiplied=sprite.Premultiplied; sprites.Add(quad);
             }
         }
     }

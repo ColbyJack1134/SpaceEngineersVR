@@ -104,22 +104,26 @@ namespace SpaceEngineersVR.Diagnostics
             Require(layout.Length<dense.Markers.Length/2,"Dense scene failed to group");
             var sparse=Scene("sparse",head,now);
             sparse.Mode=MyHudMarkerRender.SignalMode.NoNames;
-            Require(SignalLayout.Build(sparse,head,options,now).All(e=>e.Labels.Length==0),"Icons mode leaked pinned ore text");
+            var noNames=SignalLayout.Build(sparse,head,options,now);
+            Require(noNames.All(e=>e.Labels.Any(l=>!string.IsNullOrEmpty(l.Distance))),"Native No Names lost distances");
+            Require(noNames.Where(e=>!e.Primary.Pinned).All(e=>e.Labels.All(l=>string.IsNullOrEmpty(l.Name))),"Native No Names leaked ordinary names");
+            Require(noNames.Where(e=>e.Primary.Pinned).Any(e=>e.Labels.Any(l=>!string.IsNullOrEmpty(l.Name))),"Native pinned-name exception lost");
+            Require(SignalLayout.Build(sparse,head,new SignalLayout.Options {Distances=false},now).All(e=>e.Labels.All(l=>string.IsNullOrEmpty(l.Distance))),"Distance profile override ignored");
             sparse.Mode=MyHudMarkerRender.SignalMode.FullDisplay;
             Require(SignalLayout.Build(sparse,head,options,now).Sum(e=>e.Labels.Length)==4,"Details require head focus");
             var ids=layout.SelectMany(e=>e.Members).Select(m=>m.Id).OrderBy(id=>id).ToArray();
             Require(ids.Distinct().Count()==ids.Length,"Grouping duplicated signals");
             dense.Mode=MyHudMarkerRender.SignalMode.FullDisplay;
             layout=SignalLayout.Build(dense,head,options,now.AddSeconds(1));
-            var labels=layout.SelectMany(e=>e.Labels).ToArray();
-            for(int i=0;i<labels.Length;i++) for(int j=i+1;j<labels.Length;j++) Require(!SignalLayout.Ink(labels[i]).Any(inkA=>SignalLayout.Ink(labels[j]).Any(inkB=>SignalLayout.Overlaps(inkA,inkB))),"Signal labels overlap");
-            foreach(var e in layout) foreach(var label in e.Labels) foreach(var other in layout.Where(o=>o!=e)) Require(!SignalLayout.Ink(label).Any(ink=>SignalLayout.Overlaps(ink,other.SymbolBounds)),"Signal label obscures another icon");
+            Require(layout.Sum(e=>e.Labels.Length)<=64,"Signal atlas row budget exceeded");
             Require(layout.Where(e=>e.Members.Any(m=>m.Pinned)).All(e=>e.Members.Length==1),"Pinned waypoint was clustered");
             var reordered=new WorldMarkers.View(dense.Markers.Reverse().ToArray(),now) {Mode=dense.Mode};
             Require(layout.Select(e=>e.Id).SequenceEqual(SignalLayout.Build(reordered,head,options,now).Select(e=>e.Id)),"POI enumeration reorders groups");
             var cluster=Scene("cluster",head,now); cluster.Mode=MyHudMarkerRender.SignalMode.NoNames;
             cluster.Reveal=true;
-            Require(SignalLayout.Build(cluster,head,new SignalLayout.Options(),now).Any(e=>e.Members.Length>1),"Native reveal unexpectedly disables grouping");
+            var revealed=SignalLayout.Build(cluster,head,new SignalLayout.Options(),now);
+            Require(revealed.Any(e=>e.Members.Length>1),"Native reveal unexpectedly disables grouping");
+            Require(revealed.Where(e=>e.Members.Length>1).All(e=>e.Labels.Count(l=>l.LeftAligned)==e.Representatives.Count(m=>!string.IsNullOrEmpty(m.Name))),"Reveal suppressed group member names");
             var close=ClosePair(head,now);
             var pair=SignalLayout.Build(close,head,new SignalLayout.Options {Group=false},now);
             Require(pair.Length==2 && pair.All(e=>e.Labels.Length==1),"Two close ungrouped waypoints lost details");
@@ -190,7 +194,7 @@ namespace SpaceEngineersVR.Diagnostics
             }
             NativeSnapshot(log);
             WristSignals.Reset();
-            log("PASS signals: native contacts retained, deterministic grouping, pinned exclusions, label collision rejection, category switches, simultaneous coincident wrist names, front/beyond-panel checks, stale expiry, transformed large-world inspection and 0.1/25/250 third-person scales.");
+            log("PASS signals: native contacts retained, deterministic grouping, pinned exclusions, native distance/focus/reveal behavior, category switches, simultaneous coincident wrist names, front/beyond-panel checks, stale expiry, transformed large-world inspection and 0.1/25/250 third-person scales.");
         }
         private static void NativeSnapshot(Action<string> log)
         {
@@ -370,40 +374,45 @@ namespace SpaceEngineersVR.Diagnostics
         private static void CrosshairRenders(Device device,string output,Action<string> log)
         {
             using(var scene=new OverlayCanvas("Ship crosshair scenarios",1600,900,1,false,device))
-            foreach(string scenario in new[] {"forward","look-right","third-person","bright","lead","lead-range","lead-overlap","lead-bright"})
             {
-                var ship=MatrixD.CreateTranslation(1e12,-2e12,3e12);
-                var head=ship;
-                if(scenario=="look-right") head=MatrixD.CreateRotationY(-.3)*ship;
-                if(scenario=="third-person") head=MatrixD.CreateTranslation(8,5,18)*ship;
-                var aim=ShipCrosshair.Read(new Sandbox.Game.Gui.MyHudCrosshair(),ship);
-                var source=Scene("sparse",ship,DateTime.UtcNow); source.Mode=MyHudMarkerRender.SignalMode.NoNames;
-                NativeLead.View lead=null;
-                if(scenario.StartsWith("lead"))
+                var description=scene.Texture.Description; description.Format=SharpDX.DXGI.Format.B8G8R8A8_UNorm_SRgb;
+                using(var eyeTarget=new SharpDX.Direct3D11.Texture2D(device,description))
+                foreach(string scenario in new[] {"forward","look-right","third-person","bright","lead","lead-range","lead-overlap","lead-bright"})
                 {
-                    var target=new Vector3D(80,0,-700);
-                    var prediction=MarkerTests.Predict(target,scenario=="lead-overlap" ? Vector3D.Zero:new Vector3D(80,0,0));
-                    bool inRange=scenario!="lead-range";
-                    var ring=Marker("lead-target","OffscreenTarget","Enemies",ship.Translation+target,"");
-                    ring.Ring=NativeSignalProbe.Ring("Enemy",1); ring.Cluster=false; ring.LockState="Locked"; ring.Distance=target.Length();
-                    source=new WorldMarkers.View(new[] {ring},DateTime.UtcNow) {Mode=MyHudMarkerRender.SignalMode.NoNames};
-                    lead=new NativeLead.View {Position=ship.Translation+prediction,Target=ring.Position,InRange=inRange,
-                        Color=MyHudMarkerRender.MyTargetIndicatorRender.GetTargetingColor(Sandbox.Game.GUI.MyStatControlTargetingProgressBar.ProgressBarTargetType.Enemy,inRange).ToVector4()};
-                }
-                var entries=SignalLayout.Build(source,head,new SignalLayout.Options(),DateTime.UtcNow);
-                var projection=VrMath.Projection(-.8f,.8f,-.45f,.45f,.05);
-                foreach(int eye in new[] {-1,1})
-                {
-                    var view=MatrixD.Invert(MatrixD.CreateTranslation(eye*.032,0,0)*head);
-                    Action paint=()=>
+                    var ship=MatrixD.CreateTranslation(1e12,-2e12,3e12);
+                    var head=ship;
+                    if(scenario=="look-right") head=MatrixD.CreateRotationY(-.3)*ship;
+                    if(scenario=="third-person") head=MatrixD.CreateTranslation(8,5,18)*ship;
+                    var aim=ShipCrosshair.Read(new Sandbox.Game.Gui.MyHudCrosshair(),ship);
+                    var source=Scene("sparse",ship,DateTime.UtcNow); source.Mode=MyHudMarkerRender.SignalMode.NoNames;
+                    NativeLead.View lead=null;
+                    if(scenario.StartsWith("lead"))
                     {
-                        Background(scene,scenario.Contains("bright"));
-                        SignalPainter.Draw(scene.Texture,entries,head,view,projection);
-                        ShipCrosshair.Draw(scene.Texture,aim,head,view,projection);
-                        NativeLead.Draw(scene.Texture,lead,head,view,projection);
-                    };
-                    paint(); WaitIcons(); paint();
-                    UiTests.Save(scene.Texture,Path.Combine(output,"ship-crosshair-"+scenario+"-"+eye+".png"));
+                        var target=new Vector3D(80,0,-700);
+                        var prediction=MarkerTests.Predict(target,scenario=="lead-overlap" ? Vector3D.Zero:new Vector3D(80,0,0));
+                        bool inRange=scenario!="lead-range";
+                        var ring=Marker("lead-target","OffscreenTarget","Enemies",ship.Translation+target,"");
+                        ring.Ring=NativeSignalProbe.Ring("Enemy",1); ring.Cluster=false; ring.LockState="Locked"; ring.Distance=target.Length();
+                        source=new WorldMarkers.View(new[] {ring},DateTime.UtcNow) {Mode=MyHudMarkerRender.SignalMode.NoNames};
+                        lead=new NativeLead.View {Position=ship.Translation+prediction,Target=ring.Position,InRange=inRange,CircleSize=ring.Ring.Size,RangeTextSize=inRange ? Vector2.Zero:NativeLead.MeasureRangeText(),
+                            Color=MyHudMarkerRender.MyTargetIndicatorRender.GetTargetingColor(Sandbox.Game.GUI.MyStatControlTargetingProgressBar.ProgressBarTargetType.Enemy,inRange).ToVector4()};
+                    }
+                    var entries=SignalLayout.Build(source,head,new SignalLayout.Options(),DateTime.UtcNow);
+                    var projection=VrMath.Projection(-.8f,.8f,-.45f,.45f,.05);
+                    foreach(int eye in new[] {-1,1})
+                    {
+                        var view=MatrixD.Invert(MatrixD.CreateTranslation(eye*.032,0,0)*head);
+                        Action paint=()=>
+                        {
+                            Background(scene,scenario.Contains("bright"));
+                            device.ImmediateContext.CopyResource(scene.Texture,eyeTarget);
+                            SignalPainter.Draw(eyeTarget,entries,head,view,projection);
+                            ShipCrosshair.Draw(eyeTarget,aim,head,view,projection);
+                            NativeLead.Draw(eyeTarget,lead,head,view,projection);
+                        };
+                        paint(); WaitIcons(); paint();
+                        UiTests.Save(eyeTarget,Path.Combine(output,"ship-crosshair-"+scenario+"-"+eye+".png"));
+                    }
                 }
             }
             log("PASS production ship aim renders: stereo crosshair, head turns, observer offset, large coordinates; native lead, overlap, range warning and dark/bright backgrounds.");
@@ -449,13 +458,11 @@ namespace SpaceEngineersVR.Diagnostics
                 var now=DateTime.UtcNow;
                 int state=context.StartsWith("state-") ? int.Parse(context.Substring(6)):0;
                 var source=Scene(state>0 ? "sparse":"dense-long-edge",head,now);
-                source.Mode=state==1 || state==2 ? MyHudMarkerRender.SignalMode.Off:state==3 ? MyHudMarkerRender.SignalMode.NoNames:MyHudMarkerRender.SignalMode.FullDisplay;
+                source.Mode=state==1 ? MyHudMarkerRender.SignalMode.Off:state==2 || state==3 ? MyHudMarkerRender.SignalMode.NoNames:MyHudMarkerRender.SignalMode.FullDisplay;
                 var projection=VrMath.Projection(-.971204f,.971204f,-.546302f,.546302f,.05);
                 float scale=EssentialHud.FitScale(projection,projection);
-                var options=new SignalLayout.Options {Reserved=EssentialHud.SignalLabelReservations(scale,seated)};
+                var options=new SignalLayout.Options(); options.Projection(projection);
                 var entries=SignalLayout.Build(source,head,options,now);
-                foreach(var edge in entries.Where(e=>e.Edge)) Require(!options.Reserved.Any(r=>SignalLayout.Overlaps(edge.SymbolBounds,r)),"Peripheral signal covers ordinary HUD");
-                foreach(var label in entries.SelectMany(e=>e.Labels)) Require(!options.Reserved.Any(r=>SignalLayout.Overlaps(label.Bounds,r)),"Signal label covers ordinary HUD");
                 var status=new EssentialHud.View {Levels=new[] {.85f,.7f,.9f,.6f},Values=new[] {"85","70","90","60"},Icons=new[] {NativeSprites.Hud("EnergyIcon")},
                     Selected=seated ? "Gatling Gun":"Enhanced Welder",Ammo=seated ? "2,400":"",Speed="24.6",SpeedLevel=.246f,Helmet=true,Jetpack=!seated,Dampeners=true,Piloting=seated,
                     ShipPower=true,ShipBroadcasting=true,ShipBattery="61%  12.4 MWh",ShipBatteryLevel=.61f,ShipHydrogen="78%",ShipHydrogenLevel=.78f,ShipLoad="43%",ShipLoadLevel=.43f,
@@ -463,11 +470,11 @@ namespace SpaceEngineersVR.Diagnostics
                 EssentialHud.Paint(hud,status); WaitIcons(); EssentialHud.Paint(hud,status); hud.Upload();
                 Background(scene,context=="on-foot"); SignalPainter.Draw(scene.Texture,entries,head,MatrixD.Invert(head),projection);
                 var pose=MatrixD.CreateTranslation(0,EssentialHud.OverlayY*scale,-EssentialHud.OverlayDepth)*head;
-                if(state!=1) NativeSprites.Draw(scene.Texture,new[] {PhysicalSurface.Quad(texture,pose,new VRageMath.RectangleF(-EssentialHud.OverlayWidth*scale/2,EssentialHud.OverlayHeight*scale/2,
+                if(state==0 || state==3) NativeSprites.Draw(scene.Texture,new[] {PhysicalSurface.Quad(texture,pose,new VRageMath.RectangleF(-EssentialHud.OverlayWidth*scale/2,EssentialHud.OverlayHeight*scale/2,
                     EssentialHud.OverlayWidth*scale,EssentialHud.OverlayHeight*scale),new Vector4(0,0,1,1),Vector4.One,MatrixD.Invert(head),projection)});
                 UiTests.Save(scene.Texture,Path.Combine(output,"signals-context-"+context+".png"));
             }
-            log("PASS combined production HUD: on-foot/cockpit/third-person fixtures, existing gauges/equipment, labels excluded from occupied vitals areas.");
+            log("PASS combined production HUD: on-foot/cockpit/third-person fixtures, existing gauges/equipment, four default states and native focus/reveal placement.");
         }
         private static void GlyphAlpha(Device device,string output,Action<string> log)
         {

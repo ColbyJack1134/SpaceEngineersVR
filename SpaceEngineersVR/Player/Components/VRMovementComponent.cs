@@ -21,6 +21,8 @@ namespace SpaceEngineersVR.Player.Components
         private bool hadControllerMovement;
         private bool wasShooting;
         private bool wasSecondary;
+        private readonly Control.InputGate stickSecondary=new Control.InputGate();
+        private MyShipController jumpOwner;
         private System.DateTime nextInputTrace;
 
         public static bool UsingControllerMovement;
@@ -51,6 +53,8 @@ namespace SpaceEngineersVR.Player.Components
             {
                 if (!ReferenceEquals(inputOwner, MySession.Static.ControlledEntity)) StopInput();
                 inputOwner = MySession.Static.ControlledEntity;
+                if(jumpOwner!=null && !NativeActions.WheelJumpAllowed)
+                { jumpOwner.WheelJump(false); jumpOwner=null; Controls.Static.FlightJump.BlockUntilRelease(); }
                 if(!RemoteView.Active) BodyLocomotion.Update(Character);
                 else if(RemoteView.CharacterAnchor) { CameraRig.Begin(Character); CameraRig.End(Character); }
 
@@ -125,6 +129,8 @@ namespace SpaceEngineersVR.Player.Components
 
         private void StopInput()
         {
+            jumpOwner?.WheelJump(false); jumpOwner=null; stickSecondary.Block();
+            if(ReferenceEquals(active,this) || inputOwner!=null) Controls.Static.FlightJump.BlockUntilRelease();
             var controlled = inputOwner;
             if (hadControllerMovement) { RemoteView.Stop(controlled); controlled?.MoveAndRotateStopped(); }
             if (wasShooting) controlled?.EndShoot(MyShootActionEnum.PrimaryAction);
@@ -138,6 +144,13 @@ namespace SpaceEngineersVR.Player.Components
         void ControlShip()
         {
             var controls = Controls.Static;
+            var ship=(MyShipController)MySession.Static.ControlledEntity;
+            if(NativeActions.WheelJumpAllowed)
+            {
+                jumpOwner=ship;
+                ship.WheelJump(NativeActions.Read(Sandbox.Game.MyControlsSpace.WHEEL_JUMP,VRage.Input.MyControlStateType.PRESSED));
+            }
+            else if(jumpOwner!=null) { jumpOwner.WheelJump(false); jumpOwner=null; }
 
             Vector3 move=Vector3.Zero; Vector2 rotate=Vector2.Zero; float roll=0;
             bool controllerFlight=FlightAxes.ControllerInputAllowed(true,ThirdPersonView.Active || RemoteView.RemoteGrid && RemoteView.HomeSeat==null,Common.Config.PhysicalShipControlsOnly);
@@ -219,7 +232,7 @@ namespace SpaceEngineersVR.Player.Components
         {
             var controls = Controls.Static;
             move = FlightAxes.Translation(controls.ThrustLRUD.Position, controls.ThrustLRFB.Position,
-                controls.ThrustUp.Position.X, WeaponHandling.ConsumesLeftGrip || !ThirdPersonView.DescentReady ? 0 : controls.ThrustDown.Position.X, controls.ThrustForward.Position.X, controls.ThrustBackward.Position.X);
+                ship && CockpitControls.Held(Player.HandL) ? 0 : controls.ThrustUp.Position.X, WeaponHandling.ConsumesLeftGrip || !ThirdPersonView.DescentReady ? 0 : controls.ThrustDown.Position.X, controls.ThrustForward.Position.X, controls.ThrustBackward.Position.X);
             float rollSensitivity = ship ? Common.Config.ShipRollSensitivity : Common.Config.JetpackRollSensitivity;
             FlightAxes.Rotation(controls.ThrustRotate.Position, controls.ThrustRoll.IsPressed && !PlacementControls.OwnsTools && !TouchScreenBridge.OwnsInput, ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
         }
@@ -245,8 +258,13 @@ namespace SpaceEngineersVR.Player.Components
             var controls = Controls.Static;
 
             var controlledEntity = MySession.Static.ControlledEntity;
+            bool stickAction=controlledEntity is MyShipController && InputRouter.Mode==InputMode.Piloting && CockpitControls.Held(Player.HandL) &&
+                !CockpitControls.Adjusting && !PlacementControls.OwnsTools && !BlockInspection.ConsumesSecondary && !HelmetHud.ProtectsRight &&
+                !TouchScreenBridge.OwnsInput && !RemoteView.OwnsInput && Player.HandL.pose.isTracked;
+            stickSecondary.Update(stickAction && controls.LeftTriggerPressure.Active && controls.LeftTriggerPressure.CanPress,
+                controls.LeftTriggerPressure.RawPosition.X>.55f);
             bool primaryPressed=!HelmetHud.ProtectsRight && !RemoteView.OwnsInput && controls.Primary.IsPressed && !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput;
-            bool secondaryPressed=!HelmetHud.ProtectsRight && !RemoteView.Turret && !RemoteView.OwnsInput && !BlockInspection.ConsumesSecondary && (controls.Secondary.IsPressed && FlightAxes.SecondaryGrip(InputRouter.Flying,controlledEntity is MyShipController,
+            bool secondaryPressed=!HelmetHud.ProtectsRight && !RemoteView.Turret && !RemoteView.OwnsInput && !BlockInspection.ConsumesSecondary && (stickSecondary.Held || controls.Secondary.IsPressed && FlightAxes.SecondaryGrip(InputRouter.Flying,controlledEntity is MyShipController,
                 CockpitControls.RotationOwned,CockpitControls.NearGrip(Player.HandR),controls.ThrustRotate.RawPosition) || controls.Primary.IsPressed && GameActions.AlternateTrigger) && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput;
             if(controlledEntity is Sandbox.Game.Entities.Character.MyCharacter character && character.CurrentWeapon==null)
                 secondaryPressed=false;
@@ -263,6 +281,7 @@ namespace SpaceEngineersVR.Player.Components
             if (secondaryPressed && !wasSecondary)
             {
                 controlledEntity?.BeginShoot(MyShootActionEnum.SecondaryAction);
+                ShipTargeting.SecondaryPressed(controlledEntity);
             }
             else if (!secondaryPressed && wasSecondary)
             {

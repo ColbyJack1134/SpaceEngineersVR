@@ -29,8 +29,8 @@ namespace SpaceEngineersVR.Player
                     ()=> {if(!exists)c.AddHudProfile(); c.SelectHudProfile(index);},active:exists && i==selected);
             }
             Add(keys,"Vitals",.025f,.38f,.46f,.077f,()=>edit(v=>v.Vitals=!v.Vitals),value:p.Vitals ? "On":"Off");
-            Add(keys,"Markers",.025f,.465f,.46f,.077f,()=>edit(v=>v.Markers=(v.Markers+1)%3),value:new[] {"Off","Icons","Detailed"}[p.Markers]);
-            Add(keys,"Grouping",.025f,.55f,.46f,.077f,()=>edit(v=>v.Group=!v.Group),value:p.Group ? "On":"Off");
+            Add(keys,"Markers",.025f,.465f,.46f,.077f,()=>edit(v=>v.Markers=(v.Markers+1)%3),value:new[] {"Off","No names","Detailed"}[p.Markers]);
+            Add(keys,"Distances",.025f,.55f,.46f,.077f,()=>edit(v=>v.Distances=!v.Distances),value:p.Distances ? "On":"Off");
             Step(keys,"Icon size",p.IconScale,.635f,.75f,2.5f,.25f,v=>edit(h=>h.IconScale=v));
             Step(keys,"Text size",p.TextScale,.72f,.75f,1.5f,.125f,v=>edit(h=>h.TextScale=v));
             Add(keys,"GPS / objectives",.515f,0.380f,.46f,.068f,()=>c.ShowGps=!c.ShowGps,value:c.ShowGps ? "On":"Off");
@@ -40,6 +40,7 @@ namespace SpaceEngineersVR.Player
             Add(keys,"Wrist arrows",.515f,0.680f,.46f,.068f,()=>c.SignalEdges=!c.SignalEdges,value:c.SignalEdges ? "On":"Off");
             Add(keys,"HUD with visor open",.515f,0.755f,.46f,.068f,()=>c.HudWithVisorOpen=!c.HudWithVisorOpen,value:c.HudWithVisorOpen ? "On":"Off");
             Add(keys,"Ship crosshair",.515f,.83f,.46f,.068f,()=>c.ShipCrosshair=!c.ShipCrosshair,value:c.ShipCrosshair ? "On":"Off");
+            Add(keys,"Marker roll",.025f,.83f,.46f,.068f,()=>c.CharacterMarkerRoll=!c.CharacterMarkerRoll,value:c.CharacterMarkerRoll ? "Character":"Headset");
             Add(keys,"Back",.025f,.91f,.22f,.07f,()=>WristPanel.Show(0));
             Add(keys,"Reset state",.265f,.91f,.22f,.07f,()=>c.ResetHudProfile(selected));
             if(selected==4) Add(keys,"Remove state",.515f,.91f,.25f,.07f,c.RemoveExtraHudProfile);
@@ -58,11 +59,13 @@ namespace SpaceEngineersVR.Player
             var g=target.Graphics;
             using(var heading=new Font("Segoe UI",27,FontStyle.Bold,GraphicsUnit.Pixel))
             using(var small=new Font("Segoe UI",19,FontStyle.Regular,GraphicsUnit.Pixel))
+            using(var compact=new Font("Segoe UI",14,FontStyle.Regular,GraphicsUnit.Pixel))
             using(var muted=new SolidBrush(Color.FromArgb(157,184,199)))
             {
                 g.DrawString("HUD",heading,Brushes.White,26,95);
                 g.DrawString("THIS STATE",small,muted,26,211);
                 g.DrawString("ALL STATES",small,muted,528,211);
+                g.DrawString("ALL STATES",compact,muted,26,512);
             }
             PhysicalSurface.PaintWristKeys(target,panel);
         }

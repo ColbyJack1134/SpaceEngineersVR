@@ -70,10 +70,7 @@ namespace SpaceEngineersVR.Player
         private static bool failed;
         internal const float OverlayWidth=1.6f,OverlayHeight=OverlayWidth*560/1280,OverlayY=-.4f,OverlayDepth=1.5f;
         internal static float DisplayScale { get; private set; }=1;
-        internal static VRageMath.RectangleF[] SignalLabelReservations(float scale,bool piloting) => new[] {
-            new VRageMath.RectangleF(-.51f*scale,(piloting ? .23f:.325f)*scale,.47f*scale,.29f*scale),
-            new VRageMath.RectangleF(.15f*scale,.275f*scale,.37f*scale,.25f*scale),
-            new VRageMath.RectangleF(-.19f*scale,.445f*scale,.44f*scale,.08f*scale) };
+
         private static string notice;
         private static DateTime noticeUntil;
         public static void Notify(string message) { notice = message; noticeUntil = DateTime.UtcNow.AddSeconds(3); }

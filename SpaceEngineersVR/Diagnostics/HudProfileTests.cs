@@ -29,8 +29,13 @@ namespace SpaceEngineersVR.Diagnostics
         }
         public static void Run(Action<string> log)
         {
+            var oldDefaults=new PluginConfig {HudProfiles=Enumerable.Range(0,4).Select(i=>new HudProfile {Vitals=i>0,Markers=Math.Max(0,i-1),IconScale=1.25f,TextScale=.875f,Group=false}).ToArray()};
+            oldDefaults.InitializeHudProfiles();
+            Require(oldDefaults.HudProfiles.Select(p=>p.Markers).SequenceEqual(new[] {0,1,1,2}) &&
+                oldDefaults.HudProfiles.Select(p=>p.Vitals).SequenceEqual(new[] {false,false,true,false}),"Old default states did not migrate");
+            Require(oldDefaults.HudProfiles.All(p=>p.IconScale==1.25f && p.TextScale==.875f && p.Group),"Migration lost sizing or retained ungrouped states");
             var c=new PluginConfig(); c.InitializeHudProfiles(); WristHud.Open(c);
-            Press(c,"4  Details"); Press(c,"Vitals");
+            Press(c,"4  Details");
             Require(c.HudProfileIndex==3 && !c.ShowVitals,"Selecting a state did not activate it immediately");
              Require(!c.ShowVitals && c.WaypointMode==2,"Selected state failed to apply details without vitals");
             c.GroupSignals=false; c.SignalIconScale=2; c.SignalTextScale=1.25f;
@@ -39,8 +44,11 @@ namespace SpaceEngineersVR.Diagnostics
             Press(c,"Ship crosshair"); Require(!c.ShipCrosshair,"Shared ship crosshair toggle failed");
             c.WristSignalTint=.6f; c.HudWithVisorOpen=true; c.SignalEdges=false; c.ShowContacts=false;
             c.CycleHud(); Require(c.HudProfileIndex==0 && !c.ShowVitals && c.WaypointMode==0,"Five-state wrap skipped Off");
-            c.SelectHudProfile(3); Require(!c.GroupSignals && c.SignalIconScale==2 && c.SignalTextScale==1.25f,"Profile edits lost during cycling");
+            c.SelectHudProfile(3); Require(c.GroupSignals && c.SignalIconScale==2 && c.SignalTextScale==1.25f,"Profile edits lost during cycling");
             Require(!c.ShipCrosshair && c.WristSignalTint==.6f && c.HudWithVisorOpen && !c.SignalEdges && !c.ShowContacts,"Global visibility/tint changed on profile selection");
+            Press(c,"Distances"); Require(!c.ShowSignalDistances,"Selected state distance toggle ignored");
+            c.SelectHudProfile(2); Require(c.ShowSignalDistances,"Distance visibility leaked across profiles"); c.SelectHudProfile(3);
+            Press(c,"Marker roll"); Require(c.CharacterMarkerRoll && !Panel(c).Keys.Any(k=>k.Label=="Grouping"),"Marker roll selector or grouping removal failed");
             var serializer=new XmlSerializer(typeof(PluginConfig));
             using(var text=new StringWriter())
             {
@@ -48,10 +56,10 @@ namespace SpaceEngineersVR.Diagnostics
                 string legacy=text.ToString().Replace("<Vitals>","<Tint>0.15</Tint><VisorOpen>false</VisorOpen><Vitals>");
                 using(var input=new StringReader(legacy)) c=(PluginConfig)serializer.Deserialize(input);
             }
-            c.InitializeHudProfiles(); Require(c.HudProfiles.Length==5 && c.HudProfileIndex==3 && !c.ShowVitals && c.WaypointMode==2 && c.SignalIconScale==2,"Profile XML round trip lost the active state");
+            c.InitializeHudProfiles(); Require(c.CharacterMarkerRoll && !c.ShowSignalDistances,"Marker roll or profile distances lost after XML round trip"); Require(c.HudProfiles.Length==5 && c.HudProfileIndex==3 && !c.ShowVitals && c.WaypointMode==2 && c.SignalIconScale==2,"Profile XML round trip lost the active state");
             Require(!c.ShipCrosshair && c.WristSignalTint==.6f && c.HudWithVisorOpen && !c.SignalEdges && !c.ShowContacts,"Legacy profile fields overwrote global XML settings");
             c.SelectHudProfile(4); c.RemoveExtraHudProfile(); Require(c.HudProfiles.Length==4 && c.HudProfileIndex==3,"Removing active extra state left an invalid index");
-            c.ResetHudProfile(3); Require(c.ShowVitals && c.WaypointMode==2 && c.GroupSignals && c.SignalIconScale==1.5f,"Reset state failed");
+            c.ResetHudProfile(3); Require(!c.ShowVitals && c.ShowSignalDistances && c.WaypointMode==2 && c.GroupSignals && c.SignalIconScale==1.5f,"Reset state failed");
             c.EditHudProfile(3,p=> {p.Markers=999; p.IconScale=float.NaN; p.TextScale=float.PositiveInfinity;});
             Require(c.WaypointMode==2 && c.SignalIconScale==1.5f && c.SignalTextScale==1,"Invalid profile values escaped normalization");
             WristHud.Open(c);

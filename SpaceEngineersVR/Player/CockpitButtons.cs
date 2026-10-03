@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using SpaceEngineersVR.Plugin;
+using SpaceEngineersVR.Multiplayer;
 using VRageMath;
 
 namespace SpaceEngineersVR.Player
@@ -36,18 +37,30 @@ namespace SpaceEngineersVR.Player
                 Keys=new[] {new SurfaceKey("",0,0,1,1)} };
         }
         private static void Release() { HoveredSwitch=-1; Targets=new CockpitTouch.Target[0]; Views=new SurfaceView[0]; }
+        private static readonly double[] pendingCovers=new double[CockpitLayout.MaximumCount];
         private static void ResetCovers()
         {
-            Array.Clear(covers,0,covers.Length); Array.Clear(open,0,open.Length);
+            Array.Clear(covers,0,covers.Length); Array.Clear(open,0,open.Length); Array.Clear(pendingCovers,0,pendingCovers.Length);
             var saved=owner==null ? null : Common.Config.CockpitStates.FirstOrDefault(s=>s.World==Sandbox.Game.World.MySession.Static.CurrentPath && s.Cockpit==owner.EntityId)?.Covers;
             if(saved!=null) for(int i=0;i<Math.Min(saved.Length,covers.Length);i++) { open[i]=saved[i]; covers[i]=saved[i] ? 1 : 0; }
+            SynchronizeCovers(true);
         }
-        private static void SaveCovers()
+        private static void SaveCovers(int index)
         {
             if(owner==null) return;
-            string world=Sandbox.Game.World.MySession.Static.CurrentPath;
-            var entry=new Config.CockpitStateSetting { World=world,Cockpit=owner.EntityId,Covers=(bool[])open.Clone() };
-            Common.Config.CockpitStates=Common.Config.CockpitStates.Where(s=>s.World!=world || s.Cockpit!=owner.EntityId).Concat(new[] {entry}).ToArray();
+            pendingCovers[index]=MultiplayerRuntime.Now+5;
+            MultiplayerRuntime.SaveCover(owner,index,open[index]);
+        }
+        private static void SynchronizeCovers(bool snap=false)
+        {
+            if(owner==null || !MultiplayerRuntime.Get(owner,out var shared)) return;
+            for(int i=0;i<open.Length;i++)
+            {
+                bool value=i<shared.Covers.Length && shared.Covers[i];
+                if(!snap && MultiplayerRuntime.Now<pendingCovers[i] && open[i]!=value) continue;
+                pendingCovers[i]=0; open[i]=value;
+                if(snap) covers[i]=open[i] ? 1:0;
+            }
         }
         public static void Reset()
         {
@@ -65,7 +78,7 @@ namespace SpaceEngineersVR.Player
                 CockpitActions.Update(eligible ? seat : null);
                 if(!ReferenceEquals(owner,seat))
                 { owner=seat; subtype=seat?.BlockDefinition.Id.SubtypeName; Release(); ResetCovers(); Array.Clear(positions,0,positions.Length); Array.Clear(pulses,0,pulses.Length); }
-                Release();
+                Release(); SynchronizeCovers();
                 if(!eligible || ThirdPersonView.Active || !InputRouter.CockpitInteraction || Main.MenuOpen || CockpitControls.Adjusting) return;
                 subtype=seat.BlockDefinition.Id.SubtypeName;
                 var rig=CockpitRig.Find(subtype);
@@ -127,7 +140,7 @@ namespace SpaceEngineersVR.Player
                     if(target.Cover)
                     {
                         int coverIndex=CoverIndex(i);
-                        if(input.Requested.HasValue) { open[coverIndex]=input.Requested.Value; SaveCovers(); CockpitFeedback.Click(input.Actor,cover:true); }
+                        if(input.Requested.HasValue && CockpitActions.SharedReady) { open[coverIndex]=input.Requested.Value; SaveCovers(coverIndex); CockpitFeedback.Click(input.Actor,cover:true); }
                         covers[coverIndex]=input.Position ?? covers[coverIndex]+MathHelper.Clamp((open[coverIndex] ? 1 : 0)-covers[coverIndex],-step*.65f,step*.65f);
                         continue;
                     }

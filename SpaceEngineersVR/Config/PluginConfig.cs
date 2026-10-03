@@ -84,12 +84,14 @@ namespace SpaceEngineersVR.Config
         public bool HudWithVisorOpen { get => hudWithVisorOpen; set => SetValue(ref hudWithVisorOpen,value); }
         public bool ShowVitals { get => showVitals ?? helmetHudMode>0; set => SetValue(ref showVitals,(bool?)value); }
         public int WaypointMode { get => waypointMode<0 ? Math.Max(0,helmetHudMode-1):waypointMode; set => SetValue(ref waypointMode,Math.Max(0,Math.Min(2,value))); }
-        private bool groupSignals=true,signalEdges=true,signalRings=true,showGps=true,showContacts=true,showResources=true;
+        private bool signalEdges=true,signalRings=true,showGps=true,showContacts=true,showResources=true;
         private float ownSignalRange=1,friendlySignalRange=1,otherSignalRange=1;
         public float OwnSignalRange { get => ownSignalRange; set => SetValue(ref ownSignalRange,Bound(value,0,1,1)); }
         public float FriendlySignalRange { get => friendlySignalRange; set => SetValue(ref friendlySignalRange,Bound(value,0,1,1)); }
         public float OtherSignalRange { get => otherSignalRange; set => SetValue(ref otherSignalRange,Bound(value,0,1,1)); }
-        public bool GroupSignals { get => groupSignals; set => SetValue(ref groupSignals,value); }
+        public bool GroupSignals { get => true; set { } }
+        private bool characterMarkerRoll;
+        public bool CharacterMarkerRoll { get => characterMarkerRoll; set => SetValue(ref characterMarkerRoll,value); }
         public bool SignalEdges { get => signalEdges; set => SetValue(ref signalEdges,value); }
         public bool SignalRings { get => signalRings; set => SetValue(ref signalRings,value); }
         private bool shipCrosshair=true;

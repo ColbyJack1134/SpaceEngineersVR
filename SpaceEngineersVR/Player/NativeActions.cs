@@ -20,11 +20,15 @@ namespace SpaceEngineersVR.Player
             if (enabled)
             {
                 owner = MySession.Static?.ControlledEntity;
+                if(HelmetHud.Reveal) frame.Queue(MyControlsSpace.SIGNALS_FULLY_VISIBLE);
+                if(WheelJumpAllowed && Controls.Static.FlightJump.IsPressed) frame.Queue(MyControlsSpace.WHEEL_JUMP);
                 PlacementControls.Queue(frame, PlacementControls.Mode, Controls.Static.Primary.IsPressed,
                     Controls.Static.Secondary.IsPressed, GameActions.AlternateTrigger);
             }
             frame.Advance(enabled);
         }
+        internal static bool WheelJumpAllowed => InputRouter.Mode==InputMode.Piloting && MySession.Static?.ControlledEntity is MyShipController ship &&
+            ship.ControlWheels && !RemoteView.OwnsInput && !PlacementControls.Adjusting && !CockpitControls.Adjusting && !ThirdPersonView.Manipulating;
         public static bool Read(MyStringId action, MyControlStateType type) =>
             Main.VrActive && InputRouter.Gameplay && !Main.MenuOpen && frame.Read(action, type);
 
@@ -37,6 +41,7 @@ namespace SpaceEngineersVR.Player
             if (PlacementControls.Mode == InputMode.Building) MyCubeBuilder.Static?.InputLost();
             if (WasHeld(MyControlsSpace.PRIMARY_TOOL_ACTION)) owner?.EndShoot(MyShootActionEnum.PrimaryAction);
             if (WasHeld(MyControlsSpace.SECONDARY_TOOL_ACTION)) owner?.EndShoot(MyShootActionEnum.SecondaryAction);
+            if(WasHeld(MyControlsSpace.WHEEL_JUMP)) (owner as MyShipController)?.WheelJump(false);
             frame.Reset(); owner = null;
         }
     }

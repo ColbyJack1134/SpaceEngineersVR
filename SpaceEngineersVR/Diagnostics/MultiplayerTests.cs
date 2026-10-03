@@ -1,0 +1,158 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Runtime.Serialization.Json;
+using HarmonyLib;
+using Sandbox.Common.ObjectBuilders;
+using Sandbox.Game.EntityComponents;
+using SpaceEngineersVR.Multiplayer;
+using SpaceEngineersVR.Player;
+using VRage.Game;
+using VRage.Game.ObjectBuilders.ComponentSystem;
+using VRage.ModAPI;
+using VRage.Serialization;
+using VRageMath;
+
+namespace SpaceEngineersVR.Diagnostics
+{
+    public static class MultiplayerTests
+    {
+        private static void Require(bool value,string message) { if(!value) throw new Exception(message); }
+        private static PlayerPose Pose(uint sequence=1)
+            => new PlayerPose {Character=100,Sequence=sequence,Tracked=3,Left=Matrix.CreateTranslation(-.3f,1.3f,-.4f),
+                Right=Matrix.CreateTranslation(.3f,1.2f,-.5f),LeftFingers=ArmSkeleton.Fingers.Point,RightFingers=ArmSkeleton.Fingers.Stick,RightTrigger=.8f};
+        internal static void Run(Action<string> log)
+        {
+            var original=Pose(); var bytes=original.Encode(); var decoded=PlayerPose.Decode(bytes);
+            Require(bytes.Length==PlayerPose.Size && decoded!=null && decoded.Character==100 && decoded.Tracked==3,"Pose packet round trip failed");
+            Require(decoded.Left==original.Left && decoded.Right==original.Right && Math.Abs(decoded.RightTrigger-.8f)<.005f,"Pose transforms or trigger lost");
+            for(int n=0;n<bytes.Length;n++) Require(PlayerPose.Decode(bytes.Take(n).ToArray())==null,"Truncated pose accepted");
+            var bad=(byte[])bytes.Clone(); bad[24]=4; Require(PlayerPose.Decode(bad)==null,"Unknown tracking bits accepted");
+            bad=(byte[])bytes.Clone(); Array.Copy(BitConverter.GetBytes(float.NaN),0,bad,25,4); Require(PlayerPose.Decode(bad)==null,"Nonfinite hand accepted");
+            bad=(byte[])bytes.Clone(); Array.Copy(BitConverter.GetBytes(10f),0,bad,25,4); Require(PlayerPose.Decode(bad)==null,"Unbounded hand accepted");
+            bad=(byte[])bytes.Clone(); bad[81]=255; Require(PlayerPose.Decode(bad)==null,"Unknown hand animation accepted");
+            var stream=new PoseStream(); Require(stream.Push(decoded,1),"First pose rejected");
+            var next=Pose(2); next.Left.Translation+=Vector3.Right;
+            Require(stream.Push(next,1.05) && !stream.Push(decoded,1.06) && !stream.Push(next,1.07),"Duplicate/reordered pose accepted");
+            Require(Vector3.Distance(stream.Hand(true,1.075).Translation,Vector3.Lerp(decoded.Left.Translation,next.Left.Translation,.5f))<.0001f,"Interpolation misses midpoint");
+            Require(stream.Sample(1.55,out _) && !stream.Sample(1.56,out _),"Stale pose timeout failed");
+            var seated=Pose(3); seated.Seat=50; stream.Push(seated,1.1);
+            Require(stream.Hand(true,1.1)==seated.Left,"Seat change interpolates across reference frames");
+            var wrapped=new PoseStream(); wrapped.Push(Pose(uint.MaxValue),2); Require(wrapped.Push(Pose(0),2.05),"Sequence wrap rejected");
+            var record=new CockpitMemory.Record {Revision=3,Toolbar="<toolbar>parameter &amp; text</toolbar>",Covers=new[] {true,false,true}};
+            var saved=CockpitMemory.Decode(CockpitMemory.Encode(record));
+            Require(saved.Revision==3 && saved.Toolbar==record.Toolbar && saved.Covers.SequenceEqual(record.Covers),"Cockpit record loses assignments or covers");
+            foreach(var invalid in new[] {"invalid base64",Convert.ToBase64String(new byte[12]),new string('A',CockpitMemory.Limit*2+1)})
+            {
+                bool rejected=false; try { CockpitMemory.Decode(invalid); } catch { rejected=true; }
+                Require(rejected,"Invalid cockpit storage accepted");
+            }
+            log("PASS multiplayer payloads: pose round trip, truncated/nonfinite/out-of-reach rejection, finger flags, ordering/wrap, interpolation, seat changes, stale timeout and cockpit record persistence.");
+        }
+        private sealed class Remap : IMyRemapHelper
+        {
+            private readonly Dictionary<long,long> ids=new Dictionary<long,long>();
+            public long RemapEntityId(long id) { if(!ids.TryGetValue(id,out long mapped)) ids[id]=mapped=id+1000; return mapped; }
+            public string RemapEntityName(long id) => "copy-"+id;
+            public int RemapGroupId(string group,int id) => id+1000;
+            public void Clear() => ids.Clear();
+            public Dictionary<long,long> GetRemapInfo() => ids;
+        }
+        internal static void RunNative(Action<string> log)
+        {
+            var toolbar=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=new List<MyObjectBuilder_Toolbar.Slot> {
+                new MyObjectBuilder_Toolbar.Slot {Index=0,Data=new MyObjectBuilder_ToolbarItemTerminalBlock {BlockEntityId=21,_Action="OnOff"}},
+                new MyObjectBuilder_Toolbar.Slot {Index=40,Data=new MyObjectBuilder_ToolbarItemTerminalGroup {BlockEntityId=22,GroupName="Ship lights",_Action="OnOff"}} }};
+            var record=new CockpitMemory.Record {Revision=9,Toolbar=CockpitMemory.Toolbar(toolbar),Covers=new[] {true,false,true}};
+            Require(CockpitMemory.ValidToolbar(record.Toolbar,42) && !CockpitMemory.ValidToolbar(record.Toolbar,9),"Toolbar bounds validation failed");
+            var component=new MyModStorageComponent(); component.SetValue(CockpitMemory.Key,CockpitMemory.Encode(record));
+            var serialized=(MyObjectBuilder_ModStorageComponent)component.Serialize(true);
+            Require(serialized?.Storage.Dictionary.ContainsKey(CockpitMemory.Key)==true,"Plugin storage did not survive native serialization");
+            var block=new MyObjectBuilder_Cockpit {EntityId=20,ComponentContainer=new MyObjectBuilder_ComponentContainer {
+                Components=new List<MyObjectBuilder_ComponentContainer.ComponentData> {
+                    new MyObjectBuilder_ComponentContainer.ComponentData {TypeId=typeof(MyModStorageComponent).Name,Component=serialized}}}};
+            var original=(MyObjectBuilder_Cockpit)block.Clone();
+            block.Remap(new Remap());
+            var copied=CockpitMemory.Decode(((MyObjectBuilder_ModStorageComponent)block.ComponentContainer.Components[0].Component).Storage.Dictionary[CockpitMemory.Key]);
+            var copiedToolbar=CockpitMemory.Toolbar(copied.Toolbar);
+            Require(block.EntityId==1020 && ((MyObjectBuilder_ToolbarItemTerminalBlock)copiedToolbar.Slots[0].Data).BlockEntityId==1021 &&
+                ((MyObjectBuilder_ToolbarItemTerminalGroup)copiedToolbar.Slots[1].Data).BlockEntityId==1022,"Native copy remapping lost switch target references");
+            Require(copied.Covers.SequenceEqual(record.Covers),"Native copy lost cover states");
+            var untouched=CockpitMemory.Decode(((MyObjectBuilder_ModStorageComponent)original.ComponentContainer.Components[0].Component).Storage.Dictionary[CockpitMemory.Key]);
+            Require(untouched.Toolbar==record.Toolbar && untouched.Revision==9,"Copy mutated original cockpit assignments");
+            block.SetupForProjector(); var built=(MyObjectBuilder_Cockpit)block.Clone();
+            var projected=CockpitMemory.Decode(((MyObjectBuilder_ModStorageComponent)built.ComponentContainer.Components[0].Component).Storage.Dictionary[CockpitMemory.Key]);
+            Require(projected.Toolbar==copied.Toolbar && projected.Covers.SequenceEqual(record.Covers),"Projector setup/build clone discarded cockpit state");
+            var restored=new MyModStorageComponent(); restored.Deserialize(serialized);
+            Require(restored.GetValue(CockpitMemory.Key)==CockpitMemory.Encode(copied),"Storage deserialization changed data");
+            log("PASS native cockpit persistence: registered-key serialization, typed toolbar bounds, block/group target remapping, original isolation, projector setup/build clone, cover states and deserialization. No world was loaded.");
+        }
+        public static void Companion(string assemblyPath,Action<string> log)
+        {
+            var assembly=System.Reflection.Assembly.LoadFrom(assemblyPath);
+            Require(!assembly.GetReferencedAssemblies().Any(a=>a.Name=="OVRSharp" || a.Name=="SpaceEngineersVR"),"Companion requires the VR plugin/runtime");
+            var support=assembly.GetType("SpaceEngineersVR.Multiplayer.MultiplayerSupport",true);
+            try
+            {
+                support.GetMethod("Start").Invoke(null,null);
+                int count=Harmony.GetAllPatchedMethods().Count(m=>Harmony.GetPatchInfo(m).Owners.Contains("SpaceEngineersVR.Multiplayer"));
+                Require(count==4,"Companion did not attach all four native storage/arm patches");
+                support.GetMethod("Update").Invoke(null,null);
+            }
+            finally { support.GetMethod("Stop").Invoke(null,null); }
+            Require(!Harmony.HasAnyPatches("SpaceEngineersVR.Multiplayer"),"Companion left patches after shutdown");
+            log("PASS flatscreen companion: independent assembly, four native patch attachments, no-world update and clean shutdown without OpenVR initialization.");
+        }
+        public static void Export(string game,string output,Action<string> log)
+        {
+            UiTests.Initialize(game,Path.Combine(output,"data")); Directory.CreateDirectory(output); Run(log);
+            foreach(string scenario in new[] {"standing","wrist-local","wrist-remote","seated"})
+            {
+                var bones=ArmTests.InstalledBones();
+                var packet=Pose();
+                packet.Left=Matrix.CreateRotationY(.3f)*Matrix.CreateRotationX(-.2f); packet.Left.Translation=new Vector3(-.35f,1.20f,-.4f);
+                packet.Right=Matrix.CreateRotationY(-.3f)*Matrix.CreateRotationX(-.1f); packet.Right.Translation=new Vector3(.35f,1.20f,-.4f);
+                packet.RightFingers=ArmSkeleton.Fingers.Point;
+                if(scenario.StartsWith("wrist"))
+                {
+                    packet.Left=Matrix.CreateFromYawPitchRoll(-.7f,-.4f,.7f); packet.Left.Translation=new Vector3(-.15f,1.35f,-.4f);
+                    packet.Right.Translation=new Vector3(.1f,1.3f,-.55f); packet.RightFingers=ArmSkeleton.Fingers.Pinch;
+                }
+                if(scenario=="seated")
+                {
+                    foreach(string side in new[] {"L","R"})
+                    {
+                        var thigh=bones.Single(b=>b.Name=="SE_Rig"+side+"Thigh");
+                        var calf=bones.Single(b=>b.Name=="SE_Rig"+side+"Calf");
+                        var foot=bones.Single(b=>b.Name=="SE_Rig"+side+"Foot");
+                        var upper=ArmMath.AimBone(thigh.AbsoluteTransform,calf.AbsoluteTransform.Translation-thigh.AbsoluteTransform.Translation,Vector3.Forward);
+                        thigh.SetCompleteTransformFromAbsoluteMatrix(ref upper,false); thigh.ComputeAbsoluteTransform(true,true);
+                        var lower=ArmMath.AimBone(calf.AbsoluteTransform,foot.AbsoluteTransform.Translation-calf.AbsoluteTransform.Translation,Vector3.Down);
+                        calf.SetCompleteTransformFromAbsoluteMatrix(ref lower,false); calf.ComputeAbsoluteTransform(true,true);
+                    }
+                    packet.Left.Translation=new Vector3(-.35f,1.0f,-.35f); packet.Right.Translation=new Vector3(.35f,1.0f,-.35f);
+                    packet.LeftFingers=packet.RightFingers=ArmSkeleton.Fingers.Stick;
+                }
+                var stream=new PoseStream(); stream.Push(PlayerPose.Decode(packet.Encode()),0); stream.Sample(0,out var received);
+                foreach(bool left in new[] {true,false})
+                {
+                    string side=left ? "L":"R";
+                    var arm=ArmSkeleton.Find(name=>bones.FirstOrDefault(b=>b.Name==name),"SE_Rig"+side+"Upperarm","SE_Rig"+side+"Forearm1","SE_Rig"+side+"Palm",left ? -1:1);
+                    var target=stream.Hand(left,0);
+                    Require(ArmSkeleton.Apply(arm,target,true,left && scenario=="wrist-local",1,left ? received.LeftFingers:received.RightFingers,left ? received.LeftTrigger:received.RightTrigger),"Received arm pose failed");
+                    Require(Vector3.Distance(arm.Palm.Bone.AbsoluteTransform.Translation,target.Translation)<.001f,"Received palm missed transmitted target");
+                }
+                var export=new CockpitHandTests.PoseExport();
+                foreach(var bone in bones)
+                {
+                    var m=bone.AbsoluteTransform;
+                    export.absolute[bone.Name]=new[] {m.M11,m.M12,m.M13,m.M14,m.M21,m.M22,m.M23,m.M24,m.M31,m.M32,m.M33,m.M34,m.M41,m.M42,m.M43,m.M44};
+                }
+                using(var file=File.Create(Path.Combine(output,scenario+".json")))
+                    new DataContractJsonSerializer(typeof(CockpitHandTests.PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
+            }
+            log("PASS installed skeleton received-pose exports: standing, seated and local/remote wrist comparison; both palms retain transmitted targets.");
+        }
+    }
+}

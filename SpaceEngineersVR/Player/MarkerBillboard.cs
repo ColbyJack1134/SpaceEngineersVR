@@ -9,6 +9,15 @@ namespace SpaceEngineersVR.Player
         public Vector3D Center, Right, Up;
         public double Scale;
 
+        internal static MatrixD WithUp(MatrixD head,Vector3D up)
+        {
+            up-=head.Forward*Vector3D.Dot(up,head.Forward);
+            if(up.LengthSquared()<1e-8) return head;
+            head.Up=Vector3D.Normalize(up);
+            head.Right=Vector3D.Normalize(Vector3D.Cross(head.Forward,head.Up));
+            return head;
+        }
+
         public static bool TryCreate(Vector3D position, MatrixD head, out MarkerBillboard billboard)
         {
             billboard=default(MarkerBillboard);
@@ -21,6 +30,16 @@ namespace SpaceEngineersVR.Player
         }
 
         public Vector3D Point(double x, double y) => Center+Scale*(Right*x-Up*y);
+
+        internal static bool TryCreatePixels(Vector3D position,double width,MatrixD view,MatrixD projection,int viewportWidth,out MarkerBillboard board)
+        {
+            var eye=MatrixD.Invert(view);
+            if(!TryCreate(position,eye,out board)) return false;
+            double depth=-Vector3D.Transform(position,view).Z;
+            if(depth<=.05) return false;
+            board.Scale=2*depth*width/(viewportWidth*projection.M11);
+            return true;
+        }
 
         public bool Project(RectangleF bounds, MatrixD view, MatrixD projection, ref NativeSprite sprite)
         {

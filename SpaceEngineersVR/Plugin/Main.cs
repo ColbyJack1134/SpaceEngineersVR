@@ -113,6 +113,7 @@ namespace SpaceEngineersVR.Plugin
 
         public void Dispose()
         {
+            Multiplayer.MultiplayerSupport.Stop();
             Player.ThirdPersonView.Reset();
             Player.NativeGloves.Reset();
             Player.MenuPointer.Release();
@@ -144,6 +145,7 @@ namespace SpaceEngineersVR.Plugin
         public void Update()
         {
             if (PhysicalRendererProbe.Active) { PhysicalRendererProbe.Update(); return; }
+            Multiplayer.MultiplayerRuntime.Update();
             if (cleanupRequested)
             {
                 cleanupRequested = false;
@@ -228,6 +230,10 @@ namespace SpaceEngineersVR.Plugin
             Harmony.PatchAll(Assembly.GetExecutingAssembly());
 
             Patches.FrameInjections.Install(Harmony);
+            Multiplayer.MultiplayerRuntime.Capture=seq=>VrActive ? Player.TrackedArms.CapturePose(seq):null;
+            Multiplayer.MultiplayerRuntime.Notify=message=> { if(VrActive) Player.EssentialHud.Notify(message); };
+            Multiplayer.MultiplayerRuntime.ControlCount=seat=>Player.CockpitLayout.Count(seat.BlockDefinition.Id.SubtypeName);
+            Multiplayer.MultiplayerRuntime.Enabled=true;
             Logger.Info("Stereo renderer, motion tools and menu overlay hooks installed.");
 
             MySession.AfterLoading += AfterLoadedWorld;
@@ -296,6 +302,7 @@ namespace SpaceEngineersVR.Plugin
 
         private static void ResetWorldState()
         {
+            Multiplayer.MultiplayerRuntime.Reset();
             Player.GameActions.Reset();
             Player.RemoteView.Reset();
             Player.BlockInspection.Reset();

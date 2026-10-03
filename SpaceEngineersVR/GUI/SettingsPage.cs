@@ -69,7 +69,7 @@ namespace SpaceEngineersVR.GUI
                     Reset(()=> { c.OwnSignalRange=c.FriendlySignalRange=c.OtherSignalRange=1; });
                     break;
                 case "Signals":
-                    Toggle(-.25f,"Group nearby signals",c.GroupSignals,v=>c.GroupSignals=v);
+                    Toggle(-.25f,"Character marker roll",c.CharacterMarkerRoll,v=>c.CharacterMarkerRoll=v);
                     Label(-.17f,"Profiles and sizing: wrist Controls > HUD",.65f);
                     Toggle(-.09f,"Wrist edge directions",c.SignalEdges,v=>c.SignalEdges=v);
                     Toggle(-.01f,"Targeting rings",c.SignalRings,v=>c.SignalRings=v);
@@ -83,7 +83,7 @@ namespace SpaceEngineersVR.GUI
                     Toggle(-.14f,"Show HUD with visor open",c.HudWithVisorOpen,v=>c.HudWithVisorOpen=v);
                     Label(-.04f,"Waypoints");
                     var modes=new MyGuiControlCombobox(new Vector2(.10f,-.04f),new Vector2(.35f,.04f));
-                    modes.AddItem(0,new StringBuilder("Off")); modes.AddItem(1,new StringBuilder("Icons")); modes.AddItem(2,new StringBuilder("Names and distance"));
+                    modes.AddItem(0,new StringBuilder("Off")); modes.AddItem(1,new StringBuilder("No names")); modes.AddItem(2,new StringBuilder("Names"));
                     modes.SelectItemByKey(c.WaypointMode); modes.ItemSelected+=()=>c.WaypointMode=(int)modes.GetSelectedKey(); Controls.Add(modes);
                     Toggle(.08f,"Block info without grip",c.InspectWithoutGrip,v=>c.InspectWithoutGrip=v);
                     Link(.18f,"Signals",()=>new SettingsPage("Signals"));

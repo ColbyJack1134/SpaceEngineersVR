@@ -56,7 +56,7 @@ def projection(aspect,fov=70,span=None):
         p[2,3]=-2*far*near/(far-near); p[3,2]=-1
     return p
 
-def render(name,eye,target,title,out,span=None,points=(),fov=70):
+def render(name,eye,target,title,out,span=None,points=(),fov=70,subtitle="Installed game mesh | inspection lighting | glass omitted | no gameplay changes"):
     d=json.loads(Path(name).read_text(encoding='utf-8-sig'))
     verts=np.array(d['Vertices'],dtype='f4')[:,:3]; uv=np.array(d['UV'],dtype='f4')
     size=(1400,1000)
@@ -75,7 +75,7 @@ def render(name,eye,target,title,out,span=None,points=(),fov=70):
     image=Image.frombytes('RGB',size,fb.read(components=3)).transpose(Image.Transpose.FLIP_TOP_BOTTOM)
     draw=ImageDraw.Draw(image)
     draw.rectangle((0,0,1400,82),fill=(12,20,29)); draw.text((24,15),title,font=font,fill='white')
-    draw.text((24,49),'Installed game mesh | inspection lighting | glass omitted | no gameplay changes',font=small,fill=(168,193,210))
+    draw.text((24,49),subtitle,font=small,fill=(168,193,210))
     for point,label,color,offset in points:
         clip=mvp@np.array([*point,1]); ndc=clip[:3]/clip[3]
         x=(ndc[0]+1)*size[0]/2; y=(1-ndc[1])*size[1]/2
@@ -97,9 +97,10 @@ if __name__=='__main__':
     parser.add_argument('--fov',type=float,default=70)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--title',default='Installed model inspection')
+    parser.add_argument('--subtitle',default='Installed game mesh | inspection lighting | glass omitted | no gameplay changes')
     parser.add_argument('--anchors',type=Path,help='JSON list: {point:[x,y,z], label:...}')
     args=parser.parse_args(); CONTENT=args.content
     points=[]
     if args.anchors:
         points=[(a['point'],a['label'],(85,225,255),tuple(a.get('offset',[20,-30]))) for a in json.loads(args.anchors.read_text())]
-    render(args.model,args.eye,args.target,args.title,args.output,args.span,points,args.fov)
+    render(args.model,args.eye,args.target,args.title,args.output,args.span,points,args.fov,args.subtitle)

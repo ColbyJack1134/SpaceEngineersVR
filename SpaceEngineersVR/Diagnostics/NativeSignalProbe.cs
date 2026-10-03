@@ -38,11 +38,13 @@ namespace SpaceEngineersVR.Diagnostics
                 try
                 {
                     MyGuiManager.DrawSpriteBatch("Textures\\GUI\\Blank.dds",new Vector2(.5f),new Vector2(2),Scenario.EndsWith("bright") ? new Color(225,225,215):new Color(7,12,20),VRage.Utils.MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER);
+                    if(Scenario=="settings") return true;
                     var camera=new MyCamera(1f,new MyViewport(0,0,1920,1080));
                     camera.SetViewMatrix(MatrixD.Identity,false); property.SetValue(null,camera,null);
                     if(markers==null) markers=new MyHudMarkerRender(this);
+                    if(Scenario.StartsWith("lead")) { LeadIndicatorTests.DrawNative(markers,Scenario); DrawTexts(); return true; }
                     AccessTools.Property(typeof(MyHudMarkerRender),nameof(MyHudMarkerRender.SignalDisplayMode)).SetValue(null,
-                        Scenario.StartsWith("icons") ? MyHudMarkerRender.SignalMode.NoNames:Scenario.StartsWith("group") ? MyHudMarkerRender.SignalMode.DefaultMode:MyHudMarkerRender.SignalMode.FullDisplay);
+                        Scenario.Contains("icons") ? MyHudMarkerRender.SignalMode.NoNames:Scenario.StartsWith("group") ? MyHudMarkerRender.SignalMode.DefaultMode:MyHudMarkerRender.SignalMode.FullDisplay);
                     reveal.SetValue(null,Scenario.Contains("reveal"));
                     if(Scenario.Contains("full")) AccessTools.Property(typeof(MyHudMarkerRender),nameof(MyHudMarkerRender.SignalDisplayMode)).SetValue(null,MyHudMarkerRender.SignalMode.FullDisplay);
                     if(Scenario.StartsWith("long")) markers.AddPOI(new Vector3D(0,0,-1400),new StringBuilder("Mining Outpost 02 - Ice and Iron Storage - Landing Pad GPS"),MyRelationsBetweenPlayerAndBlock.Owner);
@@ -51,7 +53,7 @@ namespace SpaceEngineersVR.Diagnostics
                     markers.AddOre(new Vector3D(-28,-15,-160),"Iron");
                     markers.AddProxyEntity(new Vector3D(150,-60,-1200),MyRelationsBetweenPlayerAndBlock.Enemies,new StringBuilder("Small Grid"));
                     if(Scenario.StartsWith("group"))
-                        for(int i=0;i<4;i++) markers.AddProxyEntity(new Vector3D((i-1.5)*12,0,-850-i*5),MyRelationsBetweenPlayerAndBlock.FactionShare,new StringBuilder("Small Grid "+(i+1)));
+                        for(int i=0;i<4;i++) markers.AddProxyEntity(new Vector3D((i-1.5)*12+(Scenario.Contains("peripheral") ? 180:0),0,-850-i*5),MyRelationsBetweenPlayerAndBlock.FactionShare,new StringBuilder("Small Grid "+(i+1)));
                     if(Scenario.StartsWith("edges")) markers.AddPOI(new Vector3D(1500,100,-500),new StringBuilder("GPS"),MyRelationsBetweenPlayerAndBlock.Owner);
                     markers.Draw(); DrawTexts();
                     if(Scenario.StartsWith("rings"))
@@ -112,15 +114,17 @@ namespace SpaceEngineersVR.Diagnostics
             return circle;
         }
         private static Screen screen;
+        private static MyGuiScreenBase settings;
         private static DateTime next;
         private static int step;
         private static Exception Error;
-        private static readonly string[] scenarios={"sparse-dark","sparse-bright","icons-dark","group-dark","group-reveal-dark","group-full-dark","long-dark","edges-dark","rings-dark","rings-bright"};
+        private static readonly string[] scenarios=Environment.GetEnvironmentVariable("SEVR_NATIVE_HUD_REVIEW")=="1" ? new[] {"group-icons-dark","group-reveal-dark","group-icons-peripheral-dark","group-peripheral-reveal-dark","settings"}:LeadIndicatorTests.Enabled ? new[] {"lead-horizontal-dark","lead-diagonal-dark","lead-left-dark","lead-range-dark","lead-horizontal-bright","lead-overlap-dark"}:new[] {"sparse-dark","sparse-bright","icons-dark","group-dark","group-reveal-dark","group-full-dark","long-dark","edges-dark","rings-dark","rings-bright"};
         internal static void Update()
         {
             if(Error!=null) throw new InvalidOperationException("Native signal reference failed",Error);
             if(DateTime.UtcNow<next) return;
             string output=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"SEVRPrototype","Reports","native-signals");
+            if(LeadIndicatorTests.Enabled) output=LeadIndicatorTests.Output;
             Directory.CreateDirectory(output);
             if(screen==null)
             {
@@ -135,10 +139,13 @@ namespace SpaceEngineersVR.Diagnostics
             step++;
             if(step/2==scenarios.Length)
             {
-                screen.CloseScreenNow(); PhysicalRendererProbe.Stop();
+                if(LeadIndicatorTests.Enabled) LeadIndicatorTests.Verify(scenarios.Length);
+                settings?.CloseScreenNow(); screen.CloseScreenNow(); PhysicalRendererProbe.Stop();
                 Logger.Info("PHYSICAL RENDER SMOKE PASSED: installed vanilla marker and text renderer, isolated main-menu reference."); return;
             }
-            screen.Scenario=scenarios[step/2]; next=DateTime.UtcNow.AddSeconds(3);
+            screen.Scenario=scenarios[step/2];
+            if(screen.Scenario=="settings") { settings=new GUI.SettingsPage("Signals"); MyGuiSandbox.AddScreen(settings); }
+            next=DateTime.UtcNow.AddSeconds(3);
         }
     }
 }

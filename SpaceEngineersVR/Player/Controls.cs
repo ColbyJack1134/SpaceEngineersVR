@@ -45,7 +45,7 @@ namespace SpaceEngineersVR.Player
         public readonly Analog ThrustRotate;
         public readonly Button ThrustRoll;
         public readonly Button Dampener;
-        public readonly Button SeatTerminal;
+        public readonly Button FlightJump;
 
         // Tool
         public readonly Button Primary;
@@ -135,7 +135,7 @@ namespace SpaceEngineersVR.Player
             ThrustRotate = new Analog("/actions/flying/in/ThrustRotate");
             ThrustRoll = new Button("/actions/flying/in/ThrustRoll");
             Dampener = new Button("/actions/flying/in/Dampener");
-            SeatTerminal = new Button("/actions/flying/in/SeatTerminal");
+            FlightJump = new Button("/actions/flying/in/SeatTerminal");
             Primary = new Button("/actions/common/in/Primary");
             PointerPressure = new Analog("/actions/common/in/PointerPressure",.55f);
             LeftTriggerPressure = new Analog("/actions/common/in/LeftTriggerPressure",.55f);

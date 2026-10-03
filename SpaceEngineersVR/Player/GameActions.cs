@@ -267,12 +267,7 @@ namespace SpaceEngineersVR.Player
         public static void HandleButtons()
         {
             var c = Controls.Static;
-            if(InputRouter.Mode==InputMode.Piloting || InputRouter.Mode==InputMode.Turret)
-            {
-                if(c.SeatTerminal.HasPressed) { Execute(TerminalAction); return; }
-
-            }
-            var jump=InputRouter.Flying ? c.SeatTerminal:c.JumpOrClimbUp;
+            var jump=InputRouter.Flying ? c.FlightJump:c.JumpOrClimbUp;
             bool character=InputRouter.Gameplay && InputRouter.Mode!=InputMode.Piloting &&
                 MySession.Static?.ControlledEntity==MySession.Static?.LocalCharacter;
             if(jumpHold.Update(character,jump.HasPressed,jump.IsPressed,DateTime.UtcNow)) Execute(JetpackAction);

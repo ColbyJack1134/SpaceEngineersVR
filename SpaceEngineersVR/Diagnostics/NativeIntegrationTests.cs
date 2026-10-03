@@ -85,6 +85,7 @@ namespace SpaceEngineersVR.Diagnostics
         private static void Require(bool condition,string reason) { if(!condition) throw new Exception(reason); }
         public static void Run(Action<string> log)
         {
+            MultiplayerTests.RunNative(log);
             var character=(Sandbox.Game.Entities.Character.MyCharacter)FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.Character.MyCharacter));
             var placer=FormatterServices.GetUninitializedObject(AccessTools.TypeByName("SpaceEngineers.Game.Entities.Weapons.MyCubePlacer"));
             AccessTools.Field(character.GetType(),"m_currentWeapon").SetValue(character,placer);

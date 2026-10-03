@@ -30,26 +30,34 @@ namespace SpaceEngineersVR.Player
             var c=coordinates[(int)icon];
             return new NativeSprite(atlas,default(RectangleF),color) {UV=new Vector4(c.Offset,c.Size.X,c.Size.Y)};
         }
+        internal static NativeSprite Artwork(NativeSprite sprite)
+        { sprite.Tint=sprite.Tint.ToLinearRGB(); sprite.Premultiplied=true; return sprite; }
         private static void Project(List<NativeSprite> output,NativeSprite sprite,MarkerBillboard board,RectangleF bounds,MatrixD view,MatrixD projection)
-        { if(board.Project(bounds,view,projection,ref sprite)) output.Add(sprite); }
-        internal static void Icon(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,WorldMarkers.Marker m,bool box=true)
+        { sprite=Artwork(sprite); if(board.Project(bounds,view,projection,ref sprite)) output.Add(sprite); }
+        internal static void Icon(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,WorldMarkers.Marker m,bool box=true,float alpha=1)
         {
             if(m.Kind=="OffscreenTarget") return;
             if(m.Kind=="Target") { Project(output,Atlas(MyHudTexturesEnum.TargetTurret,Vector4.One),board,new RectangleF(-.5f,-.5f,1,1),view,projection); return; }
             if(box && m.Kind!="Objective") Project(output,Atlas(MyHudTexturesEnum.Target_neutral,m.Color),board,new RectangleF(-.5f,-.5f,1,1),view,projection);
             if(m.Kind=="ContractGPS" || m.Kind=="ButtonMarker") return;
-            var icon=m.Kind=="Ore" ? Atlas(MyHudTexturesEnum.HudOre,m.Color):m.Kind=="Hack" ? Atlas(MyHudTexturesEnum.hit_confirmation,m.Color):new NativeSprite(m.Icon,default(RectangleF),m.Color);
-            float scale=m.Kind=="Ore" || m.Kind=="Hack" ? .8f:.67f;
+            var color=m.Color; color.W*=alpha;
+            var icon=m.Kind=="Ore" ? Atlas(MyHudTexturesEnum.HudOre,color):m.Kind=="Hack" ? Atlas(MyHudTexturesEnum.hit_confirmation,color):new NativeSprite(m.Icon,default(RectangleF),color);
+            float scale=m.Kind=="Ore" || m.Kind=="Hack" ? .8f:.625f;
             Project(output,icon,board,new RectangleF(-scale/2,-scale/2,scale,scale),view,projection);
         }
-        internal static void GroupIcon(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,WorldMarkers.Marker[] values,Vector4 color)
+        internal static void GroupIcon(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,WorldMarkers.Marker[] values,Vector4 color,float expansion=0,float compactShift=0,WorldMarkers.Marker[] representatives=null)
         {
             Project(output,Atlas(MyHudTexturesEnum.Target_neutral,color),board,new RectangleF(-.5f,-.5f,1,1),view,projection);
-            var members=values.GroupBy(SignalLayout.Relation).Select(g=>g.First()).Concat(values).Distinct().Take(4).ToArray();
+            var members=representatives ?? SignalLayout.Representatives(values);
             for(int i=0;i<members.Length;i++)
             {
-                var small=board; small.Center=board.Point((i%2==0 ? -.23:.23),(i<2 ? -.18:.18)); small.Scale*=.5;
-                Icon(output,small,view,projection,members[i],false);
+                var offset=SignalLayout.GroupOffset(i,expansion,compactShift);
+                var small=board; small.Center=board.Point(offset.X,offset.Y); small.Scale*=.75;
+                var member=members[i];
+                var icon=member.Kind=="Scenario" ? @"Textures\HUD\marker_scenario.dds":@"Textures\HUD\marker_"+(SignalLayout.Relation(member)=="Own" ? "self":SignalLayout.Relation(member)=="Friendly" ? "friendly":SignalLayout.Relation(member)=="Hostile" ? "enemy":"neutral")+".dds";
+                Project(output,new NativeSprite(icon,default(RectangleF),member.Color),small,new RectangleF(-.3125f,-.3125f,.625f,.625f),view,projection);
+                if((member.Kind!="Scenario" || values.Select(SignalLayout.Relation).Distinct().Count()>1) && SignalLayout.HighAlert(member,values))
+                    Project(output,new NativeSprite(@"Textures\HUD\marker_alert.dds",default(RectangleF),Vector4.One),small,new RectangleF(-.3125f,-.3125f,.625f,.625f),view,projection);
             }
         }
         internal static void Draw(Texture2D target,SignalLayout.Entry[] entries,MatrixD head,MatrixD view,MatrixD projection)
@@ -61,18 +69,17 @@ namespace SpaceEngineersVR.Player
             }
             var text=entries.SelectMany(e=>e.Labels).ToArray();
             string names=string.Join("\n",text.Select(l=>l.Name));
-            string key=names+"\n"+string.Join("\n",text.Select(l=>l.Distance+"|"+l.Color+"|"+l.Bounds.Width+"|"+l.LineHeight));
+            string key=names+"\n"+string.Join("\n",text.Select(l=>l.Distance+"|"+l.Color+"|"+l.Font+"|"+l.LeftAligned+"|"+l.Bounds.Width+"|"+l.LineHeight));
             if((textKey!=key || textRevision!=NativeSprites.Revision) && (DateTime.UtcNow>=nextText || textRevision!=NativeSprites.Revision || textKey==null || !textKey.StartsWith(names+"\n",StringComparison.Ordinal)))
             {
-                labels.Clear(Color.Transparent);
-                labels.Upload(); sprites.Clear();
+                labels.ClearTexture(); sprites.Clear();
                 for(int i=0;i<text.Length;i++)
                 {
                     var label=text[i];
                     float virtualWidth=label.Bounds.Width/label.LineHeight*31;
                     float x=i%2*WorldMarkers.LabelWidth,y=i/2*WorldMarkers.LabelHeight;
-                    SignalFont.Add(sprites,label.Name,x,y,31,virtualWidth,label.Color,WorldMarkers.AtlasWidth,WorldMarkers.AtlasHeight,true);
-                    SignalFont.Add(sprites,label.Distance,x,y+65,29,virtualWidth,label.Color,WorldMarkers.AtlasWidth,WorldMarkers.AtlasHeight,true);
+                    SignalFont.Add(sprites,label.Name,x,y,31,virtualWidth,label.Color,WorldMarkers.AtlasWidth,WorldMarkers.AtlasHeight,!label.LeftAligned,font:label.Font);
+                    SignalFont.Add(sprites,label.Distance,x,y+65,29,virtualWidth,label.Color,WorldMarkers.AtlasWidth,WorldMarkers.AtlasHeight,!label.LeftAligned,font:label.Font);
                 }
                 NativeSprites.Draw(labels.Texture,sprites); target.Device.ImmediateContext.GenerateMips(textTexture); textRevision=NativeSprites.Revision;
                 textKey=key; nextText=DateTime.UtcNow.AddMilliseconds(100);
@@ -83,25 +90,27 @@ namespace SpaceEngineersVR.Player
             {
                 if(e.Edge || !MarkerBillboard.TryCreate(e.Position,head,out var board)) continue;
                 board.Scale*=e.Primary.Kind=="Objective" ? 1.1:.55;
-                if(e.Ring) e.Primary.Ring?.Add(sprites,board,view,projection);
+                if(e.Ring) e.Primary.Ring?.AddNative(sprites,e.Position,view,projection,target.Description.Width);
                 board.Scale*=e.IconScale;
-                if(e.Members.Length==1) Icon(sprites,board,view,projection,e.Primary);
+                if(e.Members.Length==1) Icon(sprites,board,view,projection,e.Primary,alpha:e.SymbolAlpha);
                 else
                 {
-                    GroupIcon(sprites,board,view,projection,e.Members,e.Color);
+                    GroupIcon(sprites,board,view,projection,e.Members,e.Color,e.Expansion,e.CompactShift,e.Representatives);
                 }
                 foreach(var label in e.Labels)
                 {
                     double depth=Math.Max(.1,Vector3D.Dot(e.Position-head.Translation,head.Forward));
-                    var pose=head; pose.Translation=head.Translation+head.Forward*depth;
                     var b=label.Bounds;
                     for(int line=0;line<2;line++)
                     {
-                        if(line==0 && string.IsNullOrEmpty(label.Name)) continue;
+                        if(string.IsNullOrEmpty(line==0 ? label.Name:label.Distance)) continue;
                         float y=line==0 ? label.NameY:label.DistanceY;
-                        var textSprite=PhysicalSurface.Quad(textTexture,pose,new RectangleF((float)(b.X*depth),(float)(-y*depth),(float)(b.Width*depth),(float)(label.LineHeight*depth)),
-                            new Vector4(labelIndex%2*.5f,(labelIndex/2*WorldMarkers.LabelHeight+(line==0 ? 0:65))/(float)WorldMarkers.AtlasHeight,
-                                b.Width/label.LineHeight*31/WorldMarkers.AtlasWidth,31f/WorldMarkers.AtlasHeight),Vector4.One,view,projection);
+                        var textSprite=new NativeSprite(null,default(RectangleF),new Vector4(1,1,1,line==0 ? label.NameAlpha:1)) {Texture=textTexture,
+                            UV=new Vector4(labelIndex%2*.5f,(labelIndex/2*WorldMarkers.LabelHeight+(line==0 ? 0:65))/(float)WorldMarkers.AtlasHeight,
+                                b.Width/label.LineHeight*31/WorldMarkers.AtlasWidth,31f/WorldMarkers.AtlasHeight)};
+                        var textBoard=new MarkerBillboard {Center=e.Position,Right=head.Right,Up=head.Up,Scale=depth};
+                        float scale=line==0 ? 1:label.DistanceScale;
+                        if(!textBoard.Project(new RectangleF(b.X-e.Point.X+b.Width*(1-scale)/2,y-e.Point.Y,b.Width*scale,label.LineHeight*scale),view,projection,ref textSprite)) continue;
                         textSprite.Premultiplied=true; sprites.Add(textSprite);
                     }
                     labelIndex++;

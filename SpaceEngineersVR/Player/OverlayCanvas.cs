@@ -78,6 +78,11 @@ namespace SpaceEngineersVR.Player
                 : OpenVR.Overlay.SetOverlayTransformAbsolute(handle, ETrackingUniverseOrigin.TrackingUniverseStanding, ref transform));
         }
 
+        internal void ClearTexture()
+        {
+            using(var target=new RenderTargetView(device,texture)) device.ImmediateContext.ClearRenderTargetView(target,new SharpDX.Mathematics.Interop.RawColor4(0,0,0,0));
+        }
+
         public void Upload()
         {
             var data = bitmap.LockBits(new System.Drawing.Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);

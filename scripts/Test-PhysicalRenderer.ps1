@@ -1,4 +1,4 @@
-param([string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype'),[switch]$CockpitsOnly,[string]$Cockpit,[switch]$InterfaceOnly,[switch]$CameraHudOnly,[switch]$NativeSignals)
+param([string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype'),[switch]$CockpitsOnly,[string]$Cockpit,[switch]$InterfaceOnly,[switch]$CameraHudOnly,[switch]$NativeSignals,[switch]$NativeLead)
 $ErrorActionPreference = 'Stop'
 if (Get-Process Legacy,SpaceEngineers -ErrorAction SilentlyContinue) {
     throw 'A game is already running. Physical renderer test did not launch or stop anything.'
@@ -9,12 +9,14 @@ $previousCockpit = $env:SEVR_PHYSICAL_COCKPIT
 $previousInterface = $env:SEVR_PHYSICAL_INTERFACE_ONLY
 $previousCamera = $env:SEVR_PHYSICAL_CAMERA_HUD_ONLY
 $previousSignals = $env:SEVR_NATIVE_SIGNALS
+$previousLead = $env:SEVR_NATIVE_LEAD
 try {
     $env:SEVR_PHYSICAL_COCKPITS_ONLY = if ($CockpitsOnly -or $Cockpit) { '1' } else { $null }
     $env:SEVR_PHYSICAL_COCKPIT = $Cockpit
     $env:SEVR_PHYSICAL_INTERFACE_ONLY = if ($InterfaceOnly) { '1' } else { $null }
     $env:SEVR_PHYSICAL_CAMERA_HUD_ONLY = if ($CameraHudOnly) { '1' } else { $null }
-    $env:SEVR_NATIVE_SIGNALS = if ($NativeSignals) { '1' } else { $null }
+    $env:SEVR_NATIVE_SIGNALS = if ($NativeSignals -or $NativeLead) { '1' } else { $null }
+    $env:SEVR_NATIVE_LEAD = if ($NativeLead) { '1' } else { $null }
     $process = & (Join-Path $PSScriptRoot 'Launch.ps1') -PhysicalRenderTest -PassThru -PrototypeRoot $PrototypeRoot
 } finally {
     $env:SEVR_PHYSICAL_COCKPITS_ONLY = $previousScope
@@ -22,6 +24,7 @@ try {
     $env:SEVR_PHYSICAL_INTERFACE_ONLY = $previousInterface
     $env:SEVR_PHYSICAL_CAMERA_HUD_ONLY = $previousCamera
     $env:SEVR_NATIVE_SIGNALS = $previousSignals
+    $env:SEVR_NATIVE_LEAD = $previousLead
 }
 $passed = $false
 $logPath = $null

@@ -21,7 +21,9 @@ namespace SpaceEngineersVR.Player
         internal sealed class Marker
         {
             public Vector3D Position;
-            public Vector4 Color;
+            public Vector4 Color,FontColor=Vector4.One,GroupFontColor=new Vector4(117/255f,201/255f,241/255f,1);
+            public string Font="White";
+            public int NativeType,GridBlocks;
             public string Name, Icon, Kind, Relation, Id, Remaining, Description;
             public bool Pinned, Cluster, Encounter;
             public string LockState;
@@ -44,6 +46,7 @@ namespace SpaceEngineersVR.Player
         private static readonly PropertyInfo position = AccessTools.Property(point,"WorldPosition"),
             name = AccessTools.Property(point,"Text"), kind = AccessTools.Property(point,"POIType"),
             relationship = AccessTools.Property(point,"Relationship"), always = AccessTools.Property(point,"AlwaysVisible");
+        internal static readonly int EntityTypeStart=Convert.ToInt32(Enum.Parse(kind.PropertyType,"UnknownEntity"));
         private static readonly FieldInfo reveal=AccessTools.Field(typeof(MyHudMarkerRender),"m_disableFading");
         private static readonly FieldInfo playerIndicators=AccessTools.Field(typeof(MyHudMarkerRender),"m_playerIndicatorsDict");
         private static readonly Type playerIndicator=AccessTools.Inner(typeof(MyHudMarkerRender),"MyPlayerIndicator");
@@ -54,6 +57,7 @@ namespace SpaceEngineersVR.Player
         private static readonly PropertyInfo nativeDistance=AccessTools.Property(point,"Distance");
         private static readonly PropertyInfo cluster=AccessTools.Property(point,"AllowsCluster"),
             remaining=AccessTools.Property(point,"ContainerRemainingTime"),entity=AccessTools.Property(point,"Entity");
+        private static readonly FieldInfo poiColor=AccessTools.Field(point,"Color");
         private static readonly MethodInfo colors=AccessTools.Method(point,"GetPOIColorAndFontInformation");
         private sealed class ProxyHistory { public Marker[] Markers=new Marker[0]; public DateTime Time; public long Serial; }
         private static readonly ConditionalWeakTable<MyHudMarkerRender,ProxyHistory> proxyHistory=new ConditionalWeakTable<MyHudMarkerRender,ProxyHistory>();
@@ -70,7 +74,7 @@ namespace SpaceEngineersVR.Player
                 Description=gps.Description,Encounter=gps.IsGlobalEncounterGPS || gps.IsContainerGPS });
         }
         private static View renderSnapshot;
-        private static MatrixD renderHead;
+        private static MatrixD renderHead,signalHead;
         private static ShipCrosshair.View renderCrosshair;
         internal static MatrixD RenderHead => renderHead;
         internal static View RenderSnapshot => renderSnapshot;
@@ -121,7 +125,8 @@ namespace SpaceEngineersVR.Player
                 if(gps) { gpsInfo.TryGetValue(poi,out info); gpsInfo.Remove(poi); }
                 string icon=type=="Scenario" ? "scenario" : gps ? "gps" : relation=="Owner" ? "self" :
                     relation=="Enemies" ? "enemy" : relation=="FactionShare" || relation=="Friends" ? "friendly" : "neutral";
-                markers.Add(new Marker { Position=world,Color=tint.ToVector4(),Name=text,
+                markers.Add(new Marker { Position=world,Color=tint.ToVector4(),FontColor=((VRageMath.Color)args[1]).ToVector4(),Font=args[2] as string ?? "White",GroupFontColor=((VRageMath.Color)poiColor.GetValue(poi)).ToVector4(),Name=text,
+                    NativeType=Convert.ToInt32(kind.GetValue(poi)),GridBlocks=(item as Sandbox.Game.Entities.MyCubeBlock)?.CubeGrid?.BlocksCount ?? 0,
                     Kind=type,Relation=relation,Id=item==null && type=="UnknownEntity" ? null:info?.Id ?? id,Description=info?.Description ?? "",
                     Remaining=remaining.GetValue(poi) as string,Encounter=info?.Encounter==true || type=="Scenario",
                     Pinned=pinned,Cluster=(bool)cluster.GetValue(poi),
@@ -201,7 +206,7 @@ namespace SpaceEngineersVR.Player
                 var position=character.PositionComp.GetPosition()+character.WorldMatrix.Up*(character.PositionComp.LocalAABB.Height+.02);
                 string icon=relation=="Owner" ? "self":relation=="FactionShare" ? "friendly":relation=="Enemies" ? "enemy":"neutral";
                 markers.Add(new Marker { Id="player:"+character.EntityId,Position=position,Name=character.CustomNameWithFaction.ToString(),
-                    Kind="Character",Relation=relation,Color=tint.ToVector4(),Pinned=(bool)indicatorPinned.GetValue(indicator),
+                    Kind="Character",Relation=relation,Color=tint.ToVector4(),FontColor=tint.ToVector4(),Font="Blue",Pinned=(bool)indicatorPinned.GetValue(indicator),
                     Icon=@"Textures\HUD\marker_"+icon+".dds",Distance=Vector3D.Distance(position,head) });
             }
         }
@@ -240,6 +245,12 @@ namespace SpaceEngineersVR.Player
                 if(local.Z<-.01 && Math.Abs(local.X/local.Z)<options.LimitX && Math.Abs(local.Y/local.Z)<options.LimitY &&
                     Vector3D.Dot(s.Pose.Backward,head.Translation-s.Pose.Translation)>0) windows.Add(s);
             }
+            signalHead=head;
+            if(Common.Config.CharacterMarkerRoll)
+            {
+                var up=(trackingToWorld ?? MatrixD.Invert(SpaceEngineersVR.Wrappers.MyRender11.Environment_Matrices.ViewD)).Up;
+                signalHead=MarkerBillboard.WithUp(head,up);
+            }
             layout=SignalLayout.Build(renderSnapshot,head,options,DateTime.UtcNow);
             foreach(var window in windows) layout=WristSignals.OutsideWindow(layout,window,head);
         }
@@ -253,7 +264,7 @@ namespace SpaceEngineersVR.Player
                 if(ShipCrosshair.Enabled(Common.Config,HelmetHud.Visible)) ShipCrosshair.Draw(target,renderCrosshair,renderHead,view,projection);
                 if(current!=null && (DateTime.UtcNow-current.Time).TotalSeconds<=1 && markersVisible)
                 {
-                    SignalPainter.Draw(target,layout,renderHead,view,projection);
+                    SignalPainter.Draw(target,layout,signalHead,view,projection);
                     if(Common.Config.SignalRings) NativeLead.Draw(target,current.Lead,renderHead,view,projection);
                 }
             }

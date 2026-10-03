@@ -24,6 +24,7 @@ namespace SpaceEngineersVR.Player
         }
         public static bool Markers => Visible && Mode >= 1;
         public static bool Names => Visible && Mode == 2;
+        internal static bool Reveal { get; private set; }
         private static int lastMode=-1;
         private static float ownRange=-1,friendlyRange=-1,otherRange=-1;
         private static readonly InputGate leftTrigger=new InputGate(),leftGrip=new InputGate(),rightGrip=new InputGate();
@@ -64,10 +65,10 @@ namespace SpaceEngineersVR.Player
             { characterId=character?.EntityId ?? 0; transition=null; }
             else if(closed!=VisorClosed) transition=new Transition(closed);
             VisorClosed=closed;
-            if(Mode!=lastMode || MyHudMarkerRender.SignalDisplayMode!=(Mode==2 ? MyHudMarkerRender.SignalMode.FullDisplay:Mode==1 ? MyHudMarkerRender.SignalMode.NoNames:MyHudMarkerRender.SignalMode.Off))
+            if(Mode!=lastMode || MyHudMarkerRender.SignalDisplayMode!=(Mode>0 ? MyHudMarkerRender.SignalMode.NoNames:MyHudMarkerRender.SignalMode.Off))
             {
                 AccessTools.Property(typeof(MyHudMarkerRender),nameof(MyHudMarkerRender.SignalDisplayMode))
-                    .SetValue(null,Mode==2 ? MyHudMarkerRender.SignalMode.FullDisplay : Mode==1 ? MyHudMarkerRender.SignalMode.NoNames : MyHudMarkerRender.SignalMode.Off,null);
+                    .SetValue(null,Mode>0 ? MyHudMarkerRender.SignalMode.NoNames : MyHudMarkerRender.SignalMode.Off,null);
                 lastMode=Mode;
             }
             var config=Common.Config;
@@ -84,6 +85,7 @@ namespace SpaceEngineersVR.Player
                 Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,c.Primary.RawPressed);
             bool nearLeft=guard && Player.HandL.pose.isTracked && NearHead(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix);
             bool nearRight=guard && Player.HandR.pose.isTracked && (rightGesture.Inside || NearHead(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix));
+            Reveal=active && Markers && (Mode==2 || nearLeft || nearRight);
             rightGrip.Update(active && Player.HandR.pose.isTracked && c.Secondary.Active,c.Secondary.RawPressed);
             float grip=c.LeftGripPressure.RawPosition.X;
             if(grip<=.025f) ViewGestureHeld=false;
