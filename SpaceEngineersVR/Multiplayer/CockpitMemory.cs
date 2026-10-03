@@ -61,7 +61,11 @@ namespace SpaceEngineersVR.Multiplayer
         }
         internal static MyObjectBuilder_Toolbar Toolbar(string xml)
             => string.IsNullOrEmpty(xml) ? null:Utilities.SerializeFromXML<MyObjectBuilder_Toolbar>(xml);
-        internal static string Toolbar(MyObjectBuilder_Toolbar value) => Utilities.SerializeToXML(value);
+        internal static string Toolbar(MyObjectBuilder_Toolbar value)
+        {
+            value.ToolbarType=MyToolbarType.ButtonPanel;
+            return Utilities.SerializeToXML(value);
+        }
         internal static bool ValidToolbar(string xml,int count)
         {
             if(xml==null || xml.Length>Limit/2) return false;

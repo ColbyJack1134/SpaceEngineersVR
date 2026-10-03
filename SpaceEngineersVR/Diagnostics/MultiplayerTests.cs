@@ -61,6 +61,14 @@ namespace SpaceEngineersVR.Diagnostics
         }
         internal static void RunNative(Action<string> log)
         {
+            var live=new Sandbox.Game.Screens.Helpers.MyToolbar(MyToolbarType.ButtonPanel,9,5);
+            Require(CockpitMemory.ValidToolbar(CockpitMemory.Toolbar(live.GetObjectBuilder()),42),
+                "Native cockpit toolbar export was rejected by host validation");
+            var legacy=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.Character,Slots=new List<MyObjectBuilder_Toolbar.Slot> {
+                new MyObjectBuilder_Toolbar.Slot {Index=8,Data=new MyObjectBuilder_ToolbarItemTerminalBlock {BlockEntityId=23,_Action="OnOff"}} }};
+            Require(!CockpitMemory.ValidToolbar(((VRage.Game.ModAPI.IMyUtilities)Sandbox.ModAPI.MyAPIUtilities.Static).SerializeToXML(legacy),42) &&
+                CockpitMemory.ValidToolbar(CockpitMemory.Toolbar(legacy),42) && legacy.Slots[0].Index==8,
+                "Legacy local cockpit assignment did not normalize for host persistence");
             var toolbar=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=new List<MyObjectBuilder_Toolbar.Slot> {
                 new MyObjectBuilder_Toolbar.Slot {Index=0,Data=new MyObjectBuilder_ToolbarItemTerminalBlock {BlockEntityId=21,_Action="OnOff"}},
                 new MyObjectBuilder_Toolbar.Slot {Index=40,Data=new MyObjectBuilder_ToolbarItemTerminalGroup {BlockEntityId=22,GroupName="Ship lights",_Action="OnOff"}} }};

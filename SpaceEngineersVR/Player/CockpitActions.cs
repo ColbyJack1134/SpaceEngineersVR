@@ -42,7 +42,7 @@ namespace SpaceEngineersVR.Player
                 try { builder=MyAPIGateway.Utilities.SerializeFromXML<MyObjectBuilder_Toolbar>(stored.ToolbarXml); }
                 catch(Exception ex) { Logger.Warning(ex,"Cockpit switch assignments could not be read; original config retained"); }
             toolbar.Init(builder,seat);
-            loadedXml=stored?.ToolbarXml ?? "";
+            loadedXml=builder==null ? "" : CockpitMemory.Toolbar(builder);
             toolbar.ItemChanged+=Changed;
             Synchronize();
         }
