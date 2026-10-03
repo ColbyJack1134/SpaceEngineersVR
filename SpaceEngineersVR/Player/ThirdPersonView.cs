@@ -18,7 +18,8 @@ namespace SpaceEngineersVR.Player
     {
         private static readonly Diorama view=new Diorama();
         private static readonly GripDescent descent=new GripDescent();
-        internal static bool DescentReady => !Active || descent.Ready;
+        internal static bool DescentReady => !Active || descent.Ready && !consumed;
+        internal static bool CrouchPressed { get; private set; }
         private static readonly ObserverFollow follow=new ObserverFollow();
         private static readonly object sync=new object();
         private static MyEntity subject;
@@ -56,6 +57,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Toggle()
         {
+            CrouchPressed=false;
             var candidate=Candidate;
             if(candidate==null) { EssentialHud.Notify("Third person is unavailable here"); return; }
             Fade(()=> {
@@ -127,6 +129,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Update()
         {
+            CrouchPressed=false;
             var candidate=Candidate;
             if(subject!=null && candidate!=subject) Reset();
             if(transition!=null && DateTime.UtcNow>=changeAt)
@@ -172,11 +175,12 @@ namespace SpaceEngineersVR.Player
             }
             if(consumed || transition!=null)
             {
-                c.ThrustDown.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); c.Secondary.BlockUntilRelease();
+                c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); c.Secondary.BlockUntilRelease();
                 c.Primary.BlockUntilRelease(); c.ThrustUp.BlockUntilRelease(); c.ThrustLRFB.BlockUntilRelease();
                 c.ThrustLRUD.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease();
                 c.ThrustForward.BlockUntilRelease(); c.ThrustBackward.BlockUntilRelease();
             }
+            CrouchPressed=descent.TakePress(!consumed && !WeaponHandling.ConsumesLeftGrip && c.CrouchOrClimbDown.IsPressed);
             Publish();
         }
         public static void Publish()

@@ -191,13 +191,13 @@ namespace SpaceEngineersVR.Player.Components
             if (controls.JumpOrClimbUp.HasPressed)
                 Character.Jump(Vector3.Up);
 
-            if (!WeaponHandling.ConsumesLeftGrip && controls.CrouchOrClimbDown.HasPressed)
+            if (!WeaponHandling.ConsumesLeftGrip && (ThirdPersonView.Active ? ThirdPersonView.CrouchPressed:controls.CrouchOrClimbDown.HasPressed))
                 Character.Crouch();
 
             if (controls.JumpOrClimbUp.IsPressed)
                 move.Y = 1f;
 
-            if (!WeaponHandling.ConsumesLeftGrip && controls.CrouchOrClimbDown.IsPressed)
+            if (!WeaponHandling.ConsumesLeftGrip && ThirdPersonView.DescentReady && controls.CrouchOrClimbDown.IsPressed)
                 move.Y = -1f;
 
             ApplyMoveAndRotation(move, rotate, 0f);
@@ -245,8 +245,8 @@ namespace SpaceEngineersVR.Player.Components
             var controls = Controls.Static;
 
             var controlledEntity = MySession.Static.ControlledEntity;
-            bool primaryPressed=!RemoteView.OwnsInput && controls.Primary.IsPressed && !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput;
-            bool secondaryPressed=!RemoteView.Turret && !RemoteView.OwnsInput && !BlockInspection.ConsumesSecondary && (controls.Secondary.IsPressed && FlightAxes.SecondaryGrip(InputRouter.Flying,controlledEntity is MyShipController,
+            bool primaryPressed=!HelmetHud.ProtectsRight && !RemoteView.OwnsInput && controls.Primary.IsPressed && !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput;
+            bool secondaryPressed=!HelmetHud.ProtectsRight && !RemoteView.Turret && !RemoteView.OwnsInput && !BlockInspection.ConsumesSecondary && (controls.Secondary.IsPressed && FlightAxes.SecondaryGrip(InputRouter.Flying,controlledEntity is MyShipController,
                 CockpitControls.RotationOwned,CockpitControls.NearGrip(Player.HandR),controls.ThrustRotate.RawPosition) || controls.Primary.IsPressed && GameActions.AlternateTrigger) && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput;
             if(controlledEntity is Sandbox.Game.Entities.Character.MyCharacter character && character.CurrentWeapon==null)
                 secondaryPressed=false;

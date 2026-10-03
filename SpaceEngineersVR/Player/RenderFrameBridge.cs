@@ -5,7 +5,7 @@ namespace SpaceEngineersVR.Player
 {
     internal static class RenderFrameBridge
     {
-        private sealed class Packet { public CameraRig.Frame Rig; public RemoteView.View Remote; public SurfaceView[] Surfaces; public WorldMarkers.View Markers; }
+        private sealed class Packet { public CameraRig.Frame Rig; public RemoteView.View Remote; public SurfaceView[] Surfaces; public WorldMarkers.View Markers; public ShipCrosshair.View Crosshair; }
         private static readonly ConditionalWeakTable<object, Packet> packets = new ConditionalWeakTable<object, Packet>();
         private static readonly List<Packet> pending=new List<Packet>();
         private static WorldMarkers.View latestMarkers;
@@ -13,17 +13,18 @@ namespace SpaceEngineersVR.Player
         public static SurfaceView[] Surfaces { get; private set; }
         public static RemoteView.View Remote { get; private set; }
         public static WorldMarkers.View Markers { get; private set; }
+        public static ShipCrosshair.View Crosshair { get; private set; }
         public static CameraRig.Frame ForCurrentOwner(CameraRig.Frame current)
         {
             // During respawn/ejection, keep validated eye height until the new batch arrives.
             return Current?.Epoch == current?.Epoch ? Current : current;
         }
 
-        public static void Capture(object message, CameraRig.Frame rig)
+        public static void Capture(object message, CameraRig.Frame rig,ShipCrosshair.View crosshair=null)
         {
             // Render messages are pooled; replace the previous use before enqueueing.
             packets.Remove(message);
-            var packet=new Packet { Rig=rig,Remote=RemoteView.Current,Surfaces=SpatialUi.Current };
+            var packet=new Packet { Rig=rig,Remote=RemoteView.Current,Surfaces=SpatialUi.Current,Crosshair=crosshair };
             packets.Add(message,packet);
             pending.Add(packet);
         }
@@ -43,6 +44,7 @@ namespace SpaceEngineersVR.Player
             Remote=packet?.Remote;
             Surfaces=packet?.Surfaces;
             Markers=packet?.Markers;
+            Crosshair=packet?.Crosshair;
         }
     }
 }

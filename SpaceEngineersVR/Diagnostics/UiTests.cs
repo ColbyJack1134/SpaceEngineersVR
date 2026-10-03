@@ -16,10 +16,24 @@ namespace SpaceEngineersVR.Diagnostics
 {
     public static class UiTests
     {
+        public static void Initialize(string game,string data)
+        {
+            Directory.CreateDirectory(data);
+            MyFileSystem.Init(Path.Combine(game,"..","Content"),data);
+            VRage.MyTexts.LoadTexts(Path.Combine(MyFileSystem.ContentPath,"Data","Localization"),"en",null);
+        }
+        public static void Signals(string game,string output,Action<string> log)
+        {
+            Directory.CreateDirectory(output);
+            Initialize(game,Path.Combine(output,"data"));
+            MarkerTests.Run(log);
+            SignalTests.Run(log);
+            using(var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport)) SignalTests.Render(device,output,log);
+        }
         public static void Tablet(string game,string output,Action<string> log)
         {
             Directory.CreateDirectory(output);
-            MyFileSystem.Init(Path.Combine(game,"..","Content"),Path.Combine(output,"data"));
+            Initialize(game,Path.Combine(output,"data"));
             SpatialUiTests.Run(log);
             using(var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport))
                 foreach(float fold in new[] {0f,.5f,1f})
@@ -39,7 +53,7 @@ namespace SpaceEngineersVR.Diagnostics
                         guards.WriteLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,"{0},{1:R},{2:R},{3:R}",i,point.X,point.Y,point.Z));
                     }
                 }
-            MyFileSystem.Init(Path.Combine(game,"..","Content"),Path.Combine(output,"data"));
+            Initialize(game,Path.Combine(output,"data"));
             foreach (var action in GameActions.Quick.Concat(GameActions.Building).Concat(GameActions.Developer))
                 if (!File.Exists(Path.Combine(MyFileSystem.ContentPath,action.Icon))) throw new FileNotFoundException("Action artwork",action.Icon);
             using (var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport))
@@ -202,7 +216,7 @@ namespace SpaceEngineersVR.Diagnostics
                     }
                     log("PASS native rotation artwork: linear texture sampling is encoded for the gamma-space overlay.");
                 }
-                MarkerPreviews(device,output);
+                SignalTests.Render(device,output,log);
                 MenuColors(device,output,log);
                 SurfacePreviews(device,output,log);
                 CockpitHandTests.Preview(output);
@@ -544,45 +558,6 @@ namespace SpaceEngineersVR.Diagnostics
                     if(pixel.R!=7 || pixel.G!=12 || pixel.B!=18) return true;
                 }
             return false;
-        }
-        private static void MarkerPreviews(Device device,string output)
-        {
-            using (var labels=new OverlayCanvas("Marker label test",WorldMarkers.AtlasWidth,WorldMarkers.AtlasHeight,1,false,device,true))
-            using (var text=new ShaderResourceView(device,labels.Texture))
-            using (var target=new OverlayCanvas("Billboard test",1024,512,1,false,device))
-            {
-                labels.Clear(System.Drawing.Color.Transparent);
-                int width=WorldMarkers.PaintLabel(labels.Graphics,"Waypoint Alpha", "1.2 km",0);
-                int longWidth=WorldMarkers.PaintLabel(labels.Graphics,"A long waypoint name must not hide its distance or enter the adjacent label", "345.6 km",1);
-                WorldMarkers.PaintLabel(labels.Graphics,"", "250 m",2);
-                labels.Upload(); device.ImmediateContext.GenerateMips(text);
-                Save(labels.Texture,Path.Combine(output,"marker-labels-preview.png"));
-                var head=MatrixD.Identity;
-                head.Translation=new Vector3D(1000000,2000000,3000000);
-                var sprites=new List<NativeSprite>();
-                foreach (int angle in new[] { -45,0,45 })
-                {
-                    double yaw=angle*Math.PI/180;
-                    var point=head.Translation+20*new Vector3D(Math.Sin(yaw),0,-Math.Cos(yaw));
-                    if (!MarkerBillboard.TryCreate(point,head,out var billboard)) throw new Exception("Preview billboard");
-                    // Read the peripheral marker along its sightline while the headset basis stays fixed.
-                    var view=MatrixD.CreateLookAt(head.Translation,point,head.Up);
-                    var projection=VrMath.Projection(-.4f,.4f,-.2f,.2f,.05);
-                    sprites.Clear();
-                    WorldMarkers.AddSprites(sprites,billboard,view,projection,@"Textures\HUD\marker_gps.dds",Vector4.One,text,0,width);
-                    if (sprites.Count!=2) throw new Exception("Marker label/icon quad missing");
-                    target.Clear(System.Drawing.Color.FromArgb(255,9,18,26)); target.Upload();
-                    NativeSprites.Draw(target.Texture,sprites);
-                    Save(target.Texture,Path.Combine(output,"marker-reading-"+angle+".png"));
-                }
-                sprites.Clear();
-                MarkerBillboard.TryCreate(head.Translation+head.Forward*20,head,out var front);
-                WorldMarkers.AddSprites(sprites,front,MatrixD.Invert(head),VrMath.Projection(-.4f,.4f,-.2f,.2f,.05),
-                    @"Textures\HUD\marker_gps.dds",Vector4.One,text,1,longWidth);
-                target.Clear(System.Drawing.Color.FromArgb(255,9,18,26)); target.Upload();
-                NativeSprites.Draw(target.Texture,sprites);
-                Save(target.Texture,Path.Combine(output,"marker-long-name.png"));
-            }
         }
         private static void Render(OverlayCanvas canvas, Action paint)
         {

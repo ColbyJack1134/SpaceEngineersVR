@@ -11,9 +11,12 @@ namespace SpaceEngineersVR.Player
         private static int tab,page;
         private static bool editing;
         private static string query="";
-        public static void Reset() { StopEditing(); tab=page=0; query=""; }
+        internal static bool HudOpen { get; private set; }
+        internal static void OpenHud() { Show(0); HudOpen=true; WristHud.Open(); }
+        public static void Reset() { StopEditing(); tab=page=0; HudOpen=false; query=""; WristSignals.Reset(); }
+        internal static bool Inspecting => tab==3;
         public static void StopEditing() { if(editing) MenuKeyboard.Close(); editing=false; }
-        internal static void Show(int selected) { StopEditing(); tab=selected; }
+        internal static void Show(int selected) { StopEditing(); HudOpen=false; tab=selected; }
         internal static void SetQuery(string text) { query=text; page=0; }
         internal static void Edit()
         {
@@ -28,10 +31,12 @@ namespace SpaceEngineersVR.Player
             var keys=new List<SurfaceKey>();
             var tabs=new[] {
                 new ActionChoice("Controls",()=>Show(0)),new ActionChoice("Toolbar",()=>Show(1)),
-                new ActionChoice("Search",()=>Show(2)),new ActionChoice("Close",SpatialUi.Collapse) };
-            for(int i=0;i<tabs.Length;i++) keys.Add(new SurfaceKey(tabs[i].Label,.02f+i*.245f,.025f,.23f,.1f) {
+                new ActionChoice("Search",()=>Show(2)),new ActionChoice("Signals",()=>Show(3)) };
+            for(int i=0;i<tabs.Length;i++) keys.Add(new SurfaceKey(tabs[i].Label,.02f+i*.243f,.025f,.231f,.1f) {
                 Action=tabs[i],Active=i==selected });
-            if(selected==2) SearchKeys(keys);
+            if(selected==3) { WristSignals.Keys(keys); return keys.ToArray(); }
+            else if(selected==0 && HudOpen && !previewToolbar.HasValue) WristHud.Keys(keys);
+            else if(selected==2) SearchKeys(keys);
             else if(showToolbar)
             {
                 for(int i=0;i<9;i++)
@@ -57,7 +62,7 @@ namespace SpaceEngineersVR.Player
                 var actions=GameActions.TabletActions(building,seated,thirdPerson,jetpack);
                 for(int i=0;i<actions.Length;i++)
                     keys.Add(new SurfaceKey(actions[i].Label,.02f+i%4*.245f,.16f+i/4*.20f,.23f,.185f) {
-                        Action=actions[i],Icons=new[] {actions[i].Icon},Active=Active(actions[i],status) });
+                        Action=actions[i]==GameActions.HudOptions ? new ActionChoice("HUD",OpenHud):actions[i],Icons=new[] {actions[i].Icon},Active=Active(actions[i],status) });
             }
             return keys.ToArray();
         }

@@ -12,7 +12,7 @@ namespace SpaceEngineersVR.Config
         public float Y { get; set; }
         public float Z { get; set; }
     }
-    public class PluginConfig : INotifyPropertyChanged
+    public partial class PluginConfig : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -28,6 +28,7 @@ namespace SpaceEngineersVR.Config
 
         private void OnPropertyChanged([CallerMemberName] string propName = "")
         {
+            CaptureActiveHudProfile(propName);
             PropertyChangedEventHandler propertyChanged = PropertyChanged;
             if (propertyChanged == null)
                 return;
@@ -83,11 +84,23 @@ namespace SpaceEngineersVR.Config
         public bool HudWithVisorOpen { get => hudWithVisorOpen; set => SetValue(ref hudWithVisorOpen,value); }
         public bool ShowVitals { get => showVitals ?? helmetHudMode>0; set => SetValue(ref showVitals,(bool?)value); }
         public int WaypointMode { get => waypointMode<0 ? Math.Max(0,helmetHudMode-1):waypointMode; set => SetValue(ref waypointMode,Math.Max(0,Math.Min(2,value))); }
+        private bool groupSignals=true,signalEdges=true,signalRings=true,showGps=true,showContacts=true,showResources=true;
+        private float ownSignalRange=1,friendlySignalRange=1,otherSignalRange=1;
+        public float OwnSignalRange { get => ownSignalRange; set => SetValue(ref ownSignalRange,Bound(value,0,1,1)); }
+        public float FriendlySignalRange { get => friendlySignalRange; set => SetValue(ref friendlySignalRange,Bound(value,0,1,1)); }
+        public float OtherSignalRange { get => otherSignalRange; set => SetValue(ref otherSignalRange,Bound(value,0,1,1)); }
+        public bool GroupSignals { get => groupSignals; set => SetValue(ref groupSignals,value); }
+        public bool SignalEdges { get => signalEdges; set => SetValue(ref signalEdges,value); }
+        public bool SignalRings { get => signalRings; set => SetValue(ref signalRings,value); }
+        private bool shipCrosshair=true;
+        public bool ShipCrosshair { get => shipCrosshair; set => SetValue(ref shipCrosshair,value); }
+        public bool ShowGps { get => showGps; set => SetValue(ref showGps,value); }
+        public bool ShowContacts { get => showContacts; set => SetValue(ref showContacts,value); }
+        public bool ShowResources { get => showResources; set => SetValue(ref showResources,value); }
         internal void CycleHud()
         {
-            if(!ShowVitals) { ShowVitals=true; WaypointMode=0; }
-            else if(WaypointMode<2) WaypointMode++;
-            else { ShowVitals=false; WaypointMode=0; }
+            InitializeHudProfiles();
+            SelectHudProfile((hudProfileIndex+1)%hudProfiles.Length);
         }
         private float thirdPersonPanSensitivity=1;
         public float ThirdPersonPanSensitivity { get => thirdPersonPanSensitivity; set => SetValue(ref thirdPersonPanSensitivity,Bound(value,.25f,2,1)); }

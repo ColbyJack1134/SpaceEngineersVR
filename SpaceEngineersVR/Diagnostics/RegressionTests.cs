@@ -51,6 +51,7 @@ namespace SpaceEngineersVR.Diagnostics
                 throw new Exception("Invalid/behind-eye marker projected into view");
             log("PASS stereo markers: large world coordinates, per-eye parallax, behind-eye/invalid rejection");
             MarkerTests.Run(log);
+            SignalTests.Run(log);
 
             var gate = new SpaceEngineersVR.Player.Control.InputGate();
             gate.Update(true, true);

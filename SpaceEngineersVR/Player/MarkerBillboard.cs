@@ -15,13 +15,7 @@ namespace SpaceEngineersVR.Player
             Vector3D towardHead=head.Translation-position;
             double distance=towardHead.Length();
             if (!position.IsValid() || !head.IsValid() || !distance.IsValid() || distance<0.1) return false;
-            towardHead/=distance;
-            Vector3D right=Vector3D.Cross(head.Up,towardHead);
-            if (right.LengthSquared()<1e-8)
-                right=head.Right-towardHead*Vector3D.Dot(head.Right,towardHead);
-            if (right.LengthSquared()<1e-8) return false;
-            right.Normalize();
-            billboard=new MarkerBillboard { Center=position,Right=right,Up=Vector3D.Cross(towardHead,right),
+            billboard=new MarkerBillboard { Center=position,Right=Vector3D.Normalize(head.Right),Up=Vector3D.Normalize(head.Up),
                 Scale=2*distance*Math.Tan(IconAngle/2) };
             return true;
         }

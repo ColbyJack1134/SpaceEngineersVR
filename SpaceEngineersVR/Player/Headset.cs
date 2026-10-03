@@ -42,6 +42,7 @@ namespace SpaceEngineersVR.Player
             // Match the body/animation command batch, not a newer simulation tick.
             var rig=RenderFrameBridge.ForCurrentOwner(CameraRig.Current);
             var markers=ReferenceEquals(rig,RenderFrameBridge.Current) ? RenderFrameBridge.Markers : null;
+            var crosshair=ReferenceEquals(rig,RenderFrameBridge.Current) ? RenderFrameBridge.Crosshair : null;
             rig=ThirdPersonView.RenderFrame(rig);
             Matrix originInverse=rig?.OriginInverse ?? Player.RenderPlayerToAbsolute.inverted;
             double scale=rig?.UnitsPerMeter ?? 1;
@@ -59,7 +60,14 @@ namespace SpaceEngineersVR.Player
                 StereoRenderState.Begin(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale),
                     rig?.ThirdPerson==true ? .005*scale : Math.Max(.03,matrices.NearClipping),matrices.LargeDistanceFarClipping);
                 ThirdPersonView.RecordTrace(rig);
-                WorldMarkers.BeginFrame(MatrixD.Invert(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale)),markers);
+                float left=0,right=0,top=0,bottom=0;
+                var signalLimits=new Vector2(float.MaxValue);
+                foreach(var eye in new[] {EVREye.Eye_Left,EVREye.Eye_Right})
+                {
+                    OpenVR.System.GetProjectionRaw(eye,ref left,ref right,ref top,ref bottom);
+                    signalLimits=Vector2.Min(signalLimits,new Vector2(Math.Min(-left,right),Math.Min(-top,bottom))*.96f);
+                }
+                WorldMarkers.BeginFrame(MatrixD.Invert(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale)),markers,signalLimits,rig?.TrackingToWorld,crosshair);
                 RenderEye(EVREye.Eye_Left, leftTexture, matrices, gameView, sceneCamera, originInverse,rig,out leftAmbient);
                 if(leftAmbient!=null) { new BorrowedRtvTexture(leftAmbient).Release(); leftAmbient=null; }
                 RenderEye(EVREye.Eye_Right, rightTexture, matrices, gameView, sceneCamera, originInverse,rig,out rightAmbient);

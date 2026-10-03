@@ -103,14 +103,40 @@ namespace SpaceEngineersVR.Diagnostics
             var descent=new GripDescent(); var pressed=DateTime.UtcNow;
             descent.Update(true,.2f,pressed);
             descent.Update(true,1,pressed.AddMilliseconds(149));
-            Require(!descent.Ready,"Partial third-person squeeze leaked descent");
+            Require(!descent.Ready && !descent.TakePress(true),"Partial third-person squeeze leaked descent/crouch");
             descent.Update(true,1,pressed.AddMilliseconds(151));
-            Require(descent.Ready,"Deliberate grip descent did not start");
+            Require(descent.Ready && descent.TakePress(true) && !descent.TakePress(true),"Delayed crouch must fire once per squeeze");
             descent.Update(true,1,pressed.AddSeconds(5));
             Require(descent.Ready,"Held descent acquired another delay");
             descent.Update(true,0,pressed.AddSeconds(6));
             descent.Update(true,1,pressed.AddSeconds(7));
-            Require(!descent.Ready,"Fresh grip inherited the previous delay");
+            Require(!descent.Ready && !descent.TakePress(true),"Fresh grip inherited the previous delay");
+            descent.Update(false,1,pressed.AddSeconds(8));
+            Require(!descent.Ready && !descent.TakePress(true),"Pan ownership leaked crouch");
+            var gesture=new HeadGesture(); var gameTrigger=new InputGate();
+            var temple=Matrix.CreateTranslation(.21f,0,0);
+            gesture.Update(true,temple,Matrix.Identity,false); gameTrigger.Update(true,false);
+            int cycles=0;
+            for(int press=0;press<8;press++)
+            {
+                var hand=Matrix.CreateTranslation(press==0 ? .21f:.27f,0,0);
+                foreach(bool down in new[] {true,true,false,false})
+                {
+                    gameTrigger.Update(true,down);
+                    gesture.Update(true,hand,Matrix.Identity,down);
+                    if(gesture.Inside) gameTrigger.Block();
+                    if(gesture.Pressed) cycles++;
+                    Require(!gameTrigger.Held,"Repeated helmet gesture leaked selected ship weapon input");
+                }
+            }
+            Require(cycles==8,"Held-near-head gesture failed to rearm between trigger presses");
+            gesture.Update(true,Matrix.CreateTranslation(.5f,-.3f,0),Matrix.Identity,false);
+            Require(!gesture.Inside,"Withdrawn gesture retained tool ownership");
+            gesture.Update(true,Matrix.CreateTranslation(.27f,0,0),Matrix.Identity,true);
+            Require(!gesture.Inside && !gesture.Pressed,"Retention volume acquired a fresh gesture");
+            gesture.Update(false,temple,Matrix.Identity,true);
+            gesture.Update(true,temple,Matrix.Identity,true);
+            Require(!gesture.Pressed,"Tracking/context loss rearmed a held trigger");
             foreach(float side in new[] {-1f,1f})
             {
                 var headPose=Matrix.CreateRotationY(.7f)*Matrix.CreateTranslation(20,2,30);

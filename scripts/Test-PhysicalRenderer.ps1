@@ -1,4 +1,4 @@
-param([string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype'),[switch]$CockpitsOnly,[string]$Cockpit,[switch]$InterfaceOnly,[switch]$CameraHudOnly)
+param([string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype'),[switch]$CockpitsOnly,[string]$Cockpit,[switch]$InterfaceOnly,[switch]$CameraHudOnly,[switch]$NativeSignals)
 $ErrorActionPreference = 'Stop'
 if (Get-Process Legacy,SpaceEngineers -ErrorAction SilentlyContinue) {
     throw 'A game is already running. Physical renderer test did not launch or stop anything.'
@@ -8,17 +8,20 @@ $previousScope = $env:SEVR_PHYSICAL_COCKPITS_ONLY
 $previousCockpit = $env:SEVR_PHYSICAL_COCKPIT
 $previousInterface = $env:SEVR_PHYSICAL_INTERFACE_ONLY
 $previousCamera = $env:SEVR_PHYSICAL_CAMERA_HUD_ONLY
+$previousSignals = $env:SEVR_NATIVE_SIGNALS
 try {
     $env:SEVR_PHYSICAL_COCKPITS_ONLY = if ($CockpitsOnly -or $Cockpit) { '1' } else { $null }
     $env:SEVR_PHYSICAL_COCKPIT = $Cockpit
     $env:SEVR_PHYSICAL_INTERFACE_ONLY = if ($InterfaceOnly) { '1' } else { $null }
     $env:SEVR_PHYSICAL_CAMERA_HUD_ONLY = if ($CameraHudOnly) { '1' } else { $null }
+    $env:SEVR_NATIVE_SIGNALS = if ($NativeSignals) { '1' } else { $null }
     $process = & (Join-Path $PSScriptRoot 'Launch.ps1') -PhysicalRenderTest -PassThru -PrototypeRoot $PrototypeRoot
 } finally {
     $env:SEVR_PHYSICAL_COCKPITS_ONLY = $previousScope
     $env:SEVR_PHYSICAL_COCKPIT = $previousCockpit
     $env:SEVR_PHYSICAL_INTERFACE_ONLY = $previousInterface
     $env:SEVR_PHYSICAL_CAMERA_HUD_ONLY = $previousCamera
+    $env:SEVR_NATIVE_SIGNALS = $previousSignals
 }
 $passed = $false
 $logPath = $null
@@ -48,4 +51,4 @@ try {
     }
 }
 if (!$passed) { throw "Physical renderer probe failed or timed out. Log: $logPath" }
-Write-Host "PASS: native renderer probe. InterfaceOnly=$InterfaceOnly CameraHudOnly=$CameraHudOnly. No world or VR session was loaded. Log: $logPath"
+Write-Host "PASS: native renderer probe. InterfaceOnly=$InterfaceOnly CameraHudOnly=$CameraHudOnly NativeSignals=$NativeSignals. No world or VR session was loaded. Log: $logPath"

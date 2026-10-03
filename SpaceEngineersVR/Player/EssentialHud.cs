@@ -69,6 +69,11 @@ namespace SpaceEngineersVR.Player
         private static int iconRevision;
         private static bool failed;
         internal const float OverlayWidth=1.6f,OverlayHeight=OverlayWidth*560/1280,OverlayY=-.4f,OverlayDepth=1.5f;
+        internal static float DisplayScale { get; private set; }=1;
+        internal static VRageMath.RectangleF[] SignalLabelReservations(float scale,bool piloting) => new[] {
+            new VRageMath.RectangleF(-.51f*scale,(piloting ? .23f:.325f)*scale,.47f*scale,.29f*scale),
+            new VRageMath.RectangleF(.15f*scale,.275f*scale,.37f*scale,.25f*scale),
+            new VRageMath.RectangleF(-.19f*scale,.445f*scale,.44f*scale,.08f*scale) };
         private static string notice;
         private static DateTime noticeUntil;
         public static void Notify(string message) { notice = message; noticeUntil = DateTime.UtcNow.AddSeconds(3); }
@@ -449,6 +454,7 @@ namespace SpaceEngineersVR.Player
                 if (canvas==null)
                 {
                     float scale=FitScale(HeadProjection(EVREye.Eye_Left),HeadProjection(EVREye.Eye_Right));
+                    DisplayScale=scale;
                     canvas=new OverlayCanvas("Essential HUD",1280,560,OverlayWidth*scale);
                     canvas.Position(Matrix.CreateTranslation(0,OverlayY*scale,-OverlayDepth),true);
                     Logger.Info("HUD field-of-view fit: "+scale.ToString("0.000",CultureInfo.InvariantCulture));

@@ -61,6 +61,23 @@ namespace SpaceEngineersVR.GUI
                     Label(.21f,"0% stops on release. 100% uses the tuned default.",.65f);
                     Reset(()=> { c.ThirdPersonPanGlide=c.ThirdPersonZoomGlide=c.ThirdPersonRotationGlide=1; });
                     break;
+                case "Signal ranges":
+                    Range(-.23f,"Own contacts",c.OwnSignalRange,v=>c.OwnSignalRange=v);
+                    Range(-.09f,"Friendly / unowned",c.FriendlySignalRange,v=>c.FriendlySignalRange=v);
+                    Range(.05f,"Neutral / hostile",c.OtherSignalRange,v=>c.OtherSignalRange=v);
+                    Label(.22f,"Antenna limits. GPS and ore use native visibility.",.6f);
+                    Reset(()=> { c.OwnSignalRange=c.FriendlySignalRange=c.OtherSignalRange=1; });
+                    break;
+                case "Signals":
+                    Toggle(-.25f,"Group nearby signals",c.GroupSignals,v=>c.GroupSignals=v);
+                    Label(-.17f,"Profiles and sizing: wrist Controls > HUD",.65f);
+                    Toggle(-.09f,"Wrist edge directions",c.SignalEdges,v=>c.SignalEdges=v);
+                    Toggle(-.01f,"Targeting rings",c.SignalRings,v=>c.SignalRings=v);
+                    Toggle(.07f,"GPS and objectives",c.ShowGps,v=>c.ShowGps=v);
+                    Toggle(.15f,"Contacts",c.ShowContacts,v=>c.ShowContacts=v);
+                    Toggle(.23f,"Ore and hacking",c.ShowResources,v=>c.ShowResources=v);
+                    Controls.Add(new MyGuiControlButton(new Vector2(-.18f,.34f),text:new StringBuilder("Ranges"),onButtonClick:b=>MyGuiSandbox.AddScreen(new SettingsPage("Signal ranges"))));
+                    break;
                 case "HUD & Interface":
                     Toggle(-.23f,"Show vitals HUD",c.ShowVitals,v=>c.ShowVitals=v);
                     Toggle(-.14f,"Show HUD with visor open",c.HudWithVisorOpen,v=>c.HudWithVisorOpen=v);
@@ -69,7 +86,8 @@ namespace SpaceEngineersVR.GUI
                     modes.AddItem(0,new StringBuilder("Off")); modes.AddItem(1,new StringBuilder("Icons")); modes.AddItem(2,new StringBuilder("Names and distance"));
                     modes.SelectItemByKey(c.WaypointMode); modes.ItemSelected+=()=>c.WaypointMode=(int)modes.GetSelectedKey(); Controls.Add(modes);
                     Toggle(.08f,"Block info without grip",c.InspectWithoutGrip,v=>c.InspectWithoutGrip=v);
-                    Link(.20f,"All actions",()=>new ActionBrowser());
+                    Link(.18f,"Signals",()=>new SettingsPage("Signals"));
+                    Link(.26f,"All actions",()=>new ActionBrowser());
                     break;
             }
             Controls.Add(new MyGuiControlButton(new Vector2(.18f,.34f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
@@ -79,6 +97,15 @@ namespace SpaceEngineersVR.GUI
         {
             Label(y,text); var check=new MyGuiControlCheckbox(new Vector2(.29f,y)) { IsChecked=value };
             check.IsCheckedChanged+=v=>store(v.IsChecked); Controls.Add(check);
+        }
+        private void Range(float y,string text,float value,Action<float> store)
+        {
+            var label=new MyGuiControlLabel(new Vector2(-.3f,y),text:text,textScale:.7f,originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER);
+            Controls.Add(label);
+            Action<float> caption=v=>label.Text=text+": "+Player.WorldMarkers.Distance(Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.Denormalize(v));
+            caption(value);
+            var slider=new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:0,maxValue:1,width:.53f,defaultValue:1) { Value=value };
+            slider.ValueChanged+=v=> { store(v.Value); caption(v.Value); }; Controls.Add(slider);
         }
         private void Slider(float y,string text,float value,float min,Action<float> store,float max=200)
         {

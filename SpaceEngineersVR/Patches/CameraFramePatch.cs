@@ -13,7 +13,7 @@ namespace SpaceEngineersVR.Patches
         {
             if(message is MyRenderMessageSetCharacterTransforms bones) BodyFit.Render(bones);
             if (Main.VrActive && message is MyRenderMessageSetCameraViewMatrix)
-                RenderFrameBridge.Capture(message, CameraRig.Current);
+                RenderFrameBridge.Capture(message, CameraRig.Current,ShipCrosshair.Capture());
         }
     }
 

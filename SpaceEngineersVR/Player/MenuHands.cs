@@ -27,12 +27,12 @@ namespace SpaceEngineersVR.Player
         private sealed class Mesh : IDisposable
         {
             public Buffer Vertices,Indices; public int Count;
-            public ShaderResourceView Color,Extra; public Matrix WristMount,PointFrame; public Vector3 Center;
+            public ShaderResourceView Color,Extra; public Matrix WristMount,PointFrame; public Vector3 Center,PinchPoint;
             public void Dispose() { Vertices?.Dispose(); Indices?.Dispose(); Color?.Dispose(); Extra?.Dispose(); }
         }
         private sealed class Model { public Mesh Mesh; public bool Failed; }
         private static readonly Dictionary<string,Model> models=new Dictionary<string,Model>();
-        private sealed class Wrist { public string Model; public Matrix Mount,RightPoint; }
+        private sealed class Wrist { public string Model; public Matrix Mount,RightPoint; public Vector3 PinchPoint; }
         private static volatile Wrist wrist;
         private static SharpDX.Direct3D11.Device gpu;
         private static DeviceContext context;
@@ -134,7 +134,7 @@ float4 PS(P p):SV_TARGET {
                 var mesh=CreateMesh(geometry.Vertices,geometry.Indices);
                 try { mesh.Color=Texture(geometry.ColorTexture,true); mesh.Extra=Texture(geometry.ExtraTexture,false); }
                 catch { mesh.Dispose(); throw; }
-                mesh.WristMount=geometry.WristMount; mesh.PointFrame=geometry.PointFrame;
+                mesh.PinchPoint=geometry.PinchPoint; mesh.WristMount=geometry.WristMount; mesh.PointFrame=geometry.PointFrame;
                 var bounds=BoundingBox.CreateInvalid(); foreach(var vertex in geometry.Vertices) bounds.Include(vertex.Position);
                 mesh.Center=bounds.Center; model.Mesh=mesh;
                 PublishGeometry(path,left,geometry);
@@ -154,6 +154,7 @@ float4 PS(P p):SV_TARGET {
             var previous=wrist;
             wrist=new Wrist { Model=model,
                 Mount=left ? geometry.WristMount : previous?.Model==model ? previous.Mount : Matrix.Identity,
+                PinchPoint=!left ? geometry.PinchPoint:previous?.PinchPoint ?? Vector3.Zero,
                 RightPoint=!left ? geometry.PointFrame : previous?.Model==model ? previous.RightPoint : Matrix.Identity };
         }
         internal static bool TryPointPose(Matrix grip,out MatrixD point)
@@ -236,7 +237,7 @@ float4 PS(P p):SV_TARGET {
             context.VertexShader.Set(vertexShader); context.PixelShader.Set(pixelShader);
             context.VertexShader.SetConstantBuffer(0,constants); context.PixelShader.SetConstantBuffer(0,constants); context.PixelShader.SetSampler(0,sampler);
         }
-        internal static Texture2D PreviewGlove(SharpDX.Direct3D11.Device device,bool left,float curl,Vector3 color,float tablet=-1,bool palm=false)
+        internal static Texture2D PreviewGlove(SharpDX.Direct3D11.Device device,bool left,float curl,Vector3 color,float tablet=-1,bool palm=false,Action<SurfaceView[],MatrixD> preview=null)
         {
             Init(device); var size=new Vector2I(960,720); Resize(size);
             var mesh=Glove(GloveGeometry.DefaultModel,left,true);
@@ -263,8 +264,31 @@ float4 PS(P p):SV_TARGET {
                 MatrixD mount=mesh.WristMount*CockpitHandPose.GripWrist(Matrix.Identity);
                 var status=new EssentialHud.View { Levels=new[] {.8f,.7f,.6f,.5f},Values=new[] {"80","70","60","50"},Speed="24.6",Dampeners=true };
                 var panels=SpatialUi.WristViews(mount,tablet,1,status,SpatialUi.WristKeys());
+                preview?.Invoke(panels,MatrixD.Invert(view));
                 PhysicalSurface.Draw(eyes[0],panels,view,projection,Depth);
             }
+            return eyes[0];
+        }
+        internal static Texture2D PreviewKnob(SharpDX.Direct3D11.Device device,float value,bool hand)
+        {
+            Init(device); var size=new Vector2I(960,720); Resize(size);
+            var panel=new SurfaceView { Id="Knob inspection",Style=SurfaceStyle.WristMenu,Width=.4f,Height=.225f,Pose=MatrixD.Identity,SignalWindow=true };
+            WristPanel.Show(3); panel.Keys=WristPanel.Keys(null,false,false,false,true,null); WristPanel.Show(0);
+            foreach(var key in panel.Keys) if(key.Knob.HasValue) key.Knob=value;
+            var center=WristKnob.Center(panel);
+            Matrix view=Matrix.CreateLookAt(center+(hand ? new Vector3(-.20f,.12f,.26f):new Vector3(.11f,.07f,.17f)),center,Vector3.Up);
+            Matrix projection=(Matrix)VrMath.Projection(-.55f,.55f,-.4125f,.4125f,.005);
+            Setup(targets[0],size); context.ClearRenderTargetView(targets[0],new RawColor4(.035f,.055f,.075f,1));
+            if(hand)
+            {
+                var mesh=Glove(GloveGeometry.DefaultModel,false,true);
+                var start=Matrix.Invert(mesh.PointFrame.GetOrientation());
+                var turn=new WristKnob.Turn(); turn.Begin(start,.5f); turn.Move(start*Matrix.CreateRotationZ((.5f-value)*WristKnob.Travel));
+                var pose=CockpitHandPose.Attach(turn.Wrist,Matrix.Identity,mesh.PinchPoint,center);
+                DrawMesh(mesh,(Matrix)pose,view*projection,new Vector4(0,-1,0,1),1);
+            }
+            using(var commands=context.FinishCommandList(false)) gpu.ImmediateContext.ExecuteCommandList(commands,true);
+            PhysicalSurface.Draw(eyes[0],new[] {panel},view,projection,Depth);
             return eyes[0];
         }
         internal static Matrix PointerTracking(bool render=false)
@@ -281,7 +305,7 @@ float4 PS(P p):SV_TARGET {
             if(state!=null && FloatingKeyboard.TryAttachment(out var keyboardWrist,out var keyboardPoint,out float keyboardBlend,tracking:true))
                 return CockpitHandPose.Blend(pose,CockpitHandPose.Attach(keyboardWrist,Matrix.Identity,state.RightPoint.Translation,keyboardPoint),keyboardBlend);
             if(state==null || !ThirdPersonView.Active || !SpatialUi.TryWristAttachment(out var captured,out var contact,out float blend,render:true)) return pose;
-            var attached=CockpitHandPose.Attach(captured,Matrix.Identity,state.RightPoint.Translation,contact);
+            var attached=CockpitHandPose.Attach(captured,Matrix.Identity,SpatialUi.PinchingKnob ? state.PinchPoint:state.RightPoint.Translation,contact);
             return CockpitHandPose.Blend(pose,attached,blend);
         }
         private static void DrawEye(RenderTargetView target, EVREye eye, Vector2I size, Controller[] hands, Mesh[] meshes, bool clear,bool pointer=true)
@@ -305,7 +329,7 @@ float4 PS(P p):SV_TARGET {
                         var c=Controls.Static;
                         if(h==1 && Main.WorldAvailable) pose=(Matrix)AttachWrist(pose);
                         float curl=h==0 ? Math.Max(c.LeftTriggerPressure.RawPosition.X,c.LeftGripPressure.RawPosition.X):Math.Max(c.PointerPressure.RawPosition.X,c.RightGripPressure.RawPosition.X);
-                        DrawMesh(meshes[h],pose,vp,CharacterColor,pointer ? 0:MathHelper.Clamp(curl,0,1));
+                        DrawMesh(meshes[h],pose,vp,CharacterColor,h==1 && SpatialUi.PinchingKnob ? 1:pointer ? 0:MathHelper.Clamp(curl,0,1));
                     }
                     else DrawMesh(box,Matrix.CreateScale(0.035f,0.075f,0.04f)*raw,vp,new Vector4(0.6f,0.7f,0.8f,1));
                 }

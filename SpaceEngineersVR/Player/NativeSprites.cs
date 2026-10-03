@@ -28,12 +28,14 @@ namespace SpaceEngineersVR.Player
         public bool IgnoreSceneDepth;
         public bool EncodeSrgb;
         public bool Opaque;
+        public bool Premultiplied;
         public Vector4 TopLeft, TopRight, BottomLeft, BottomRight;
+        public Vector4 Clip0,Clip1,Clip2,Clip3;
         public NativeSprite(string path, RectangleF bounds, Vector4 tint)
         {
             Path=path; Bounds=bounds; Tint=tint; Texture=null; UV=new Vector4(0,0,1,1);
-            EncodeSrgb=false; Opaque=false; Projected=IgnoreSceneDepth=false; TopLeft=TopRight=BottomLeft=BottomRight=Vector4.Zero;
-            Rounded=Vector2.Zero;
+            EncodeSrgb=false; Opaque=false; Premultiplied=false; Projected=IgnoreSceneDepth=false; TopLeft=TopRight=BottomLeft=BottomRight=Vector4.Zero;
+            Clip0=Clip1=Clip2=Clip3=Vector4.Zero; Rounded=Vector2.Zero;
         }
     }
 
@@ -47,7 +49,7 @@ namespace SpaceEngineersVR.Player
             public long Used;
         }
         [StructLayout(LayoutKind.Sequential)]
-        private struct Parameters { public Vector4 TopLeft, TopRight, BottomLeft, BottomRight, Tint, UV, DepthTest; }
+        private struct Parameters { public Vector4 TopLeft, TopRight, BottomLeft, BottomRight, Tint, UV, DepthTest, Clip0, Clip1, Clip2, Clip3; }
         private static readonly Dictionary<string, Icon> icons = new Dictionary<string, Icon>(StringComparer.OrdinalIgnoreCase);
         private static DeviceContext context;
         private static Device device;
@@ -64,17 +66,19 @@ namespace SpaceEngineersVR.Player
         internal static int Loaded => icons.Values.Count(i=>i.View!=null);
         public static string Hud(string name) => @"Textures\GUI\Icons\HUD 2017\" + name + ".png";
         private const string Shader = @"
-cbuffer Params : register(b0) { float4 TopLeft; float4 TopRight; float4 BottomLeft; float4 BottomRight; float4 Tint; float4 UV; float4 DepthTest; };
+cbuffer Params : register(b0) { float4 TopLeft; float4 TopRight; float4 BottomLeft; float4 BottomRight; float4 Tint; float4 UV; float4 DepthTest; float4 Clip0; float4 Clip1; float4 Clip2; float4 Clip3; };
 Texture2D Icon : register(t0); Texture2D SceneDepth : register(t1); Texture2D HandDepth : register(t2); Texture2D WorldDepth : register(t3); SamplerState Linear : register(s0);
-struct P { float4 p:SV_POSITION; float2 uv:TEXCOORD; };
+struct P { float4 p:SV_POSITION; float2 uv:TEXCOORD; noperspective float2 ndc:TEXCOORD1; };
 P VS(uint id:SV_VertexID) {
     float2 q=float2(id&1,id>>1); P o;
     o.p=id==0 ? TopLeft : id==1 ? TopRight : id==2 ? BottomLeft : BottomRight;
-    o.uv=UV.xy+q*UV.zw; return o;
+    o.uv=UV.xy+q*UV.zw; o.ndc=o.p.xy/o.p.w; return o;
 }
 float4 PS(P p):SV_TARGET {
+    float3 clipPosition=float3(p.ndc,1);
+    if(dot(clipPosition,Clip0.xyz)<0 || dot(clipPosition,Clip1.xyz)<0 || dot(clipPosition,Clip2.xyz)<0 || dot(clipPosition,Clip3.xyz)<0) discard;
     if (DepthTest.x > 0 && SceneDepth.Load(int3(p.p.xy,0)).r > p.p.z + 0.000002) discard;
-    if (DepthTest.w >= 4) {
+    if (fmod(floor(DepthTest.w/4),2) > 0) {
         float hand=HandDepth.Load(int3(p.p.xy,0)).r;
         if(hand > 0 && hand >= WorldDepth.Load(int3(p.p.xy,0)).r - 0.000002) discard;
     }
@@ -83,7 +87,9 @@ float4 PS(P p):SV_TARGET {
         float2 corner=max(abs(uv-.5)-(.5-DepthTest.yz),0)/DepthTest.yz;
         if (dot(corner,corner)>1) discard;
     }
-    float4 color=Icon.Sample(Linear,p.uv)*Tint;
+    float4 color=Icon.Sample(Linear,p.uv);
+    if (DepthTest.w >= 8) color.rgb/=max(color.a,0.00001);
+    color*=Tint;
     if (fmod(DepthTest.w,2) > 0)
         color.rgb=lerp(color.rgb*12.92,1.055*pow(max(color.rgb,0),1.0/2.4)-.055,step(.0031308,color.rgb));
     if (fmod(floor(DepthTest.w/2),2) > 0) color.a=1;
@@ -97,7 +103,7 @@ float4 PS(P p):SV_TARGET {
             using (var vs=ShaderBytecode.Compile(Shader,"VS","vs_4_0"))
             using (var ps=ShaderBytecode.Compile(Shader,"PS","ps_4_0"))
             { vertex=new VertexShader(device,vs); pixel=new PixelShader(device,ps); }
-            constants=new Buffer(device,112,ResourceUsage.Default,BindFlags.ConstantBuffer,CpuAccessFlags.None,ResourceOptionFlags.None,0);
+            constants=new Buffer(device,Marshal.SizeOf(typeof(Parameters)),ResourceUsage.Default,BindFlags.ConstantBuffer,CpuAccessFlags.None,ResourceOptionFlags.None,0);
             var blending=new BlendStateDescription();
             blending.RenderTarget[0]=new RenderTargetBlendDescription {
                 IsBlendEnabled=true, SourceBlend=BlendOption.SourceAlpha, DestinationBlend=BlendOption.InverseSourceAlpha,
@@ -197,7 +203,7 @@ float4 PS(P p):SV_TARGET {
                 {
                     var texture=sprite.Texture ?? Get(sprite.Path);
                     if (texture==null) continue;
-                    var data=new Parameters { Tint=sprite.Tint,UV=sprite.UV,DepthTest=new Vector4(sceneDepth==null || sprite.IgnoreSceneDepth ? 0 : 1,sprite.Rounded.X,sprite.Rounded.Y,(sprite.EncodeSrgb ? 1 : 0)+(sprite.Opaque ? 2 : 0)+(handDepth!=null ? 4:0)) };
+                    var data=new Parameters { Clip0=sprite.Clip0,Clip1=sprite.Clip1,Clip2=sprite.Clip2,Clip3=sprite.Clip3,Tint=sprite.Tint,UV=sprite.UV,DepthTest=new Vector4(sceneDepth==null || sprite.IgnoreSceneDepth ? 0 : 1,sprite.Rounded.X,sprite.Rounded.Y,(sprite.EncodeSrgb ? 1 : 0)+(sprite.Opaque ? 2 : 0)+(handDepth!=null ? 4:0)+(sprite.Premultiplied ? 8:0)) };
                     if (sprite.Projected)
                     {
                         data.TopLeft=sprite.TopLeft; data.TopRight=sprite.TopRight;

@@ -64,6 +64,9 @@ namespace SpaceEngineersVR.Diagnostics
                 }
                 migrated.ShowVitals=false; migrated.WaypointMode=2; migrated.HudWithVisorOpen=true;
                 migrated.PhysicalShipControlsOnly=true;
+                migrated.GroupSignals=false; migrated.SignalEdges=false; migrated.SignalRings=false; migrated.ShowGps=false;
+                migrated.ShowContacts=false; migrated.ShowResources=false;
+                migrated.OwnSignalRange=.25f; migrated.FriendlySignalRange=.5f; migrated.OtherSignalRange=.75f;
                 migrated.InvertShipPitch=true; migrated.InvertJetpackPitch=false; migrated.ThirdPersonRotationGlide=0;
                 using(var xml=new StringWriter())
                 {
@@ -72,6 +75,8 @@ namespace SpaceEngineersVR.Diagnostics
                 }
                 if(!migrated.PhysicalShipControlsOnly || migrated.ShowVitals || migrated.WaypointMode!=2 || !migrated.HudWithVisorOpen || !migrated.InvertShipPitch || migrated.InvertJetpackPitch || migrated.ThirdPersonRotationGlide!=0)
                     throw new Exception("Independent HUD/flight/glide settings lost after save");
+                if(migrated.GroupSignals || migrated.SignalEdges || migrated.SignalRings || migrated.ShowGps || migrated.ShowContacts || migrated.ShowResources ||
+                    migrated.OwnSignalRange!=.25f || migrated.FriendlySignalRange!=.5f || migrated.OtherSignalRange!=.75f) throw new Exception("Signal preferences lost after save");
                 migrated.ThirdPersonZoomSensitivity=float.NaN; migrated.ThirdPersonPanGlide=float.PositiveInfinity;
                 Near(migrated.ThirdPersonZoomSensitivity,1,"Invalid zoom sensitivity"); Near(migrated.ThirdPersonPanGlide,1,"Invalid pan glide");
             }

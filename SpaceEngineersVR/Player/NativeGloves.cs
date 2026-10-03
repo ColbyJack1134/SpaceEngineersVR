@@ -26,7 +26,7 @@ namespace SpaceEngineersVR.Player
         {
             var actors=Volatile.Read(ref current)?.Actors;
             left=actors?.Length>0 && actors[0]==id;
-            return left || actors?.Length>1 && actors[1]==id;
+            return left || actors?.Length>1 && actors[1]==id || actors?.Length>2 && actors[2]==id;
         }
         internal static void Reset()
         {
@@ -57,14 +57,18 @@ namespace SpaceEngineersVR.Player
             Reset(); MyRenderProxy.PreloadModel(model,forceOldPipeline:true);
             var state=new State { Model=model,Color=color,Actors=new uint[0] };
             Volatile.Write(ref current,state);
-            for(int h=0;h<2;h++)
+            for(int h=0;h<3;h++)
             {
                 var geometry=GloveGeometry.Load(MyFileSystem.ContentPath,model,h==0);
-                MenuHands.PublishGeometry(model,h==0,geometry);
+                if(h<2) MenuHands.PublishGeometry(model,h==0,geometry);
                 string name="SEVR_Glove_"+(++sequence);
                 var message=MyRenderProxy.PrepareAddRuntimeModel(); var source=geometry.NativeModel; var data=message.ModelData;
-                data.Positions.AddRange(source.Positions); data.Indices.AddRange(source.Indices);
-                data.Normals.AddRange(source.Normals); data.Tangents.AddRange(source.Tangents); data.TexCoords.AddRange(source.TexCoords);
+                if(h==2) foreach(var vertex in geometry.Vertices) data.Positions.Add(vertex.Closed);
+                else data.Positions.AddRange(source.Positions);
+                data.Indices.AddRange(source.Indices);
+                if(h==2) foreach(var vertex in geometry.Vertices) data.Normals.Add(vertex.ClosedNormal);
+                else data.Normals.AddRange(source.Normals);
+                data.Tangents.AddRange(source.Tangents); data.TexCoords.AddRange(source.TexCoords);
                 data.Sections.AddRange(source.Sections); data.AABB=source.AABB;
                 message.ReplacedModel=null; MyRenderProxy.AddRuntimeModel(name,message);
                 uint actor=MyRenderProxy.CreateRenderEntity(name,name,MatrixD.Identity,MyMeshDrawTechnique.MESH,
@@ -76,29 +80,30 @@ namespace SpaceEngineersVR.Player
         internal static void Prepare(CameraRig.Frame frame)
         {
             var state=Volatile.Read(ref current); Visible=false;
-            if(state?.Actors.Length!=2) return;
-            var hands=new[] { Player.HandL,Player.HandR };
-            for(int h=0;h<2;h++)
+            if(state?.Actors.Length!=3) return;
+            var hands=new[] { Player.HandL,Player.HandR,Player.HandR };
+            for(int h=0;h<3;h++)
             {
                 var actor=MyIDTracker<MyActor>.FindByID(state.Actors[h]);
                 if(actor==null) continue;
-                bool visible=frame?.ThirdPerson==true && hands[h].renderPose.isTracked;
+                bool visible=frame?.ThirdPerson==true && hands[h].renderPose.isTracked && (h==0 || (h==2)==SpatialUi.PinchingKnob);
                 actor.SetVisibility(visible);
                 if(!visible) { actor.UpdateBeforeDraw(); continue; }
                 MatrixD pose=Alignment.Apply(Alignment.HandKey(hands[h]),CockpitHandPose.GripWrist(hands[h].RenderGripTracking));
                 if(RemoteView.HomeSeat!=null && CockpitControls.Held(hands[h]))
                     pose=Alignment.Apply(Alignment.HandKey(hands[h]),CockpitControls.WristWorld(hands[h]))*MatrixD.Invert(RemoteView.PhysicalTrackingToWorld);
-                else if(h==1) pose=MenuHands.AttachWrist(pose);
+                else if(h>0) pose=MenuHands.AttachWrist(pose);
                 pose*=frame.TrackingToWorld;
                 actor.SetMatrix(ref pose); actor.UpdateBeforeDraw(); Visible=true;
             }
         }
-        internal static bool Preview(MatrixD left,MatrixD right)
+        internal static bool Preview(MatrixD left,MatrixD right,bool pinch=false)
         {
-            var state=current; if(state?.Actors.Length!=2) return false;
+            var state=current; if(state?.Actors.Length!=3) return false;
+            MyIDTracker<MyActor>.FindByID(state.Actors[pinch ? 1:2])?.SetVisibility(false);
             for(int h=0;h<2;h++)
             {
-                var actor=MyIDTracker<MyActor>.FindByID(state.Actors[h]); if(actor==null) return false;
+                var actor=MyIDTracker<MyActor>.FindByID(state.Actors[h==1 && pinch ? 2:h]); if(actor==null) return false;
                 MatrixD pose=h==0 ? left:right; actor.SetMatrix(ref pose); actor.SetVisibility(true); actor.UpdateBeforeDraw();
             }
             return true;

@@ -15,9 +15,19 @@ namespace SpaceEngineersVR.Player
         public string Label;
         public bool Enabled=true,Active;
         public string[] Icons=new string[0];
-        public string SubIcon,Text;
+        public string SubIcon,Text,Value;
         public ActionChoice Action;
+        public long TargetId;
+        public float? Knob;
+        public bool Invisible,DirectOnly,Round;
         public VRageMath.RectangleF Bounds;
+        internal bool Contains(Vector2 uv)
+        {
+            if(TargetId!=0 && (!WristSignals.Aperture.Contains(uv) || WristKnob.Reserved.Contains(uv))) return false;
+            if(Bounds.Width<=0 || Bounds.Height<=0 || !Bounds.Contains(uv)) return false;
+            var delta=(uv-Bounds.Center)/new Vector2(Bounds.Width/2,Bounds.Height/2);
+            return !Round || delta.LengthSquared()<=1;
+        }
         public SurfaceKey(string label,float x,float y,float w,float h) { Label=label; Bounds=new VRageMath.RectangleF(x,y,w,h); }
     }
     internal sealed class SurfaceView
@@ -25,6 +35,9 @@ namespace SpaceEngineersVR.Player
         public string Id,Title,Text,Action,Argument;
         public EssentialHud.View Status;
         public BlockInspection.Data Block;
+        public bool SignalWindow;
+        public WristSignals.View Signals;
+        public WristHud.View HudSettings;
         public string[] Icons=new string[0];
         public string SubIcon;
         public bool Enabled=true;
@@ -39,12 +52,12 @@ namespace SpaceEngineersVR.Player
         public float[] Levels;
         public int Handle;
         public Vector3? TouchPoint;
-        public string ContentKey => Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
-            "|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
+        public string ContentKey => SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
+            "|"+HudSettings?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
         public int KeyAt(Vector2 uv)
         {
-            for (int i=0;i<Keys.Length;i++) if (Keys[i].Enabled && Keys[i].Bounds.Width>0 && Keys[i].Bounds.Height>0 && Keys[i].Bounds.Contains(uv)) return i;
+            for (int i=0;i<Keys.Length;i++) if (Keys[i].Enabled && Keys[i].Contains(uv)) return i;
             return -1;
         }
     }
@@ -106,7 +119,7 @@ namespace SpaceEngineersVR.Player
             }
             if(s.Id=="Seat") { PaintSeat(target,s); return; }
             if(s.Style==SurfaceStyle.WristStatus) { PaintWrist(target,s); return; }
-            if(s.Style==SurfaceStyle.WristMenu) { PaintWristMenu(target,s); return; }
+            if(s.Style==SurfaceStyle.WristMenu) { if(s.SignalWindow) WristSignals.Paint(target,s); else if(s.HudSettings!=null) WristHud.Paint(target,s); else PaintWristMenu(target,s); return; }
             target.Clear(Color.FromArgb(255,12,20,28));
             var g=target.Graphics;
             using (var pen=new Pen(Color.FromArgb(255,84,125,143),6)) g.DrawRectangle(pen,5,5,1014,630);
@@ -280,17 +293,32 @@ namespace SpaceEngineersVR.Player
         private static void PaintWristMenu(OverlayCanvas target,SurfaceView s)
         {
             target.Clear(Color.FromArgb(255,12,20,28));
+            PaintWristKeys(target,s);
+            target.Graphics.FillRectangle(Brushes.White,1020,636,4,4);
+        }
+        internal static void PaintWristKeys(OverlayCanvas target,SurfaceView s)
+        {
             var g=target.Graphics;
             using(var labelFont=new Font("Segoe UI",23,FontStyle.Regular,GraphicsUnit.Pixel))
             using(var format=new StringFormat { Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center,Trimming=StringTrimming.EllipsisWord })
             for(int i=0;i<s.Keys.Length;i++)
             {
-                var key=s.Keys[i]; var b=key.Bounds;
+                var key=s.Keys[i]; if(key.Invisible) continue; var b=key.Bounds;
                 var r=new System.Drawing.RectangleF(b.X*1024,b.Y*640,b.Width*1024,b.Height*640);
                 using(var path=Rounded(r,10))
                 using(var brush=new SolidBrush(i==s.Pressed ? Color.FromArgb(40,133,151) : i==s.Hover ? Color.FromArgb(55,83,100) : Color.FromArgb(31,47,60))) g.FillPath(brush,path);
                 var label=key.Icons.Length>0 ? new System.Drawing.RectangleF(r.X+4,r.Bottom-40,r.Width-8,36):r;
-                g.DrawString(key.Label,labelFont,key.Enabled ? Brushes.White:Brushes.Gray,label,format);
+                if(key.Value==null) g.DrawString(key.Label,labelFont,key.Enabled ? Brushes.White:Brushes.Gray,label,format);
+                else
+                {
+                    using(var left=new StringFormat {Alignment=StringAlignment.Near,LineAlignment=StringAlignment.Center})
+                    using(var right=new StringFormat {Alignment=StringAlignment.Far,LineAlignment=StringAlignment.Center})
+                    {
+                        var inset=new System.Drawing.RectangleF(r.X+18,r.Y,r.Width-36,r.Height);
+                        g.DrawString(key.Label,labelFont,Brushes.White,inset,left);
+                        g.DrawString(key.Value,labelFont,Brushes.LightCyan,inset,right);
+                    }
+                }
                 float size=Math.Min(66,r.Height-43),x=r.X+(r.Width-size)/2,y=r.Y+4;
                 foreach(string icon in key.Icons) target.Icon(icon,x,y,size,key.Enabled);
                 if(key.SubIcon!=null) target.Icon(key.SubIcon,x+size*.6f,y+size*.6f,size*.4f,key.Enabled);
@@ -327,7 +355,10 @@ namespace SpaceEngineersVR.Player
                 }
                 string content=s.ContentKey;
                 if(c.Content!=content || c.Revision!=NativeSprites.Revision || (s.Style==SurfaceStyle.WristStatus && !ReferenceEquals(c.Status,s.Status)))
-                { Paint(c.Canvas,s); c.Canvas.Upload(); target.Device.ImmediateContext.GenerateMips(c.Texture); c.Content=content; c.Revision=NativeSprites.Revision; c.Status=s.Status; }
+                {
+                    Paint(c.Canvas,s); c.Canvas.Upload(); target.Device.ImmediateContext.GenerateMips(c.Texture);
+                    c.Content=content; c.Revision=NativeSprites.Revision; c.Status=s.Status;
+                }
                 var full=new VRageMath.RectangleF(-s.Width/2,s.Height/2,s.Width,s.Height);
                 if(s.Style==SurfaceStyle.Pointer)
                 {
@@ -351,7 +382,7 @@ namespace SpaceEngineersVR.Player
                     continue;
                 }
                 float thickness=s.Style==SurfaceStyle.WristStatus ? .002f : .008f;
-                sprites.Add(Quad(c.Texture,s.Pose,full,new Vector4(.01f,.01f,.001f,.001f),Vector4.One,view,projection,-thickness));
+                if(!s.SignalWindow) sprites.Add(Quad(c.Texture,s.Pose,full,new Vector4(.01f,.01f,.001f,.001f),Vector4.One,view,projection,-thickness));
                 for(int edge=0;edge<4;edge++)
                 {
                     MatrixD side=MatrixD.CreateRotationY(edge<2 ? (edge==0 ? Math.PI/2 : -Math.PI/2) : 0);
@@ -362,8 +393,11 @@ namespace SpaceEngineersVR.Player
                 }
                 if(Vector3D.Dot(s.Pose.Backward,MatrixD.Invert(view).Translation-s.Pose.Translation)<=0) continue;
                 sprites.Add(Quad(c.Texture,s.Pose,full,new Vector4(0,0,1,1),Vector4.One,view,projection));
+                if(s.SignalWindow) WristSignals.AddSprites(sprites,target.Device,s,view,projection);
                 foreach(var k in s.Keys)
                 {
+                    if(k.Knob.HasValue) {WristKnob.Add(sprites,c.Texture,s,k.Knob.Value,view,projection); continue;}
+                    if(k.Invisible) continue;
                     var b=k.Bounds;
                     int index=Array.IndexOf(s.Keys,k);
                     float raised=index==s.Pressed ? .001f : KeyHeight(s);

@@ -20,6 +20,7 @@ namespace SpaceEngineersVR.Player
         internal ushort[] Indices;
         internal string ColorTexture,ExtraTexture;
         internal Matrix WristMount,PointFrame;
+        internal Vector3 PinchPoint;
         internal MyModelData NativeModel;
         private static Dictionary<string,object> Tags(string file)
         {
@@ -99,7 +100,10 @@ namespace SpaceEngineersVR.Player
             int wrist=Array.IndexOf(names,"SE_Rig"+side+"Forearm2");
             Matrix mount=TrackedArms.WristScreenLocal*(wrist<0 ? bind[forearm]:bind[wrist])*localPalm;
             Matrix point=(Matrix)CockpitHandPose.PointPose(Matrix.Identity,correction,posed[0][indexTip]*Matrix.Invert(bind[palm]));
-            return new GloveGeometry { Vertices=output,Indices=indices.ToArray(),ColorTexture=color,ExtraTexture=extra,
+            int thumbTip=Array.IndexOf(names,"SE_Rig"+side+"_Thumb_3");
+            var pinch=Vector3.Transform(new Vector3(-.025f,0,0),posed[1][indexTip]*localPalm);
+            if(thumbTip>=0) pinch=(pinch+Vector3.Transform(new Vector3(-.025f,0,0),posed[1][thumbTip]*localPalm))*.5f;
+            return new GloveGeometry { PinchPoint=pinch,Vertices=output,Indices=indices.ToArray(),ColorTexture=color,ExtraTexture=extra,
                 WristMount=mount,PointFrame=point,NativeModel=native };
         }
     }

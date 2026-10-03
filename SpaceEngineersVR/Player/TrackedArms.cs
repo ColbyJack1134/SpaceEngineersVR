@@ -154,7 +154,7 @@ namespace SpaceEngineersVR.Player
                 {
                     finger.Bone.Rotation=CockpitControls.Held(hand)
                         ? CockpitHandPose.StickRotation(finger.Bone.Name,(hand==Player.HandL ? Controls.Static.LeftTriggerPressure:Controls.Static.PointerPressure).RawPosition.X)
-                        : CockpitHandPose.Rotation(finger.Bone.Name,CockpitTouch.Pinching(hand));
+                        : CockpitHandPose.Rotation(finger.Bone.Name,CockpitTouch.Pinching(hand) || hand==Player.HandR && SpatialUi.PinchingKnob);
                     finger.Bone.ComputeAbsoluteTransform(true,true);
                 }
             Diagnostics.ArmPoseCapture.Record(character,hand,arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone);
@@ -182,7 +182,8 @@ namespace SpaceEngineersVR.Player
             }
             if(hand==Player.HandR && arm?.IndexTip!=null && SpatialUi.TryWristAttachment(out var wristPose,out var wristPoint,out float wristBlend))
             {
-                var point=CockpitHandPose.Contact(arm.Palm.Bone,arm.IndexTip,arm.ThumbTip,false,CockpitHandPose.Tip);
+                bool pinch=SpatialUi.PinchingKnob;
+                var point=CockpitHandPose.Contact(arm.Palm.Bone,arm.IndexTip,arm.ThumbTip,pinch,pinch ? -.025f:CockpitHandPose.Tip);
                 return CockpitHandPose.Blend(world,CockpitHandPose.Attach(wristPose,arm.PalmOffset,point,wristPoint),wristBlend);
             }
             if(!character.IsSitting && character.CurrentWeapon==null && arm?.IndexTip!=null)

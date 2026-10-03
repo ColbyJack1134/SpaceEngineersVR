@@ -144,13 +144,13 @@ namespace SpaceEngineersVR.Player
             {
                 var k=s.Keys[i]; if(!k.Enabled || k.Bounds.Width<=0 || k.Bounds.Height<=0) continue;
                 var b=k.Bounds;
-                float z=PhysicalSurface.KeyHeight(s);
+                float z=k.Knob.HasValue ? WristKnob.Center(s).Z:PhysicalSurface.KeyHeight(s);
                 var bounds=new BoundingBox(new Vector3((b.X-.5f)*s.Width,(.5f-b.Y-b.Height)*s.Height,z),
                     new Vector3((b.X+b.Width-.5f)*s.Width,(.5f-b.Y)*s.Height,z));
                 if(!probe.Intersects(bounds,padding)) continue;
                 var point=Vector3.Clamp((Vector3)probe.Tip,bounds.Min,bounds.Max);
                 float candidate=Vector3.Distance((Vector3)probe.Tip,point);
-                if(candidate>=distance) continue;
+                if(candidate>=distance || k.Round && !k.Contains(PhysicalSurface.UV(s,point))) continue;
                 distance=candidate; contact=point; key=i;
             }
             return key;

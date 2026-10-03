@@ -125,6 +125,7 @@ namespace SpaceEngineersVR.Diagnostics
             if (!Active) return;
             try
             {
+                if(Environment.GetEnvironmentVariable("SEVR_NATIVE_SIGNALS")=="1") { NativeSignalProbe.Update(); return; }
                 if (MySession.Static!=null) throw new InvalidOperationException("Renderer probe requires the main menu, without a loaded world.");
                 if (renderError!=null) throw new InvalidOperationException(renderError);
                 if (DateTime.UtcNow>deadline) throw new TimeoutException("Native renderer probe timed out in phase "+phase);
@@ -216,6 +217,15 @@ namespace SpaceEngineersVR.Diagnostics
                     eye=new Vector3D(phase==45 ? -.35:.35,.23,.42);
                     view=MatrixD.CreateLookAt(eye,new Vector3D(0,0,-.04),Vector3D.Up); fov=.30f;
                 }
+                if(phase==46)
+                {
+                    var glove=GloveGeometry.Load(VRage.FileSystem.MyFileSystem.ContentPath,GloveGeometry.DefaultModel,true);
+                    var mount=glove.WristMount*CockpitHandPose.GripWrist(Matrix.CreateTranslation(-.11f,0,0));
+                    var panel=SpatialUi.WristPose(mount,1,.225f,-1);
+                    var center=(mount.Translation+panel.Translation)*.5;
+                    eye=center+mount.Right*.75f+mount.Backward*.20f;
+                    view=MatrixD.CreateLookAt(eye,center,mount.Backward); fov=.4f;
+                }
                 if(phase==48)
                 {
                     var model=VRage.Game.Models.MyModels.GetModelOnlyData(@"Models\Characters\Astronaut\SE_astronaut.mwm");
@@ -273,7 +283,7 @@ namespace SpaceEngineersVR.Diagnostics
                     {
                         options?.CloseScreenNow();
                         options=phase==42 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.BodyOptions() : phase==38 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.FlightOptions() :
-                            phase==43 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.SettingsPage("Turrets and cameras") : phase==44 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.SettingsPage("Body visibility") :
+                            phase==43 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.SettingsPage("Signals") : phase==44 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.SettingsPage("Signal ranges") :
                             (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.SettingsPage(phase==37 ? "Character" : phase==39 ? "Third person" : phase==40 ? "Release glide" : phase==41 ? "HUD & Interface" : "Advanced controls");
                         Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
                     }
@@ -381,7 +391,7 @@ namespace SpaceEngineersVR.Diagnostics
             if(Active && !rotationPreviewsSaved && BuildOrientationTests.Previews.Count==3) RenderRotationPreviews();
             if(Active && phase>=45 && phase<=46) NativeGloves.Preview(
                 CockpitHandPose.GripWrist(Matrix.CreateTranslation(-.11f,0,0)),
-                CockpitHandPose.GripWrist(Matrix.CreateTranslation(.11f,0,0)));
+                CockpitHandPose.GripWrist(Matrix.CreateTranslation(.11f,0,0)),phase==46);
             string path=pending;
             if (!Active || path==null || captured==path || renderError!=null) return;
             try
@@ -403,7 +413,7 @@ namespace SpaceEngineersVR.Diagnostics
                     {
                         if(phase>=45 && phase<=46 && !NativeGloves.Preview(
                             CockpitHandPose.GripWrist(Matrix.CreateTranslation(-.11f,0,0)),
-                            CockpitHandPose.GripWrist(Matrix.CreateTranslation(.11f,0,0)))) return;
+                            CockpitHandPose.GripWrist(Matrix.CreateTranslation(.11f,0,0)),phase==46)) return;
                         if(phase==45) PolishRenderTests.BeginHands(size.X,size.Y);
                         Wrappers.MyRender11.DrawGameScene(target,out ao);
                     }
@@ -438,6 +448,11 @@ namespace SpaceEngineersVR.Diagnostics
                     // The main menu has no world lighting. Inspect actual rasterized albedo/depth occlusion.
                     var buffer=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Resources.MyGBuffer"),"Main").GetValue(null);
                     var texture=(Texture2D)CockpitRender.Member(CockpitRender.Member(buffer,"GBuffer0"),"Resource");
+                    if(phase==24 || phase==48)
+                    {
+                        texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
+                        SignalTests.NativeOverlay(physicalTarget,camera.ViewMatrix,camera.ProjectionMatrix,output,phase==24 ? "cockpit":"character-observer");
+                    }
                     if(phase==45 || phase==46)
                     {
                         var glove=GloveGeometry.Load(VRage.FileSystem.MyFileSystem.ContentPath,GloveGeometry.DefaultModel,true);
@@ -447,6 +462,21 @@ namespace SpaceEngineersVR.Diagnostics
                         texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
                         PhysicalSurface.Draw(physicalTarget,new[] {tablet},camera.ViewMatrix,camera.ProjectionMatrix,PhysicalSurface.SceneDepth());
                         UiTests.Save(physicalTarget,Path.Combine(output,"native-tablet-depth-"+phase+".png"));
+                        if(phase==46)
+                        {
+                            SignalTests.InspectPanel(new[] {tablet},MatrixD.Invert(camera.ViewMatrix),DateTime.UtcNow);
+                            if(!tablet.Signals.Candidates.Any(c=>c.Visible)) throw new InvalidOperationException("Native wrist fixture has no visible signal label");
+                            PhysicalSurface.Draw(physicalTarget,new[] {tablet},camera.ViewMatrix,Wrappers.MyRender11.Environment_Matrices.Projection,PhysicalSurface.SceneDepth());
+                            SignalTests.WaitIcons();
+                            texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
+                            PhysicalSurface.Draw(physicalTarget,new[] {tablet},camera.ViewMatrix,Wrappers.MyRender11.Environment_Matrices.Projection,PhysicalSurface.SceneDepth());
+                            UiTests.Save(physicalTarget,Path.Combine(output,"signals-native-wrist.png"));
+                            var hudConfig=new Config.PluginConfig(); hudConfig.InitializeHudProfiles(); WristHud.Open(hudConfig);
+                            var hudPanel=HudProfileTests.Panel(hudConfig).At(tablet.Pose);
+                            texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
+                            PhysicalSurface.Draw(physicalTarget,new[] {hudPanel},camera.ViewMatrix,Wrappers.MyRender11.Environment_Matrices.Projection,PhysicalSurface.SceneDepth());
+                            UiTests.Save(physicalTarget,Path.Combine(output,"hud-profiles-native.png"));
+                        }
                         if(phase==45)
                         {
                             texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
@@ -562,7 +592,7 @@ namespace SpaceEngineersVR.Diagnostics
             Logger.Info("Physical image difference "+first+" / "+second+": "+changed+" sampled pixels");
             return changed;
         }
-        private static void Stop()
+        internal static void Stop()
         {
             options?.CloseScreenNow(); options=null;
             if(assignment!=null) { assignment.Finish(); assignment=null; }
