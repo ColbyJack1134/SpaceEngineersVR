@@ -206,13 +206,17 @@ namespace SpaceEngineersVR.Player
             var arm=hand==Player.HandL ? left : right;
             return arm==null ? palm : Matrix.Invert(arm.PalmOffset)*palm;
         }
-        internal static bool TryFreePalmCenter(Controller hand,out Vector3D center)
+        internal static readonly Vector3 BarPalmCenter=new Vector3(-.065f,-.015f,0);
+        internal static readonly Vector3 BarFingerCavity=new Vector3(-.105f,-.035f,0);
+        internal static bool TryFreeBarGrip(Controller hand,out CockpitProbe region)
         {
             var arm=hand==Player.HandL ? left:right;
-            center=Vector3D.Zero;
-            if(arm==null || !hand.pose.isTracked) return false;
-            center=Vector3D.Transform(new Vector3(-.065f,-.015f,0),(MatrixD)arm.PalmOffset*FreeWristWorld(hand));
-            return center.IsValid();
+            region=default;
+            if(disabled || owner!=MySession.Static?.LocalCharacter || arm==null || !hand.pose.isTracked) return false;
+            var palm=(MatrixD)arm.PalmOffset*FreeWristWorld(hand);
+            region.Start=Vector3D.Transform(BarPalmCenter,palm);
+            region.End=Vector3D.Transform(BarFingerCavity,palm);
+            return region.Start.IsValid() && region.End.IsValid();
         }
         internal static bool TryDesiredPalm(MyCharacter character,Controller hand,out MatrixD world)
         {

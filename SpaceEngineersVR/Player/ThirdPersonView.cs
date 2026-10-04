@@ -1,4 +1,8 @@
 using System;
+using HarmonyLib;
+using System.Reflection;
+using Sandbox.Engine.Utils;
+using Sandbox.Game.Multiplayer;
 using System.Diagnostics;
 using System.Threading;
 using Sandbox.Game.Entities;
@@ -72,7 +76,30 @@ namespace SpaceEngineersVR.Player
                     Reset(); camera.IsInFirstPersonView=true;
                 }
                 else { subject=candidate; Fit(); camera.IsInFirstPersonView=false; }
+                SavePerspective(candidate,camera.IsInFirstPersonView);
             });
+        }
+        private static readonly FieldInfo cameras=AccessTools.Field(typeof(MySession),"Cameras");
+        private static readonly MethodInfo getCamera=AccessTools.Method(cameras.FieldType,"TryGetCameraSettings");
+        private static readonly MethodInfo saveCamera=AccessTools.Method(cameras.FieldType,"SaveEntityCameraSettings");
+        private static void SavePerspective(MyEntity candidate,bool firstPerson)
+        {
+            var session=MySession.Static;
+            if(session?.LocalHumanPlayer==null) return;
+            bool character=candidate==session.LocalCharacter;
+            var collection=cameras.GetValue(session);
+            double distance=MyThirdPersonSpectator.Static.GetViewerDistance();
+            var controllable=candidate as Sandbox.Game.Entities.IMyControllableEntity;
+            var angle=new Vector2(controllable?.HeadLocalXAngle ?? 0,controllable?.HeadLocalYAngle ?? 0);
+            SavePerspective(collection,session.LocalHumanPlayer.Id,candidate.EntityId,character,firstPerson,distance,angle);
+        }
+        internal static void SavePerspective(object collection,MyPlayer.PlayerId player,long entity,bool character,bool firstPerson,double distance,Vector2 angle,bool sync=true)
+        {
+            var args=new object[] {player,entity,character,null};
+            if((bool)getCamera.Invoke(collection,args))
+            { var saved=(MyEntityCameraSettings)args[3]; distance=saved.Distance; angle=saved.HeadAngle ?? angle; }
+            // Native turret exit restores the home entity's saved preference.
+            saveCamera.Invoke(collection,new object[] {player,entity,firstPerson,distance,character,angle.X,angle.Y,sync});
         }
         public static void ResetView()
         {

@@ -1,4 +1,8 @@
 using System;
+using System.Runtime.Serialization;
+using HarmonyLib;
+using Sandbox.Game.World;
+using Sandbox.Game.Multiplayer;
 using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Player.Control;
 using VRageMath;
@@ -18,6 +22,7 @@ namespace SpaceEngineersVR.Diagnostics
         }
         public static void Run(Action<string> log)
         {
+            CameraPreference(log);
             var target=new Vector3D(2e8,-3e8,4e8);
             var origin=Matrix.CreateRotationY(.37f)*Matrix.CreateTranslation(1.2f,1.6f,-.4f);
             var head=Matrix.CreateRotationX(.23f)*Matrix.CreateTranslation(.1f,-.05f,.2f)*origin;
@@ -87,6 +92,36 @@ namespace SpaceEngineersVR.Diagnostics
             RenderCadence(log);
             DioramaMotionTests.Run(log);
             log("PASS third-person stereo/head scale, large-world precision, two/one-hand pivot capture, partial release, no drift, tracking cancellation, recenter continuity and render handoff.");
+        }
+        private static void CameraPreference(Action<string> log)
+        {
+            var previous=MySession.Static;
+            try
+            {
+                AccessTools.Field(typeof(MySession),"m_static").SetValue(null,FormatterServices.GetUninitializedObject(typeof(MySession)));
+                var type=AccessTools.Field(typeof(MySession),"Cameras").FieldType;
+                var collection=Activator.CreateInstance(type,true);
+                var player=new MyPlayer.PlayerId(123);
+                var get=AccessTools.Method(type,"TryGetCameraSettings");
+                MyEntityCameraSettings Read(long entity,bool character=false)
+                {
+                    var args=new object[] {player,entity,character,null};
+                    Require((bool)get.Invoke(collection,args),"Saved perspective is missing");
+                    return (MyEntityCameraSettings)args[3];
+                }
+                ThirdPersonView.SavePerspective(collection,player,10,false,false,12,new Vector2(3,4),false);
+                ThirdPersonView.SavePerspective(collection,player,20,false,false,25,new Vector2(5,6),false);
+                ThirdPersonView.SavePerspective(collection,player,10,false,true,99,Vector2.Zero,false);
+                Require(Read(10).IsFirstPerson,"First-person choice did not survive native lookup");
+                Require(Read(10).Distance==12 && Read(10).HeadAngle==new Vector2(3,4),"Toggle overwrote saved view distance or angles");
+                ThirdPersonView.SavePerspective(collection,player,10,false,false,99,Vector2.Zero,false);
+                Require(!(bool)AccessTools.Field(typeof(MyEntityCameraSettings),"m_isFirstPerson").GetValue(Read(10)),"Reverse toggle did not persist");
+                Require(Read(20).Distance==25 && Read(20).HeadAngle==new Vector2(5,6),"Home preference overwrote turret settings");
+                ThirdPersonView.SavePerspective(collection,player,30,true,true,8,Vector2.Zero,false);
+                Require(Read(31,true).IsFirstPerson,"Character preference did not follow native character lookup");
+                log("PASS native camera preference lookup, reverse toggle, retained distance/angles, separate turret state and character fallback.");
+            }
+            finally { AccessTools.Field(typeof(MySession),"m_static").SetValue(null,previous); }
         }
         private static MatrixD MovedHand(MatrixD hand,Vector3D pivot,MatrixD rotation,double scale,Vector3D shift)
         {

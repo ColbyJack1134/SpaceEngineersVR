@@ -275,8 +275,10 @@ namespace SpaceEngineersVR.Diagnostics
             valuePulse.Reset(.1f); Require(!valuePulse.Sample(.1f,now.AddSeconds(4)),"Regrab pulses from an old value");
             var farFinger=new CockpitProbe {Start=new Vector3D(1),End=new Vector3D(1),Tip=new Vector3D(1)};
             foreach(var palm in new[] {new Vector3(0,0,.02f),new Vector3(.02f,0,-.035f),new Vector3(-.075f,0,-.0155f)})
-                Require(CockpitTouch.NearBar(farFinger,palm,out _,out _),"Palm approach misses bar from top, underside or side");
-            Require(!CockpitTouch.NearBar(farFinger,new Vector3(.2f,0,0),out _,out _),"Distant palm captures bar");
+                Require(CockpitTouch.NearBar(farFinger,new CockpitProbe {Start=palm,End=palm},out _,out _),"Palm approach misses bar from top, underside or side");
+            Require(!CockpitTouch.NearBar(farFinger,new CockpitProbe {Start=new Vector3D(.2,0,0),End=new Vector3D(.2,0,0)},out _,out _),"Distant palm captures bar");
+            Require(CockpitTouch.NearBar(farFinger,new CockpitProbe {Start=new Vector3D(0,0,.08),End=new Vector3D(0,0,.02)},out _,out _),"Curled-finger end misses while palm is outside reach");
+            Require(!CockpitTouch.NearBar(farFinger,new CockpitProbe {Start=new Vector3D(0,0,.09),End=new Vector3D(0,0,.05)},out _,out _),"Distant grasp cavity captures bar");
             var nearFinger=new CockpitProbe {Start=new Vector3D(0,0,.005),End=new Vector3D(0,0,.03),Tip=new Vector3D(0,0,.005)};
             Require(CockpitTouch.NearBar(nearFinger,null,out _,out _),"Fingertip capture requires a palm");
             var hover=new CockpitFeedback.ProximityPulse();
