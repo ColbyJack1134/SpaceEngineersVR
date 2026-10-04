@@ -118,7 +118,7 @@ namespace SpaceEngineersVR.Player
                 }
             }
 
-            //Vive controllers work out whether they are left or right handed by their relative position to the headset. they can even change at runtime
+            // SteamVR controller roles can change at runtime.
             {
                 uint rightHandIndex = OpenVR.System.GetTrackedDeviceIndexForControllerRole(ETrackedControllerRole.RightHand);
                 HandR.deviceId = rightHandIndex;
@@ -132,8 +132,7 @@ namespace SpaceEngineersVR.Player
                 bool lockTaken = false;
                 try
                 {
-                    //Could cause weird sync issues where some objects render in the wrong place for a frame or two, but better than reducing frame rate
-                    //maybe we should have a list of objects that we override the rendering for to be relative to a certain device at render-time?
+                    // Reuse the last origin if simulation owns the lock; never block rendering.
                     lockTaken = SyncPlayerToAbsoluteLock.TryAcquireShared();
                     if (lockTaken)
                         RenderPlayerToAbsolute = SyncPlayerToAbsolute;
@@ -259,7 +258,6 @@ namespace SpaceEngineersVR.Player
             CalibratingTicksLeft = 0;
         }
 
-        //TODO: Call this from character movement due to player movement
         public static void MovePlayerFloor(Vector3 movement, float rotation)
         {
             Matrix floor = PlayerToAbsolute.matrix;

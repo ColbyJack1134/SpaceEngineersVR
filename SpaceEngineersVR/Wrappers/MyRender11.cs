@@ -48,7 +48,6 @@ namespace SpaceEngineersVR.Wrappers
             environment_matrices = AccessTools.Field("VRageRender.MyEnvironment:Matrices");
         }
 
-        //TODO; make delegate
         private static readonly FieldInfo backbuffer;
         public static MyBackbuffer GetBackbuffer()
         {
