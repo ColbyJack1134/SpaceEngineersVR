@@ -46,6 +46,7 @@ namespace SpaceEngineersVR.Player
             private readonly Matrix frame=Matrix.Identity;
             private readonly Vector3 bottom,top;
             private readonly float bottomAngle;
+            private readonly bool rotateGrip;
             private readonly bool contour=true;
             public Handle(Vector3 center,int actor,Vector3 shaft,Vector3 normal,Vector3 bottom,Vector3 top,float halfWidth,float radius)
             {
@@ -53,11 +54,11 @@ namespace SpaceEngineersVR.Player
                 frame=Frame(shaft,normal); this.bottom=bottom; this.top=top;
                 Axis=Vector3.Normalize(top-bottom); Range=Vector3.Distance(bottom,top); contour=false;
             }
-            public Handle(Vector3 center,int actor,Vector3 shaft,Vector3 normal,Vector3 pivot,Vector3 axis,float bottomAngle,float topAngle,float halfWidth,float radius)
+            public Handle(Vector3 center,int actor,Vector3 shaft,Vector3 normal,Vector3 pivot,Vector3 axis,float bottomAngle,float topAngle,float halfWidth,float radius,bool rotateGrip=false)
             {
                 Center=center; Actor=actor; HalfWidth=halfWidth; Radius=radius;
                 frame=Frame(shaft,normal); Pivot=pivot; Axis=Vector3.Normalize(axis);
-                this.bottomAngle=bottomAngle; Range=topAngle-bottomAngle; Hinged=true; contour=false;
+                this.bottomAngle=bottomAngle; Range=topAngle-bottomAngle; Hinged=true; contour=false; this.rotateGrip=rotateGrip;
             }
             private static Matrix Frame(Vector3 shaft,Vector3 normal)
             {
@@ -79,10 +80,13 @@ namespace SpaceEngineersVR.Player
                 float z=MathHelper.Lerp(Rear,Front,position);
                 return Matrix.CreateTranslation(0,Height(z)-Height(Center.Z),z-Center.Z);
             }
-            // Rotary handles turn about their grip axis; keep the wrist roll fixed.
-            internal Matrix Palm(bool left,float position,float offset=0) =>
-                CockpitStickMath.GripPalm(left,Vector3.Right*MathHelper.Clamp(offset,-GripOffset,GripOffset),left ? Vector3.Right:Vector3.Left)*
-                frame*Matrix.CreateTranslation(Vector3.Transform(Center,Visual(position)));
+            internal Matrix Palm(bool left,float position,float offset=0)
+            {
+                var grip=CockpitStickMath.GripPalm(left,Vector3.Right*MathHelper.Clamp(offset,-GripOffset,GripOffset),left ? Vector3.Right:Vector3.Left)*frame;
+                // Round crossbars allow a fixed wrist roll; shaped grips turn with the handle.
+                return rotateGrip ? grip*Matrix.CreateTranslation(Center)*Visual(position) :
+                    grip*Matrix.CreateTranslation(Vector3.Transform(Center,Visual(position)));
+            }
             internal float GripOffset => Math.Min(.02f,Math.Max(0,HalfWidth-.035f));
             internal MatrixD TouchPose => MatrixD.CreateWorld(Center+frame.Up*Radius,-frame.Up,frame.Forward);
         }

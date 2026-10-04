@@ -253,7 +253,7 @@ namespace SpaceEngineersVR.Diagnostics
             }
             foreach(bool left in new[] {true,false}) foreach(float position in new[] {0f,.5f,1f})
                 ExportGrip("Bar",left,CockpitRig.Find(CockpitLayout.ControlSeat).Handles[left ? 0:1].Palm(left,position),1,"-"+(int)(position*100));
-            foreach(var rig in CockpitRig.All) for(int i=0;i<rig.Handles.Length;i++) foreach(float position in new[] {0f,.5f,1f})
+            foreach(var rig in CockpitRig.All) for(int i=0;i<rig.Handles.Length;i++) foreach(float position in new[] {0f,.25f,.5f,.75f,1f})
             {
                 var handle=rig.Handles[i]; string name="Handle-"+rig.Subtype+"-"+i;
                 foreach(bool left in new[] {true,false}) ExportGrip(name,left,handle.Palm(left,position),1,"-"+(int)(position*100));
