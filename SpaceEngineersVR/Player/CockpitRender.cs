@@ -133,7 +133,7 @@ namespace SpaceEngineersVR.Player
                 }
                 if(activeRig!=null)
                 {
-                    UpdatePose(check,0,world);
+                    foreach(int actor in activeRig.StaticActors) UpdatePose(check,actor,world);
                     UpdateRigStick(check,activeRig.Left,left,leftOffset,leftHeld,world);
                     UpdateRigStick(check,activeRig.Right,right,rightOffset,rightHeld,world);
                     for(int i=0;i<activeRig.Levers.Length;i++)
@@ -146,6 +146,13 @@ namespace SpaceEngineersVR.Player
                         touch=CockpitTouch.Read("CockpitCover"+i);
                         UpdatePose(check,lever.CoverActor,(MatrixD)(nativeRest ? Matrix.Identity : lever.CoverVisual(coverPreview ?? CockpitButtons.CoverPosition(i,activeRig.Subtype)))*world);
                         SetRigFeedback(check,lever.CoverActor,touch.Held>=0 ? 2 : touch.Hover>=0 ? 1 : 0);
+                    }
+                    for(int i=0;i<activeRig.Handles.Length;i++)
+                    {
+                        int slot=activeRig.Levers.Length+i;
+                        var handle=activeRig.Handles[i]; var touch=CockpitTouch.Read("CockpitControl"+slot);
+                        UpdatePose(check,handle.Actor,(MatrixD)(nativeRest ? Matrix.Identity : handle.Visual(switchPreview ?? CockpitButtons.SwitchPosition(slot,activeRig.Subtype)))*world);
+                        SetRigFeedback(check,handle.Actor,touch.Held>=0 ? 2 : touch.Hover>=0 ? 1 : 0);
                     }
                     return;
                 }

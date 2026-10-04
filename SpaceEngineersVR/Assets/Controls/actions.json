@@ -436,7 +436,7 @@
       "/actions/common/in/PasteGrid": "Paste grid",
       "/actions/common/in/Interact": "Interact",
       "/actions/common/in/Helmet": "Helmet",
-      "/actions/common/in/Jetpack": "Jetpack / seated inventory",
+      "/actions/common/in/Jetpack": "Jetpack / rover jump",
       "/actions/common/in/Broadcasting": "Broadcasting",
       "/actions/common/in/Park": "Park",
       "/actions/common/in/Power": "Power",
@@ -475,7 +475,7 @@
       "/actions/menu/in/WheelNextPage": "Wheel next page",
       "/actions/menu/in/WheelPreviousPage": "Wheel previous page",
       "/actions/common/in/PointerPressure": "Show aiming ray (light trigger)",
-      "/actions/flying/in/SeatTerminal": "Jump (jetpack / wheels)",
+      "/actions/flying/in/SeatTerminal": "Dampeners / hold jetpack",
       "/actions/common/in/LeftTriggerPressure": "Left trigger pressure",
       "/actions/common/in/LeftGripPressure": "Left grip pressure",
       "/actions/common/in/RightGripPressure": "Right grip pressure"

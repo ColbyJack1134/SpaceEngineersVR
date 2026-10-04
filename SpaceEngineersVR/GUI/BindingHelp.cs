@@ -20,9 +20,9 @@ namespace SpaceEngineersVR.GUI
             lines.Add("Quest defaults; active SteamVR origins are shown where available.");
             Add("Recenter / fit third-person view", "common/Recenter");
             Add("Tap: return / cancel. Hold: toolbar", "common/Unequip");
-            Add("Tap in flight: dampeners. Hold: quick actions", "common/QuickMenu");
+            Add("Hold: quick actions", "common/QuickMenu");
             Add("Use object / enter or exit cockpit", "common/Interact");
-            Add("Jetpack on foot / typing in menus", "common/Jetpack");
+            Add("Jetpack / rover jump / typing in menus", "common/Jetpack");
             Add("Tool / place / menu click and drag", "common/Primary");
             Add("Secondary tool / right click", "common/Secondary");
             lines.Add("TOOLBAR: hold B, select with LEFT stick, release B to use. Center cancels.");
@@ -36,11 +36,12 @@ namespace SpaceEngineersVR.GUI
             Add("Turn on foot", "walking/WalkRotate");
             Add("Jump / climb up", "walking/JumpOrClimbUp");
             Add("Crouch / climb down", "walking/CrouchOrClimbDown");
+            Add("Tap: dampeners. Character hold: jetpack", "flying/SeatTerminal");
             Add("Flight translation", "flying/ThrustLRFB");
             Add("Pitch / yaw", "flying/ThrustRotate");
             Add("Rise", "flying/ThrustUp");
             Add("Descend", "flying/ThrustDown");
-            lines.Add("In flight, right grip + right stick sideways rolls. Auto dampeners: right grip + tap Y while jetpacking, or quick actions.");
+            lines.Add("In flight, right grip + right stick sideways rolls. Auto dampeners: right grip + left-stick click while jetpacking, or quick actions.");
             lines.Add("Invert jetpack pitch in Character settings; invert ship pitch in Flight settings.");
             lines.Add("HELMET: left-temple trigger toggles light; left-temple grip toggles ship third person.");
             lines.Add("Right-temple trigger cycles HUD: off, vitals, markers, details. Grip opens/closes visor.");

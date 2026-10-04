@@ -117,10 +117,10 @@ namespace SpaceEngineersVR.Player
             }
             return pose;
         }
-        internal static float Trigger(Controller hand) => (hand==Player.HandL ? Controls.Static.LeftTriggerPressure:Controls.Static.PointerPressure).RawPosition.X;
+        internal static float Trigger(Controller hand) => CockpitTouch.HoldingBar(hand) ? 1 : (hand==Player.HandL ? Controls.Static.LeftTriggerPressure:Controls.Static.PointerPressure).RawPosition.X;
         internal static ArmSkeleton.Fingers FingerMode(MyCharacter character,Controller hand)
         {
-            if(CockpitControls.Held(hand)) return ArmSkeleton.Fingers.Stick;
+            if(CockpitControls.Held(hand) || CockpitTouch.HoldingBar(hand)) return ArmSkeleton.Fingers.Stick;
             if(character.CurrentWeapon==null || Main.MenuOpen || CockpitTouch.Attached(hand) ||
                 TouchScreenBridge.PointingFor(hand) || RemoteView.PointingFor(hand) || HandInteraction.PointingFor(hand) ||
                 (hand==Player.HandL ? CockpitTouch.LeftPointing : CockpitTouch.RightPointing || SpatialUi.Pointing || BlockInspection.Current!=null))
@@ -161,6 +161,8 @@ namespace SpaceEngineersVR.Player
                 }
                 return world;
             }
+            if(arm!=null && CockpitTouch.TryBarPalm(hand,out var barPalm,out float barBlend))
+                return CockpitHandPose.Blend(world,(MatrixD)Matrix.Invert(arm.PalmOffset)*barPalm,barBlend);
             if(arm?.IndexTip!=null && CockpitTouch.TryAttachment(hand,out var attached,out var contact,out float blend))
             {
                 bool pinch=CockpitTouch.Pinching(hand);
@@ -203,6 +205,14 @@ namespace SpaceEngineersVR.Player
         {
             var arm=hand==Player.HandL ? left : right;
             return arm==null ? palm : Matrix.Invert(arm.PalmOffset)*palm;
+        }
+        internal static bool TryFreePalmCenter(Controller hand,out Vector3D center)
+        {
+            var arm=hand==Player.HandL ? left:right;
+            center=Vector3D.Zero;
+            if(arm==null || !hand.pose.isTracked) return false;
+            center=Vector3D.Transform(new Vector3(-.065f,-.015f,0),(MatrixD)arm.PalmOffset*FreeWristWorld(hand));
+            return center.IsValid();
         }
         internal static bool TryDesiredPalm(MyCharacter character,Controller hand,out MatrixD world)
         {

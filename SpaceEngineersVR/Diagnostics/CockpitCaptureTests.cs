@@ -265,6 +265,20 @@ namespace SpaceEngineersVR.Diagnostics
             Require(pulse.Sample(true,Vector3.One,now.AddSeconds(2),true)==0,"Movement overwrote a detent pulse");
             pulse.Sample(false,Vector3.Zero,now.AddSeconds(3));
             Require(pulse.Sample(true,Vector3.One,now.AddSeconds(4))==0,"Regrab used the previous stick position");
+            var valuePulse=new CockpitFeedback.ValuePulse(); valuePulse.Reset(.5f);
+            for(int i=0;i<20;i++) Require(!valuePulse.Sample(.5f+(i%2==0 ? .003f:-.003f),now.AddMilliseconds(i*10)),"Analog jitter repeats clicks");
+            Require(valuePulse.Sample(.53f,now.AddSeconds(1)),"Analog value change has no click");
+            Require(!valuePulse.Sample(.6f,now.AddSeconds(1).AddMilliseconds(10)),"Analog clicks exceed rate limit");
+            Require(valuePulse.Sample(.6f,now.AddSeconds(1).AddMilliseconds(60)),"Analog rate limit loses continued motion");
+            valuePulse.Reset(.99f);
+            Require(valuePulse.Sample(1,now.AddSeconds(2)) && !valuePulse.Sample(1,now.AddSeconds(3)),"Endpoint click repeats or is missing");
+            valuePulse.Reset(.1f); Require(!valuePulse.Sample(.1f,now.AddSeconds(4)),"Regrab pulses from an old value");
+            var farFinger=new CockpitProbe {Start=new Vector3D(1),End=new Vector3D(1),Tip=new Vector3D(1)};
+            foreach(var palm in new[] {new Vector3(0,0,.02f),new Vector3(.02f,0,-.035f),new Vector3(-.075f,0,-.0155f)})
+                Require(CockpitTouch.NearBar(farFinger,palm,out _,out _),"Palm approach misses bar from top, underside or side");
+            Require(!CockpitTouch.NearBar(farFinger,new Vector3(.2f,0,0),out _,out _),"Distant palm captures bar");
+            var nearFinger=new CockpitProbe {Start=new Vector3D(0,0,.005),End=new Vector3D(0,0,.03),Tip=new Vector3D(0,0,.005)};
+            Require(CockpitTouch.NearBar(nearFinger,null,out _,out _),"Fingertip capture requires a palm");
             var hover=new CockpitFeedback.ProximityPulse();
             Require(!hover.Sample(true,.2f,.1f) && hover.Sample(true,.099f,.1f),"Stick approach did not pulse once on entry");
             for(int i=0;i<120;i++) Require(!hover.Sample(true,i%2==0 ? .098f : .102f,.1f),"Grab-zone boundary jitter repeated hover feedback");

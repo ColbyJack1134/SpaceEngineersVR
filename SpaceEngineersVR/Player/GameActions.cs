@@ -250,9 +250,11 @@ namespace SpaceEngineersVR.Player
         private static void ToolbarConfig(int slot)
         {
             if (MyGuiScreenToolbarConfigBase.Static != null) return;
-            var screen=MyGuiSandbox.CreateScreen(MyPerGameSettings.GUI.ToolbarConfigScreen,0,MyToolbarComponent.CurrentToolbar?.Owner as MyCubeBlock,null);
-            if(slot>=0 && screen.Controls.GetControlByName("LabelToolbar") is MyGuiControlLabel label)
-                label.Text="Assign slot "+(slot+1)+" · drag item below";
+            var toolbar=MyToolbarComponent.CurrentToolbar;
+            var screen=(MyGuiScreenToolbarConfigBase)MyGuiSandbox.CreateScreen(MyPerGameSettings.GUI.ToolbarConfigScreen,0,toolbar?.Owner as MyCubeBlock,null);
+            if(toolbar!=null)
+                new GUI.CockpitAssignment(screen,toolbar,null,toolbar.SlotCount*toolbar.PageCount,
+                    slot>=0 ? toolbar.SlotToIndex(slot) : -1,switches:false).Update();
             MyGuiSandbox.AddScreen(MyGuiScreenGamePlay.ActiveGameplayScreen=screen);
         }
         public static void PauseMenu()
@@ -274,7 +276,11 @@ namespace SpaceEngineersVR.Player
             var jump=InputRouter.Flying ? c.FlightJump:c.JumpOrClimbUp;
             bool character=InputRouter.Gameplay && InputRouter.Mode!=InputMode.Piloting &&
                 MySession.Static?.ControlledEntity==MySession.Static?.LocalCharacter;
-            if(jumpHold.Update(character,jump.HasPressed,jump.IsPressed,DateTime.UtcNow)) Execute(JetpackAction);
+            bool flight=InputRouter.Flying && InputRouter.Gameplay && !RemoteView.Turret;
+            bool alternate=character && InputRouter.Flying &&
+                (c.ThrustRoll.RawPressed || c.RightGripPressure.RawPosition.X>.55f);
+            if(jumpHold.Update(character || flight,jump.HasPressed,jump.IsPressed,DateTime.UtcNow,character,alternate)) Execute(JetpackAction);
+            else if(flight && jumpHold.Tapped) Execute(jumpHold.Alternate ? RelativeDampeners:Dampeners);
             HandInteraction.UpdateLeftUse();
             if (c.Interact.HasPressed && !PlacementControls.Painting || c.Terminal.HasPressed || c.Inventory.HasPressed)
                 HandInteraction.RefreshTarget();

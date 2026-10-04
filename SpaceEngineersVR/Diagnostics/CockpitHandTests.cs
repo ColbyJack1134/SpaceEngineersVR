@@ -33,6 +33,9 @@ namespace SpaceEngineersVR.Diagnostics
                     FlightAxes.SecondaryGrip(true,ship,owned,near,new Vector2(.5f,0)))
                     throw new Exception("Secondary grip conflicts with flight roll or joystick capture");
             }
+            foreach(bool owned in new[] {false,true}) foreach(bool near in new[] {false,true})
+                if(FlightAxes.SecondaryGrip(true,false,owned,near,new Vector2(.5f,.5f),turret:true)!=(!owned && !near))
+                    throw new Exception("Turret locking conflicts with aiming or physical joystick ownership");
             foreach(bool left in new[] {true,false})
             {
                 var arm=ArmTests.InstalledBones(); var side=left ? "L":"R";
@@ -232,6 +235,8 @@ namespace SpaceEngineersVR.Diagnostics
                     if(stick!=null) ExportGrip(rig.Subtype,left,stick.Palm(left),trigger,suffix);
                 }
             }
+            foreach(bool left in new[] {true,false}) foreach(float position in new[] {0f,.5f,1f})
+                ExportGrip("Bar",left,CockpitRig.Find(CockpitLayout.ControlSeat).Handles[left ? 0:1].Palm(left,position),1,"-"+(int)(position*100));
             var bones=ArmTests.InstalledBones();
             foreach(bool pressed in new[] {false,true})
             {

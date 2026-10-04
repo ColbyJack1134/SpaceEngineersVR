@@ -10,12 +10,15 @@ namespace SpaceEngineersVR.Player
     internal static class CockpitButtons
     {
         private static readonly float[] positions=new float[CockpitLayout.MaximumCount];
+        private static readonly double[] nextAnalogSend=new double[CockpitLayout.MaximumCount];
+        private static readonly float?[] sentAnalog=new float?[CockpitLayout.MaximumCount];
+        private static readonly float?[] pendingAnalog=new float?[CockpitLayout.MaximumCount];
         private static readonly DateTime[] pulses=new DateTime[CockpitLayout.MaximumCount];
         private static readonly float[] covers=new float[CockpitLayout.MaximumCount];
         private static readonly bool[] open=new bool[CockpitLayout.MaximumCount];
         private static string subtype=FighterProfile.Subtype;
         static CockpitButtons() { ResetCovers(); }
-        private static int CoverIndex(int slot) => subtype==FighterProfile.Subtype ? CockpitSwitchGeometry.CoverIndex(slot) : CockpitRig.Find(subtype)?.Levers[slot]?.CoverActor>=0 ? slot : -1;
+        private static int CoverIndex(int slot) => subtype==FighterProfile.Subtype ? CockpitSwitchGeometry.CoverIndex(slot) : (CockpitRig.Find(subtype) is CockpitRig rig && slot<rig.Levers.Length && rig.Levers[slot]?.CoverActor>=0) ? slot : -1;
         private static DateTime lastUpdate;
         internal static float SwitchPosition(int slot,string model=null) => model!=null && model!=subtype ? 0 : positions[slot];
         internal static float CoverPosition(int slot,string model=null)
@@ -34,7 +37,7 @@ namespace SpaceEngineersVR.Player
         {
             var pose=CockpitLayout.Control(subtype,index,out float size);
             return new SurfaceView { Id="CockpitControl"+index,Style=SurfaceStyle.ModelControl,
-                Pose=pose,Width=size,Height=subtype==FighterProfile.Subtype && index==CockpitBarGeometry.Slot ? .120f : size,GeometryFeedback=subtype==FighterProfile.Subtype,
+                Pose=pose,Width=size,Height=CockpitRig.Find(subtype)?.HandleAt(index)!=null ? .032f : subtype==FighterProfile.Subtype && index==CockpitBarGeometry.Slot ? .120f : size,GeometryFeedback=subtype==FighterProfile.Subtype,
                 Keys=new[] {new SurfaceKey("",0,0,1,1)} };
         }
         private static void Release() { HoveredSwitch=-1; Targets=new CockpitTouch.Target[0]; Views=new SurfaceView[0]; }
@@ -67,6 +70,7 @@ namespace SpaceEngineersVR.Player
         {
             recovery.Clear(); owner=null; Release(); ResetCovers(); CockpitTouch.Reset();
             Array.Clear(positions,0,positions.Length); Array.Clear(pulses,0,pulses.Length);
+            Array.Clear(nextAnalogSend,0,nextAnalogSend.Length); Array.Clear(sentAnalog,0,sentAnalog.Length); Array.Clear(pendingAnalog,0,pendingAnalog.Length);
             lastUpdate=DateTime.MinValue; CockpitActions.Reset();
         }
         public static void Prepare()
@@ -78,9 +82,10 @@ namespace SpaceEngineersVR.Player
                 bool eligible=SeatFit.Eligible(seat) && CockpitLayout.Supported(seat.BlockDefinition.Id.SubtypeName);
                 CockpitActions.Update(eligible ? seat : null);
                 if(!ReferenceEquals(owner,seat))
-                { owner=seat; subtype=seat?.BlockDefinition.Id.SubtypeName; Release(); ResetCovers(); Array.Clear(positions,0,positions.Length); Array.Clear(pulses,0,pulses.Length); }
+                { Array.Clear(pendingAnalog,0,pendingAnalog.Length); Array.Clear(nextAnalogSend,0,nextAnalogSend.Length); Array.Clear(sentAnalog,0,sentAnalog.Length); owner=seat; subtype=seat?.BlockDefinition.Id.SubtypeName; Release(); ResetCovers(); Array.Clear(positions,0,positions.Length); Array.Clear(pulses,0,pulses.Length); }
                 Release(); SynchronizeCovers();
-                if(!eligible || ThirdPersonView.Active || !InputRouter.CockpitInteraction || Main.MenuOpen || CockpitControls.Adjusting) return;
+                if(!eligible || ThirdPersonView.Active || !InputRouter.CockpitInteraction || Main.MenuOpen || CockpitControls.Adjusting)
+                { Array.Clear(pendingAnalog,0,pendingAnalog.Length); Array.Clear(sentAnalog,0,sentAnalog.Length); return; }
                 subtype=seat.BlockDefinition.Id.SubtypeName;
                 var rig=CockpitRig.Find(subtype);
                 bool fighter=subtype==FighterProfile.Subtype;
@@ -89,7 +94,8 @@ namespace SpaceEngineersVR.Player
                 for(int i=0;i<count;i++)
                 {
                     bool bar=fighter && i==CockpitBarGeometry.Slot;
-                    var lever=rig?.Levers[i];
+                    var lever=rig!=null && i<rig.Levers.Length ? rig.Levers[i]:null;
+                    var handle=rig?.HandleAt(i);
                     int coverIndex=CoverIndex(i);
                     bool covered=coverIndex>=0;
                     if(covered && CockpitRender.Ready)
@@ -102,19 +108,19 @@ namespace SpaceEngineersVR.Player
                         targets.Add(new CockpitTouch.Target { Surface=cover,Slot=i,Cover=true,Position=covers[coverIndex],
                             Pivot=fighter ? CockpitCoverGeometry.Hinges[coverIndex] : lever.Hinge,Axis=fighter ? CockpitSwitchGeometry.AxisFor(i) : lever.Axis,Travel=CockpitCoverGeometry.Travel });
                     }
-                    bool accessible=fighter ? CockpitRender.Ready ? !covered || open[coverIndex] && covers[coverIndex]>.98f : i<9 : lever==null || CockpitRender.Ready && (!covered || open[coverIndex] && covers[coverIndex]>.98f);
+                    bool accessible=fighter ? CockpitRender.Ready ? !covered || open[coverIndex] && covers[coverIndex]>.98f : i<9 : lever==null && handle==null || CockpitRender.Ready && (!covered || open[coverIndex] && covers[coverIndex]>.98f);
                     if(!accessible) continue;
                     var s=Preview(subtype,i);
-                    s.GeometryFeedback=(fighter || lever!=null) && CockpitRender.Ready;
-                    if(s.GeometryFeedback) s.Pose*=bar ? CockpitBarGeometry.Visual(positions[i]) : fighter ? CockpitSwitchGeometry.Visual(i,positions[i]) : lever.Visual(positions[i]);
+                    s.GeometryFeedback=(fighter || lever!=null || handle!=null) && CockpitRender.Ready;
+                    if(s.GeometryFeedback) s.Pose*=handle!=null ? handle.Visual(positions[i]) : bar ? CockpitBarGeometry.Visual(positions[i]) : fighter ? CockpitSwitchGeometry.Visual(i,positions[i]) : lever.Visual(positions[i]);
                     var native=s.Pose*seat.WorldMatrix;
                     string key=Alignment.SeatKey("control"+i);
                     s.Pose=Alignment.Apply(key,native); s.Width*=Alignment.Scale(key); s.Height*=Alignment.Scale(key);
                     MatrixD correction=seat.WorldMatrix*MatrixD.Invert(native)*s.Pose*seat.PositionComp.WorldMatrixNormalizedInv;
-                    targets.Add(new CockpitTouch.Target { Surface=s,Slot=i,Lever=(fighter || lever!=null) && !bar && CockpitRender.Ready,Pull=bar,Position=positions[i],
+                    targets.Add(new CockpitTouch.Target { Surface=s,Slot=i,Analog=handle!=null,Lever=(fighter || lever!=null) && !bar && CockpitRender.Ready,Pull=bar,Position=positions[i],
                         Pivot=bar ? Vector3.Zero : (Vector3)Vector3D.Transform(fighter ? CockpitSwitchGeometry.Pivots[i] : lever?.Pivot ?? Vector3.Zero,correction),
-                        Axis=(Vector3)Vector3D.TransformNormal(bar ? CockpitBarGeometry.Normal : fighter ? CockpitSwitchGeometry.AxisFor(i) : lever?.Axis ?? Vector3.Right,correction),
-                        Travel=bar ? CockpitBarGeometry.Travel : CockpitSwitchGeometry.Travel });
+                        Axis=(Vector3)Vector3D.TransformNormal(handle!=null ? Vector3.Forward : bar ? CockpitBarGeometry.Normal : fighter ? CockpitSwitchGeometry.AxisFor(i) : lever?.Axis ?? Vector3.Right,correction),
+                        Travel=handle!=null ? CockpitRig.Handle.Travel : bar ? CockpitBarGeometry.Travel : CockpitSwitchGeometry.Travel });
                 }
                 Targets=targets.ToArray(); Views=targets.Select(t=>t.Surface).ToArray();
             }
@@ -128,7 +134,7 @@ namespace SpaceEngineersVR.Player
         }
         private static void UpdateCore()
         {
-            if(failed || Targets.Length==0) return;
+            if(failed || !SeatFit.Eligible(owner) || !CockpitLayout.Supported(subtype)) return;
             try
             {
                 var now=DateTime.UtcNow;
@@ -146,7 +152,18 @@ namespace SpaceEngineersVR.Player
                         continue;
                     }
                     if(s.Hover>=0 && HoveredSwitch<0) HoveredSwitch=i;
-                    bool activate=target.Lever || target.Pull ? input.Requested.HasValue : input.Pressed;
+                    if(target.Analog && CockpitActions.ReadAnalog(i,out _,out _))
+                    {
+                        if(input.Held>=0 && input.Position.HasValue && (!sentAnalog[i].HasValue || Math.Abs(input.Position.Value-sentAnalog[i].Value)>.0001f)) pendingAnalog[i]=input.Position.Value;
+                        if(pendingAnalog[i].HasValue && (input.Held<0 || MultiplayerRuntime.Now>=nextAnalogSend[i]))
+                        {
+                            CockpitActions.SetAnalog(i,pendingAnalog[i].Value);
+                            sentAnalog[i]=pendingAnalog[i]; pendingAnalog[i]=null; nextAnalogSend[i]=MultiplayerRuntime.Now+.05;
+                        }
+                        if(input.Held<0) sentAnalog[i]=null;
+                        continue;
+                    }
+                    bool activate=target.Draggable ? input.Requested.HasValue : input.Pressed;
                     if(activate)
                     {
                         bool? requested=input.Requested;
@@ -159,10 +176,11 @@ namespace SpaceEngineersVR.Player
                 // Covered levers still reflect changes made through terminals or other controls.
                 for(int i=0;i<CockpitLayout.Count(SeatFit.Seat.BlockDefinition.Id.SubtypeName);i++)
                 {
-                    bool stateful=CockpitActions.ReadState(i,out float actual);
+                    bool numeric=CockpitActions.ReadAnalog(i,out float actual,out _);
+                    bool stateful=numeric || CockpitActions.ReadState(i,out actual);
                     float state=stateful ? actual : now<pulses[i] ? 1 : 0;
                     var input=CockpitTouch.Read("CockpitControl"+i);
-                    positions[i]=input.Position ?? positions[i]+MathHelper.Clamp(state-positions[i],-step,step);
+                    positions[i]=input.Position ?? (numeric ? state:positions[i]+MathHelper.Clamp(state-positions[i],-step,step));
                 }
             }
             catch(Exception ex) { Fail(ex); }
@@ -188,7 +206,13 @@ namespace SpaceEngineersVR.Player
                 }
                 label.Text=target.Cover ? "↕" : item==null ? "+" : null;
                 label.Icons=item?.Icons ?? new string[0]; label.SubIcon=item?.SubIcon; label.Enabled=item?.Enabled ?? true;
-                label.Levels=CockpitActions.ReadState(target.Slot,out float state) ? new[] { state } : null;
+                if(target.Analog && !target.Cover && CockpitActions.ReadAnalog(target.Slot,out float analogPosition,out string value))
+                {
+                    var input=CockpitTouch.Read(target.Surface.Id);
+                    label.Argument=input.Held>=0 && input.Position.HasValue ? CockpitActions.AnalogLabel(target.Slot,input.Position.Value):value;
+                    label.Levels=new[] {input.Position ?? analogPosition};
+                }
+                else label.Levels=CockpitActions.ReadState(target.Slot,out float state) ? new[] { state } : null;
             }
             else
             {

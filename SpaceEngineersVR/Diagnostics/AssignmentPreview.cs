@@ -33,11 +33,13 @@ namespace SpaceEngineersVR.Diagnostics
         private readonly object previousComponent;
         private readonly MyGuiControlToolbar toolbar;
         private readonly CockpitAssignment assignment;
+        private readonly bool ordinary;
         private static int Count => Player.CockpitLayout.Count(Player.FighterProfile.Subtype);
         public override string GetFriendlyName() => "SEVR assignment preview";
         private static void Set(object instance,string field,object value) => AccessTools.Field(instance.GetType(),field).SetValue(instance,value);
-        internal AssignmentPreview() : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.95f,.70f))
+        internal AssignmentPreview(bool ordinary=false) : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.95f,.70f))
         {
+            this.ordinary=ordinary;
             var file=Path.Combine(VRage.FileSystem.MyFileSystem.ContentPath,"Data","Hud","Default.sbc");
             MyObjectBuilder_Definitions definitions;
             if(!MyObjectBuilderSerializer.DeserializeXML(file,out definitions)) throw new Exception("Native HUD definition unavailable");
@@ -46,8 +48,9 @@ namespace SpaceEngineersVR.Diagnostics
             previousComponent=AccessTools.Field(typeof(MyToolbarComponent),"m_instance").GetValue(null);
             if(previousComponent==null) AccessTools.Field(typeof(MyToolbarComponent),"m_instance").SetValue(null,FormatterServices.GetUninitializedObject(typeof(MyToolbarComponent)));
             previous=MyToolbarComponent.CurrentToolbar;
-            target=new MyToolbar(MyToolbarType.ButtonPanel,9,(Count+8)/9);
-            source=new MyToolbar(MyToolbarType.Ship,9,3);
+            target=new MyToolbar(ordinary ? MyToolbarType.Ship:MyToolbarType.ButtonPanel,9,ordinary ? 3:(Count+8)/9);
+            source=ordinary ? null:new MyToolbar(MyToolbarType.Ship,9,3);
+            if(ordinary) target.SwitchToPage(1);
             MyToolbarComponent.CurrentToolbar=target;
             toolbar=new PreviewToolbar(style) { Position=new Vector2(.33f,.20f),OriginAlign=MyGuiDrawAlignEnum.HORISONTAL_RIGHT_AND_VERTICAL_BOTTOM };
             Controls.Add(toolbar);
@@ -57,8 +60,8 @@ namespace SpaceEngineersVR.Diagnostics
             var drag=new MyGuiControlGridDragAndDrop(MyGuiConstants.DRAG_AND_DROP_BACKGROUND_COLOR,MyGuiConstants.DRAG_AND_DROP_TEXT_COLOR,.7f,MyGuiConstants.DRAG_AND_DROP_TEXT_OFFSET,true);
             Set(owner,"m_dragAndDrop",drag); Controls.Add(drag);
             Controls.Add(new MyGuiControlLabel(new Vector2(-.32f,.10f),text:"Switches") {Name="LabelToolbar"});
-            Controls.Add(new MyGuiControlLabel(new Vector2(0,-.23f),text:"Cockpit assignment",originAlign:MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER));
-            assignment=new CockpitAssignment(owner,target,source,Count,10); assignment.Update();
+            Controls.Add(new MyGuiControlLabel(new Vector2(0,-.23f),text:ordinary ? "Toolbar assignment":"Cockpit assignment",originAlign:MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER));
+            assignment=new CockpitAssignment(owner,target,source,ordinary ? target.SlotCount*target.PageCount:Count,10,switches:!ordinary); assignment.Update();
             FillArtwork();
         }
         private void FillArtwork()
@@ -66,10 +69,28 @@ namespace SpaceEngineersVR.Diagnostics
             string[] art={"GridPowerOn","Dampeners","Handbrake","Light","ToggleConnectors","GridPowerOn","Dampeners","Light","Handbrake"};
             foreach(var grid in Controls.OfType<MyGuiControlGrid>().Concat(new[] {toolbar.ToolbarGrid}))
                 for(int i=0;i<9;i++) if(grid!=toolbar.ToolbarGrid || target.CurrentPage*9+i<Count)
-                    grid.SetItemAt(i,new MyGuiGridItem(Player.NativeSprites.Hud(art[i]),null,"Action",null));
+                    grid.SetItemAt(i,ordinary && target.CurrentPage==1 && i==1 ? null:new MyGuiGridItem(Player.NativeSprites.Hud(art[i]),null,"Action",null));
         }
         internal void VerifyAndPage()
         {
+            if(ordinary)
+            {
+                if(target.CurrentPage!=1 || toolbar.ToolbarGrid.SelectedIndex!=1 || target.SelectedSlot.HasValue || target.GetItemAtIndex(10)!=null)
+                    throw new Exception("Empty toolbar assignment lost its page/slot or activated equipment");
+                var previous=(MyGuiControlButton)Controls.GetControlByName("SwitchPreviousPage");
+                var next=(MyGuiControlButton)Controls.GetControlByName("SwitchNextPage");
+                if(previous==null || next==null || Controls.GetControlByName("ShipNextPage")!=null)
+                    throw new Exception("Ordinary toolbar paging has an incorrect source row");
+                next.PressButton();
+                if(target.CurrentPage!=2 || toolbar.ToolbarGrid.SelectedIndex.HasValue) throw new Exception("Assignment highlight followed another page");
+                next.PressButton();
+                if(target.CurrentPage!=0) throw new Exception("Ordinary toolbar page did not wrap");
+                previous.PressButton(); previous.PressButton();
+                if(target.CurrentPage!=1 || toolbar.ToolbarGrid.SelectedIndex!=1) throw new Exception("Assignment highlight was not restored");
+                previous.PressButton(); FillArtwork();
+                Plugin.Logger.Info("PASS native ordinary assignment: exact empty slot, page arrows and wrap, page-specific highlight, no equipment activation.");
+                return;
+            }
             foreach(string row in new[] {"Ship","Switch"})
             {
                 var left=(MyGuiControlButton)Controls.GetControlByName(row+"PreviousPage");

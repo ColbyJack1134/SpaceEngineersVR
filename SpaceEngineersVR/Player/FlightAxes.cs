@@ -4,8 +4,8 @@ namespace SpaceEngineersVR.Player
 {
     internal static class FlightAxes
     {
-        internal static bool SecondaryGrip(bool flying,bool ship,bool stickOwned,bool nearStick,Vector2 rotation) =>
-            !flying || ship && !stickOwned && !nearStick && rotation.LengthSquared()<=.04f;
+        internal static bool SecondaryGrip(bool flying,bool ship,bool stickOwned,bool nearStick,Vector2 rotation,bool turret=false) =>
+            !flying || (ship || turret) && !stickOwned && !nearStick && (turret || rotation.LengthSquared()<=.04f);
 
         public static bool ControllerInputAllowed(bool ship,bool thirdPerson,bool physicalOnly) => !ship || thirdPerson || !physicalOnly;
 

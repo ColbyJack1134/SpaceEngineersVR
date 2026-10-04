@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using HarmonyLib;
 using Sandbox.Game.Entities.Character;
 using Sandbox.Game.EntityComponents;
@@ -22,6 +23,17 @@ namespace SpaceEngineersVR.Multiplayer
     {
         private static void Postfix(MyObjectBuilder_CubeBlock __instance,IMyRemapHelper remapHelper)
             => CockpitMemory.Remap(__instance,remapHelper);
+    }
+    [HarmonyPatch]
+    internal static class AnalogSavePatch
+    {
+        private static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.Method(typeof(Sandbox.Game.Entities.Blocks.MyPistonBase),"GetObjectBuilderCubeBlock");
+            yield return AccessTools.Method(typeof(Sandbox.Game.Entities.Cube.MyMotorStator),"GetObjectBuilderCubeBlock");
+        }
+        private static void Postfix(Sandbox.Game.Entities.MyCubeBlock __instance,MyObjectBuilder_CubeBlock __result)
+            => AnalogControl.SavedVelocity(__instance.EntityId,__result);
     }
     [HarmonyPatch(typeof(MyCharacter),nameof(MyCharacter.UpdateBeforeSimulation))]
     internal static class RemoteArmsRestorePatch

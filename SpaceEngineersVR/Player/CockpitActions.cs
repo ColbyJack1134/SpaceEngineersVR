@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Collections.Generic;
 using Sandbox.Game;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Gui;
@@ -26,7 +27,37 @@ namespace SpaceEngineersVR.Player
         internal static bool SharedReady => owner!=null && MultiplayerRuntime.Get(owner,out _);
         private static MyGuiScreenBase editor;
         private static GUI.CockpitAssignment assignment;
+        private static readonly List<AnalogControl.Channel>[] analog=new List<AnalogControl.Channel>[CockpitLayout.MaximumCount];
+        private static readonly double[] nextAnalog=new double[CockpitLayout.MaximumCount];
         public static MyToolbar Toolbar => toolbar;
+        internal static bool ReadAnalog(int slot,out float position,out string label)
+        {
+            position=0; label=null;
+            if(toolbar==null || owner==null || editing || !AnalogControl.IsHandle(owner.BlockDefinition.Id.SubtypeName,slot)) return false;
+            if(MultiplayerRuntime.Now>=nextAnalog[slot])
+            {
+                nextAnalog[slot]=MultiplayerRuntime.Now+.2;
+                toolbar.UpdateItemForIdentity(slot,MySession.Static.LocalPlayerId,false);
+                var item=toolbar.GetItemAtIndex(slot);
+                analog[slot]=AnalogControl.Resolve(item,MySession.Static.LocalPlayerId,false);
+            }
+            var channels=analog[slot];
+            if(channels==null || channels.Count==0) return false;
+            position=channels[0].Position(); label=channels[0].Label();
+            string first=label;
+            if(channels.Skip(1).Any(c=>c.Label()!=first)) label="Mixed";
+            return true;
+        }
+        internal static bool SetAnalog(int slot,float position)
+        {
+            if(toolbar==null || owner==null || editing || !SeatFit.Eligible(owner) || !SharedReady ||
+                !((Sandbox.ModAPI.IMyTerminalBlock)owner).HasPlayerAccess(MySession.Static.LocalPlayerId) ||
+                !ReadAnalog(slot,out _,out _)) return false;
+            MultiplayerRuntime.SetAnalog(owner,slot,position);
+            return true;
+        }
+        internal static string AnalogLabel(int slot,float position) => analog[slot]?.FirstOrDefault()?.Label(position);
+
         public static void Update(MyCockpit seat)
         {
             assignment?.Update();
@@ -72,6 +103,7 @@ namespace SpaceEngineersVR.Player
             {
                 if(owner.HasInventory) owner.GetInventory().ContentsChanged-=toolbar.CharacterInventory_OnContentsChanged;
                 toolbar.Clear(); toolbar.Init(builder,owner); loadedXml=shared.Toolbar;
+                Array.Clear(analog,0,analog.Length); Array.Clear(nextAnalog,0,nextAnalog.Length);
             }
             finally { toolbar.ItemChanged+=Changed; }
         }
@@ -83,6 +115,7 @@ namespace SpaceEngineersVR.Player
                 if(source.GetItemAtIndex(index.ItemIndex)!=null) source.SetItemAtIndex(index.ItemIndex,null);
                 return;
             }
+            Array.Clear(nextAnalog,0,nextAnalog.Length);
             loadedXml=CockpitMemory.Toolbar(source.GetObjectBuilder());
             SaveToolbar();
         }
@@ -165,6 +198,7 @@ namespace SpaceEngineersVR.Player
                 if(owner?.HasInventory==true) owner.GetInventory().ContentsChanged-=toolbar.CharacterInventory_OnContentsChanged;
                 toolbar.ItemChanged-=Changed; toolbar.Clear();
             }
+            Array.Clear(analog,0,analog.Length); Array.Clear(nextAnalog,0,nextAnalog.Length);
             toolbar=null; owner=null; world=null; loadedXml=pendingXml=null; pendingUntil=0; migrated=false;
         }
     }

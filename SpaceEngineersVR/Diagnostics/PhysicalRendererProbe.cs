@@ -152,6 +152,7 @@ namespace SpaceEngineersVR.Diagnostics
                     MenuTests.Run(line=>Logger.Info(line));
                     PlacementTests.RunNativeFixture(line=>Logger.Info(line));
                     NativeIntegrationTests.Run(line=>Logger.Info(line));
+                    AnalogControlTests.RunNative(line=>Logger.Info(line));
                     BuildOrientationTests.RunNative(line=>Logger.Info(line));
                     CockpitHandTests.NativeContacts(line=>Logger.Info(line));
                     native=MyRenderProxy.CreateRenderEntity("SEVR probe interior",FighterProfile.Model,MatrixD.Identity,MyMeshDrawTechnique.MESH,
@@ -264,7 +265,9 @@ namespace SpaceEngineersVR.Diagnostics
                     phase++;
                     next=DateTime.UtcNow.AddSeconds(2);
                     if(phase==2) assignment.VerifyAndPage();
-                    if(phase==4) { assignment.Finish(); assignment=null; }
+                    if(phase==4) { assignment.Finish(); assignment=new AssignmentPreview(ordinary:true); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(assignment); }
+                    if(phase==6) assignment.VerifyAndPage();
+                    if(phase==7) { assignment.Finish(); assignment=null; }
                     if (phase==7 || phase==15) CockpitRender.Reset();
                     if(phase==24)
                     {
@@ -284,6 +287,13 @@ namespace SpaceEngineersVR.Diagnostics
                         options=new GUI.RenderingOptions(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
                     }
                     if(phase==26) { options.CloseScreenNow(); options=null; }
+                    if(phase==33) { options=new GUI.BindingHelp(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options); }
+                    if(phase==34 || phase==35)
+                    {
+                        HarmonyLib.AccessTools.Field(typeof(GUI.BindingHelp),"page").SetValue(options,phase==34 ? 2:3);
+                        options.RecreateControls(false);
+                    }
+                    if(phase==36) { options?.CloseScreenNow(); options=null; }
                     if(phase>=37 && phase<=44)
                     {
                         options?.CloseScreenNow();
@@ -335,6 +345,8 @@ namespace SpaceEngineersVR.Diagnostics
                     phase==29 ? "uncovered-rest" : phase==30 ? "uncovered-on" :
                     phase>=26 ? "camera-"+(Player.Control.ObserverMode)(phase-26) : "rendering-scene-"+phase;
                 if(phase==1 || phase==3) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"assignment-page-"+(phase==1 ? "1" : "last")+".png"),false,false,false);
+                if(phase==5 || phase==6) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"toolbar-assignment-"+(phase==5 ? "selected":"paged")+".png"),false,false,false);
+                if(phase>=33 && phase<=35) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"bindings-native-"+phase+".png"),false,false,false);
                 if(phase==24 || phase==25) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,phase==24 ? "options-native.png" : "rendering-options-native.png"),false,false,false);
                 if(phase>=37 && phase<=44) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"settings-native-"+phase+".png"),false,false,false);
                 if(phase==47) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"pause-vr-options.png"),false,false,false);

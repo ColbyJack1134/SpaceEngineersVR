@@ -12,21 +12,24 @@ using VRageMath;
 
 namespace SpaceEngineersVR.GUI
 {
-    // A source row in the native G-screen. Dragging copies an action; it never
-    // switches pages or removes items on the ship's actual toolbar.
+    // Native toolbar paging and selection, with an optional source row for cockpit switches.
     internal sealed class CockpitAssignment : IDisposable
     {
         private static CockpitAssignment current;
         private readonly MyGuiScreenToolbarConfigBase screen;
         private readonly MyToolbar target,source;
         private readonly int count,selected;
+        private readonly bool switches;
         private MyGuiControlToolbar toolbar;
         private MyGuiControlGrid sourceGrid;
         private MyGuiControlGridDragAndDrop drag;
         private MyGuiControlLabel sourceLabel;
         private int sourcePage;
-        public CockpitAssignment(MyGuiScreenToolbarConfigBase screen,MyToolbar target,MyToolbar source,int count,int selected)
-        { this.screen=screen; this.target=target; this.source=source; this.count=count; this.selected=selected; sourcePage=source?.CurrentPage ?? 0; current=this; }
+        public CockpitAssignment(MyGuiScreenToolbarConfigBase screen,MyToolbar target,MyToolbar source,int count,int selected,bool switches=true)
+        { this.screen=screen; this.target=target; this.source=source; this.count=count; this.selected=selected; this.switches=switches; sourcePage=source?.CurrentPage ?? 0; current=this; screen.Closed+=Closed; }
+        internal static void Update(MyGuiScreenToolbarConfigBase screen)
+        { if(current?.screen==screen) current.Update(); }
+        private void Closed(MyGuiScreenBase screen,bool unloading) => Dispose();
         private T Field<T>(string name) where T:class => AccessTools.Field(typeof(MyGuiScreenToolbarConfigBase),name)?.GetValue(screen) as T;
         public void Update()
         {
@@ -40,7 +43,9 @@ namespace SpaceEngineersVR.GUI
             }
             var label=screen.Controls.GetControlByName("LabelToolbar") as MyGuiControlLabel;
             int first=target.CurrentPage*target.SlotCount;
-            if(label!=null) { label.Text=(selected>=first && selected<first+target.SlotCount ? "Switch "+(selected+1)+" · " : "Switches ")+ (first+1)+"–"+Math.Min(first+target.SlotCount,count); label.TextScale=.65f;
+            if(label!=null) { label.Text=switches ? (selected>=first && selected<first+target.SlotCount ? "Switch "+(selected+1)+" · " : "Switches ")+ (first+1)+"–"+Math.Min(first+target.SlotCount,count) :
+                    (selected>=first && selected<first+target.SlotCount ? "Assign slot "+(selected-first+1)+" · " : "Toolbar · ")+"Page "+(target.CurrentPage+1)+" / "+target.PageCount;
+                label.TextScale=.65f;
                 label.Position=toolbar.ToolbarGrid.GetPositionAbsoluteTopLeft()-screen.GetPosition()-new Vector2(0,.017f);
                 label.OriginAlign=MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER; }
             if(selected>=0) toolbar.ToolbarGrid.SelectedIndex=selected>=first && selected<first+target.SlotCount ? (int?)(selected-first) : null;
@@ -140,6 +145,7 @@ namespace SpaceEngineersVR.GUI
         }
         public void Dispose()
         {
+            screen.Closed-=Closed;
             if(sourceGrid!=null) sourceGrid.ItemDragged-=DragSource;
             if(current==this) current=null;
         }

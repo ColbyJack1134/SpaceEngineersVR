@@ -129,10 +129,7 @@ namespace SpaceEngineersVR.Player
             }
             var quick=quickGesture.Update(InputRouter.Gameplay && !Main.MenuOpen,
                 controls.QuickMenu.HasPressed,controls.QuickMenu.IsPressed,controls.QuickMenu.HasReleased,
-                MySession.Static?.ControlledEntity,-1,DateTime.UtcNow,alternate:InputRouter.Mode==InputMode.Jetpack &&
-                    (controls.ThrustRoll.RawPressed || controls.RightGripPressure.RawPosition.X>.55f));
-            if(quick==ToolbarGesture.Action.Unequip && InputRouter.Flying)
-                GameActions.Execute(quickGesture.Alternate ? GameActions.RelativeDampeners:GameActions.Dampeners);
+                MySession.Static?.ControlledEntity,-1,DateTime.UtcNow);
             if(controls.Dampener.HasPressed) GameActions.Execute(GameActions.Dampeners);
             if(quick==ToolbarGesture.Action.OpenWheel) { Open(true); return; }
             var action=gesture.Update(InputRouter.Gameplay && !Main.MenuOpen,

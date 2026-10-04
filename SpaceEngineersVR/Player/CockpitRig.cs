@@ -25,10 +25,35 @@ namespace SpaceEngineersVR.Player
         internal sealed class Piece
         {
             public readonly string Material;
-            public readonly int MaterialTriangles,Triangles,Actor;
+            public readonly int MaterialTriangles,Triangles,Actor,StaticActor;
             public readonly Vector3 Center;
-            public Piece(string material,int total,int triangles,Vector3 center,int actor)
-            { Material=material; MaterialTriangles=total; Triangles=triangles; Center=center; Actor=actor; }
+            public Piece(string material,int total,int triangles,Vector3 center,int actor,int staticActor=0)
+            { Material=material; MaterialTriangles=total; Triangles=triangles; Center=center; Actor=actor; StaticActor=staticActor; }
+        }
+        internal sealed class Handle
+        {
+            public readonly Vector3 Center;
+            public readonly int Actor;
+            internal const float Rear=-.085f,Front=-.258f,Travel=Rear-Front;
+            // Upper slot contour measured from the installed Control Seat housing.
+            private static readonly Vector2[] track={new Vector2(-.0767212f,-.621582f),new Vector2(-.0938721f,-.6147461f),
+                new Vector2(-.1877441f,-.5917969f),new Vector2(-.1989746f,-.5893555f),new Vector2(-.210083f,-.5888672f),
+                new Vector2(-.2322998f,-.5922852f),new Vector2(-.2487793f,-.5952148f),new Vector2(-.2658691f,-.6000977f),new Vector2(-.2885742f,-.6088867f)};
+            public Handle(float x,int actor) { Center=new Vector3(x,-.54296875f,-.20050049f); Actor=actor; }
+            private static float Height(float z)
+            {
+                for(int i=1;i<track.Length;i++) if(z>=track[i].X)
+                    return MathHelper.Lerp(track[i-1].Y,track[i].Y,(z-track[i-1].X)/(track[i].X-track[i-1].X));
+                return track[track.Length-1].Y;
+            }
+            internal Matrix Visual(float position)
+            {
+                float z=MathHelper.Lerp(Rear,Front,MathHelper.Clamp(position,0,1));
+                return Matrix.CreateTranslation(0,Height(z)-Height(Center.Z),z-Center.Z);
+            }
+            internal Matrix Palm(bool left,float position,float offset=0) =>
+                CockpitStickMath.GripPalm(left,Center+Vector3.Right*MathHelper.Clamp(offset,-.02f,.02f),left ? Vector3.Right:Vector3.Left)*Visual(position);
+            internal MatrixD TouchPose => MatrixD.CreateWorld(Center+Vector3.Up*.0155f,Vector3.Down,Vector3.Forward);
         }
         internal sealed class Lever
         {
@@ -62,14 +87,18 @@ namespace SpaceEngineersVR.Player
         public readonly Stick Left,Right;
         public readonly Piece[] Pieces;
         public readonly Lever[] Levers;
+        public readonly Handle[] Handles;
+        internal Handle HandleAt(int slot) => slot>=Levers.Length && slot<Levers.Length+Handles.Length ? Handles[slot-Levers.Length]:null;
         public readonly int ActorCount;
+        public readonly int[] StaticActors;
         private CockpitGeometry geometry;
-        private CockpitRig(string subtype,string model,string geometryModel,Vector3 panel,Vector3 normal,Stick left,Stick right,Piece[] pieces,Lever[] levers)
+        private CockpitRig(string subtype,string model,string geometryModel,Vector3 panel,Vector3 normal,Stick left,Stick right,Piece[] pieces,Lever[] levers,Handle[] handles=null)
         {
-            Subtype=subtype; Model=model; this.geometryModel=geometryModel; Left=left; Right=right; Pieces=pieces; Levers=levers;
+            Subtype=subtype; Model=model; this.geometryModel=geometryModel; Left=left; Right=right; Pieces=pieces; Levers=levers; Handles=handles ?? new Handle[0];
             var up=Vector3.Normalize(Vector3.Cross(normal,Vector3.Right));
             SeatMount=MatrixD.CreateWorld(panel,-normal,up);
-            ActorCount=pieces.Length==0 ? 0 : pieces.Max(p=>p.Actor)+1;
+            ActorCount=pieces.Length==0 ? 0 : pieces.Max(p=>Math.Max(p.Actor,p.StaticActor))+1;
+            StaticActors=pieces.Select(p=>p.StaticActor).Distinct().ToArray();
         }
         private static readonly Dictionary<string,CockpitRig> rigs=Create().ToDictionary(p=>p.Subtype,StringComparer.Ordinal);
         internal static IEnumerable<CockpitRig> All => rigs.Values;
@@ -90,7 +119,7 @@ namespace SpaceEngineersVR.Player
             {
                 var pieces=material.ToArray();
                 var parts=CockpitSwitchGeometry.Partition(tags,material.Key,pieces[0].MaterialTriangles,pieces.Select(p=>p.Center).ToArray(),pieces.Select(p=>p.Triangles).ToArray());
-                Append(actors[0],parts[0]);
+                Append(actors[pieces[0].StaticActor],parts[0]);
                 for(int i=0;i<pieces.Length;i++) Append(actors[pieces[i].Actor],parts[i+1]);
                 triangles+=pieces[0].MaterialTriangles;
             }
@@ -111,6 +140,8 @@ namespace SpaceEngineersVR.Player
                     AppendTransformed(actors[0],templateBases[part],lever.TemplateTransform);
             }
             if(actors.Skip(1).Any(a=>a.Indices.Count==0)) throw new InvalidDataException("Cockpit rig has an empty actor: "+Subtype);
+            // Native runtime meshes use 16-bit indices.
+            if(actors.Any(a=>a.Positions.Count>ushort.MaxValue+1)) throw new InvalidDataException("Cockpit actor exceeds native index range: "+Subtype);
             return geometry=new CockpitGeometry(actors,triangles);
         }
         private static void Append(MyModelData target,MyModelData source)

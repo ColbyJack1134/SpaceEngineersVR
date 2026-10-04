@@ -111,12 +111,12 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 support.GetMethod("Start").Invoke(null,null);
                 int count=Harmony.GetAllPatchedMethods().Count(m=>Harmony.GetPatchInfo(m).Owners.Contains("SpaceEngineersVR.Multiplayer"));
-                Require(count==4,"Companion did not attach all four native storage/arm patches");
+                Require(count==6,"Companion did not attach all six native storage/actuator/arm patches");
                 support.GetMethod("Update").Invoke(null,null);
             }
             finally { support.GetMethod("Stop").Invoke(null,null); }
             Require(!Harmony.HasAnyPatches("SpaceEngineersVR.Multiplayer"),"Companion left patches after shutdown");
-            log("PASS flatscreen companion: independent assembly, four native patch attachments, no-world update and clean shutdown without OpenVR initialization.");
+            log("PASS flatscreen companion: independent assembly, six native patch attachments, no-world update and clean shutdown without OpenVR initialization.");
         }
         public static void Export(string game,string output,Action<string> log)
         {

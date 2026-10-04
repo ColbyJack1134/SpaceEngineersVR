@@ -7,6 +7,11 @@ using VRage.Game;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),nameof(MyGuiScreenToolbarConfigBase.Update))]
+    internal static class ToolbarAssignmentUpdatePatch
+    {
+        private static void Postfix(MyGuiScreenToolbarConfigBase __instance) => GUI.CockpitAssignment.Update(__instance);
+    }
     [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),"OnDragAndDropOnDrop")]
     internal static class CockpitAssignmentPatch
     {

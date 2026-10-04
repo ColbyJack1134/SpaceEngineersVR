@@ -22,6 +22,19 @@ namespace SpaceEngineersVR.Player
                 return !suppressed;
             }
         }
+        internal sealed class ValuePulse
+        {
+            private float anchor;
+            private DateTime next;
+            internal void Reset(float value) { anchor=value; next=DateTime.MinValue; }
+            internal bool Sample(float value,DateTime now)
+            {
+                if(float.IsNaN(value) || float.IsInfinity(value)) return false;
+                float change=Math.Abs(value-anchor);
+                if(now<next || change<.02f && !(change>.0001f && (value<=0 || value>=1))) return false;
+                anchor=value; next=now.AddMilliseconds(50); return true;
+            }
+        }
         internal sealed class MotionPulse
         {
             private Vector3 anchor;

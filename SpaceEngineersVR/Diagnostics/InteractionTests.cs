@@ -149,6 +149,18 @@ namespace SpaceEngineersVR.Diagnostics
             jumpHold.Update(true,true,true,holdTime.AddSeconds(8)); jumpHold.Reset();
             Require(!jumpHold.Update(true,false,true,holdTime.AddSeconds(9)),"Context change resumes a held jetpack shortcut");
             Require(!jumpHold.Update(false,true,true,holdTime.AddSeconds(10)),"Unavailable character toggles jetpack");
+            jumpHold.Reset();
+            jumpHold.Update(true,true,true,holdTime,alternate:true);
+            Require(!jumpHold.Update(true,false,false,holdTime.AddSeconds(.1)) && jumpHold.Tapped && jumpHold.Alternate,"Flight tap lost captured auto-dampener modifier");
+            Require(!jumpHold.Update(true,false,false,holdTime.AddSeconds(.2)) && !jumpHold.Tapped,"Released stick repeated dampeners");
+            jumpHold.Update(true,true,true,holdTime);
+            Require(jumpHold.Update(true,false,true,holdTime.AddSeconds(.51)),"Jetpack hold failed");
+            jumpHold.Update(true,false,false,holdTime.AddSeconds(.6));
+            Require(!jumpHold.Tapped,"Jetpack hold release also toggled dampeners");
+            jumpHold.Update(true,true,true,holdTime,holdAction:false);
+            Require(!jumpHold.Update(true,false,true,holdTime.AddSeconds(1),holdAction:false),"Seated stick hold toggled jetpack");
+            jumpHold.Update(true,false,false,holdTime.AddSeconds(2),holdAction:false);
+            Require(!jumpHold.Tapped,"Long seated hold became a dampener tap");
             var gesture=new ToolbarGesture(); var cockpit=new object(); var now=DateTime.UtcNow;
             foreach(int slot in new[] {0,3,8,9,12})
             {

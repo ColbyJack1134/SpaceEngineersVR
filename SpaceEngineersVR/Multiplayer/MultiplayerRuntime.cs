@@ -3,6 +3,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Globalization;
+using Sandbox.Game.Screens.Helpers;
 using System.Linq;
 using System.Threading;
 using HarmonyLib;
@@ -23,7 +25,7 @@ namespace SpaceEngineersVR.Multiplayer
         {
             if(MultiplayerRuntime.Enabled) return;
             harmony=new Harmony("SpaceEngineersVR.Multiplayer");
-            foreach(var type in new[] {typeof(CockpitStoragePatch),typeof(CockpitRemapPatch),typeof(RemoteArmsRestorePatch),typeof(RemoteArmsUpdatePatch)})
+            foreach(var type in new[] {typeof(CockpitStoragePatch),typeof(CockpitRemapPatch),typeof(AnalogSavePatch),typeof(RemoteArmsRestorePatch),typeof(RemoteArmsUpdatePatch)})
                 harmony.CreateClassProcessor(type).Patch();
             MultiplayerRuntime.Enabled=true;
         }
@@ -49,6 +51,8 @@ namespace SpaceEngineersVR.Multiplayer
         private static readonly Dictionary<ulong,Peer> peers=new Dictionary<ulong,Peer>();
         private static readonly Dictionary<long,RemoteArms> characters=new Dictionary<long,RemoteArms>();
         private static readonly Dictionary<long,CockpitMemory.Record> states=new Dictionary<long,CockpitMemory.Record>();
+        private sealed class AnalogToolbar { internal MyCockpit Seat; internal string Xml; internal MyToolbar Toolbar; }
+        private static readonly Dictionary<long,AnalogToolbar> analogToolbars=new Dictionary<long,AnalogToolbar>();
         private static readonly Dictionary<long,double> requested=new Dictionary<long,double>();
         private static readonly List<IMyPlayer> players=new List<IMyPlayer>();
         private static MySession session;
@@ -64,6 +68,9 @@ namespace SpaceEngineersVR.Multiplayer
                 network.UnregisterSecureMessageHandler(PoseChannel,Receive);
                 network.UnregisterSecureMessageHandler(StateChannel,Receive);
             }
+            AnalogControl.Reset();
+            foreach(var toolbar in analogToolbars.Values) ClearAnalogToolbar(toolbar);
+            analogToolbars.Clear();
             foreach(var peer in peers.Values) peer.Arms.Clear();
             peers.Clear(); characters.Clear(); states.Clear(); requested.Clear(); players.Clear();
             while(incoming.TryDequeue(out _)) Interlocked.Decrement(ref queued);
@@ -113,6 +120,7 @@ namespace SpaceEngineersVR.Multiplayer
                 try { Handle(message,now); }
                 catch(Exception error) { Log("Rejected message: "+error.Message); }
             }
+            if(network.IsServer) AnalogControl.Update();
             if(network.MultiplayerActive && now>=nextHello)
             {
                 nextHello=now+5;
@@ -176,7 +184,7 @@ namespace SpaceEngineersVR.Multiplayer
                 }
                 if(kind==5 && message.Server)
                 { Notify("Cockpit settings could not be shared. See the plugin log."); Log(value); return; }
-                if(network.IsServer && player!=null && kind>=1 && kind<=3) HostRequest(player,kind,seat,value);
+                if(network.IsServer && player!=null && (kind>=1 && kind<=3 || kind==6)) HostRequest(player,kind,seat,value);
             }
         }
         internal static byte[] Packet(byte kind,long seat,string value)
@@ -192,6 +200,12 @@ namespace SpaceEngineersVR.Multiplayer
             try
             {
                 var record=CockpitMemory.Read(seat);
+                if(kind==6)
+                {
+                    if(seat.Pilot==null || player.Character?.EntityId!=seat.Pilot.EntityId) return;
+                    ApplyAnalog(seat,record,player.IdentityId,value);
+                    return;
+                }
                 if(kind!=1)
                 {
                     if(seat.Pilot==null || player.Character?.EntityId!=seat.Pilot.EntityId) return;
@@ -219,6 +233,31 @@ namespace SpaceEngineersVR.Multiplayer
                 else Notify("Cockpit settings could not be saved.");
             }
         }
+        private static void ClearAnalogToolbar(AnalogToolbar value)
+        {
+            if(value.Seat.HasInventory) value.Seat.GetInventory().ContentsChanged-=value.Toolbar.CharacterInventory_OnContentsChanged;
+            value.Toolbar.Clear();
+        }
+        private static void ApplyAnalog(MyCockpit seat,CockpitMemory.Record record,long identity,string value)
+        {
+            var parts=value.Split(':');
+            if(parts.Length!=2 || !int.TryParse(parts[0],out int slot) || slot<0 || slot>=ControlCount(seat) || !AnalogControl.IsHandle(seat.BlockDefinition.Id.SubtypeName,slot) ||
+                !float.TryParse(parts[1],NumberStyles.Float,CultureInfo.InvariantCulture,out float position) ||
+                !AnalogControl.Finite(position) || position<0 || position>1) return;
+            if(!analogToolbars.TryGetValue(seat.EntityId,out var cached) || cached.Xml!=record.Toolbar || !ReferenceEquals(cached.Seat,seat))
+            {
+                if(cached!=null) ClearAnalogToolbar(cached);
+                cached=new AnalogToolbar {Seat=seat,Xml=record.Toolbar,Toolbar=new MyToolbar(VRage.Game.MyToolbarType.ButtonPanel,9,(CockpitMemory.MaximumControls+8)/9)};
+                cached.Toolbar.Init(CockpitMemory.Toolbar(record.Toolbar),seat);
+                analogToolbars[seat.EntityId]=cached;
+            }
+            cached.Toolbar.UpdateItemForIdentity(slot,identity,false);
+            var item=cached.Toolbar.GetItemAtIndex(slot);
+            if(item?.Enabled!=true) return;
+            var channels=AnalogControl.Resolve(item,identity);
+            if(channels!=null) AnalogControl.Set(seat,identity,channels,position);
+        }
+        internal static void SetAnalog(MyCockpit seat,int slot,float position) => Request(6,seat,slot.ToString(CultureInfo.InvariantCulture)+":"+position.ToString("R",CultureInfo.InvariantCulture));
         private static void Publish(MyCockpit seat,CockpitMemory.Record record,ulong recipient,bool broadcast)
         {
             states[seat.EntityId]=record;

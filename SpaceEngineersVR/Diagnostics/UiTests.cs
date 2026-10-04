@@ -422,6 +422,7 @@ namespace SpaceEngineersVR.Diagnostics
                         Save(badge.Texture,Path.Combine(output,"switch-label-"+(assigned ? "assigned" : "empty")+".png"));
                     }
                     foreach(var entry in new[] { Tuple.Create("long-name","Run","fire"),Tuple.Create("long-argument","Run","fire all forward batteries with a long argument"),
+                        Tuple.Create("analog-piston","Set and move","2.75 m"),Tuple.Create("analog-rotor","Rotate to angle","-45.0°"),Tuple.Create("analog-thrust","Set thrust override","37.5%"),
                         Tuple.Create("long-action","Increase velocity limit","fire"),Tuple.Create("no-argument","On/Off","") })
                     {
                         var view=new SurfaceView { Style=SurfaceStyle.Label,Title="Forward battery programmable block with a very long custom name",Action=entry.Item2,

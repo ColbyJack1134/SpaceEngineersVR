@@ -41,6 +41,11 @@ namespace SpaceEngineersVR.Diagnostics
             Step(view,true,0,0,l,r);
             Require(!Step(view,true,1,0,l,r),"A normal descent became view movement");
             Require(Step(view,true,1,1,l,r),"Deliberate two-grip capture failed");
+            for(int frameIndex=0;frameIndex<120;frameIndex++)
+            {
+                view.Input(true,1,1,flightActive:true);
+                Require(view.Held,"Flight input interrupted a held view manipulation");
+            }
             var before=view.Anchor(target);
             var point=Vector3D.Transform((l+r)*.5*view.UnitsPerMeter,before);
             double oldScale=view.UnitsPerMeter;

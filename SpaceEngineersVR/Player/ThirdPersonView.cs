@@ -38,6 +38,7 @@ namespace SpaceEngineersVR.Player
         public static CameraRig.Frame Current => Volatile.Read(ref frame);
         public static bool Active => Current!=null;
         public static bool Manipulating => Active && (consumed || transition!=null);
+        internal static bool FlightWhileManipulating => Manipulating && transition==null && InputRouter.Flying;
         public static bool Character => Active && subject is MyCharacter;
         public static bool Owns(MyEntity entity) => Active && entity==subject;
 
@@ -173,8 +174,9 @@ namespace SpaceEngineersVR.Player
             if(consumed || transition!=null)
             {
                 c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); c.Secondary.BlockUntilRelease();
-                c.Primary.BlockUntilRelease(); c.ThrustUp.BlockUntilRelease(); c.ThrustLRFB.BlockUntilRelease();
-                c.ThrustLRUD.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease();
+                c.Primary.BlockUntilRelease(); c.ThrustUp.BlockUntilRelease();
+                if(!FlightWhileManipulating)
+                { c.ThrustLRFB.BlockUntilRelease(); c.ThrustLRUD.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease(); }
                 c.ThrustForward.BlockUntilRelease(); c.ThrustBackward.BlockUntilRelease();
             }
             Publish();

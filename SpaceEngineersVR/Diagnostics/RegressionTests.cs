@@ -300,6 +300,7 @@ namespace SpaceEngineersVR.Diagnostics
             CockpitTests.Run(log);
             CockpitRigTests.Run(log);
             CockpitStateTests.Run(log);
+            AnalogControlTests.Run(log);
             CockpitProbeTests.Run(log);
 
             VRage.ObjectBuilders.MyObjectBuilderType.RegisterFromAssembly(typeof(VRage.Game.MyDefinitionId).Assembly);
