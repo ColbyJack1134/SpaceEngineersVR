@@ -24,6 +24,8 @@ namespace SpaceEngineersVR.Player
 cbuffer Constants : register(b0) { float4 Depth; };
 float4 VS(float2 position : POSITION) : SV_Position { return float4(position,Depth.x,1); }
 float4 PS() : SV_Target { return 0; }";
+        // Motion smoothing samples just outside the visible edge; keep a rendered margin there.
+        internal const float OutwardScale=1.1f;
         private const string DepthDeclaration="Texture2D<float> Depth : register(t1);",Weight="weight *= depthWeight;";
         private static readonly Type renderer=AccessTools.TypeByName("VRageRender.MyRender11"),postprocess=AccessTools.TypeByName("VRageRender.MyPostprocessSettingsWrapper");
         private static Device device;
@@ -60,7 +62,7 @@ float4 PS() : SV_Target { return 0; }";
         internal static RawVector2[] Triangles(HmdVector2_t[] uv)
         {
             var result=new RawVector2[uv.Length];
-            for(int i=0;i<uv.Length;i++) result[i]=new RawVector2(uv[i].v0*2-1,1-uv[i].v1*2);
+            for(int i=0;i<uv.Length;i++) result[i]=new RawVector2((uv[i].v0*2-1)*OutwardScale,(1-uv[i].v1*2)*OutwardScale);
             return result;
         }
 

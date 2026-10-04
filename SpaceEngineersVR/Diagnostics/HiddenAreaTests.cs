@@ -19,7 +19,8 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Run(Action<string> log)
         {
             var corners=HiddenAreaMask.Triangles(new[] { new HmdVector2_t { v0=0,v1=0 },new HmdVector2_t { v0=1,v1=1 } });
-            if(corners[0].X!=-1 || corners[0].Y!=1 || corners[1].X!=1 || corners[1].Y!=-1) throw new Exception("Hidden-area UV is not mapped to clip space");
+            float s=HiddenAreaMask.OutwardScale;
+            if(s<=1 || corners[0].X!=-s || corners[0].Y!=s || corners[1].X!=s || corners[1].Y!=-s) throw new Exception("Hidden-area UV is not mapped outward to clip space");
             if(HiddenAreaMask.PatchHistogram("weight *= depthWeight;")!=null) throw new Exception("Unrecognized histogram shader was accepted");
             string shaders=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(VRageRender.MyRenderProxy).Assembly.Location),"..","Content","Shaders"));
             using(var device=new Device(DriverType.Warp))
