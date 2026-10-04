@@ -87,12 +87,13 @@ def main():
     archives = [binary, source]
     if args.multiplayer:
         companion = ROOT / "SpaceEngineersVR.Multiplayer/bin" / args.configuration / "net48"
-        companion_files = {"SpaceEngineersVR.Multiplayer/" + name: companion / name
-                           for name in ("SpaceEngineersVR.Multiplayer.dll", "0Harmony.dll")}
+        companion_name = "SpaceEngineersVR.FlatscreenCompanion"
+        companion_files = {"SpaceEngineersVR.FlatscreenCompanion/" + name: companion / name
+                           for name in (companion_name + ".dll", "0Harmony.dll")}
         companion_files.update({name: files[name] for name in ("LICENSE", "NOTICE", "licenses/Lib.Harmony/LICENSE")})
-        companion_metadata = dict(metadata, plugin_sha256=digest((companion / "SpaceEngineersVR.Multiplayer.dll").read_bytes()))
+        companion_metadata = dict(metadata, plugin_sha256=digest((companion / (companion_name + ".dll")).read_bytes()))
         companion_files["build.json"] = (json.dumps(companion_metadata, indent=2) + "\n").encode()
-        archives.append(archive(args.output_dir / ("SpaceEngineersVR.Multiplayer-" + args.version + ".zip"), companion_files))
+        archives.append(archive(args.output_dir / (companion_name + "-" + args.version + ".zip"), companion_files))
     manifest = {"build": metadata, "archives": archives}
     (args.output_dir / (stem + "-manifest.json")).write_text(json.dumps(manifest, indent=2) + "\n")
     (args.output_dir / (stem + ".sha256")).write_text("".join(f"{a['sha256']}  {a['file']}\n" for a in archives))
