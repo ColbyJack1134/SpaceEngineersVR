@@ -134,7 +134,7 @@ namespace SpaceEngineersVR.Diagnostics
                 if (MySession.Static!=null) throw new InvalidOperationException("Renderer probe requires the main menu, without a loaded world.");
                 if (renderError!=null) throw new InvalidOperationException(renderError);
                 if (DateTime.UtcNow>deadline) throw new TimeoutException("Native renderer probe timed out in phase "+phase);
-                if(phase>=49) { UpdateRig(); return; }
+                if(phase>=50) { UpdateRig(); return; }
                 if (phase==0)
                 {
                     if (DateTime.UtcNow<next) return;
@@ -147,7 +147,7 @@ namespace SpaceEngineersVR.Diagnostics
                     if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_COCKPITS_ONLY")=="1")
                     {
                         rigs=SelectedRigs();
-                        rigIndex=rigStep=0; phase=49; BeginRig(); return;
+                        rigIndex=rigStep=0; phase=50; BeginRig(); return;
                     }
                     MenuTests.Run(line=>Logger.Info(line));
                     PlacementTests.RunNativeFixture(line=>Logger.Info(line));
@@ -232,7 +232,7 @@ namespace SpaceEngineersVR.Diagnostics
                     eye=center+mount.Right*.75f+mount.Backward*.20f;
                     view=MatrixD.CreateLookAt(eye,center,mount.Backward); fov=.4f;
                 }
-                if(phase==48)
+                if(phase==48 || phase==49)
                 {
                     var model=VRage.Game.Models.MyModels.GetModelOnlyData(@"Models\Characters\Astronaut\SE_astronaut.mwm");
                     var miniature=new Player.Control.Diorama();
@@ -320,7 +320,11 @@ namespace SpaceEngineersVR.Diagnostics
                         native=MyRenderProxy.CreateRenderEntity("SEVR observer character",@"Models\Characters\Astronaut\SE_astronaut.mwm",MatrixD.Identity,MyMeshDrawTechnique.MESH,
                             RenderFlags.Visible|RenderFlags.CastShadows,(CullingOptions)0,Color.White,neutralPaint);
                     }
-                    if (phase==49)
+                    if(phase==49)
+                    {
+                        options=new GUI.PhysicalFlightOptions(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
+                    }
+                    if (phase==50)
                     {
                         options?.CloseScreenNow(); options=null;
                         if(!rotationPreviewsSaved) throw new InvalidOperationException("Native rotation previews not rendered");
@@ -349,6 +353,7 @@ namespace SpaceEngineersVR.Diagnostics
                 if(phase>=33 && phase<=35) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"bindings-native-"+phase+".png"),false,false,false);
                 if(phase==24 || phase==25) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,phase==24 ? "options-native.png" : "rendering-options-native.png"),false,false,false);
                 if(phase>=37 && phase<=44) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"settings-native-"+phase+".png"),false,false,false);
+                if(phase==49) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"physical-sticks-options.png"),false,false,false);
                 if(phase==47) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"pause-vr-options.png"),false,false,false);
                 pending=Path.Combine(output,name+".png");
                 next=DateTime.UtcNow.AddSeconds(1);

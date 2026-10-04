@@ -168,6 +168,17 @@ namespace SpaceEngineersVR.Config
             get => physicalStickDeadzone;
             set => SetValue(ref physicalStickDeadzone,Bound(value,0.02f,0.35f,0.12f));
         }
+        private float physicalStickExponent=2f,physicalStickSmoothing=.025f;
+        public float PhysicalStickExponent
+        {
+            get => physicalStickExponent;
+            set => SetValue(ref physicalStickExponent,Bound(value,1f,3f,2f));
+        }
+        public float PhysicalStickSmoothing
+        {
+            get => physicalStickSmoothing;
+            set => SetValue(ref physicalStickSmoothing,Bound(value,0f,.06f,.025f));
+        }
         private static float Bound(float value,float min,float max,float fallback) => float.IsNaN(value) || float.IsInfinity(value)
             ? fallback : Math.Max(min,Math.Min(max,value));
         public bool TrackedArms { get => trackedArms; set => SetValue(ref trackedArms,value); }

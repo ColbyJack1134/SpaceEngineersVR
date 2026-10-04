@@ -19,7 +19,9 @@ namespace SpaceEngineersVR.Player
         private static readonly GripCapture left=new GripCapture(),right=new GripCapture();
         private static Matrix leftNeutral,rightNeutral,origin;
         private static Matrix leftVisual=Matrix.Identity,rightVisual=Matrix.Identity;
-        private static int leftDetents,rightDetents;
+        private static readonly CockpitFeedback.StickPulse leftDetent=new CockpitFeedback.StickPulse(),rightDetent=new CockpitFeedback.StickPulse();
+        private static readonly CockpitStickMath.Filter leftFilter=new CockpitStickMath.Filter(),rightFilter=new CockpitStickMath.Filter();
+        private static DateTime lastInput;
         private static DateTime leftPulse,rightPulse,grabLeft,grabRight;
         private static Vector3 translation,rotation;
         private static bool leftNear,rightNear,leftWas,rightWas;
@@ -64,6 +66,8 @@ namespace SpaceEngineersVR.Player
             left.Release(); right.Release();
             leftHover.Sample(false,0,0); rightHover.Sample(false,0,0);
             translation=rotation=Vector3.Zero;
+            leftFilter.Update(false,Vector3.Zero,0,0); rightFilter.Update(false,Vector3.Zero,0,0);
+            leftDetent.Sample(false,Vector3.Zero,DateTime.UtcNow); rightDetent.Sample(false,Vector3.Zero,DateTime.UtcNow);
             SetVisuals();
         }
         private static void SetVisuals()
@@ -180,13 +184,13 @@ namespace SpaceEngineersVR.Player
                 CockpitFeedback.Hover(Player.HandR);
             if (left.Update(available && !CockpitTouch.Owns(Player.HandL),leftDown,leftNear,!left.Held || Vector3.Distance(lp,WeaponPose.Palm(leftNeutral))<0.45f))
             {
-                grabLeft=DateTime.UtcNow; leftDetents=0;
+                grabLeft=DateTime.UtcNow; leftDetent.Sample(false,Vector3.Zero,grabLeft);
                 leftStartOffset=placement.Left;
                 leftNeutral=l; BlockTranslation(); if(Rig!=null && Rig.Right==null) BlockRotation(); Player.HandL.Vibrate(0,0.055f,110,0.5f);
             }
             if (right.Update(available && !CockpitTouch.OwnsRight,rightDown,rightNear,!right.Held || Vector3.Distance(rp,WeaponPose.Palm(rightNeutral))<0.45f))
             {
-                grabRight=DateTime.UtcNow; rightDetents=0;
+                grabRight=DateTime.UtcNow; rightDetent.Sample(false,Vector3.Zero,grabRight);
                 rightStartOffset=placement.Right;
                 rightNeutral=r; BlockRotation(); Player.HandR.Vibrate(0,0.055f,110,0.5f);
             }
@@ -194,6 +198,9 @@ namespace SpaceEngineersVR.Player
             if (rightWas && !right.Held) BlockRotation();
             float deadzone=Common.Config.PhysicalStickDeadzone;
             bool twist=Common.Config.StickTwist;
+            float sensitivity=Common.Config.PhysicalStickSensitivity;
+            var now=DateTime.UtcNow;
+            float dt=(float)Math.Min(.05,Math.Max(0,(now-lastInput).TotalSeconds)); lastInput=now;
             if (Adjusting)
             {
                 if (left.Held) placement.Move(true,leftStartOffset,WeaponPose.Palm(leftNeutral),lp);
@@ -202,11 +209,13 @@ namespace SpaceEngineersVR.Player
                 if(c.Primary.RawPressed) c.Primary.BlockUntilRelease();
                 c.Secondary.BlockUntilRelease();
             }
-            translation=left.Held && !Adjusting && !(Rig!=null && Rig.Right==null) ? CockpitStickMath.Translation(leftNeutral,l,deadzone,twist) : Vector3.Zero;
-            rotation=Adjusting ? Vector3.Zero : Rig!=null && Rig.Right==null && left.Held ? CockpitStickMath.Rotation(leftNeutral,l,deadzone,twist) : right.Held ? CockpitStickMath.Rotation(rightNeutral,r,deadzone,twist) : Vector3.Zero;
+            translation=left.Held && !Adjusting && !(Rig!=null && Rig.Right==null) ? CockpitStickMath.Translation(leftNeutral,l,deadzone,twist,sensitivity) : Vector3.Zero;
+            rotation=Adjusting ? Vector3.Zero : Rig!=null && Rig.Right==null && left.Held ? CockpitStickMath.Rotation(leftNeutral,l,deadzone,twist,sensitivity) : right.Held ? CockpitStickMath.Rotation(rightNeutral,r,deadzone,twist,sensitivity) : Vector3.Zero;
+            translation=leftFilter.Update(left.Held && !Adjusting,translation,dt,Common.Config.PhysicalStickSmoothing);
+            rotation=rightFilter.Update((right.Held || SingleLeft && left.Held) && !Adjusting,rotation,dt,Common.Config.PhysicalStickSmoothing);
             SetVisuals();
-            Feedback(Player.HandL,left.Held,Rig!=null && Rig.Right==null ? rotation:translation,ref leftDetents,ref leftPulse);
-            Feedback(Player.HandR,right.Held,rotation,ref rightDetents,ref rightPulse);
+            Feedback(Player.HandL,left.Held && !Adjusting,Rig!=null && Rig.Right==null ? rotation:translation,leftDetent,ref leftPulse);
+            Feedback(Player.HandR,right.Held && !Adjusting,rotation,rightDetent,ref rightPulse);
             CockpitFeedback.Motion(Player.HandL,left.Held && !Adjusting,Rig!=null && Rig.Right==null ? rotation:translation,DateTime.UtcNow<leftPulse || (DateTime.UtcNow-grabLeft).TotalSeconds<.08);
             CockpitFeedback.Motion(Player.HandR,right.Held && !Adjusting,rotation,DateTime.UtcNow<rightPulse || (DateTime.UtcNow-grabRight).TotalSeconds<.08);
             if (leftWas && !left.Held) Player.HandL.Vibrate(0,0.025f,75,0.2f);
@@ -214,14 +223,14 @@ namespace SpaceEngineersVR.Player
             leftWas=left.Held; rightWas=right.Held;
             RefreshVisuals();
         }
-        private static void Feedback(Controller hand,bool held,Vector3 axes,ref int previous,ref DateTime next)
+        private static void Feedback(Controller hand,bool held,Vector3 axes,CockpitFeedback.StickPulse detent,ref DateTime next)
         {
-            int current=CockpitStickMath.Detents(axes);
-            bool limit=(current & ~previous & 56)!=0, center=(previous & ~current & 7)!=0;
-            previous=current;
-            if (!held || (!limit && !center) || DateTime.UtcNow<next) return;
-            hand.Vibrate(0,limit ? 0.04f : 0.018f,limit ? 85 : 140,limit ? 0.35f : 0.15f);
-            next=DateTime.UtcNow.AddMilliseconds(130);
+            var now=DateTime.UtcNow;
+            int pulse=detent.Sample(held,axes,now);
+            if(pulse==0) return;
+            bool center=pulse==1;
+            hand.Vibrate(0,center ? .032f : .045f,center ? 150 : 75,center ? .32f : .38f);
+            next=now.AddMilliseconds(130);
         }
         public static void RefreshVisuals()
         {
@@ -233,7 +242,7 @@ namespace SpaceEngineersVR.Player
             if(seat==null || !Eligible(seat) || !CockpitRender.Ready) return;
             bool singleLeft=Rig!=null && Rig.Right==null;
             if(right.Consumed || singleLeft && left.Consumed)
-                aim=new Vector2(rotation.X,rotation.Z)*speed*Common.Config.PhysicalStickSensitivity;
+                aim=new Vector2(CockpitStickMath.Response(rotation.X,Common.Config.PhysicalStickExponent),CockpitStickMath.Response(rotation.Z,Common.Config.PhysicalStickExponent))*speed;
             if(left.Consumed && !singleLeft) zoom=translation.Z;
         }
         public static void ApplyFlight(float speed,ref Vector3 move,ref Vector2 rotate,ref float roll)
@@ -243,7 +252,7 @@ namespace SpaceEngineersVR.Player
             bool singleLeft=Rig!=null && Rig.Right==null;
             var c=Controls.Static;
             CockpitStickMath.ApplyFlight(left.Consumed && !singleLeft,right.Consumed || singleLeft && left.Consumed,left.Held ? translation : Vector3.Zero,right.Held || singleLeft && left.Held ? rotation : Vector3.Zero,
-                left.Held && !singleLeft ? c.ThrustLRFB.Position.Y : 0,OwnsRightThumb ? c.ThrustRotate.Position.X : 0,speed,Common.Config.PhysicalStickSensitivity,Common.Config.ShipRollSensitivity,ref move,ref rotate,ref roll);
+                left.Held && !singleLeft ? c.ThrustLRFB.Position.Y : 0,OwnsRightThumb ? c.ThrustRotate.Position.X : 0,speed,Common.Config.ShipRollSensitivity,ref move,ref rotate,ref roll,Common.Config.PhysicalStickExponent);
         }
         public static void Draw()
         {

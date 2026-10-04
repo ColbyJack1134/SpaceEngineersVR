@@ -37,10 +37,10 @@ namespace SpaceEngineersVR.Diagnostics
             Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationY(-FighterProfile.Twist),deadzone,false),Vector3.Zero,"Disabled twist lifts");
             Near(CockpitStickMath.Rotation(neutral,neutral*Matrix.CreateRotationY(FighterProfile.Twist),deadzone,false),Vector3.Zero,"Disabled twist yaws");
             Require(CockpitStickMath.Tilt(new Vector2(1),deadzone)==Vector2.One,"Full diagonal tilt cannot reach both limits");
-            Require(Math.Abs(CockpitStickMath.Response(.2f,1))<.2f && CockpitStickMath.Response(-1,1)==-1,"Center response is not softened");
+            Require(Math.Abs(CockpitStickMath.Response(.2f))<.2f && CockpitStickMath.Response(-1)==-1,"Center response is not softened");
             {
                 Vector3 move=Vector3.Zero; Vector2 rotate=Vector2.Zero; float roll=0;
-                CockpitStickMath.ApplyFlight(true,true,new Vector3(0,0,-CockpitStickMath.FullThrust),Vector3.Zero,1,.5f,10,1,.6f,ref move,ref rotate,ref roll);
+                CockpitStickMath.ApplyFlight(true,true,new Vector3(0,0,-1),Vector3.Zero,1,.5f,10,.6f,ref move,ref rotate,ref roll);
                 Near(move,new Vector3(0,1,-1),"Strong tilt must reach full thrust; thumb must lift");
                 Require(rotate==new Vector2(0,5) && roll==0,"Thumb yaw sign or scale");
             }
@@ -49,10 +49,10 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 Vector3 move=new Vector3(0.2f,0.3f,0.4f);
                 Vector2 rotate=new Vector2(2,3); float roll=0.7f;
-                CockpitStickMath.ApplyFlight(l,r,Vector3.One,-Vector3.One,0,0,10,1,0.6f,ref move,ref rotate,ref roll);
+                CockpitStickMath.ApplyFlight(l,r,Vector3.One,-Vector3.One,0,0,10,0.6f,ref move,ref rotate,ref roll);
                 Near(move,l ? Vector3.One : new Vector3(0.2f,0.3f,0.4f),"Translation has two input owners");
                 Require(rotate==(r ? new Vector2(-10) : new Vector2(2,3)) && Math.Abs(roll-(r ? -3f : 0.7f))<1e-6,"Rotation ownership or ship roll scaling changed");
-                CockpitStickMath.ApplyFlight(l,r,Vector3.Zero,Vector3.Zero,0,0,10,1,0.6f,ref move,ref rotate,ref roll);
+                CockpitStickMath.ApplyFlight(l,r,Vector3.Zero,Vector3.Zero,0,0,10,0.6f,ref move,ref rotate,ref roll);
                 if (l) Near(move,Vector3.Zero,"Released physical translation leaks held fallback");
                 if (r) Require(rotate==Vector2.Zero && roll==0,"Released physical rotation leaks held fallback");
             }
@@ -78,6 +78,45 @@ namespace SpaceEngineersVR.Diagnostics
             Require(config.PhysicalStickSensitivity==1 && config.PhysicalStickDeadzone==deadzone,"Invalid comfort options");
             config.PhysicalStickDeadzone=9; config.PhysicalStickSensitivity=-8;
             Require(config.PhysicalStickSensitivity==0.25f && config.PhysicalStickDeadzone==0.35f,"Unbounded comfort options");
+            Require(config.PhysicalStickExponent==2 && config.PhysicalStickSmoothing==.025f,"Missing stick comfort defaults");
+            config.PhysicalStickExponent=float.NaN; config.PhysicalStickSmoothing=float.PositiveInfinity;
+            Require(config.PhysicalStickExponent==2 && config.PhysicalStickSmoothing==.025f,"Invalid stick curve or smoothing");
+            foreach(float exponent in new[] {1f,2f,3f})
+            {
+                float previous=0;
+                for(int i=0;i<=100;i++)
+                {
+                    float x=i/100f,y=CockpitStickMath.Response(x,exponent);
+                    Require(y>=previous && y<=1 && CockpitStickMath.Response(-x,exponent)==-y,"Curve loses monotonicity, symmetry or limits"); previous=y;
+                }
+                Require(previous==1,"Curve loses full authority");
+            }
+            Require(CockpitStickMath.Response(.5f)==.25f && CockpitStickMath.Response(.75f)==.5625f,"Squared response changed");
+            foreach(float sensitivity in new[] {.5f,1f,2f})
+                Near(CockpitStickMath.Rotation(neutral,neutral*Matrix.CreateRotationX(FighterProfile.Tilt/sensitivity),deadzone,true,sensitivity),-Vector3.Right,"Sensitivity limits maximum authority");
+            Vector3 FilterAt(int hz)
+            {
+                var f=new CockpitStickMath.Filter(); Vector3 result=Vector3.Zero;
+                for(int i=0;i<hz;i++) result=f.Update(true,new Vector3(.5f),1f/hz,.025f);
+                return result;
+            }
+            Near(FilterAt(72),FilterAt(144),"Smoothing depends on refresh rate");
+            var filter=new CockpitStickMath.Filter();
+            var smooth=filter.Update(true,new Vector3(.5f),.01f,.025f);
+            Require(smooth.X>0 && smooth.X<.5f,"Smoothing bypassed");
+            Near(filter.Update(true,new Vector3(0,1,-1),.01f,.025f),new Vector3(0,1,-1),"Smoothing delays neutral or full travel");
+            Near(filter.Update(false,Vector3.One,.01f,.025f),Vector3.Zero,"Smoothing leaks after release");
+            var pulse=new CockpitFeedback.StickPulse(); var now=DateTime.UtcNow;
+            Require(pulse.Sample(true,Vector3.Zero,now)==0,"Grab emitted a center pulse");
+            pulse.Sample(true,new Vector3(.4f,.4f,0),now.AddMilliseconds(100));
+            Require(pulse.Sample(true,new Vector3(0,.4f,0),now.AddMilliseconds(110))==0,"One centered axis reported full neutral");
+            Require(pulse.Sample(true,Vector3.Zero,now.AddMilliseconds(120))==1,"Full neutral has no pulse");
+            for(int i=0;i<20;i++) Require(pulse.Sample(true,new Vector3(i%2==0 ? .02f:0),now.AddMilliseconds(140+i*10))==0,"Neutral jitter repeats pulses");
+            Require(pulse.Sample(true,Vector3.Right,now.AddSeconds(1))==2,"End stop has no pulse");
+            pulse.Sample(true,Vector3.Right*.95f,now.AddSeconds(1.1));
+            Require(pulse.Sample(true,Vector3.Right,now.AddSeconds(1.3))==0,"Limit jitter repeats pulses");
+            Require(pulse.Sample(false,Vector3.Zero,now.AddSeconds(1.4))==0 && pulse.Sample(true,Vector3.Zero,now.AddSeconds(1.5))==0,"Release or regrab emits a detent");
+            log("PASS stick comfort: squared response, full authority, refresh-independent smoothing, immediate release/neutral, multi-axis center and limit hysteresis.");
             string content=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(MyRenderProxy).Assembly.Location),"..","Content"));
             var geometry=CockpitGeometry.Load(content);
             Require(geometry.Parts.Take(6).Sum(p=>p.Indices.Count)==568*3,"Native stick triangles lost or duplicated");

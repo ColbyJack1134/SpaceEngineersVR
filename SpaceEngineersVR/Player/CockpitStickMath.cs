@@ -10,31 +10,43 @@ namespace SpaceEngineersVR.Player
             if (float.IsNaN(value) || float.IsInfinity(value)) return 0;
             return Math.Sign(value)*MathHelper.Clamp((Math.Abs(value)-deadzone)/(1-deadzone),0,1);
         }
-        public const float Expo=.5f, FullThrust=.75f;
-        public static float Response(float value,float full)
+        public static float Response(float value,float exponent=2)
         {
-            float x=MathHelper.Clamp(Math.Abs(value)/full,0,1);
-            return Math.Sign(value)*((1-Expo)*x+Expo*x*x*x);
+            if(float.IsNaN(value) || float.IsInfinity(value)) return 0;
+            return Math.Sign(value)*(float)Math.Pow(MathHelper.Clamp(Math.Abs(value),0,1),exponent);
         }
-        public static Vector3 Response(Vector3 value,float full) => new Vector3(Response(value.X,full),Response(value.Y,full),Response(value.Z,full));
+        public static Vector3 Response(Vector3 value,float exponent=2) => new Vector3(Response(value.X,exponent),Response(value.Y,exponent),Response(value.Z,exponent));
+        internal sealed class Filter
+        {
+            private Vector3 value;
+            internal Vector3 Update(bool held,Vector3 input,float seconds,float smoothing)
+            {
+                if(!held || !input.IsValid()) return value=Vector3.Zero;
+                float blend=smoothing<=0 ? 1 : 1-(float)Math.Exp(-Math.Max(0,seconds)/smoothing);
+                value=Vector3.Lerp(value,input,blend);
+                // Neutral and end stops must remain exact despite smoothing.
+                value=new Vector3(Endpoint(input.X,value.X),Endpoint(input.Y,value.Y),Endpoint(input.Z,value.Z));
+                return value;
+            }
+            private static float Endpoint(float input,float smoothed) => input==0 || Math.Abs(input)>=1 ? input:smoothed;
+        }
         public static void ApplyFlight(bool ownsTranslation,bool ownsRotation,Vector3 translation,Vector3 rotation,float thumbVertical,float thumbYaw,
-            float speed,float sensitivity,float rollSensitivity,ref Vector3 move,ref Vector2 rotate,ref float roll)
+            float speed,float rollSensitivity,ref Vector3 move,ref Vector2 rotate,ref float roll,float exponent=2)
         {
-            // Native dampeners brake each axis by 1-|input|, so partial thrust caps speed. Saturate before full deflection.
-            if (ownsTranslation) move=Vector3.Clamp((Response(translation,FullThrust)+thumbVertical*Vector3.Up)*sensitivity,-Vector3.One,Vector3.One);
+            if (ownsTranslation) move=Vector3.Clamp(Response(translation,exponent)+thumbVertical*Vector3.Up,-Vector3.One,Vector3.One);
             if (!ownsRotation) return;
-            Vector3 command=Response(rotation,1);
+            Vector3 command=Response(rotation,exponent);
             command.Y=MathHelper.Clamp(command.Y+thumbYaw,-1,1);
-            rotate=new Vector2(command.X,command.Y)*speed*sensitivity;
-            roll=FlightAxes.Roll(command.Z,true,speed*sensitivity,rollSensitivity);
+            rotate=new Vector2(command.X,command.Y)*speed;
+            roll=FlightAxes.Roll(command.Z,true,speed,rollSensitivity);
         }
-        public static Vector3 Translation(Matrix neutral,Matrix current,float deadzone,bool twist)
+        public static Vector3 Translation(Matrix neutral,Matrix current,float deadzone,bool twist,float sensitivity=1)
         {
-            Vector3 tilt=Rotation(neutral,current,deadzone,twist);
+            Vector3 tilt=Rotation(neutral,current,deadzone,twist,sensitivity);
             // Forward tilt drives -Z; clockwise twist (viewed from above) drives +Y.
             return new Vector3(tilt.Z,tilt.Y,-tilt.X);
         }
-        public static Vector3 Rotation(Matrix neutral,Matrix current,float deadzone,bool twist)
+        public static Vector3 Rotation(Matrix neutral,Matrix current,float deadzone,bool twist,float sensitivity=1)
         {
             if (!neutral.IsValid() || !current.IsValid()) return Vector3.Zero;
             Quaternion q=Quaternion.CreateFromRotationMatrix(Matrix.Transpose(neutral.GetOrientation())*current.GetOrientation());
@@ -42,8 +54,8 @@ namespace SpaceEngineersVR.Player
             Vector3 xyz=new Vector3(q.X,q.Y,q.Z);
             float length=xyz.Length();
             Vector3 angle=length<1e-6f ? Vector3.Zero : xyz*((float)(2*Math.Atan2(length,q.W))/length);
-            Vector2 tilt=Tilt(new Vector2(-angle.X,-angle.Z)/FighterProfile.Tilt,deadzone);
-            return new Vector3(tilt.X,twist ? Axis(-angle.Y/FighterProfile.Twist,deadzone) : 0,tilt.Y);
+            Vector2 tilt=Tilt(new Vector2(-angle.X,-angle.Z)*sensitivity/FighterProfile.Tilt,deadzone);
+            return new Vector3(tilt.X,twist ? Axis(-angle.Y*sensitivity/FighterProfile.Twist,deadzone) : 0,tilt.Y);
         }
         internal static Vector2 Tilt(Vector2 value,float deadzone)
         {
@@ -80,17 +92,6 @@ namespace SpaceEngineersVR.Player
         {
             palm.Translation+=shaft*lift+palm.Up*inset;
             return palm;
-        }
-        internal static int Detents(Vector3 axes)
-        {
-            int result=0;
-            for (int i=0;i<3;i++)
-            {
-                float a=i==0 ? axes.X : i==1 ? axes.Y : axes.Z;
-                if (Math.Abs(a)>0.05f) result|=1<<i;
-                if (Math.Abs(a)>0.97f) result|=1<<(i+3);
-            }
-            return result;
         }
     }
 }

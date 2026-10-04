@@ -50,6 +50,32 @@ namespace SpaceEngineersVR.Player
                 return MathHelper.Clamp(change*.65f,.025f,.11f);
             }
         }
+        internal sealed class StickPulse
+        {
+            private bool held,departed;
+            private int limits;
+            private DateTime next;
+            internal int Sample(bool captured,Vector3 axes,DateTime now)
+            {
+                if(!captured || !axes.IsValid()) { held=departed=false; limits=0; return 0; }
+                if(!held) { held=true; departed=false; limits=0; next=now.AddMilliseconds(80); return 0; }
+                float maximum=Math.Max(Math.Abs(axes.X),Math.Max(Math.Abs(axes.Y),Math.Abs(axes.Z)));
+                if(maximum>.08f) departed=true;
+                bool centered=departed && maximum==0;
+                int current=limits;
+                for(int i=0;i<3;i++)
+                {
+                    float a=Math.Abs(i==0 ? axes.X:i==1 ? axes.Y:axes.Z);
+                    if(a>=.98f) current|=1<<i;
+                    else if(a<.90f) current&=~(1<<i);
+                }
+                bool limit=(current & ~limits)!=0;
+                limits=current;
+                if(centered) { departed=false; next=now.AddMilliseconds(130); return 1; }
+                if(!limit || now<next) return 0;
+                next=now.AddMilliseconds(130); return 2;
+            }
+        }
         private static bool soundFailed;
         private static int Index(Controller hand) => hand==Player.HandL ? 1 : 0;
         public static void Hover(Controller hand)
