@@ -48,6 +48,26 @@ namespace SpaceEngineersVR.Diagnostics
             var keyboard=WristPanel.Keys(null,false,false,false,true,null);
             Require(keyboard.All(k=>k.Bounds.X>=0 && k.Bounds.Y>=0 && k.Bounds.Right<=1 && k.Bounds.Bottom<=1),"Search results leave tablet bounds");
             WristPanel.Reset();
+            foreach(bool available in new[] {false,true}) foreach(bool sticks in new[] {false,true}) foreach(bool unlocked in new[] {false,true})
+            {
+                var seatKeys=new System.Collections.Generic.List<SurfaceKey>();
+                SeatPanel.WristKeys(seatKeys,available,sticks,unlocked);
+                Require(seatKeys.Count==14 && seatKeys.Select(k=>k.SeatControl).Distinct().Count()==14,"Wrist seat panel loses actions");
+                var original=SeatPanel.Keys(sticks,unlocked);
+                foreach(var key in seatKeys)
+                {
+                    Require(key.Enabled==(available && original[key.SeatControl].Enabled),"Wrist seat permission differs from console");
+                    Require(key.Bounds.X>=0 && key.Bounds.Y>=.15f && key.Bounds.Right<=1 && key.Bounds.Bottom<=1,"Wrist seat key out of bounds");
+                }
+                for(int i=0;i<seatKeys.Count;i++) for(int j=i+1;j<seatKeys.Count;j++)
+                    Require(seatKeys[i].Bounds.Right<=seatKeys[j].Bounds.X || seatKeys[j].Bounds.Right<=seatKeys[i].Bounds.X || seatKeys[i].Bounds.Bottom<=seatKeys[j].Bounds.Y || seatKeys[j].Bounds.Bottom<=seatKeys[i].Bounds.Y,"Wrist seat seatKeys overlap");
+            }
+            WristPanel.OpenSeat();
+            var seatPage=WristPanel.Keys(null,false,true,false,false,null);
+            Require(seatPage.Count(k=>k.SeatControl>=0)==14,"Seat page missing controls");
+            Require(seatPage.Where(k=>k.SeatControl>=0).All(k=>!k.Enabled),"Seat controls enabled without an eligible cockpit");
+            WristPanel.Show(1); Require(!WristPanel.SeatOpen,"Seat page survived a tab change"); WristPanel.Reset();
+            log("PASS wrist seat panel: shared actions, availability, stick locks, bounds and page exit.");
             for(int i=0;i<80;i++)
             {
                 var body=MatrixD.CreateFromYawPitchRoll(i*.1,i*.04,-i*.03);

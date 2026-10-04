@@ -1,4 +1,5 @@
 using VRageMath;
+using System.Collections.Generic;
 
 namespace SpaceEngineersVR.Player
 {
@@ -31,9 +32,28 @@ namespace SpaceEngineersVR.Player
                 int row=i<2 ? 0 : 1+(i-2)/3,col=i<2 ? i : (i-2)%3;
                 float y=.035f+row*.185f+(row>=2 ? .02f : 0);
                 keys[key]=new SurfaceKey(key<9 ? symbols[key] : labels[key],(row==0 ? .215f : .065f)+col*.30f,y,.27f,.17f) {
-                    Enabled=key==7 ? sticks : key!=8 || sticks && unlocked };
+                    SeatControl=key,Enabled=key==7 ? sticks : key!=8 || sticks && unlocked };
             }
             return keys;
+        }
+        private static readonly Vector3[] directions={ Vector3.Up,Vector3.Forward,Vector3.Down,Vector3.Left,Vector3.Zero,Vector3.Right,Vector3.Backward };
+        internal static void WristKeys(List<SurfaceKey> keys,bool available,bool sticks,bool unlocked)
+        {
+            foreach(var source in Keys(sticks,unlocked))
+            {
+                var b=source.Bounds;
+                keys.Add(new SurfaceKey(source.Label,.29f+b.X*.42f,.15f+b.Y*.83f,b.Width*.42f,b.Height*.83f) {
+                    SeatControl=source.SeatControl,Enabled=available && source.Enabled });
+            }
+        }
+        internal static void UpdateInput(int clicked,int held)
+        {
+            if(!SeatFit.Eligible(SeatFit.Seat) || Plugin.Main.MenuOpen || !InputRouter.Gameplay) return;
+            if(clicked==7) CockpitControls.ToggleAdjustment();
+            else if(clicked==8 && CockpitControls.Adjusting) CockpitControls.ResetPlacement();
+            else if(clicked>=9 && clicked<14) Activate(clicked);
+            if(held>=0 && held<directions.Length && !CockpitControls.Held(Player.HandR) && !CockpitControls.Held(Player.HandL))
+                SeatFit.Move(directions[held],held==4);
         }
         internal static float[] States()
         {

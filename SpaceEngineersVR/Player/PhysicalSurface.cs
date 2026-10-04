@@ -13,6 +13,7 @@ namespace SpaceEngineersVR.Player
     internal sealed class SurfaceKey
     {
         public string Label;
+        internal int SeatControl=-1;
         public bool Enabled=true,Active;
         public string[] Icons=new string[0];
         public string SubIcon,Text,Value;
@@ -35,7 +36,7 @@ namespace SpaceEngineersVR.Player
         public string Id,Title,Text,Action,Argument;
         public EssentialHud.View Status;
         public BlockInspection.Data Block;
-        public bool SignalWindow;
+        public bool SignalWindow,SeatSettings;
         public WristSignals.View Signals;
         public WristHud.View HudSettings;
         public string[] Icons=new string[0];
@@ -55,7 +56,7 @@ namespace SpaceEngineersVR.Player
         public float[] Levels;
         public int Handle;
         public Vector3? TouchPoint;
-        public string ContentKey => SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+HoverAlt+"|"+PressedAlt+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
+        public string ContentKey => SeatSettings+"|"+SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+HoverAlt+"|"+PressedAlt+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
             "|"+HudSettings?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
         public int KeyAt(Vector2 uv)
@@ -221,6 +222,10 @@ namespace SpaceEngineersVR.Player
         private static void PaintSeat(OverlayCanvas target,SurfaceView s)
         {
             target.Clear(Color.FromArgb(255,28,32,34));
+            PaintSeatKeys(target,s,true);
+        }
+        private static void PaintSeatKeys(OverlayCanvas target,SurfaceView s,bool borderVisible=false)
+        {
             var g=target.Graphics;
             var saved=g.Save();
             try
@@ -229,20 +234,22 @@ namespace SpaceEngineersVR.Player
                 g.ScaleTransform(1024/s.Width,640/s.Height);
                 using(var border=new Pen(Color.FromArgb(95,109,115),.0006f))
                 {
-                    g.DrawRectangle(border,.002f,.002f,s.Width-.004f,s.Height-.004f);
+                    if(borderVisible) g.DrawRectangle(border,.002f,.002f,s.Width-.004f,s.Height-.004f);
                     for(int i=0;i<s.Keys.Length;i++)
                     {
+                        int key=s.Keys[i].SeatControl;
+                        if(key<0) continue;
                         var b=s.Keys[i].Bounds;
                         if(b.Width<=0 || b.Height<=0) continue;
                         var r=new System.Drawing.RectangleF(b.X*s.Width,b.Y*s.Height,b.Width*s.Width,b.Height*s.Height);
                         using(var path=Rounded(r,.003f))
                         using(var brush=new SolidBrush(s.IsPressed(i) ? Color.FromArgb(38,124,139) : s.Hovered(i) ? Color.FromArgb(61,85,94) : Color.FromArgb(44,51,56)))
                         { g.FillPath(brush,path); g.DrawPath(border,path); }
-                        if(i==7) DrawLock(g,r,s.Handle==1,s.Keys[i].Enabled);
-                        else if(i<9) DrawSeatSymbol(g,i,r,s.Keys[i].Enabled ? Color.LightCyan : Color.SlateGray);
+                        if(key==7) DrawLock(g,r,s.Handle==1,s.Keys[i].Enabled);
+                        else if(key<9) DrawSeatSymbol(g,key,r,s.Keys[i].Enabled ? Color.LightCyan : Color.SlateGray);
                         else
                         {
-                            bool on=s.Levels!=null && i-9<s.Levels.Length && s.Levels[i-9]>.5f;
+                            bool on=s.Levels!=null && key-9<s.Levels.Length && s.Levels[key-9]>.5f;
                             using(var status=new SolidBrush(on ? Color.FromArgb(99,229,158) : Color.FromArgb(115,126,131)))
                                 g.FillRectangle(status,r.X+r.Width*.22f,r.Bottom-.0025f,r.Width*.56f,.0012f);
                         }
@@ -251,12 +258,14 @@ namespace SpaceEngineersVR.Player
                 }
             }
             finally { g.Restore(saved); }
-            for(int i=9;i<s.Keys.Length;i++)
+            for(int i=0;i<s.Keys.Length;i++)
             {
+                int key=s.Keys[i].SeatControl;
+                if(key<9) continue;
                 var b=s.Keys[i].Bounds;
                 if(b.Width<=0 || b.Height<=0) continue;
                 float size=Math.Min(b.Width*s.Width,b.Height*s.Height)*.70f;
-                target.Icon(NativeSprites.Hud(SeatPanel.IconNames[i-9]),
+                target.Icon(NativeSprites.Hud(SeatPanel.IconNames[key-9]),
                     (b.Center.X-size/s.Width/2)*1024,(b.Center.Y-size/s.Height/2-.006f)*640,
                     size/s.Width*1024,size/s.Height*640,new Vector4(0,0,1,1),Color.LightCyan);
             }
@@ -300,6 +309,7 @@ namespace SpaceEngineersVR.Player
         {
             target.Clear(Color.FromArgb(255,12,20,28));
             PaintWristKeys(target,s);
+            if(s.SeatSettings) PaintSeatKeys(target,s);
             target.Graphics.FillRectangle(Brushes.White,1020,636,4,4);
         }
         internal static void PaintWristKeys(OverlayCanvas target,SurfaceView s)
@@ -309,7 +319,7 @@ namespace SpaceEngineersVR.Player
             using(var format=new StringFormat { Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center,Trimming=StringTrimming.EllipsisWord })
             for(int i=0;i<s.Keys.Length;i++)
             {
-                var key=s.Keys[i]; if(key.Invisible) continue; var b=key.Bounds;
+                var key=s.Keys[i]; if(key.Invisible || key.SeatControl>=0) continue; var b=key.Bounds;
                 var r=new System.Drawing.RectangleF(b.X*1024,b.Y*640,b.Width*1024,b.Height*640);
                 using(var path=Rounded(r,10))
                 using(var brush=new SolidBrush(s.IsPressed(i) ? Color.FromArgb(40,133,151) : s.Hovered(i) ? Color.FromArgb(55,83,100) : Color.FromArgb(31,47,60))) g.FillPath(brush,path);

@@ -36,7 +36,6 @@ namespace SpaceEngineersVR.Player
         public static bool Pointing { get; private set; }
         private static Vector3D touchPoint;
 
-        private static readonly Vector3[] seatDirections={ Vector3.Up,Vector3.Forward,Vector3.Down,Vector3.Left,Vector3.Zero,Vector3.Right,Vector3.Backward };
         public static MatrixD DeviceWorld(Matrix tracking)
         {
             if(SeatFit.Eligible(SeatFit.Seat))
@@ -101,6 +100,9 @@ namespace SpaceEngineersVR.Player
                 bool feedback=wristHover>=0 && (target.Style!=SurfaceStyle.WristStatus || direct || rayTarget==target && rayDistance<=.12f);
                 if(feedback && (!wristHoverFeedback || wristHover!=previousHover || wristHoverSurface!=previousSurface) && !wristTouch.Consumed) CockpitFeedback.Hover(Player.HandR);
                 wristHoverFeedback=feedback;
+                if(target==wristMenu && WristPanel.SeatOpen && fold>=.99f)
+                    SeatPanel.UpdateInput(clicked>=0 ? target.Keys[clicked].SeatControl : -1,
+                        wristTouch.Committed && wristTouch.Surface==target.Id ? heldKey?.SeatControl ?? -1 : -1);
                 if(clicked>=0)
                 {
                     InteractionInput.Read(Player.HandR,wristDirect).Consume(); CockpitFeedback.Click(Player.HandR);
@@ -120,16 +122,11 @@ namespace SpaceEngineersVR.Player
             }
             if(seat!=null && !Main.MenuOpen)
             {
-                bool holding=CockpitControls.Held(Player.HandR) || CockpitControls.Held(Player.HandL);
                 var input=CockpitTouch.Read("Seat");
                 int clicked=input.Pressed ? input.Held : -1;
                 seatHover=input.Hover; seatPressed=input.Held;
                 if(clicked>=0) CockpitFeedback.Click(input.Actor);
-                if(clicked==7) CockpitControls.ToggleAdjustment();
-                else if(clicked==8 && CockpitControls.Adjusting) CockpitControls.ResetPlacement();
-                else if(clicked>=9) SeatPanel.Activate(clicked);
-                int held=input.Held;
-                if(!holding && held>=0 && held<seatDirections.Length) SeatFit.Move(seatDirections[held],held==4);
+                if(!(wristTouch.Committed && heldKey?.SeatControl>=0)) SeatPanel.UpdateInput(clicked,input.Held);
             }
             // A touch owns its input while the finger is on a surface, preventing tool use.
             if(wristTouch.Consumed || ringContact) InteractionInput.Read(Player.HandR,wristDirect).Consume();
@@ -265,6 +262,8 @@ namespace SpaceEngineersVR.Player
             var menu=new SurfaceView { Id="WristMenu",Style=SurfaceStyle.WristMenu,
                 Width=MathHelper.Lerp(.133f,.40f,opening)*scale,Height=height,Pose=WristPose(mount,1,height,-1),
                 Keys=fold>=.99f ? keys : new SurfaceKey[0],SignalWindow=fold>=.99f && WristPanel.Inspecting,
+                SeatSettings=fold>=.99f && WristPanel.SeatOpen,
+                Levels=WristPanel.SeatOpen ? SeatPanel.States():null,Handle=CockpitControls.Adjusting ? 1:0,
                 HudSettings=fold>=.99f && WristPanel.HudOpen ? WristHud.Current:null };
             return new[] {compact,menu};
         }

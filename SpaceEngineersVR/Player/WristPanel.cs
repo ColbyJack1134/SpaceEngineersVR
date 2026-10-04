@@ -11,12 +11,14 @@ namespace SpaceEngineersVR.Player
         private static int tab,page;
         private static bool editing;
         private static string query="";
+        internal static bool SeatOpen { get; private set; }
+        internal static void OpenSeat() { Show(0); SeatOpen=true; }
         internal static bool HudOpen { get; private set; }
         internal static void OpenHud() { Show(0); HudOpen=true; WristHud.Open(); }
-        public static void Reset() { StopEditing(); tab=page=0; HudOpen=false; query=""; WristSignals.Reset(); }
+        public static void Reset() { StopEditing(); tab=page=0; HudOpen=SeatOpen=false; query=""; WristSignals.Reset(); }
         internal static bool Inspecting => tab==3;
         public static void StopEditing() { if(editing) MenuKeyboard.Close(); editing=false; }
-        internal static void Show(int selected) { StopEditing(); HudOpen=false; tab=selected; }
+        internal static void Show(int selected) { StopEditing(); HudOpen=SeatOpen=false; tab=selected; }
         internal static void SetQuery(string text) { query=text; page=0; }
         internal static void Edit()
         {
@@ -34,7 +36,12 @@ namespace SpaceEngineersVR.Player
                 new ActionChoice("Search",()=>Show(2)),new ActionChoice("Signals",()=>Show(3)) };
             for(int i=0;i<tabs.Length;i++) keys.Add(new SurfaceKey(tabs[i].Label,.02f+i*.243f,.025f,.231f,.1f) {
                 Action=tabs[i],Active=i==selected });
-            if(selected==3) { WristSignals.Keys(keys); return keys.ToArray(); }
+            if(selected==0 && SeatOpen && !previewToolbar.HasValue)
+            {
+                keys.Add(new SurfaceKey("Back",.02f,.16f,.23f,.13f) { Action=new ActionChoice("Back",()=>Show(0)) });
+                SeatPanel.WristKeys(keys,SeatFit.Eligible(SeatFit.Seat),CockpitControls.CanAdjust,CockpitControls.Adjusting);
+            }
+            else if(selected==3) { WristSignals.Keys(keys); return keys.ToArray(); }
             else if(selected==0 && HudOpen && !previewToolbar.HasValue) WristHud.Keys(keys);
             else if(selected==2) SearchKeys(keys);
             else if(showToolbar)
@@ -60,6 +67,7 @@ namespace SpaceEngineersVR.Player
             else
             {
                 var actions=GameActions.TabletActions(building,seated,thirdPerson,jetpack);
+                if(SeatFit.Eligible(SeatFit.Seat)) actions=actions.Concat(new[] {new ActionChoice("Seat panel",OpenSeat)}).ToArray();
                 for(int i=0;i<actions.Length;i++)
                     keys.Add(new SurfaceKey(actions[i].Label,.02f+i%4*.245f,.16f+i/4*.20f,.23f,.185f) {
                         Action=actions[i]==GameActions.HudOptions ? new ActionChoice("HUD",OpenHud):actions[i],Icons=new[] {actions[i].Icon},

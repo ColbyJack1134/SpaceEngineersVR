@@ -475,6 +475,18 @@ namespace SpaceEngineersVR.Diagnostics
                 wrist.Hover=wrist.Pressed=-1;
                 wrist.Keys=WristPanel.Keys(null,false,true,true,false,wrist.Status,false);
                 WristPreview(device,canvas,wrist,output,"wrist-ship-controls");
+                foreach(bool unlocked in new[] {false,true})
+                {
+                    WristPanel.OpenSeat();
+                    var seatKeys=WristPanel.Keys(null,false,true,false,false,wrist.Status).Where(k=>k.SeatControl<0).ToList();
+                    SeatPanel.WristKeys(seatKeys,true,true,unlocked);
+                    wrist.Keys=seatKeys.ToArray(); wrist.SeatSettings=true; wrist.Handle=unlocked ? 1:0; wrist.Levels=new[] {1f,1f,0f,0f,1f};
+                    WristPreview(device,canvas,wrist,output,"wrist-seat-"+(unlocked ? "unlocked":"locked"));
+                    wrist.Pressed=Array.FindIndex(wrist.Keys,k=>k.SeatControl==0);
+                    WristPreview(device,canvas,wrist,output,"wrist-seat-"+(unlocked ? "unlocked":"locked")+"-pressed");
+                    wrist.Pressed=-1;
+                }
+                WristPanel.Reset(); wrist.SeatSettings=false; wrist.Handle=0; wrist.Levels=null;
                 wrist.Keys=WristPanel.Keys(null,true,false,true,true,wrist.Status,false);
                 foreach(var key in wrist.Keys.Where(k=>k.Action==GameActions.BuildShapeAction)) key.Enabled=true;
                 WristPreview(device,canvas,wrist,output,"wrist-building-controls");
