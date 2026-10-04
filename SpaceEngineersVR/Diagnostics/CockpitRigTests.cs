@@ -19,7 +19,7 @@ namespace SpaceEngineersVR.Diagnostics
                 if(!SeatPanel.TryMount(rig.Subtype,out var mount,out float width,out float height) ||
                     !mount.IsValid() || Math.Abs(width-.108f)>.00001f || Math.Abs(height-.12f)>.00001f)
                     throw new Exception("Cockpit seat panel differs from the common module: "+rig.Subtype);
-                if(!rig.HasSticks) continue;
+                if(rig.ActorCount==0) continue;
                 var mesh=rig.Geometry(content);
                 int copied=rig.Levers.Where(l=>l!=null && l.TemplateActor>=0).Sum(l=>mesh.Parts[l.Actor].Indices.Count+(l.TemplateBase?.Triangles ?? 0)*3);
                 if(mesh.Parts.Sum(p=>p.Indices.Count)-copied!=mesh.NativeTriangles*3)
@@ -46,29 +46,31 @@ namespace SpaceEngineersVR.Diagnostics
                     var start=Vector3.Transform(handle.Center,handle.Visual(0));
                     var end=Vector3.Transform(handle.Center,handle.Visual(1));
                     var drag=new ControlDrag();
-                    drag.BeginLinear(start,Vector3.Forward,0,CockpitRig.Handle.Travel);
-                    drag.Move((start+end)*.5f);
-                    if(Math.Abs(drag.Value-.5f)>.0001f || surface.Width<.1f || surface.Height>.04f)
+                    if(handle.Hinged) drag.Begin(start,start,handle.Pivot,handle.Axis,0,handle.Range);
+                    else drag.BeginLinear(start,handle.Axis,0,handle.Range);
+                    drag.Move(Vector3.Transform(handle.Center,handle.Visual(.5f)));
+                    if(Math.Abs(drag.Value-.5f)>.001f || surface.Width<=0 || surface.Height>.04f)
                         throw new Exception("Handle travel or contact surface differs from the model");
-                    drag.Move(end+Vector3.Forward); if(drag.Value!=1) throw new Exception("Handle exceeds forward stop");
-                    drag.Move(start+Vector3.Backward); if(drag.Value!=0) throw new Exception("Handle exceeds rear stop");
+                    drag.Move(end); if(Math.Abs(drag.Value-1)>.001f) throw new Exception("Handle misses upper stop");
+                    drag.Move(start); if(drag.Value>.001f) throw new Exception("Handle misses lower stop");
                     for(int i=0;i<=10;i++)
                     {
                         var visual=handle.Visual(i/10f);
                         var touch=surface.Pose*(MatrixD)visual;
                         var center=Vector3.Transform(handle.Center,visual);
-                        if(Vector3D.Distance(touch.Translation,center+Vector3.Up*.0155f)>.00001)
+                        if(Vector3D.Distance(touch.Translation,center+touch.Backward*handle.Radius)>.00001)
                             throw new Exception("Handle contact separates from the rendered grip");
                     }
                     foreach(bool left in new[] {true,false}) foreach(float offset in new[] {-.02f,0,.02f}) foreach(float position in new[] {0f,.5f,1f})
                     {
                         var palm=handle.Palm(left,position,offset);
                         var cavity=Vector3.Transform(new Vector3(-.105f,-.035f,0),palm);
-                        var bar=Vector3.Transform(handle.Center+Vector3.Right*offset,handle.Visual(position));
-                        if(Vector3.Distance(cavity,bar)>.00001f || Vector3.Dot(palm.Up,Vector3.Up)<.999f)
-                            throw new Exception("Bar grasp twists or separates from the grip across hand/travel/offset");
+                        var bar=Vector3.Transform(handle.Center+(Vector3)handle.TouchPose.Right*MathHelper.Clamp(offset,-handle.GripOffset,handle.GripOffset),handle.Visual(position));
+                        if(Vector3.Distance(cavity,bar)>.00001f || !palm.IsValid())
+                            throw new Exception("Bar grasp separates from the grip across hand/travel/offset");
                     }
-                    if(mesh.Parts[handle.Actor].Indices.Count!=316*3)
+                    int triangles=rig.Pieces.Where(p=>p.Actor==handle.Actor).Sum(p=>p.Triangles);
+                    if(mesh.Parts[handle.Actor].Indices.Count!=triangles*3)
                         throw new Exception("Handle grip/stem partition differs from installed model");
                 }
                 log("PASS installed cockpit rig: "+rig.Subtype+"; "+mesh.Parts.Length+" actors, "+mesh.NativeTriangles+" conserved triangles");

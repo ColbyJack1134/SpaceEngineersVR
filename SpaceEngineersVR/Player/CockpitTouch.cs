@@ -14,10 +14,11 @@ namespace SpaceEngineersVR.Player
         {
             public SurfaceView Surface;
             public bool Lever,Cover,Pull,Analog;
+            public CockpitRig.Handle Handle;
             public int Slot=-1;
             public float Position,Travel;
             public Vector3 Pivot,Axis;
-            public bool Hinged => Lever || Cover;
+            public bool Hinged => Lever || Cover || Handle?.Hinged==true;
             public bool Draggable => Hinged || Pull || Analog;
         }
         internal sealed class Hand
@@ -141,15 +142,15 @@ namespace SpaceEngineersVR.Player
         }
         internal static Vector3 Compensate(Vector3 hand,Vector3 fit,Vector3 startFit) => hand-(fit-startFit);
         internal const float BarGrabRadius=.045f;
-        internal static bool NearBar(CockpitProbe finger,CockpitProbe? palm,out float distance,out Vector3 contact)
+        internal static bool NearBar(CockpitProbe finger,CockpitProbe? palm,out float distance,out Vector3 contact,float halfWidth=.06f,float radius=.0155f)
         {
-            var bounds=new BoundingBox(new Vector3(-.06f,-.0155f,-.031f),new Vector3(.06f,.0155f,0));
+            var bounds=new BoundingBox(new Vector3(-halfWidth,-radius,-2*radius),new Vector3(halfWidth,radius,0));
             float squared=finger.DistanceSquared(bounds,out contact);
             distance=(float)Math.Sqrt(squared);
             bool hit=squared<=CockpitProbe.Radius*CockpitProbe.Radius;
             if(palm.HasValue)
             {
-                var axis=new BoundingBox(new Vector3(-.06f,0,-.0155f),new Vector3(.06f,0,-.0155f));
+                var axis=new BoundingBox(new Vector3(-halfWidth,0,-radius),new Vector3(halfWidth,0,-radius));
                 float separation=(float)Math.Sqrt(palm.Value.DistanceSquared(axis,out var nearest));
                 if(separation<=BarGrabRadius && (!hit || separation<distance))
                 { hit=true; distance=separation; contact=new Vector3(nearest.X,0,0); }
@@ -237,7 +238,7 @@ namespace SpaceEngineersVR.Player
                     if(!target.Analog && Vector3D.Dot(s.Pose.Backward,head-s.Pose.Translation)<=.005) continue;
                     var localProbe=probe.Transform(MatrixD.Invert(s.Pose));
                     float distance; Vector3 contact;
-                    int candidate=target.Analog ? NearBar(localProbe,hasPalm ? (CockpitProbe?)palmRegion.Transform(MatrixD.Invert(s.Pose)):null,out distance,out contact) ? 0:-1 :
+                    int candidate=target.Analog ? NearBar(localProbe,hasPalm ? (CockpitProbe?)palmRegion.Transform(MatrixD.Invert(s.Pose)):null,out distance,out contact,target.Handle.HalfWidth,target.Handle.Radius) ? 0:-1 :
                         NearKey(s,localProbe,out distance,out contact,target.Pull ? .004f : .001f);
                     if(candidate<0) continue;
                     guarded=true;
@@ -275,9 +276,9 @@ namespace SpaceEngineersVR.Player
                     if(held.Pull || held.Analog)
                         anchor=Vector3D.Transform(chosenContact,s.Pose);
                     h.Capture(localWrist,(Vector3)Vector3D.Transform(anchor,seat.PositionComp.WorldMatrixNormalizedInv));
-                    h.StartPosition=held.Position; h.GripOffset=MathHelper.Clamp(chosenContact.X,-.02f,.02f);
+                    h.StartPosition=held.Position; h.GripOffset=chosenContact.X;
                     h.ValuePulse.Reset(held.Position);
-                    if(held.Hinged) h.Drag.Begin(raw,h.Anchor,held.Pivot,held.Axis,held.Position,held.Travel);
+                    if(held.Hinged) h.Drag.Begin(raw,held.Handle!=null ? Vector3.Transform(held.Handle.Center,held.Handle.Visual(held.Position)):h.Anchor,held.Pivot,held.Axis,held.Position,held.Travel);
                     else if(held.Pull || held.Analog) h.Drag.BeginLinear(raw,held.Axis,held.Position,held.Travel);
                     CockpitFeedback.Engage(hand);
                 }

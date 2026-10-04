@@ -117,7 +117,7 @@ namespace SpaceEngineersVR.Diagnostics
         private static CockpitRig[] SelectedRigs()
         {
             string subtype=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_COCKPIT");
-            var selected=CockpitRig.All.Where(r=>r.HasSticks && (string.IsNullOrEmpty(subtype) || r.Subtype==subtype)).ToArray();
+            var selected=CockpitRig.All.Where(r=>r.ActorCount>0 && (string.IsNullOrEmpty(subtype) || r.Subtype==subtype)).ToArray();
             if(selected.Length==0) throw new InvalidOperationException("Unknown cockpit probe subtype: "+subtype);
             return selected;
         }
@@ -367,7 +367,7 @@ namespace SpaceEngineersVR.Diagnostics
         private static void UpdateRig()
         {
             var rig=rigs[rigIndex];
-            Vector3 center=rig.Left!=null && rig.Right!=null ? (rig.Left.Contact+rig.Right.Contact)*.5f : (rig.Left ?? rig.Right).Contact;
+            Vector3 center=rig.Left!=null && rig.Right!=null ? (rig.Left.Contact+rig.Right.Contact)*.5f : (rig.Left ?? rig.Right)?.Contact ?? rig.Handles[0].Center;
             Vector3D eye=center+new Vector3(.02f,.55f,.48f);
             var view=MatrixD.CreateLookAt(eye,center,Vector3D.Up);
             var size=Wrappers.MyRender11.Resolution; float aspect=(float)size.X/size.Y;

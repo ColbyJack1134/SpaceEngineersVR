@@ -40,6 +40,31 @@ namespace SpaceEngineersVR.Player
                 new Vector2(-.1877441f,-.5917969f),new Vector2(-.1989746f,-.5893555f),new Vector2(-.210083f,-.5888672f),
                 new Vector2(-.2322998f,-.5922852f),new Vector2(-.2487793f,-.5952148f),new Vector2(-.2658691f,-.6000977f),new Vector2(-.2885742f,-.6088867f)};
             public Handle(float x,int actor) { Center=new Vector3(x,-.54296875f,-.20050049f); Actor=actor; }
+            public readonly Vector3 Axis=Vector3.Forward,Pivot;
+            public readonly float Range=Travel,HalfWidth=.06f,Radius=.0155f;
+            public readonly bool Hinged;
+            private readonly Matrix frame=Matrix.Identity;
+            private readonly Vector3 bottom,top;
+            private readonly float bottomAngle;
+            private readonly bool contour=true;
+            public Handle(Vector3 center,int actor,Vector3 shaft,Vector3 normal,Vector3 bottom,Vector3 top,float halfWidth,float radius)
+            {
+                Center=center; Actor=actor; HalfWidth=halfWidth; Radius=radius;
+                frame=Frame(shaft,normal); this.bottom=bottom; this.top=top;
+                Axis=Vector3.Normalize(top-bottom); Range=Vector3.Distance(bottom,top); contour=false;
+            }
+            public Handle(Vector3 center,int actor,Vector3 shaft,Vector3 normal,Vector3 pivot,Vector3 axis,float bottomAngle,float topAngle,float halfWidth,float radius)
+            {
+                Center=center; Actor=actor; HalfWidth=halfWidth; Radius=radius;
+                frame=Frame(shaft,normal); Pivot=pivot; Axis=Vector3.Normalize(axis);
+                this.bottomAngle=bottomAngle; Range=topAngle-bottomAngle; Hinged=true; contour=false;
+            }
+            private static Matrix Frame(Vector3 shaft,Vector3 normal)
+            {
+                var result=Matrix.Identity; result.Right=Vector3.Normalize(shaft);
+                result.Up=Vector3.Normalize(normal-result.Right*Vector3.Dot(normal,result.Right));
+                result.Backward=Vector3.Cross(result.Right,result.Up); return result;
+            }
             private static float Height(float z)
             {
                 for(int i=1;i<track.Length;i++) if(z>=track[i].X)
@@ -48,12 +73,18 @@ namespace SpaceEngineersVR.Player
             }
             internal Matrix Visual(float position)
             {
-                float z=MathHelper.Lerp(Rear,Front,MathHelper.Clamp(position,0,1));
+                position=MathHelper.Clamp(position,0,1);
+                if(Hinged) return CockpitStickMath.Around(Pivot,Matrix.CreateFromAxisAngle(Axis,bottomAngle+Range*position));
+                if(!contour) return Matrix.CreateTranslation(Vector3.Lerp(bottom,top,position)-Center);
+                float z=MathHelper.Lerp(Rear,Front,position);
                 return Matrix.CreateTranslation(0,Height(z)-Height(Center.Z),z-Center.Z);
             }
+            // Rotary handles turn about their grip axis; keep the wrist roll fixed.
             internal Matrix Palm(bool left,float position,float offset=0) =>
-                CockpitStickMath.GripPalm(left,Center+Vector3.Right*MathHelper.Clamp(offset,-.02f,.02f),left ? Vector3.Right:Vector3.Left)*Visual(position);
-            internal MatrixD TouchPose => MatrixD.CreateWorld(Center+Vector3.Up*.0155f,Vector3.Down,Vector3.Forward);
+                CockpitStickMath.GripPalm(left,Vector3.Right*MathHelper.Clamp(offset,-GripOffset,GripOffset),left ? Vector3.Right:Vector3.Left)*
+                frame*Matrix.CreateTranslation(Vector3.Transform(Center,Visual(position)));
+            internal float GripOffset => Math.Min(.02f,Math.Max(0,HalfWidth-.035f));
+            internal MatrixD TouchPose => MatrixD.CreateWorld(Center+frame.Up*Radius,-frame.Up,frame.Forward);
         }
         internal sealed class Lever
         {

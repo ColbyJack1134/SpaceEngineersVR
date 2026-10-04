@@ -115,7 +115,7 @@ namespace SpaceEngineersVR.Player
             string subtype=cockpit.BlockDefinition.Id.SubtypeName,model=cockpit.BlockDefinition.InteriorModel ?? cockpit.BlockDefinition.Model;
             if(subtype==FighterProfile.Subtype) return model!=null && model.Replace('\\','/').EndsWith(FighterProfile.Model,StringComparison.OrdinalIgnoreCase);
             var rig=CockpitRig.Find(subtype);
-            return rig!=null && rig.HasSticks && rig.Matches(model);
+            return rig!=null && (rig.HasSticks || rig.Handles.Length>0) && rig.Matches(model);
         }
 
         public static bool HasTrackedSeat(MyCharacter character) => Main.VrActive && seat!=null &&

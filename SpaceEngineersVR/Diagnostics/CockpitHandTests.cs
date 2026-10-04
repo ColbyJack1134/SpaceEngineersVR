@@ -253,6 +253,15 @@ namespace SpaceEngineersVR.Diagnostics
             }
             foreach(bool left in new[] {true,false}) foreach(float position in new[] {0f,.5f,1f})
                 ExportGrip("Bar",left,CockpitRig.Find(CockpitLayout.ControlSeat).Handles[left ? 0:1].Palm(left,position),1,"-"+(int)(position*100));
+            foreach(var rig in CockpitRig.All) for(int i=0;i<rig.Handles.Length;i++) foreach(float position in new[] {0f,.5f,1f})
+            {
+                var handle=rig.Handles[i]; string name="Handle-"+rig.Subtype+"-"+i;
+                foreach(bool left in new[] {true,false}) ExportGrip(name,left,handle.Palm(left,position),1,"-"+(int)(position*100));
+                var export=new PoseExport(); export.absolute["visual"]=Elements(handle.Visual(position));
+                export.absolute["touch"]=Elements((Matrix)handle.TouchPose*handle.Visual(position));
+                using(var file=File.Create(Path.Combine(output,name+"-"+(int)(position*100)+".json")))
+                    new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
+            }
             var bones=ArmTests.InstalledBones();
             foreach(bool pressed in new[] {false,true})
             {

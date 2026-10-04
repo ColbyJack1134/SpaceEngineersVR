@@ -39,7 +39,7 @@ namespace SpaceEngineersVR.Diagnostics
         }
         public static void VerifyRigs(string directory,Action<string> log)
         {
-            var failures=CockpitRig.All.Where(r=>r.HasSticks).Where(r=>!Rig(directory,r.Subtype,log)).Select(r=>r.Subtype).ToArray();
+            var failures=CockpitRig.All.Where(r=>r.ActorCount>0).Where(r=>!Rig(directory,r.Subtype,log)).Select(r=>r.Subtype).ToArray();
             if(failures.Length>0) throw new InvalidOperationException("Cockpit image mismatch: "+string.Join(", ",failures));
         }
     }

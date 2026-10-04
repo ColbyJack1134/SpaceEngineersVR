@@ -7,7 +7,7 @@ namespace SpaceEngineersVR.Player
     internal static class CockpitLayout
     {
         public const string ControlSeat="OpenCockpitLarge";
-        public static bool Supported(string subtype) => subtype==FighterProfile.Subtype || (CockpitRig.Find(subtype)?.Levers.Length ?? 0)>0;
+        public static bool Supported(string subtype) => subtype==FighterProfile.Subtype || Count(subtype)>0;
 
         public static int Count(string subtype) => subtype==FighterProfile.Subtype ? CockpitSwitchGeometry.Count+1 : (CockpitRig.Find(subtype) is CockpitRig rig ? rig.Levers.Length+rig.Handles.Length:0);
         internal static int MaximumCount => Math.Max(CockpitSwitchGeometry.Count+1,CockpitRig.All.Max(r=>r.Levers.Length+r.Handles.Length));
@@ -24,7 +24,7 @@ namespace SpaceEngineersVR.Player
                 size=.018f; p+=normal*.007;
             }
             else if(CockpitRig.Find(subtype)?.HandleAt(index) is CockpitRig.Handle handle)
-            { size=.12f; return handle.TouchPose; }
+            { size=handle.HalfWidth*2; return handle.TouchPose; }
             else if(CockpitRig.Find(subtype)?.Levers[index] is CockpitRig.Lever lever)
             {
                 p=lever.Center+lever.Normal*.007f; normal=lever.Normal; up=lever.Up; size=.018f;

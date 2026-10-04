@@ -117,10 +117,10 @@ namespace SpaceEngineersVR.Player
                     string key=Alignment.SeatKey("control"+i);
                     s.Pose=Alignment.Apply(key,native); s.Width*=Alignment.Scale(key); s.Height*=Alignment.Scale(key);
                     MatrixD correction=seat.WorldMatrix*MatrixD.Invert(native)*s.Pose*seat.PositionComp.WorldMatrixNormalizedInv;
-                    targets.Add(new CockpitTouch.Target { Surface=s,Slot=i,Analog=handle!=null,Lever=(fighter || lever!=null) && !bar && CockpitRender.Ready,Pull=bar,Position=positions[i],
-                        Pivot=bar ? Vector3.Zero : (Vector3)Vector3D.Transform(fighter ? CockpitSwitchGeometry.Pivots[i] : lever?.Pivot ?? Vector3.Zero,correction),
-                        Axis=(Vector3)Vector3D.TransformNormal(handle!=null ? Vector3.Forward : bar ? CockpitBarGeometry.Normal : fighter ? CockpitSwitchGeometry.AxisFor(i) : lever?.Axis ?? Vector3.Right,correction),
-                        Travel=handle!=null ? CockpitRig.Handle.Travel : bar ? CockpitBarGeometry.Travel : CockpitSwitchGeometry.Travel });
+                    targets.Add(new CockpitTouch.Target { Surface=s,Slot=i,Analog=handle!=null,Handle=handle,Lever=(fighter || lever!=null) && !bar && CockpitRender.Ready,Pull=bar,Position=positions[i],
+                        Pivot=bar ? Vector3.Zero : (Vector3)Vector3D.Transform(handle!=null ? handle.Pivot : fighter ? CockpitSwitchGeometry.Pivots[i] : lever?.Pivot ?? Vector3.Zero,correction),
+                        Axis=(Vector3)Vector3D.TransformNormal(handle!=null ? handle.Axis : bar ? CockpitBarGeometry.Normal : fighter ? CockpitSwitchGeometry.AxisFor(i) : lever?.Axis ?? Vector3.Right,correction),
+                        Travel=handle!=null ? handle.Range : bar ? CockpitBarGeometry.Travel : CockpitSwitchGeometry.Travel });
                 }
                 Targets=targets.ToArray(); Views=targets.Select(t=>t.Surface).ToArray();
             }

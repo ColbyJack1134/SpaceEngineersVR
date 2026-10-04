@@ -15,8 +15,30 @@ namespace SpaceEngineersVR.Multiplayer
 {
     internal static class AnalogControl
     {
-        internal const int FirstHandleSlot=59;
-        internal static bool IsHandle(string subtype,int slot) => subtype=="OpenCockpitLarge" && slot>=FirstHandleSlot && slot<FirstHandleSlot+2;
+        internal static bool IsHandle(string subtype,int slot)
+        {
+            switch(subtype)
+            {
+                case "OpenCockpitLarge": return slot>=59 && slot<61;
+                case "LargeBlockModularBridgeCockpit": return slot>=0 && slot<1;
+                case "RoverCockpit": return slot>=0 && slot<1;
+                case "SmallBlockFlushCockpit": return slot>=0 && slot<1;
+                case "LargeBlockSuspendedControlSeat": return slot>=0 && slot<1;
+                case "LargeBlockSuspendedControlSeatB": return slot>=0 && slot<1;
+                case "SmallBlockSuspendedControlSeat": return slot>=0 && slot<1;
+                case "SmallBlockSuspendedControlSeatB": return slot>=0 && slot<1;
+                case "SmallBlockCapCockpit": return slot>=14 && slot<15;
+                case "SpeederCockpit": return slot>=0 && slot<1;
+                case "SpeederCockpitCompact": return slot>=0 && slot<1;
+                case "LargeBlockOpenSlopedCockpit": return slot>=14 && slot<17;
+                case "LargeBlockClosedSlopedCockpit": return slot>=14 && slot<17;
+                case "SmallBlockOpenSlopedCockpit": return slot>=0 && slot<3;
+                case "SmallBlockClosedSlopedCockpit": return slot>=0 && slot<3;
+                case "SmallBlockStandingCockpit": return slot>=6 && slot<7;
+                case "LargeBlockStandingCockpit": return slot>=6 && slot<7;
+                default: return false;
+            }
+        }
         internal enum Kind { Slider, Piston, Rotor, Thrust }
         internal sealed class Channel
         {
