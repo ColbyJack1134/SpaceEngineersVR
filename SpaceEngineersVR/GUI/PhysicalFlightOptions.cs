@@ -18,7 +18,7 @@ namespace SpaceEngineersVR.GUI
             base.RecreateControls(constructor); AddCaption("Physical Cockpit Sticks");
             var config=Common.Config;
             Toggle(-0.25f,"Enable physical cockpit sticks",config.FighterCockpitSticks,v=>config.FighterCockpitSticks=v);
-            Toggle(-0.18f,"Twist sticks for yaw and vertical",config.PhysicalStickTwist,v=>config.PhysicalStickTwist=v);
+            Toggle(-0.18f,"Twist sticks for yaw and vertical",config.StickTwist,v=>config.StickTwist=v);
             Slider(-0.10f,"Response",config.PhysicalStickSensitivity,0.25f,2f,v=>config.PhysicalStickSensitivity=v);
             Slider(0.04f,"Center deadzone",config.PhysicalStickDeadzone,0.02f,0.35f,v=>config.PhysicalStickDeadzone=v);
             Controls.Add(new MyGuiControlLabel(new Vector2(-0.30f,0.17f),text:"Squeeze near a handle. Each grab captures a new neutral.",textScale:0.65f,

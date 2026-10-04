@@ -139,7 +139,7 @@ namespace SpaceEngineersVR.Config
         }
         private static float LimitSensitivity(float value, float fallback) => float.IsNaN(value) || float.IsInfinity(value)
             ? fallback : Math.Max(MinRollSensitivity, Math.Min(MaxRollSensitivity, value));
-        private bool fighterCockpitSticks=true, physicalStickTwist;
+        private bool fighterCockpitSticks=true, stickTwist=true;
         private int helmetHudMode=2;
         private SeatFitSetting[] seatFits=new SeatFitSetting[0];
         private StickPlacementSetting[] stickPlacements=new StickPlacementSetting[0];
@@ -154,7 +154,7 @@ namespace SpaceEngineersVR.Config
         public SeatFitSetting[] SeatFits { get => seatFits; set => SetValue(ref seatFits,value ?? new SeatFitSetting[0]); }
         private float physicalStickSensitivity=1f, physicalStickDeadzone=0.12f;
         public bool FighterCockpitSticks { get => fighterCockpitSticks; set => SetValue(ref fighterCockpitSticks,value); }
-        public bool PhysicalStickTwist { get => physicalStickTwist; set => SetValue(ref physicalStickTwist,value); }
+        public bool StickTwist { get => stickTwist; set => SetValue(ref stickTwist,value); }
         public float PhysicalStickSensitivity
         {
             get => physicalStickSensitivity;

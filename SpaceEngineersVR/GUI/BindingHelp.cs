@@ -68,7 +68,7 @@ namespace SpaceEngineersVR.GUI
             lines.Add("Hold and move levers/covers. Release early to cancel; move well away to detach.");
             lines.Add("Hover a switch and tap B to assign it. Holding B still opens the toolbar.");
             lines.Add("Fighter: 41 switches and pull bar. Control Seat: four assignable keypad controls.");
-            lines.Add("Grip physical sticks: RIGHT tilt pitch/roll, thumbstick yaw. LEFT tilt thrust, thumbstick lift.");
+            lines.Add("Grip physical sticks: RIGHT tilt pitch/roll, twist/thumbstick yaw. LEFT tilt thrust, twist/thumbstick lift.");
             lines.Add("Single-stick cockpits: stick rotates, right thumbstick yaws; controller translation stays.");
             lines.Add("Rover/buggy wheels and speeder handlebars are not active. Their seat panel works.");
             lines.Add("Each grab captures neutral. Flight options: physical sticks only in first person.");

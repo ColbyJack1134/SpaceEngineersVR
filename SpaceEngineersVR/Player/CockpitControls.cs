@@ -192,7 +192,7 @@ namespace SpaceEngineersVR.Player
             if (leftWas && !left.Held) { BlockTranslation(); if(Rig!=null && Rig.Right==null) BlockRotation(); }
             if (rightWas && !right.Held) BlockRotation();
             float deadzone=Common.Config.PhysicalStickDeadzone;
-            bool twist=Common.Config.PhysicalStickTwist;
+            bool twist=Common.Config.StickTwist;
             if (Adjusting)
             {
                 if (left.Held) placement.Move(true,leftStartOffset,WeaponPose.Palm(leftNeutral),lp);
