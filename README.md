@@ -1,6 +1,8 @@
 ## WIP!
 
-Space Engineers 1 VR Plugin. More details coming soon.
+Space Engineers 1 VR Plugin
+
+Interactable cockpits and fully playable from VR. Still WIP but largely playable. More details and quickstart coming soon.
 
 ## Installation:
 
