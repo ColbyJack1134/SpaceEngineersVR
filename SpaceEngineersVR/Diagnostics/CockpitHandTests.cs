@@ -225,6 +225,22 @@ namespace SpaceEngineersVR.Diagnostics
                 using(var file=File.Create(Path.Combine(output,"stick-grip-"+name+"-"+side+suffix+".json")))
                     new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
             }
+            foreach(bool left in new[] {true,false}) foreach(string state in new[] {"open","touch","trigger","grip","closed"})
+            {
+                var arm=ArmTests.InstalledBones(); string side=left ? "L":"R";
+                var palm=arm.Single(b=>b.Name=="SE_Rig"+side+"Palm");
+                var pose=CockpitRig.Find(CockpitLayout.ControlSeat).Handles[left ? 0:1].Palm(left,.5f);
+                palm.SetCompleteTransformFromAbsoluteMatrix(ref pose,false);
+                var curls=new float[5];
+                ControllerFingers.Fallback(curls,state=="trigger" || state=="closed" ? 1:0,state=="grip" || state=="closed" ? 1:0);
+                if(state=="touch") { curls[0]=.3f; curls[1]=.35f; }
+                foreach(var bone in arm.Where(b=>b.Name.StartsWith("SE_Rig"+side+"_")))
+                    bone.Rotation=CockpitHandPose.FreeRotation(bone.Name,curls);
+                palm.ComputeAbsoluteTransform(true,true);
+                var export=new PoseExport(); foreach(var bone in arm) export.absolute[bone.Name]=Elements(bone.AbsoluteTransform);
+                using(var file=File.Create(Path.Combine(output,"free-hand-"+side+"-"+state+".json")))
+                    new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
+            }
             foreach(bool left in new[] {true,false}) foreach(float trigger in new[] {0f,.5f,1f})
             {
                 string suffix=trigger==0 ? "":trigger==1 ? "-pressed":"-half";

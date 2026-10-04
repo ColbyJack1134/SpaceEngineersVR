@@ -4,6 +4,10 @@
   "app_key": "steam.app.244850",
   "bindings": {
     "/actions/common": {
+      "skeleton": [
+        { "output": "/actions/common/in/LeftHand", "path": "/user/hand/left/input/skeleton/left" },
+        { "output": "/actions/common/in/RightHand", "path": "/user/hand/right/input/skeleton/right" }
+      ],
       "sources": [
         {
           "inputs": {
@@ -84,16 +88,6 @@
           },
           "mode": "button",
           "path": "/user/hand/left/input/application_menu"
-        },
-        {
-          "inputs": {},
-          "mode": "none",
-          "path": "/user/hand/left/input/skeleton/left"
-        },
-        {
-          "inputs": {},
-          "mode": "none",
-          "path": "/user/hand/right/input/skeleton/right"
         },
         {
           "inputs": {

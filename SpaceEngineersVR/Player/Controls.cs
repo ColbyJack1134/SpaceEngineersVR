@@ -198,6 +198,8 @@ namespace SpaceEngineersVR.Player
             else WalkingSets.Update();
             foreach (var button in buttons) button.Update();
             foreach (var analog in analogs) analog.Update(locomotion.Contains(analog) ? continuingOrigins : null);
+            Player.HandL?.Fingers.Update(Player.HandL,true);
+            Player.HandR?.Fingers.Update(Player.HandR,false);
             // The transfer applies only to the first sample after a character-mode switch.
             continuingOrigins.Clear();
             if (Recenter.HasPressed) Player.Headset.RequestRecenter();

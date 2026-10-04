@@ -9,6 +9,7 @@ namespace SpaceEngineersVR.Player
     public class Controller : TrackedDevice
     {
         private readonly string handPath;
+        internal readonly ControllerFingers Fingers=new ControllerFingers();
         private Matrix aimOffset = Matrix.Identity;
         private Matrix gripOffset = Matrix.Identity;
         private bool gripResolved;
@@ -57,7 +58,7 @@ namespace SpaceEngineersVR.Player
 
 
         protected override void OnConnected() { Logger.Info("Controller connected: " + deviceId); }
-        protected override void OnDisconnected() { aimResolved=gripResolved=false; aimOffset=gripOffset=Matrix.Identity; aimRetry=0; Logger.Info("Controller disconnected; input will be released."); }
+        protected override void OnDisconnected() { Fingers.Reset(); aimResolved=gripResolved=false; aimOffset=gripOffset=Matrix.Identity; aimRetry=0; Logger.Info("Controller disconnected; input will be released."); }
 
     }
 }

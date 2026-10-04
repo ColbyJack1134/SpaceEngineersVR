@@ -14,6 +14,12 @@ namespace SpaceEngineersVR.Player
             float curl=thumb ? pinch ? .25f : .35f : index && !stick ? pinch ? .7f : 0 : .85f;
             return Quaternion.CreateFromAxisAngle(Vector3.Backward,curl);
         }
+        internal static Quaternion FreeRotation(string name,float[] curls)
+        {
+            int finger=name.Contains("Thumb") ? 0:name.Contains("Index") ? 1:name.Contains("Middle") ? 2:name.Contains("Ring") ? 3:4;
+            float closed=finger==0 ? .45f:name.EndsWith("_2") ? 1.1f:name.EndsWith("_3") ? .85f:.8f;
+            return Quaternion.CreateFromAxisAngle(Vector3.Backward,MathHelper.Lerp(.04f,closed,MathHelper.Clamp(curls[finger],0,1)));
+        }
         internal static Quaternion StickRotation(string name,float trigger)
         {
             if(!name.Contains("Index")) return Quaternion.CreateFromAxisAngle(Vector3.Backward,name.Contains("Thumb") ? .35f:.95f);

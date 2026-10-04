@@ -87,7 +87,7 @@ namespace SpaceEngineersVR.Player
             Matrix target=(Matrix)(world*character.PositionComp.WorldMatrixNormalizedInv);
             if(!target.IsValid()) return false;
             bool posed=ArmSkeleton.Apply(arm,target,Common.Config.AdaptiveArms,hand==Player.HandL && !CockpitControls.Held(hand),
-                BodyFit.ScaleFor(character),FingerMode(character,hand),Trigger(hand));
+                BodyFit.ScaleFor(character),FingerMode(character,hand),Trigger(hand),FreeFingers(character,hand) ? hand.Fingers.Curls:null);
             if(posed) Diagnostics.ArmPoseCapture.Record(character,hand,arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone);
             return posed;
         }
@@ -118,12 +118,15 @@ namespace SpaceEngineersVR.Player
             return pose;
         }
         internal static float Trigger(Controller hand) => CockpitTouch.HoldingBar(hand) ? 1 : (hand==Player.HandL ? Controls.Static.LeftTriggerPressure:Controls.Static.PointerPressure).RawPosition.X;
+        private static bool RequiresPointing(Controller hand) => Main.MenuOpen || MenuKeyboard.IsOpen || CockpitTouch.Attached(hand) ||
+            TouchScreenBridge.PointingFor(hand) || RemoteView.PointingFor(hand) || HandInteraction.PointingFor(hand) ||
+            (hand==Player.HandL ? CockpitTouch.LeftPointing:CockpitTouch.RightPointing || SpatialUi.Pointing || BlockInspection.Current!=null);
+        private static bool FreeFingers(MyCharacter character,Controller hand) => !ThirdPersonView.Active && character.CurrentWeapon==null &&
+            !CockpitControls.Held(hand) && !RequiresPointing(hand);
         internal static ArmSkeleton.Fingers FingerMode(MyCharacter character,Controller hand)
         {
             if(CockpitControls.Held(hand) || CockpitTouch.HoldingBar(hand)) return ArmSkeleton.Fingers.Stick;
-            if(character.CurrentWeapon==null || Main.MenuOpen || CockpitTouch.Attached(hand) ||
-                TouchScreenBridge.PointingFor(hand) || RemoteView.PointingFor(hand) || HandInteraction.PointingFor(hand) ||
-                (hand==Player.HandL ? CockpitTouch.LeftPointing : CockpitTouch.RightPointing || SpatialUi.Pointing || BlockInspection.Current!=null))
+            if(character.CurrentWeapon==null || RequiresPointing(hand))
                 return CockpitTouch.Pinching(hand) || hand==Player.HandR && SpatialUi.PinchingKnob ? ArmSkeleton.Fingers.Pinch:ArmSkeleton.Fingers.Point;
             return ArmSkeleton.Fingers.Native;
         }
