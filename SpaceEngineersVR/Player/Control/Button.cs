@@ -25,11 +25,19 @@ namespace SpaceEngineersVR.Player.Control
             if (error != EVRInputError.None) throw new System.InvalidOperationException("Invalid SteamVR action " + name + ": " + error);
         }
 
+        internal Button(ulong actionHandle) { handle=actionHandle; }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Update()
         {
             if (OpenVR.Input.GetDigitalActionData(handle, ref data, InputDigitalActionData_t_size, OpenVR.k_ulInvalidInputValueHandle) != EVRInputError.None)
                 data = default(InputDigitalActionData_t);
+            AcceptSample(data);
+        }
+
+        internal void AcceptSample(InputDigitalActionData_t sample)
+        {
+            data=sample;
             gate.Update(data.bActive, data.bState);
         }
     }

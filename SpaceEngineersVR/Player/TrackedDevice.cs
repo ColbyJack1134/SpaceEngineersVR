@@ -94,11 +94,13 @@ namespace SpaceEngineersVR.Player
                     wasDisconnected = true;
             }
 
-            if (pose.isTracked != value.bPoseIsValid)
+            var matrix = value.mDeviceToAbsoluteTracking.ToMatrix();
+            bool valid = value.bPoseIsValid && Plausible(matrix);
+            if (pose.isTracked != valid)
             {
-                pose.isTracked = value.bPoseIsValid;
+                pose.isTracked = valid;
 
-                if (value.bPoseIsValid)
+                if (valid)
                     startedTracking = true;
                 else
                     lostTracking = true;
@@ -106,12 +108,16 @@ namespace SpaceEngineersVR.Player
 
             if (pose.isTracked)
             {
-                pose.deviceToAbsolute = new MatrixAndInvert(value.mDeviceToAbsoluteTracking.ToMatrix());
+                pose.deviceToAbsolute = new MatrixAndInvert(matrix);
                 pose.velocity = value.vVelocity.ToVector();
                 pose.angularVelocity = value.vAngularVelocity.ToVector();
             }
         }
 
+
+        // A dropped or waking controller can report a valid flag with an unusable pose.
+        internal static bool Plausible(Matrix matrix) => matrix.IsValid() && matrix.Translation.LengthSquared() < 1e6f &&
+            System.Math.Abs(matrix.Forward.LengthSquared() - 1) < .1f && System.Math.Abs(matrix.Up.LengthSquared() - 1) < .1f;
 
         protected virtual void OnConnected()
         {

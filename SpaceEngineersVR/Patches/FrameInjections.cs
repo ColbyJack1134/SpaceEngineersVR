@@ -21,6 +21,8 @@ namespace SpaceEngineersVR.Patches
             harmony.Patch(AccessTools.Method(type,"ConsumeMainSprites"), new HarmonyMethod(typeof(FrameInjections),nameof(BeforeSprites)));
             harmony.Patch(AccessTools.Method(type,"Present"),
                 new HarmonyMethod(typeof(FrameInjections),nameof(BeforePresent)), new HarmonyMethod(typeof(FrameInjections),nameof(AfterPresent)));
+            try { PassTimingPatch.Install(harmony); }
+            catch(Exception ex) { Logger.Warning(ex,"GPU pass timing unavailable; rendering retained"); }
         }
         private static void CameraFrame(VRageRender.Messages.MyRenderMessageSetCameraViewMatrix message)
         {

@@ -260,6 +260,14 @@ namespace SpaceEngineersVR.Diagnostics
             Require(window.Pointer(front,out var point) && point.Length()<1e-5,"Keyboard pointer plane mismatch");
             Require(!window.Pointer(Matrix.CreateTranslation(0,0,-.1f)*window.Pose,out _),"Backside ray manipulates keyboard");
             Require(KeyboardWindow.Handle(new Vector2(.5f,.955f))==1 && KeyboardWindow.Handle(new Vector2(.97f,.97f))==2,"Window handles unreachable");
+            Require(window.Reachable(headPose),"Placed keyboard is not reachable");
+            var turned=Matrix.CreateRotationY(1.6f)*headPose; turned.Translation=headPose.Translation;
+            Require(!window.Reachable(turned),"Keyboard behind a turned player counts as reachable");
+            var screen=headPose.Translation+turned.Forward*2.2f;
+            window.Place(headPose,screen);
+            var toKeyboard=window.Pose.Translation-headPose.Translation; toKeyboard.Y=0;
+            var toScreen=screen-headPose.Translation; toScreen.Y=0;
+            Require(Vector3.Dot(Vector3.Normalize(toKeyboard),Vector3.Normalize(toScreen))>.999f && window.Reachable(headPose,screen),"Keyboard does not open toward the screen being typed into");
 
             for(int i=0;i<100;i++)
             {

@@ -85,7 +85,8 @@ namespace SpaceEngineersVR.Player
         private static SignalLayout.Entry[] layout=new SignalLayout.Entry[0];
         private static int generation;
         internal const int LabelWidth=1024, LabelHeight=96, AtlasWidth=2048, AtlasHeight=3072;
-        private static bool failed;
+        private static readonly RenderRecovery recovery=new RenderRecovery("VR world markers");
+        private static bool failed => recovery.Failed;
 
         public static void Capture(MyHudMarkerRender renderer)
         {
@@ -100,7 +101,7 @@ namespace SpaceEngineersVR.Player
                 snapshot.Lead=NativeLead.Capture(renderer);
                 RenderFrameBridge.CaptureMarkers(snapshot);
             }
-            catch (Exception ex) { failed=true; RenderFrameBridge.CaptureMarkers(null); Logger.Warning(ex,"VR world markers disabled; native desktop markers retained"); }
+            catch (Exception ex) { RenderFrameBridge.CaptureMarkers(null); recovery.Fail(ex,"VR world markers disabled; native desktop markers retained"); }
         }
 
         internal static View Read(MyHudMarkerRender renderer,MyHudMarkerRender.SignalMode mode,Vector3D head,DateTime now)
@@ -267,10 +268,10 @@ namespace SpaceEngineersVR.Player
                 if(current!=null && (DateTime.UtcNow-current.Time).TotalSeconds<=1 && markersVisible)
                 {
                     SignalPainter.Draw(target,layout,signalHead,view,projection,Common.Config.FaceMarkersTowardViewer,signalUp);
-                    if(Common.Config.SignalRings) NativeLead.Draw(target,current.Lead,renderHead,view,projection);
+                    if(Common.Config.SignalRings) NativeLead.Draw(target,current.Lead,view,projection,signalUp,Common.Config.FaceMarkersTowardViewer);
                 }
             }
-            catch (Exception ex) { failed=true; Logger.Warning(ex,"VR marker drawing disabled"); }
+            catch (Exception ex) { recovery.Fail(ex,"VR marker drawing disabled"); }
         }
         public static void Reset()
         {

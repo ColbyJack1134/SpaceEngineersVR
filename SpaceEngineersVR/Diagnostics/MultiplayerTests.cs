@@ -27,8 +27,14 @@ namespace SpaceEngineersVR.Diagnostics
             var original=Pose(); var bytes=original.Encode(); var decoded=PlayerPose.Decode(bytes);
             Require(bytes.Length==PlayerPose.Size && decoded!=null && decoded.Character==100 && decoded.Tracked==3,"Pose packet round trip failed");
             Require(decoded.Left==original.Left && decoded.Right==original.Right && Math.Abs(decoded.RightTrigger-.8f)<.005f,"Pose transforms or trigger lost");
-            for(int n=0;n<bytes.Length;n++) Require(PlayerPose.Decode(bytes.Take(n).ToArray())==null,"Truncated pose accepted");
-            var bad=(byte[])bytes.Clone(); bad[24]=4; Require(PlayerPose.Decode(bad)==null,"Unknown tracking bits accepted");
+            for(int n=0;n<bytes.Length;n++) if(n!=PlayerPose.LegacySize) Require(PlayerPose.Decode(bytes.Take(n).ToArray())==null,"Truncated pose accepted");
+            var bad=(byte[])bytes.Clone(); bad[24]=8; Require(PlayerPose.Decode(bad)==null,"Unknown tracking bits accepted");
+            var looking=Pose(); looking.Tracked|=PlayerPose.HeadTracked; looking.Head=Matrix.CreateFromYawPitchRoll(.6f,-.3f,.1f); looking.Head.Translation=new Vector3(0,1.6f,0);
+            var lookingBytes=looking.Encode(); var lookingDecoded=PlayerPose.Decode(lookingBytes);
+            Require(lookingDecoded!=null && lookingDecoded.Tracked==7 && Vector3.Distance(lookingDecoded.Head.Forward,looking.Head.Forward)<1e-4f,"Head pose lost in transit");
+            var legacy=PlayerPose.Decode(lookingBytes.Take(PlayerPose.LegacySize).ToArray());
+            Require(legacy!=null && legacy.Tracked==3 && legacy.Head==Matrix.Identity,"Version 1 hand-only packet rejected or given a head");
+            bad=(byte[])lookingBytes.Clone(); Array.Copy(BitConverter.GetBytes(float.NaN),0,bad,PlayerPose.LegacySize+12,4); Require(PlayerPose.Decode(bad)==null,"Nonfinite head accepted");
             bad=(byte[])bytes.Clone(); Array.Copy(BitConverter.GetBytes(float.NaN),0,bad,25,4); Require(PlayerPose.Decode(bad)==null,"Nonfinite hand accepted");
             bad=(byte[])bytes.Clone(); Array.Copy(BitConverter.GetBytes(10f),0,bad,25,4); Require(PlayerPose.Decode(bad)==null,"Unbounded hand accepted");
             bad=(byte[])bytes.Clone(); bad[81]=255; Require(PlayerPose.Decode(bad)==null,"Unknown hand animation accepted");
@@ -115,7 +121,7 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Export(string game,string output,Action<string> log)
         {
             UiTests.Initialize(game,Path.Combine(output,"data")); Directory.CreateDirectory(output); Run(log);
-            foreach(string scenario in new[] {"standing","wrist-local","wrist-remote","seated"})
+            foreach(string scenario in new[] {"standing","wrist-local","wrist-remote","seated","look-left","look-down"})
             {
                 var bones=ArmTests.InstalledBones();
                 var packet=Pose();
@@ -151,6 +157,15 @@ namespace SpaceEngineersVR.Diagnostics
                     Require(ArmSkeleton.Apply(arm,target,true,left && scenario=="wrist-local",1,left ? received.LeftFingers:received.RightFingers,left ? received.LeftTrigger:received.RightTrigger),"Received arm pose failed");
                     Require(Vector3.Distance(arm.Palm.Bone.AbsoluteTransform.Translation,target.Translation)<.001f,"Received palm missed transmitted target");
                 }
+                if(scenario.StartsWith("look"))
+                {
+                    var head=new ArmSkeleton.SavedBone {Bone=bones.Single(b=>b.Name=="SE_RigHead")};
+                    var look=scenario=="look-left" ? Matrix.CreateRotationY(.8f):Matrix.CreateRotationX(-.6f);
+                    Require(ArmSkeleton.Look(head,look,1.4f),"Received head pose failed");
+                    var turned=Matrix.Invert(head.Bone.GetAbsoluteRigTransform().GetOrientation())*head.Bone.AbsoluteTransform.GetOrientation();
+                    Require(Vector3.Distance(turned.Forward,look.Forward)<.01f,"Remote head missed the transmitted direction");
+                    Require(!ArmSkeleton.Look(head,new Matrix(),1.4f),"Invalid head pose accepted");
+                }
                 var export=new CockpitHandTests.PoseExport();
                 foreach(var bone in bones)
                 {
@@ -160,7 +175,7 @@ namespace SpaceEngineersVR.Diagnostics
                 using(var file=File.Create(Path.Combine(output,scenario+".json")))
                     new DataContractJsonSerializer(typeof(CockpitHandTests.PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
             }
-            log("PASS installed skeleton received-pose exports: standing, seated and local/remote wrist comparison; both palms retain transmitted targets.");
+            log("PASS installed skeleton received-pose exports: standing, seated, local/remote wrist comparison and head turns; palms and head follow transmitted targets.");
         }
     }
 }

@@ -56,7 +56,7 @@ namespace SpaceEngineersVR.Diagnostics
             var gripGate=new GripCapture(); gripGate.Update(true,false,true,true); gripGate.Update(true,true,true,true); gripGate.Release();
             Require(!gripGate.Update(true,true,true,true) && !gripGate.Held && gripGate.Consumed,"Lock/interrupt turned adjustment grab into flight");
             gripGate.Update(true,false,true,true); Require(gripGate.Update(true,true,true,true),"Lock prevented fresh flight grab");
-            var config=new PluginConfig { JetpackRollSensitivity=.33f,ShipRollSensitivity=.77f,
+            var config=new PluginConfig { JetpackRoll=.33f,ShipRollSensitivity=.77f,
                 SeatFits=new[] { new SeatFitSetting { Subtype=FighterProfile.Subtype,Y=.1f } },
                 StickPlacements=new[] { new StickPlacementSetting { Subtype=FighterProfile.Subtype,LeftX=.12f,RightZ=.24f } } };
             var serializer=new XmlSerializer(typeof(PluginConfig));
@@ -65,7 +65,7 @@ namespace SpaceEngineersVR.Diagnostics
                 serializer.Serialize(writer,config);
                 var restored=(PluginConfig)serializer.Deserialize(new StringReader(writer.ToString()));
                 Require(restored.StickPlacements[0].LeftX==.12f && restored.StickPlacements[0].RightZ==.24f && restored.SeatFits[0].Y==.1f &&
-                    restored.JetpackRollSensitivity==.33f && restored.ShipRollSensitivity==.77f,"Placement persistence corrupts seat/roll settings");
+                    restored.JetpackRoll==.33f && restored.ShipRollSensitivity==.77f,"Placement persistence corrupts seat/roll settings");
             }
             log("PASS repositionable sticks: explicit unlock/lock/cancel, independent offsets and bounds, invalid config, 600 moved pivot/contact/palm and large-coordinate ship checks, held-grip release gate and config round trip preserving seat/roll.");
         }

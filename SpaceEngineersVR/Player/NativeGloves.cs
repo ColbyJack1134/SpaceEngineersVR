@@ -90,9 +90,7 @@ namespace SpaceEngineersVR.Player
                 actor.SetVisibility(visible);
                 if(!visible) { actor.UpdateBeforeDraw(); continue; }
                 MatrixD pose=Alignment.Apply(Alignment.HandKey(hands[h]),CockpitHandPose.GripWrist(hands[h].RenderGripTracking));
-                if(RemoteView.HomeSeat!=null && CockpitControls.Held(hands[h]))
-                    pose=Alignment.Apply(Alignment.HandKey(hands[h]),CockpitControls.WristWorld(hands[h]))*MatrixD.Invert(RemoteView.PhysicalTrackingToWorld);
-                else if(h>0) pose=MenuHands.AttachWrist(pose);
+                pose=MenuHands.AttachWrist(pose,hands[h]);
                 pose*=frame.TrackingToWorld;
                 actor.SetMatrix(ref pose); actor.UpdateBeforeDraw(); Visible=true;
             }

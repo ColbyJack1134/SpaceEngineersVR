@@ -37,7 +37,8 @@ namespace SpaceEngineersVR.Player
         private static readonly StringFormat centered=new StringFormat {
             Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center,Trimming=StringTrimming.EllipsisWord };
         private static DateTime nextSnapshot;
-        private static bool failed;
+        private static readonly RenderRecovery recovery=new RenderRecovery("Toolbar wheel");
+        private static bool failed => recovery.Failed;
         private static readonly ToolbarGesture gesture=new ToolbarGesture(),quickGesture=new ToolbarGesture();
         private static ActionChoice[] quickChoices;
         private static ActionChoice[][] quickPages;
@@ -260,7 +261,7 @@ namespace SpaceEngineersVR.Player
                 var sprite=Sprite(texture,anchor,viewMatrix,projection);
                 NativeSprites.Draw(target,new[] { sprite },PhysicalSurface.SceneDepth());
             }
-            catch (Exception ex) { failed = true; Logger.Warning(ex, "Toolbar wheel rendering disabled"); canvas?.Hide(); }
+            catch (Exception ex) { drawn = null; recovery.Fail(ex, "Toolbar wheel rendering disabled"); RenderRecovery.Quietly(() => canvas?.Hide()); }
         }
         internal static NativeSprite Sprite(ShaderResourceView texture,MatrixD anchor,MatrixD view,MatrixD projection)
         {

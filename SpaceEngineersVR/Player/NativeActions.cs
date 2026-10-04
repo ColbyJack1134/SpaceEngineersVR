@@ -22,11 +22,16 @@ namespace SpaceEngineersVR.Player
                 owner = MySession.Static?.ControlledEntity;
                 if(HelmetHud.Reveal) frame.Queue(MyControlsSpace.SIGNALS_FULLY_VISIBLE);
                 if(WheelJumpAllowed && Controls.Static.FlightJump.IsPressed) frame.Queue(MyControlsSpace.WHEEL_JUMP);
+                if(SprintAllowed && Controls.Static.CrouchOrClimbDown.IsPressed) frame.Queue(MyControlsSpace.SPRINT);
                 PlacementControls.Queue(frame, PlacementControls.Mode, Controls.Static.Primary.IsPressed,
                     Controls.Static.Secondary.IsPressed, GameActions.AlternateTrigger);
             }
             frame.Advance(enabled);
         }
+        // Left grip sprints on foot and descends on the jetpack; ladders use the stick.
+        internal static bool SprintAllowed => (InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Building) &&
+            MySession.Static?.ControlledEntity is Sandbox.Game.Entities.Character.MyCharacter character && !character.IsOnLadder &&
+            !WeaponHandling.ConsumesLeftGrip && ThirdPersonView.DescentReady && !PlacementControls.Adjusting;
         internal static bool WheelJumpAllowed => InputRouter.Mode==InputMode.Piloting && MySession.Static?.ControlledEntity is MyShipController ship &&
             ship.ControlWheels && !RemoteView.OwnsInput && !PlacementControls.Adjusting && !CockpitControls.Adjusting && !ThirdPersonView.Manipulating;
         public static bool Read(MyStringId action, MyControlStateType type) =>

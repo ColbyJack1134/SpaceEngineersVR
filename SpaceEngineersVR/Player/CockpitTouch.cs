@@ -41,7 +41,7 @@ namespace SpaceEngineersVR.Player
             {
                 if(gripSource!=input.Near) { Reset(); gripSource=input.Near; }
                 if(input.Near && Surface!=null && heldGrip.HasValue) input=input.Select(heldGrip.Value);
-                Sample(available,input.Pressure,input.Down,target,key,input.CanAcquire,reachable,guarded,softCapture && !input.Near,retainSqueeze,input.Near);
+                Sample(available,input.Pressure,input.Down,target,key,input.CanAcquire,reachable,guarded,softCapture && !input.Near,retainSqueeze,input.Near || !softCapture);
                 if(Captured) heldGrip=input.Near ? input.Grip:(bool?)null;
             }
             public void Sample(bool available,float pressure,bool down,string target,int key,bool canAcquire=true,bool reachable=true,bool guarded=false,bool softCapture=true,bool retainSqueeze=false,bool clickOnly=false)

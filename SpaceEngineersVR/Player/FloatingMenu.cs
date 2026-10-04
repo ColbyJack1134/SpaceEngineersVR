@@ -29,7 +29,9 @@ namespace SpaceEngineersVR.Player
         private static volatile bool recenter=true;
         private static volatile float aspect=9f/16;
         private static string screen;
-        private static bool opened,failed;
+        private static bool opened;
+        private static readonly RenderRecovery recovery=new RenderRecovery("Floating menu");
+        private static bool failed => recovery.Failed;
         private static int hover;
         private static OverlayCanvas frame;
         private static ShaderResourceView frameView;
@@ -52,7 +54,7 @@ namespace SpaceEngineersVR.Player
             bool shown=(Main.MenuOpen && !MenuKeyboard.Standalone) || Main.ShowDesktopPanel;
             string key=MyScreenManager.Screens.FirstOrDefault(s=>!(s is MyGuiScreenGamePlay) && !(s is MyGuiScreenHudSpace))?.GetType().Name ?? "Desktop";
             bool available=shown && Available && InputRouter.Mode==InputMode.Menu && MenuPointer.GameFocused &&
-                Player.Headset.pose.isTracked && Player.HandR.pose.isTracked && !MenuKeyboard.IsOpen;
+                Player.Headset.pose.isTracked && MenuPointer.Hand.pose.isTracked && !MenuKeyboard.IsOpen;
             if(!shown) { opened=false; current=null; window.Cancel(); press.Block(); return; }
             if(!opened || screen!=key || recenter)
             {
@@ -66,10 +68,11 @@ namespace SpaceEngineersVR.Player
             if(!available) { window.Cancel(); press.Block(); }
             else
             {
-                Matrix aim=MenuHands.PointerTracking();
+                var hand=MenuPointer.Hand;
+                Matrix aim=MenuHands.PointerTracking(false,hand);
                 var local=aim*Matrix.Invert(window.Pose);
                 bool near=local.Translation.Z>=-.025f && local.Translation.Z<=.05f;
-                var input=press.Read(Player.HandR,window.Drag!=0 ? directDrag:near);
+                var input=press.Read(hand,window.Drag!=0 ? directDrag:near);
                 press.Update(true,input);
                 if(window.Drag!=0)
                 {
@@ -90,7 +93,7 @@ namespace SpaceEngineersVR.Player
                         input.Consume(); MenuPointer.Release(); directDrag=near;
                         window.Begin(hover,aim,point);
                         Controls.Static.MenuNavigate.BlockUntilRelease();
-                        Player.HandR.Vibrate(0,.022f,100,.28f);
+                        hand.Vibrate(0,.022f,100,.28f);
                     }
                 }
             }
@@ -157,7 +160,7 @@ namespace SpaceEngineersVR.Player
                     new VRageMath.RectangleF(-s.Width/2-.03f,s.Height/2+.03f,s.Width+.06f,s.Height+.20f),
                     new Vector4(0,0,1,1),Vector4.One,view,projection) },handDepth:handDepth);
             }
-            catch(Exception ex) { failed=true; Logger.Warning(ex,"Floating menu frame disabled; native menu retained"); }
+            catch(Exception ex) { recovery.Fail(ex,"Floating menu frame disabled; native menu retained"); }
         }
     }
 }

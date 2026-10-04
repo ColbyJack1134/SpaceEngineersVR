@@ -32,7 +32,7 @@ namespace SpaceEngineersVR.Player
         }
         private sealed class Model { public Mesh Mesh; public bool Failed; }
         private static readonly Dictionary<string,Model> models=new Dictionary<string,Model>();
-        private sealed class Wrist { public string Model; public Matrix Mount,RightPoint; public Vector3 PinchPoint; }
+        private sealed class Wrist { public string Model; public Matrix Mount,RightPoint,LeftPoint; public Vector3 PinchPoint; }
         private static volatile Wrist wrist;
         private static SharpDX.Direct3D11.Device gpu;
         private static DeviceContext context;
@@ -49,7 +49,8 @@ namespace SpaceEngineersVR.Player
         private static Texture2D depth;
         private static DepthStencilView depthView;
         public static ShaderResourceView Depth { get; private set; }
-        private static bool failed;
+        private static readonly RenderRecovery recovery=new RenderRecovery("Menu controllers");
+        private static bool failed => recovery.Failed;
         public static bool Available => !failed;
         private const string Shader=@"
 cbuffer Params : register(b0) { row_major float4x4 Transform; float4 Color; float4 Material; };
@@ -155,13 +156,16 @@ float4 PS(P p):SV_TARGET {
             wrist=new Wrist { Model=model,
                 Mount=left ? geometry.WristMount : previous?.Model==model ? previous.Mount : Matrix.Identity,
                 PinchPoint=!left ? geometry.PinchPoint:previous?.PinchPoint ?? Vector3.Zero,
-                RightPoint=!left ? geometry.PointFrame : previous?.Model==model ? previous.RightPoint : Matrix.Identity };
+                RightPoint=!left ? geometry.PointFrame : previous?.Model==model ? previous.RightPoint : Matrix.Identity,
+                LeftPoint=left ? geometry.PointFrame : previous?.Model==model ? previous.LeftPoint : Matrix.Identity };
         }
-        internal static bool TryPointPose(Matrix grip,out MatrixD point)
+        internal static bool TryPointPose(Matrix grip,out MatrixD point,Controller hand=null)
         {
+            hand=hand ?? Player.HandR;
             var pose=wrist; point=MatrixD.Identity;
-            if(pose==null || pose.Model!=CharacterModel || pose.RightPoint==Matrix.Identity) return false;
-            point=(MatrixD)pose.RightPoint*Alignment.Apply(Alignment.HandKey(Player.HandR),CockpitHandPose.GripWrist(grip));
+            var frame=pose==null ? Matrix.Identity : hand==Player.HandL ? pose.LeftPoint:pose.RightPoint;
+            if(pose==null || pose.Model!=CharacterModel || frame==Matrix.Identity) return false;
+            point=(MatrixD)frame*Alignment.Apply(Alignment.HandKey(hand),CockpitHandPose.GripWrist(grip));
             return true;
         }
         internal static bool TryWristMount(Matrix grip,out MatrixD mount)
@@ -221,7 +225,7 @@ float4 PS(P p):SV_TARGET {
                     SpatialUi.Draw(texture,view,VrMath.Projection(l,r,t,b,.03),tracking:true);
                 }
             }
-            catch (Exception ex) { failed = true; Logger.Warning(ex, "World-menu controller rendering disabled"); }
+            catch (Exception ex) { recovery.Fail(ex, "World-menu controller rendering disabled"); }
         }
 
         private static void Setup(RenderTargetView target,Vector2I size)
@@ -237,15 +241,22 @@ float4 PS(P p):SV_TARGET {
             context.VertexShader.Set(vertexShader); context.PixelShader.Set(pixelShader);
             context.VertexShader.SetConstantBuffer(0,constants); context.PixelShader.SetConstantBuffer(0,constants); context.PixelShader.SetSampler(0,sampler);
         }
-        internal static Texture2D PreviewGlove(SharpDX.Direct3D11.Device device,bool left,float curl,Vector3 color,float tablet=-1,bool palm=false,Action<SurfaceView[],MatrixD> preview=null)
+        internal static Texture2D PreviewGlove(SharpDX.Direct3D11.Device device,bool left,float curl,Vector3 color,float tablet=-1,bool palm=false,Action<SurfaceView[],MatrixD> preview=null,float pointer=0,float zoom=1,Vector3? tipView=null)
         {
             Init(device); var size=new Vector2I(960,720); Resize(size);
             var mesh=Glove(GloveGeometry.DefaultModel,left,true);
             if(mesh==null) throw new InvalidOperationException("Glove preview could not load the installed model");
             Setup(targets[0],size); context.ClearRenderTargetView(targets[0],new RawColor4(.035f,.055f,.075f,1));
             Vector3 center=Vector3.Transform(mesh.Center,CockpitHandPose.GripWrist(Matrix.Identity));
-            Vector3 eye=center+new Vector3(left ? -.32f:.32f,.23f,palm ? -.30f:.30f)*(tablet<0 ? 1:1.9f);
+            Vector3 eye=center+new Vector3(left ? -.32f:.32f,.23f,palm ? -.30f:.30f)*(tablet<0 ? 1:1.9f)*zoom;
             Vector3 up=Vector3.Up;
+            if(tipView.HasValue)
+            {
+                // Inspection view centred on the pointer origin, mirrored for the left hand.
+                center=(mesh.PointFrame*CockpitHandPose.GripWrist(Matrix.Identity)).Translation;
+                var offset=tipView.Value; if(left) offset.X=-offset.X;
+                eye=center+offset;
+            }
             if(tablet>=0)
             {
                 var mount=(MatrixD)mesh.WristMount*CockpitHandPose.GripWrist(Matrix.Identity);
@@ -258,6 +269,11 @@ float4 PS(P p):SV_TARGET {
             float slope=(float)Math.Tan(.65f/2);
             Matrix projection=(Matrix)VrMath.Projection(-slope*960/720,slope*960/720,-slope,slope,.01);
             DrawMesh(mesh,CockpitHandPose.GripWrist(Matrix.Identity),view*projection,new Vector4(color,1),curl);
+            if(pointer>0)
+            {
+                Matrix tip=mesh.PointFrame*CockpitHandPose.GripWrist(Matrix.Identity);
+                DrawMesh(box,Matrix.CreateScale(0.002f,0.002f,pointer)*Matrix.CreateTranslation(0,0,-pointer*0.5f)*tip,view*projection,left ? PhysicalSurface.LeftLaser : new Vector4(0.2f,0.9f,1,1));
+            }
             using(var commands=context.FinishCommandList(false)) gpu.ImmediateContext.ExecuteCommandList(commands,true);
             if(tablet>=0)
             {
@@ -267,6 +283,17 @@ float4 PS(P p):SV_TARGET {
                 preview?.Invoke(panels,MatrixD.Invert(view));
                 PhysicalSurface.Draw(eyes[0],panels,view,projection,Depth);
             }
+            return eyes[0];
+        }
+        internal static Texture2D PreviewSurface(SharpDX.Direct3D11.Device device,SurfaceView surface)
+        {
+            Init(device); var size=new Vector2I(960,720); Resize(size);
+            Setup(targets[0],size); context.ClearRenderTargetView(targets[0],new RawColor4(.035f,.055f,.075f,1));
+            using(var commands=context.FinishCommandList(false)) gpu.ImmediateContext.ExecuteCommandList(commands,true);
+            Matrix view=Matrix.CreateLookAt(new Vector3(0,0,surface.Width*1.25f),Vector3.Zero,Vector3.Up);
+            float slope=(float)Math.Tan(.65f/2);
+            Matrix projection=(Matrix)VrMath.Projection(-slope*960/720,slope*960/720,-slope,slope,.01);
+            PhysicalSurface.Draw(eyes[0],new[] { surface },view,projection,Depth);
             return eyes[0];
         }
         internal static Texture2D PreviewKnob(SharpDX.Direct3D11.Device device,float value,bool hand)
@@ -291,20 +318,23 @@ float4 PS(P p):SV_TARGET {
             PhysicalSurface.Draw(eyes[0],new[] {panel},view,projection,Depth);
             return eyes[0];
         }
-        internal static Matrix PointerTracking(bool render=false)
+        internal static Matrix PointerTracking(bool render=false,Controller hand=null)
         {
-            var hand=Player.HandR;
-            if(TryPointPose(render ? hand.RenderGripTracking:hand.GripTracking,out var point)) return (Matrix)point;
+            hand=hand ?? Player.HandR;
+            if(TryPointPose(render ? hand.RenderGripTracking:hand.GripTracking,out var point,hand)) return (Matrix)point;
             return render ? hand.RenderAimTracking:hand.AimTracking;
         }
-        internal static MatrixD AttachWrist(MatrixD pose)
+        internal static MatrixD AttachWrist(MatrixD pose,Controller hand)
         {
             var state=wrist;
-            if(state!=null && ThirdPersonView.Active && RemoteView.TryAttachment(out var remoteWrist,out var remotePoint,out float remoteBlend,tracking:true))
-                return CockpitHandPose.Blend(pose,CockpitHandPose.Attach(remoteWrist,Matrix.Identity,state.RightPoint.Translation,remotePoint),remoteBlend);
-            if(state!=null && FloatingKeyboard.TryAttachment(out var keyboardWrist,out var keyboardPoint,out float keyboardBlend,tracking:true))
-                return CockpitHandPose.Blend(pose,CockpitHandPose.Attach(keyboardWrist,Matrix.Identity,state.RightPoint.Translation,keyboardPoint),keyboardBlend);
-            if(state==null || !ThirdPersonView.Active || !SpatialUi.TryWristAttachment(out var captured,out var contact,out float blend,render:true)) return pose;
+            if(state==null) return pose;
+            var tip=(hand==Player.HandL ? state.LeftPoint:state.RightPoint).Translation;
+            if(FloatingKeyboard.TryAttachment(hand,out var keyboardWrist,out var keyboardPoint,out float keyboardBlend,tracking:true))
+                return CockpitHandPose.Blend(pose,CockpitHandPose.Attach(keyboardWrist,Matrix.Identity,tip,keyboardPoint),keyboardBlend);
+            if(ThirdPersonView.Active && RemoteView.TryAttachment(hand,out var remoteWrist,out var remotePoint,out float remoteBlend,tracking:true))
+                return CockpitHandPose.Blend(pose,CockpitHandPose.Attach(remoteWrist,Matrix.Identity,tip,remotePoint),remoteBlend);
+            if(hand==Player.HandL) return pose;
+            if(!ThirdPersonView.Active || !SpatialUi.TryWristAttachment(out var captured,out var contact,out float blend,render:true)) return pose;
             var attached=CockpitHandPose.Attach(captured,Matrix.Identity,SpatialUi.PinchingKnob ? state.PinchPoint:state.RightPoint.Translation,contact);
             return CockpitHandPose.Blend(pose,attached,blend);
         }
@@ -327,18 +357,18 @@ float4 PS(P p):SV_TARGET {
                         var grip=hand.RenderGripTracking;
                         var pose=(Matrix)Alignment.Apply(Alignment.HandKey(hand),CockpitHandPose.GripWrist(grip));
                         var c=Controls.Static;
-                        if(h==1 && Main.WorldAvailable) pose=(Matrix)AttachWrist(pose);
+                        if(Main.WorldAvailable) pose=(Matrix)AttachWrist(pose,hand);
                         float curl=h==0 ? Math.Max(c.LeftTriggerPressure.RawPosition.X,c.LeftGripPressure.RawPosition.X):Math.Max(c.PointerPressure.RawPosition.X,c.RightGripPressure.RawPosition.X);
                         DrawMesh(meshes[h],pose,vp,CharacterColor,h==1 && SpatialUi.PinchingKnob ? 1:pointer ? 0:MathHelper.Clamp(curl,0,1));
                     }
                     else DrawMesh(box,Matrix.CreateScale(0.035f,0.075f,0.04f)*raw,vp,new Vector4(0.6f,0.7f,0.8f,1));
                 }
-                if(pointer && h==1 && Common.Config.ControllerMenuPointer && !SpatialUi.OwnsRight && !SpatialUi.RayTargeted)
+                if(pointer && (MenuKeyboard.IsOpen ? FloatingKeyboard.Hits(PointerTracking(true,hand)) : hand==MenuPointer.Hand) && Common.Config.ControllerMenuPointer && (h==0 || !SpatialUi.OwnsRight && !SpatialUi.RayTargeted))
                 {
-                    Matrix tip=PointerTracking(true);
+                    Matrix tip=PointerTracking(true,hand);
                     float distance=MenuKeyboard.IsOpen ? FloatingKeyboard.PointerDistance(tip) : Components.VRGUIManager.PointerDistance(tip);
                     Matrix ray=Matrix.CreateScale(0.002f,0.002f,distance)*Matrix.CreateTranslation(0,0,-distance*0.5f)*tip;
-                    DrawMesh(box,ray,vp,new Vector4(0.2f,0.9f,1,1));
+                    DrawMesh(box,ray,vp,h==0 ? PhysicalSurface.LeftLaser : new Vector4(0.2f,0.9f,1,1));
                 }
             }
             // Restore the engine's immediate-context state, including its cached bindings.
@@ -371,7 +401,7 @@ float4 PS(P p):SV_TARGET {
                 }
                 return true;
             }
-            catch(Exception ex) { failed=true; Logger.Warning(ex,"Menu controller rendering disabled; flat panel remains available"); return false; }
+            catch(Exception ex) { recovery.Fail(ex,"Menu controller rendering disabled; flat panel remains available"); return false; }
         }
     }
 }

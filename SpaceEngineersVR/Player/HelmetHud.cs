@@ -32,6 +32,9 @@ namespace SpaceEngineersVR.Player
         internal static bool ProtectsRight { get; private set; }
         internal static bool ViewGestureHeld { get; private set; }
         private static bool leftConsumed,rightConsumed;
+        // After cycling profiles the cycling hand is still at the helmet; hold off the proximity reveal so the new profile is visible.
+        internal const double RevealPause=1.5;
+        private static DateTime revealPauseUntil;
         private static long characterId;
         private sealed class Transition
         {
@@ -85,7 +88,7 @@ namespace SpaceEngineersVR.Player
                 Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,c.Primary.RawPressed);
             bool nearLeft=guard && Player.HandL.pose.isTracked && NearHead(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix);
             bool nearRight=guard && Player.HandR.pose.isTracked && (rightGesture.Inside || NearHead(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix));
-            Reveal=active && Markers && (Mode==2 || nearLeft || nearRight);
+            Reveal=active && Markers && (Mode==2 || (nearLeft || nearRight) && DateTime.UtcNow>=revealPauseUntil);
             rightGrip.Update(active && Player.HandR.pose.isTracked && c.Secondary.Active,c.Secondary.RawPressed);
             float grip=c.LeftGripPressure.RawPosition.X;
             if(grip<=.025f) ViewGestureHeld=false;
@@ -114,13 +117,14 @@ namespace SpaceEngineersVR.Player
             if(nearRight) { c.RightGripPressure.BlockUntilRelease(); c.Secondary.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); }
             if(leftConsumed)
             {
-                c.LeftTriggerPressure.BlockUntilRelease(); c.ThrustUp.BlockUntilRelease();
+                c.LeftClick.BlockUntilRelease(); c.LeftTriggerPressure.BlockUntilRelease(); c.ThrustUp.BlockUntilRelease();
                 c.ThrustForward.BlockUntilRelease(); c.JumpOrClimbUp.BlockUntilRelease();
             }
             if(!active || !Player.HandR.pose.isTracked || !rightGesture.Inside) return;
             if (rightGesture.Pressed && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandR))
             {
                 Common.Config.CycleHud();
+                revealPauseUntil=DateTime.UtcNow.AddSeconds(RevealPause);
                 rightConsumed=true;
                 c.Primary.BlockUntilRelease();
                 Player.HandR.Vibrate(0,0.035f,130,0.35f);

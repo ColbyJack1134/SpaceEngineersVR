@@ -17,9 +17,9 @@ namespace SpaceEngineersVR.Diagnostics
         {
             var serializer=new XmlSerializer(typeof(PluginConfig));
             PluginConfig config;
-            using (var xml=new StringReader("<PluginConfig><PlayerHeight>1.81</PlayerHeight><TrackedArms>false</TrackedArms></PluginConfig>"))
+            using (var xml=new StringReader("<PluginConfig><PlayerHeight>1.81</PlayerHeight><TrackedArms>false</TrackedArms><JetpackRollSensitivity>0.25</JetpackRollSensitivity></PluginConfig>"))
                 config=(PluginConfig)serializer.Deserialize(xml);
-            Near(config.JetpackRollSensitivity,0.25f,"Old config jetpack default");
+            Near(config.JetpackRoll,0.15f,"Old jetpack scale did not reset to the new default");
             Near(config.ShipRollSensitivity,0.6f,"Old config ship default");
             Near(config.PlayerHeight,1.81f,"Existing calibration retained");
             if(config.PhysicalShipControlsOnly) throw new Exception("Old config disables controller flight by default");
@@ -28,7 +28,7 @@ namespace SpaceEngineersVR.Diagnostics
             foreach (float horizontal in new[] { -1f,-0.7f,-0.2f,0,0.2f,0.7f,1f })
             foreach (bool modifier in new[] { false,true })
             {
-                float sensitivity=ship ? config.ShipRollSensitivity : config.JetpackRollSensitivity;
+                float sensitivity=ship ? config.ShipRollSensitivity : config.JetpackRoll;
                 var stick=new Vector2(horizontal,0.6f);
                 FlightAxes.Rotation(stick,modifier,ship,10,1,out var oldRotation,out var oldRoll);
                 FlightAxes.Rotation(stick,modifier,ship,10,sensitivity,out var rotation,out var roll);
@@ -38,7 +38,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Near(invertedRoll,roll,"Pitch inversion changed roll");
                 Near(rotation.X,oldRotation.X,"Roll setting changed pitch");
                 Near(rotation.Y,oldRotation.Y,"Roll setting changed yaw ownership");
-                Near(roll,oldRoll*(ship ? 0.6f : 0.25f),"Roll sensitivity");
+                Near(roll,oldRoll*(ship ? 0.6f : 0.15f),"Roll sensitivity");
                 if (ship)
                 {
                     float previousTorque=modifier ? MathHelper.Clamp(horizontal*10*0.2f,-1,1) : 0;
@@ -94,8 +94,8 @@ namespace SpaceEngineersVR.Diagnostics
             config.PropertyChanged+=(sender,args)=>changed=args.PropertyName;
             config.PhysicalShipControlsOnly=true;
             if(changed!=nameof(config.PhysicalShipControlsOnly)) throw new Exception("Physical-only setting cannot trigger automatic save");
-            config.JetpackRollSensitivity=0.4f;
-            if (changed!=nameof(config.JetpackRollSensitivity)) throw new Exception("Jetpack setting cannot trigger automatic save");
+            config.JetpackRoll=0.4f;
+            if (changed!=nameof(config.JetpackRoll)) throw new Exception("Jetpack setting cannot trigger automatic save");
             config.ShipRollSensitivity=0.85f;
             if (changed!=nameof(config.ShipRollSensitivity)) throw new Exception("Ship setting cannot trigger automatic save");
             using (var xml=new StringWriter())
@@ -103,20 +103,20 @@ namespace SpaceEngineersVR.Diagnostics
                 serializer.Serialize(xml,config);
                 using (var saved=new StringReader(xml.ToString())) config=(PluginConfig)serializer.Deserialize(saved);
             }
-            Near(config.JetpackRollSensitivity,0.4f,"Saved jetpack value");
+            Near(config.JetpackRoll,0.4f,"Saved jetpack value");
             Near(config.ShipRollSensitivity,0.85f,"Saved ship value");
-            FlightAxes.Rotation(new Vector2(1,0),true,false,10,config.JetpackRollSensitivity,out _,out var tunedRoll);
+            FlightAxes.Rotation(new Vector2(1,0),true,false,10,config.JetpackRoll,out _,out var tunedRoll);
             Near(tunedRoll,4,"Live custom sensitivity");
             foreach (float invalid in new[] { float.NaN,float.PositiveInfinity,float.NegativeInfinity })
             {
-                config.JetpackRollSensitivity=invalid; config.ShipRollSensitivity=invalid;
-                Near(config.JetpackRollSensitivity,0.25f,"Invalid jetpack fallback");
+                config.JetpackRoll=invalid; config.ShipRollSensitivity=invalid;
+                Near(config.JetpackRoll,0.15f,"Invalid jetpack fallback");
                 Near(config.ShipRollSensitivity,0.6f,"Invalid ship fallback");
             }
-            config.JetpackRollSensitivity=-1; config.ShipRollSensitivity=10;
-            Near(config.JetpackRollSensitivity,0.05f,"Lower roll bound");
+            config.JetpackRoll=-1; config.ShipRollSensitivity=10;
+            Near(config.JetpackRoll,0.03f,"Lower jetpack roll bound");
             Near(config.ShipRollSensitivity,2,"Upper roll bound");
-            log("PASS roll tuning: 25% jetpack / 60% ship including native torque saturation, both directions and partial input, unchanged pitch/yaw, old-config defaults, save notifications/round-trip and bounded values");
+            log("PASS roll tuning: 0.15 jetpack shown as 50% / 60% ship including native torque saturation, both directions and partial input, unchanged pitch/yaw, old-config defaults, save notifications/round-trip and bounded values");
         }
     }
 }

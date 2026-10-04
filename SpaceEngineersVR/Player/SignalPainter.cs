@@ -92,7 +92,7 @@ namespace SpaceEngineersVR.Player
                 if(e.Edge || !MarkerBillboard.TryCreate(e.Position,head,out var board)) continue;
                 if(faceViewer) board.FaceViewer(eye,facingUp);
                 board.Scale*=e.Primary.Kind=="Objective" ? 1.1:.55;
-                if(e.Ring) e.Primary.Ring?.AddNative(sprites,e.Position,view,projection,target.Description.Width);
+                if(e.Ring) e.Primary.Ring?.AddNative(sprites,e.Position,view,projection,target.Description.Width,facingUp,faceViewer);
                 board.Scale*=e.IconScale;
                 if(e.Members.Length==1) Icon(sprites,board,view,projection,e.Primary,alpha:e.SymbolAlpha);
                 else

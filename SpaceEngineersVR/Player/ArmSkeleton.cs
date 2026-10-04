@@ -94,6 +94,22 @@ namespace SpaceEngineersVR.Player
             foreach(var twist in arm.Twists) Remember(twist);
             return true;
         }
+        // Turns the head to a character-space orientation, limited to a natural range from the animated pose.
+        internal static bool Look(SavedBone head,Matrix target,float limit)
+        {
+            if(head?.Bone.Parent==null || !target.IsValid() || Math.Abs(target.Forward.LengthSquared()-1)>.1f || Math.Abs(target.Up.LengthSquared()-1)>.1f) return false;
+            head.Save();
+            var rest=head.Bone.GetAbsoluteRigTransform().GetOrientation();
+            var animated=Quaternion.CreateFromRotationMatrix(head.Bone.AbsoluteTransform);
+            var desired=Quaternion.CreateFromRotationMatrix(rest*target.GetOrientation());
+            float angle=2*(float)Math.Acos(MathHelper.Clamp(Math.Abs(Quaternion.Dot(animated,desired)),0,1));
+            if(angle>limit) desired=Quaternion.Slerp(animated,desired,limit/angle);
+            var absolute=Matrix.CreateFromQuaternion(desired); absolute.Translation=head.Bone.AbsoluteTransform.Translation;
+            head.Bone.SetCompleteTransformFromAbsoluteMatrix(ref absolute,true);
+            head.Bone.ComputeAbsoluteTransform(true,true);
+            Remember(head);
+            return true;
+        }
         private static void Remember(SavedBone saved)
         { saved.Applied=saved.Bone.Rotation; saved.AppliedTranslation=saved.Bone.Translation; }
     }

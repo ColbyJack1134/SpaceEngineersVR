@@ -33,21 +33,19 @@ namespace SpaceEngineersVR.Player
                 var grip=right ? c.RightGripPressure:c.LeftGripPressure;
                 return new InteractionInput(right,grip.RawPosition.X,trigger.RawPosition.X,grip.CanPress,trigger.CanPress);
             }
-            return new InteractionInput(false,right,trigger.RawPosition.X,right ? c.Primary.RawPressed:trigger.RawPosition.X>.55f,
-                trigger.Position.X>0 || right && c.Primary.HasPressed);
+            return c.Click(hand).Read(right);
         }
         internal void Consume()
         {
             var c=Controls.Static;
+            c.Click(Right ? Player.HandR:Player.HandL).Consume(Near,Down);
             if(Right)
             {
-                c.Primary.BlockUntilRelease();
-                if(Near) c.PointerPressure.BlockUntilRelease(Down);
                 if(Near) { c.RightGripPressure.BlockUntilRelease(Down); c.Secondary.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); }
             }
             else
             {
-                c.LeftTriggerPressure.BlockUntilRelease(!Near || Down); c.ThrustUp.BlockUntilRelease();
+                c.ThrustUp.BlockUntilRelease();
                 c.ThrustForward.BlockUntilRelease(); c.JumpOrClimbUp.BlockUntilRelease();
                 if(Near) { c.LeftGripPressure.BlockUntilRelease(Down); c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); }
             }

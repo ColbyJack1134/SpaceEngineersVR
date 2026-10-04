@@ -33,3 +33,12 @@ for path in (root / "SpaceEngineersVR/Player").rglob("*.cs"):
     for name in re.findall(r'"(/actions/[^"\s]+/(?:in|out)/[^"\s]+)"', path.read_text(encoding="utf-8-sig")):
         assert name.lower() in actions, f"Undefined action in {path.name}: {name}"
 print(f"PASS: {len(actions)} actions, {len(sets)} action sets, Quest/Touch bindings and C# consumers")
+
+for name in ("binding_oculus_touch.json", "binding_hpmotioncontroller.json"):
+    sources = json.loads((assets / name).read_text())["bindings"]["/actions/common"]["sources"]
+    for hand, action in (("right", "primary"), ("left", "leftclick")):
+        source = next(s for s in sources if s.get("inputs", {}).get("click", {}).get("output", "").lower() == "/actions/common/in/" + action)
+        assert source["path"] == f"/user/hand/{hand}/input/trigger", name
+        assert source["mode"] == "button", name
+        assert source["parameters"] == {"click_activate_threshold": "0.25", "click_deactivate_threshold": "0.20"}, name
+print("PASS: both trigger clicks share 0.25 press / 0.20 release in Touch and HP bindings")

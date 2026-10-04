@@ -43,7 +43,7 @@ namespace SpaceEngineersVR.Player
             epoch++;
             var previous=owner;
             if(previous!=null && !previous.Closed) { previous.EnableBag(restoreBag); previous.EnableHead(restoreHead); }
-            owner=null; activeDefinition=null; Volatile.Write(ref frame,null);
+            owner=null; activeDefinition=null; Volatile.Write(ref frame,null); crouchDrop=0; crouchTime=0;
             if(previous!=null && !previous.Closed && MySession.Static!=null) refreshDepth(previous);
             if(forgetHeight) eyeHeight.Clear();
         }
@@ -104,8 +104,21 @@ namespace SpaceEngineersVR.Player
             character.EnableHead(ThirdPersonView.Character);
             character.Render.NearFlag=false;
             character.EnableBag(ThirdPersonView.Character);
-            eyeOffset.Y=BodyFit.Fitting(character) ? BodyFit.DesiredEye(character) : standingEye;
+            eyeOffset.Y=(BodyFit.Fitting(character) ? BodyFit.DesiredEye(character) : standingEye)-CrouchDrop(character);
             anchor.Translation=body.Translation+Vector3D.TransformNormal(eyeOffset,anchor);
+        }
+        private static double crouchDrop;
+        private static long crouchTime;
+        private static double CrouchDrop(MyCharacter character)
+        {
+            double target=ThirdPersonView.Character ? 0 : Control.CrouchControl.ViewDrop(character.IsCrouching,Components.VRMovementComponent.Crouch.Automatic,
+                Components.VRMovementComponent.HeadDrop,BodyFit.CrouchDepth(character));
+            long now=System.Diagnostics.Stopwatch.GetTimestamp();
+            double seconds=crouchTime==0 ? 1 : (now-crouchTime)/(double)System.Diagnostics.Stopwatch.Frequency;
+            crouchTime=now;
+            // Ease the stick-crouch height change over about a quarter second.
+            crouchDrop+=(target-crouchDrop)*(1-Math.Exp(-Math.Min(seconds,1)/.08));
+            return crouchDrop;
         }
         public static void End(MyCharacter character)
         {

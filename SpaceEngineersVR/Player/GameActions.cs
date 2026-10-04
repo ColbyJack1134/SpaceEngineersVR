@@ -146,7 +146,7 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice DetachBootsAction = new ActionChoice("Detach boots", () => {
             var character=MySession.Static?.LocalCharacter;
             if(character!=null && MySession.Static.ControlledEntity==character && character.IsMagneticBootsActive)
-                character.Jump(VRageMath.Vector3.Zero);
+                ((VRage.Game.ModAPI.Interfaces.IMyControllableEntity)character).Jump(VRageMath.Vector3.Zero);
         });
         public static readonly ActionChoice PaletteAction = new ActionChoice("Color / skin palette", () => new MyActionColorPicker().ExecuteAction(), true);
         public static readonly ActionChoice PaintAction = new ActionChoice("Paint tool", () => new MyActionColorTool().ExecuteAction());
@@ -275,6 +275,7 @@ namespace SpaceEngineersVR.Player
             bool character=InputRouter.Gameplay && InputRouter.Mode!=InputMode.Piloting &&
                 MySession.Static?.ControlledEntity==MySession.Static?.LocalCharacter;
             if(jumpHold.Update(character,jump.HasPressed,jump.IsPressed,DateTime.UtcNow)) Execute(JetpackAction);
+            HandInteraction.UpdateLeftUse();
             if (c.Interact.HasPressed && !PlacementControls.Painting || c.Terminal.HasPressed || c.Inventory.HasPressed)
                 HandInteraction.RefreshTarget();
             if (c.Reload.HasPressed) NativeActions.Pulse(MyControlsSpace.RELOAD);

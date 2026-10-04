@@ -123,14 +123,17 @@ namespace SpaceEngineersVR.Config
         private AnchorOffsetSetting[] anchorOffsets=new AnchorOffsetSetting[0];
         public AnchorOffsetSetting[] AnchorOffsets { get => anchorOffsets; set => SetValue(ref anchorOffsets,value ?? new AnchorOffsetSetting[0]); }
         public bool LegacyShipTilt { get => legacyShipTilt; set => SetValue(ref legacyShipTilt, value); }
-        public const float DefaultJetpackRollSensitivity = 0.25f, DefaultShipRollSensitivity = 0.6f;
+        public const float DefaultJetpackRoll = 0.15f, DefaultShipRollSensitivity = 0.6f;
         public const float MinRollSensitivity = 0.05f, MaxRollSensitivity = 2f;
-        private float jetpackRollSensitivity = DefaultJetpackRollSensitivity;
+        // The jetpack slider shows the default as 50%, so its range is 10-200% of that scale.
+        public const float JetpackRollPercent = 50/DefaultJetpackRoll, MinJetpackRoll = 10/JetpackRollPercent, MaxJetpackRoll = 200/JetpackRollPercent;
+        private float jetpackRoll = DefaultJetpackRoll;
         private float shipRollSensitivity = DefaultShipRollSensitivity;
-        public float JetpackRollSensitivity
+        // Renamed from JetpackRollSensitivity so saved values from the old scale reset to the new default.
+        public float JetpackRoll
         {
-            get => jetpackRollSensitivity;
-            set => SetValue(ref jetpackRollSensitivity, LimitSensitivity(value, DefaultJetpackRollSensitivity));
+            get => jetpackRoll;
+            set => SetValue(ref jetpackRoll, float.IsNaN(value) || float.IsInfinity(value) ? DefaultJetpackRoll : Math.Max(MinJetpackRoll, Math.Min(MaxJetpackRoll, value)));
         }
         public float ShipRollSensitivity
         {

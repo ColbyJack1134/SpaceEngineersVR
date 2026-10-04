@@ -25,7 +25,8 @@ namespace SpaceEngineersVR.Player
             return index<0 ? 0 : covers[index];
         }
         private static Sandbox.Game.Entities.MyCockpit owner;
-        private static bool failed;
+        private static readonly RenderRecovery recovery=new RenderRecovery("Cockpit buttons");
+        private static bool failed => recovery.Failed;
         public static SurfaceView[] Views { get; private set; }=new SurfaceView[0];
         internal static CockpitTouch.Target[] Targets { get; private set; }=new CockpitTouch.Target[0];
         public static int HoveredSwitch { get; private set; }=-1;
@@ -64,7 +65,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Reset()
         {
-            failed=false; owner=null; Release(); ResetCovers(); CockpitTouch.Reset();
+            recovery.Clear(); owner=null; Release(); ResetCovers(); CockpitTouch.Reset();
             Array.Clear(positions,0,positions.Length); Array.Clear(pulses,0,pulses.Length);
             lastUpdate=DateTime.MinValue; CockpitActions.Reset();
         }
@@ -199,8 +200,8 @@ namespace SpaceEngineersVR.Player
         }
         private static void Fail(Exception ex)
         {
-            failed=true; Release(); CockpitTouch.Reset(); CockpitActions.Reset();
-            Logger.Warning(ex,"Cockpit controls disabled; flight input retained");
+            Release(); CockpitTouch.Reset(); CockpitActions.Reset();
+            recovery.Fail(ex,"Cockpit controls disabled; flight input retained");
         }
     }
 }

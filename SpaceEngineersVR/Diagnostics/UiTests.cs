@@ -36,9 +36,26 @@ namespace SpaceEngineersVR.Diagnostics
             Initialize(game,Path.Combine(output,"data"));
             SpatialUiTests.Run(log);
             using(var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport))
+            {
                 foreach(float fold in new[] {0f,.5f,1f})
                     Save(MenuHands.PreviewGlove(device,true,0,new Vector3(0,-1,0),fold),Path.Combine(output,"tablet-"+fold+".png"));
-            log("PASS folded/open production tablet previews");
+                foreach(bool left in new[] {false,true})
+                {
+                    string side=left ? "left":"right";
+                    Save(MenuHands.PreviewGlove(device,left,0,new Vector3(0,-1,0),pointer:.35f),Path.Combine(output,"pointer-"+side+".png"));
+                    Save(MenuHands.PreviewGlove(device,left,0,new Vector3(0,-1,0),pointer:.35f,tipView:new Vector3(.16f,.03f,-.10f)),Path.Combine(output,"pointer-"+side+"-side.png"));
+                    Save(MenuHands.PreviewGlove(device,left,0,new Vector3(0,-1,0),pointer:.35f,tipView:new Vector3(.02f,.20f,.04f)),Path.Combine(output,"pointer-"+side+"-top.png"));
+                }
+                var keyboard=new SurfaceView { Id="Keyboard",Style=SurfaceStyle.Keyboard,Pose=MatrixD.Identity,Width=.62f,Height=.62f*KeyboardWindow.Aspect,
+                    TrackingSpace=true,Text="Two hands",Keys=MenuKeyboard.Keys,Hover=14,Pressed=-1,HoverAlt=22,PressedAlt=22 };
+                Save(MenuHands.PreviewSurface(device,keyboard),Path.Combine(output,"keyboard-two-hands.png"));
+            }
+            string content=MyFileSystem.ContentPath;
+            var rightGlove=GloveGeometry.Load(content,GloveGeometry.DefaultModel,false); var leftGlove=GloveGeometry.Load(content,GloveGeometry.DefaultModel,true);
+            var mirror=Matrix.CreateScale(-1,1,1); var mirrored=mirror*rightGlove.PointFrame*mirror;
+            if(Vector3.Distance(mirrored.Translation,leftGlove.PointFrame.Translation)>.002f || Vector3.Dot(mirrored.Forward,leftGlove.PointFrame.Forward)<.999f)
+                throw new Exception("Left menu pointer is not the mirror of the right: "+leftGlove.PointFrame.Translation+" vs "+mirrored.Translation);
+            log("PASS folded/open production tablet previews and both-hand menu pointer previews; left pointer mirrors right within 2 mm");
         }
         public static void Run(string game, string output, Action<string> log)
         {

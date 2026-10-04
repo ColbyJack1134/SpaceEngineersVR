@@ -355,6 +355,7 @@ namespace SpaceEngineersVR.Diagnostics
             foreach(float tint in new[] {0f,.5f,1f}) foreach(bool hand in new[] {false,true})
                 UiTests.Save(MenuHands.PreviewKnob(device,tint,hand),Path.Combine(output,"wrist-knob-"+tint+"-"+(hand ? "grip":"detail")+".png"));
             CrosshairRenders(device,output,log);
+            RingRollRenders(device,output,log);
             MotionRenders(device,output,log);
             HudContexts(device,output,log);
             WristPanel.Show(0); WristSignals.Reset();
@@ -408,7 +409,7 @@ namespace SpaceEngineersVR.Diagnostics
                             device.ImmediateContext.CopyResource(scene.Texture,eyeTarget);
                             SignalPainter.Draw(eyeTarget,entries,head,view,projection);
                             ShipCrosshair.Draw(eyeTarget,aim,head,view,projection);
-                            NativeLead.Draw(eyeTarget,lead,head,view,projection);
+                            NativeLead.Draw(eyeTarget,lead,view,projection);
                         };
                         paint(); WaitIcons(); paint();
                         UiTests.Save(eyeTarget,Path.Combine(output,"ship-crosshair-"+scenario+"-"+eye+".png"));
@@ -416,6 +417,56 @@ namespace SpaceEngineersVR.Diagnostics
                 }
             }
             log("PASS production ship aim renders: stereo crosshair, head turns, observer offset, large coordinates; native lead, overlap, range warning and dark/bright backgrounds.");
+        }
+        // Rings and lead previously used the eye basis while ordinary markers used Character roll and viewer facing.
+        private static void RingRollRenders(Device device,string output,Action<string> log)
+        {
+            using(var scene=new OverlayCanvas("Ring roll scenarios",1600,900,1,false,device))
+            {
+                var description=scene.Texture.Description; description.Format=SharpDX.DXGI.Format.B8G8R8A8_UNorm_SRgb;
+                using(var eyeTarget=new SharpDX.Direct3D11.Texture2D(device,description))
+                foreach(bool corrected in new[] {false,true})
+                {
+                    var ship=MatrixD.CreateTranslation(1e9,-2e9,3e9);
+                    var head=MatrixD.CreateRotationZ(.45)*MatrixD.CreateRotationY(.12)*ship;
+                    var up=ship.Up;
+                    var target=Vector3D.Transform(new Vector3D(260,-60,-700),ship);
+                    var ring=Marker("roll-target","OffscreenTarget","Enemies",target,"");
+                    ring.Ring=NativeSignalProbe.Ring("Enemy",.5f); ring.Cluster=false; ring.LockState="Locking"; ring.Distance=Vector3D.Distance(target,head.Translation);
+                    var gps=Marker("roll-gps","GPS","Owner",Vector3D.Transform(new Vector3D(-200,90,-700),ship),"Waypoint");
+                    gps.Distance=Vector3D.Distance(gps.Position,head.Translation);
+                    var source=new WorldMarkers.View(new[] {ring,gps},DateTime.UtcNow) {Mode=MyHudMarkerRender.SignalMode.NoNames};
+                    var lead=new NativeLead.View {Position=target+Vector3D.TransformNormal(new Vector3D(70,10,0),ship),Target=target,InRange=false,CircleSize=ring.Ring.Size,RangeTextSize=NativeLead.MeasureRangeText(),
+                        Color=MyHudMarkerRender.MyTargetIndicatorRender.GetTargetingColor(Sandbox.Game.GUI.MyStatControlTargetingProgressBar.ProgressBarTargetType.Enemy,false).ToVector4()};
+                    var entries=SignalLayout.Build(source,head,new SignalLayout.Options(),DateTime.UtcNow);
+                    var projection=VrMath.Projection(-.8f,.8f,-.45f,.45f,.05);
+                    var view=MatrixD.Invert(MatrixD.CreateTranslation(-.032,0,0)*head);
+                    var rings=entries.Where(e=>e.Ring).ToArray();
+                    if(!corrected) foreach(var e in rings) e.Ring=false;
+                    var signalHead=MarkerBillboard.WithUp(head,up);
+                    Action paint=()=>
+                    {
+                        Background(scene,false);
+                        device.ImmediateContext.CopyResource(scene.Texture,eyeTarget);
+                        if(corrected)
+                        {
+                            SignalPainter.Draw(eyeTarget,entries,signalHead,view,projection,true,up);
+                            NativeLead.Draw(eyeTarget,lead,view,projection,up,true);
+                        }
+                        else
+                        {
+                            SignalPainter.Draw(eyeTarget,entries,signalHead,view,projection,true,up);
+                            var sprites=new List<NativeSprite>();
+                            foreach(var e in rings) e.Primary.Ring?.AddNative(sprites,e.Position,view,projection,eyeTarget.Description.Width);
+                            NativeSprites.Draw(eyeTarget,sprites);
+                            NativeLead.Draw(eyeTarget,lead,view,projection);
+                        }
+                    };
+                    paint(); WaitIcons(); paint();
+                    UiTests.Save(eyeTarget,Path.Combine(output,"ring-roll-"+(corrected ? "after":"before")+".png"));
+                }
+            }
+            log("RENDER ring roll: rolled head, Character up, viewer-facing ring/lead/range text before and after.");
         }
         private static void MotionRenders(Device device,string output,Action<string> log)
         {

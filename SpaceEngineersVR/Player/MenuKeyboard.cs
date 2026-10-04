@@ -39,6 +39,9 @@ namespace SpaceEngineersVR.Player
             }
             return keys.ToArray();
         }
+        internal static bool Repeatable(int key) => key>=0 && key<Keys.Length &&
+            (Keys[key].Label.Length==1 || Keys[key].Label=="SPACE" || Keys[key].Label=="BKSP");
+
         public static void Activate(int key)
         {
             if(!IsOpen || key<0 || key>=Keys.Length || !TargetValid() || !target.Enabled || !target.Visible) return;
@@ -92,7 +95,7 @@ namespace SpaceEngineersVR.Player
             if(textbox==null) return;
             current.FocusedControl=textbox;
             screen=current; target=textbox; Selected=0;
-            FloatingKeyboard.Show(reposition);
+            FloatingKeyboard.Show(reposition,FloatingMenu.Current?.Pose.Translation);
             MenuPointer.Release(); Controls.Static.BlockUntilRelease();
         }
 

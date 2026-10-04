@@ -46,13 +46,16 @@ namespace SpaceEngineersVR.Player
         internal SurfaceView At(MatrixD pose) { var copy=(SurfaceView)MemberwiseClone(); copy.Pose=pose; return copy; }
         public float Width,Height;
         public SurfaceKey[] Keys=new SurfaceKey[0];
-        public int Hover=-1,Pressed=-1;
+        public int Hover=-1,Pressed=-1,HoverAlt=-1,PressedAlt=-1;
+        public bool LeftHand;
+        internal bool Hovered(int i) => i>=0 && (i==Hover || i==HoverAlt);
+        internal bool IsPressed(int i) => i>=0 && (i==Pressed || i==PressedAlt);
         public bool TrackingSpace,GeometryFeedback,RoundEnds;
         public SurfaceStyle Style;
         public float[] Levels;
         public int Handle;
         public Vector3? TouchPoint;
-        public string ContentKey => SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
+        public string ContentKey => SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+HoverAlt+"|"+PressedAlt+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
             "|"+HudSettings?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
         public int KeyAt(Vector2 uv)
@@ -82,6 +85,7 @@ namespace SpaceEngineersVR.Player
     }
     internal static class PhysicalSurface
     {
+        internal static readonly Vector4 LeftLaser=new Vector4(1,.706f,.235f,1);
         internal static Vector2I TextureSize(SurfaceStyle style) => style==SurfaceStyle.Label ? new Vector2I(1536,236) : style==SurfaceStyle.BlockInfo ? new Vector2I(2048,1280) : new Vector2I(1024,640);
         private sealed class Cache { public OverlayCanvas Canvas; public ShaderResourceView Texture; public string Content; public int Revision; public EssentialHud.View Status; }
         private static readonly Dictionary<string,Cache> cache=new Dictionary<string,Cache>();
@@ -130,8 +134,10 @@ namespace SpaceEngineersVR.Player
             {
                 var k=s.Keys[i]; var b=k.Bounds;
                 var r=new System.Drawing.RectangleF(b.X*1024,b.Y*640,b.Width*1024,b.Height*640);
-                using(var brush=new SolidBrush(i==s.Pressed ? Color.FromArgb(40,133,151) : i==s.Hover ? Color.FromArgb(55,83,100) : Color.FromArgb(31,47,60))) g.FillRectangle(brush,r);
-                using(var pen=new Pen(i==s.Hover ? Color.Cyan : Color.FromArgb(86,117,133),2)) g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);
+                bool leftOnly=i!=s.Pressed && i!=s.Hover && (i==s.PressedAlt || i==s.HoverAlt);
+                using(var brush=new SolidBrush(s.IsPressed(i) ? leftOnly ? Color.FromArgb(150,96,32) : Color.FromArgb(40,133,151) :
+                    s.Hovered(i) ? leftOnly ? Color.FromArgb(96,70,40) : Color.FromArgb(55,83,100) : Color.FromArgb(31,47,60))) g.FillRectangle(brush,r);
+                using(var pen=new Pen(s.Hovered(i) ? leftOnly ? Color.Orange : Color.Cyan : Color.FromArgb(86,117,133),2)) g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);
                 g.DrawString(k.Label,text,Brushes.White,r,centered);
             }
             if(s.Style==SurfaceStyle.Keyboard)
@@ -230,7 +236,7 @@ namespace SpaceEngineersVR.Player
                         if(b.Width<=0 || b.Height<=0) continue;
                         var r=new System.Drawing.RectangleF(b.X*s.Width,b.Y*s.Height,b.Width*s.Width,b.Height*s.Height);
                         using(var path=Rounded(r,.003f))
-                        using(var brush=new SolidBrush(i==s.Pressed ? Color.FromArgb(38,124,139) : i==s.Hover ? Color.FromArgb(61,85,94) : Color.FromArgb(44,51,56)))
+                        using(var brush=new SolidBrush(s.IsPressed(i) ? Color.FromArgb(38,124,139) : s.Hovered(i) ? Color.FromArgb(61,85,94) : Color.FromArgb(44,51,56)))
                         { g.FillPath(brush,path); g.DrawPath(border,path); }
                         if(i==7) DrawLock(g,r,s.Handle==1,s.Keys[i].Enabled);
                         else if(i<9) DrawSeatSymbol(g,i,r,s.Keys[i].Enabled ? Color.LightCyan : Color.SlateGray);
@@ -306,7 +312,7 @@ namespace SpaceEngineersVR.Player
                 var key=s.Keys[i]; if(key.Invisible) continue; var b=key.Bounds;
                 var r=new System.Drawing.RectangleF(b.X*1024,b.Y*640,b.Width*1024,b.Height*640);
                 using(var path=Rounded(r,10))
-                using(var brush=new SolidBrush(i==s.Pressed ? Color.FromArgb(40,133,151) : i==s.Hover ? Color.FromArgb(55,83,100) : Color.FromArgb(31,47,60))) g.FillPath(brush,path);
+                using(var brush=new SolidBrush(s.IsPressed(i) ? Color.FromArgb(40,133,151) : s.Hovered(i) ? Color.FromArgb(55,83,100) : Color.FromArgb(31,47,60))) g.FillPath(brush,path);
                 var label=key.Icons.Length>0 ? new System.Drawing.RectangleF(r.X+4,r.Bottom-40,r.Width-8,36):r;
                 if(key.Value==null) g.DrawString(key.Label,labelFont,key.Enabled ? Brushes.White:Brushes.Gray,label,format);
                 else
@@ -366,7 +372,8 @@ namespace SpaceEngineersVR.Player
                     Vector3D normal=toward-s.Pose.Forward*Vector3D.Dot(toward,s.Pose.Forward);
                     if(normal.LengthSquared()<1e-10) continue;
                     var pose=MatrixD.CreateWorld(s.Pose.Translation,-Vector3D.Normalize(normal),s.Pose.Forward);
-                    var pointer=Quad(c.Texture,pose,full,new Vector4(0,0,1,1),new Vector4(.33f,.92f,1,s.RoundEnds ? .55f : 1),view,projection);
+                    var tint=s.LeftHand ? LeftLaser : new Vector4(.33f,.92f,1,1); tint.W=s.RoundEnds ? .55f : 1;
+                    var pointer=Quad(c.Texture,pose,full,new Vector4(0,0,1,1),tint,view,projection);
                     if(s.RoundEnds) pointer.Rounded=new Vector2(.5f,s.Width/(2*s.Height));
                     sprites.Add(pointer);
                     continue;
@@ -400,7 +407,7 @@ namespace SpaceEngineersVR.Player
                     if(k.Invisible) continue;
                     var b=k.Bounds;
                     int index=Array.IndexOf(s.Keys,k);
-                    float raised=index==s.Pressed ? .001f : KeyHeight(s);
+                    float raised=s.IsPressed(index) ? .001f : KeyHeight(s);
                     // Extruded key walls prevent the face from looking like a hovering label.
                     var bounds=new VRageMath.RectangleF((b.X-.5f)*s.Width,(.5f-b.Y)*s.Height,b.Width*s.Width,b.Height*s.Height);
                     for(int edge=0;edge<4;edge++)

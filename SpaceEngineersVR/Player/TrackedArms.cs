@@ -110,6 +110,10 @@ namespace SpaceEngineersVR.Player
                 { pose.Tracked|=2; pose.Right=(Matrix)(WristWorld(character,Player.HandR)*character.PositionComp.WorldMatrixNormalizedInv); }
                 pose.LeftFingers=FingerMode(character,Player.HandL); pose.RightFingers=FingerMode(character,Player.HandR);
                 pose.LeftTrigger=Trigger(Player.HandL); pose.RightTrigger=Trigger(Player.HandR);
+                // Seated heads need the first-person seat frame; observer views would send a stale camera pose.
+                bool headFrame=character.IsSitting ? SeatFit.Eligible(character.Parent as Sandbox.Game.Entities.MyCockpit) : !ThirdPersonView.Active && CameraRig.Owns(character);
+                if(Player.Headset.pose.isTracked && headFrame)
+                { pose.Tracked|=Multiplayer.PlayerPose.HeadTracked; pose.Head=(Matrix)(SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix)*character.PositionComp.WorldMatrixNormalizedInv); }
             }
             return pose;
         }
@@ -117,8 +121,9 @@ namespace SpaceEngineersVR.Player
         internal static ArmSkeleton.Fingers FingerMode(MyCharacter character,Controller hand)
         {
             if(CockpitControls.Held(hand)) return ArmSkeleton.Fingers.Stick;
-            if(character.CurrentWeapon==null || (Main.MenuOpen && hand==Player.HandR) || CockpitTouch.Attached(hand) ||
-                (hand==Player.HandL ? CockpitTouch.LeftPointing || HandInteraction.PointingFor(hand) : CockpitTouch.RightPointing || RemoteView.Pointing || SpatialUi.Pointing || TouchScreenBridge.Pointing || HandInteraction.PointingFor(hand) || BlockInspection.Current!=null))
+            if(character.CurrentWeapon==null || Main.MenuOpen || CockpitTouch.Attached(hand) ||
+                TouchScreenBridge.PointingFor(hand) || RemoteView.PointingFor(hand) || HandInteraction.PointingFor(hand) ||
+                (hand==Player.HandL ? CockpitTouch.LeftPointing : CockpitTouch.RightPointing || SpatialUi.Pointing || BlockInspection.Current!=null))
                 return CockpitTouch.Pinching(hand) || hand==Player.HandR && SpatialUi.PinchingKnob ? ArmSkeleton.Fingers.Pinch:ArmSkeleton.Fingers.Point;
             return ArmSkeleton.Fingers.Native;
         }
@@ -128,12 +133,12 @@ namespace SpaceEngineersVR.Player
             MatrixD world=CockpitControls.HasTrackedSeat(character) ? CockpitControls.WristWorld(hand) : SpatialUi.DeviceWorld(tracking);
             world=Alignment.Apply(Alignment.HandKey(hand),world);
             var arm=hand==Player.HandL ? left : right;
-            if(hand==Player.HandR && arm?.IndexTip!=null && FloatingKeyboard.TryAttachment(out var keyboardWrist,out var keyboardPoint,out float keyboardBlend))
+            if(arm?.IndexTip!=null && FloatingKeyboard.TryAttachment(hand,out var keyboardWrist,out var keyboardPoint,out float keyboardBlend))
             {
                 var point=CockpitHandPose.Contact(arm.Palm.Bone,arm.IndexTip,arm.ThumbTip,false,CockpitHandPose.Tip);
                 return CockpitHandPose.Blend(world,CockpitHandPose.Attach(keyboardWrist,arm.PalmOffset,point,keyboardPoint),keyboardBlend);
             }
-            if(hand==Player.HandR && arm?.IndexTip!=null && RemoteView.TryAttachment(out var remoteWrist,out var remotePoint,out float remoteBlend))
+            if(arm?.IndexTip!=null && RemoteView.TryAttachment(hand,out var remoteWrist,out var remotePoint,out float remoteBlend))
             {
                 var point=CockpitHandPose.Contact(arm.Palm.Bone,arm.IndexTip,arm.ThumbTip,false,CockpitHandPose.Tip);
                 return CockpitHandPose.Blend(world,CockpitHandPose.Attach(remoteWrist,arm.PalmOffset,point,remotePoint),remoteBlend);

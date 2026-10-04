@@ -32,6 +32,14 @@ namespace SpaceEngineersVR.Player
             result.Translation=primary-Vector3.TransformNormal(profile.Primary,result);
             return result;
         }
+        // Native hand items place their RightHand dummy on the palm.
+        public static bool TryHandItem(MatrixD attachment,MatrixD palm,out MatrixD model)
+        {
+            model=MatrixD.Identity;
+            if(!attachment.IsValid() || Math.Abs(attachment.Determinant())<1e-6 || !palm.IsValid()) return false;
+            model=MatrixD.Invert(attachment)*palm;
+            return true;
+        }
         public static bool TrySupport(WeaponProfile profile, Matrix oneHand, Vector3 primary, Vector3 support, out Matrix result)
         {
             result=oneHand;

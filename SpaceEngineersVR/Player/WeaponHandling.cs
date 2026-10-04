@@ -84,9 +84,8 @@ namespace SpaceEngineersVR.Player
             else
             {
                 if(character.HandItemDefinition==null || !TrackedArms.TryDesiredPalm(character,Player.HandR,out var hand)) return false;
-                var attachment=(MatrixD)character.HandItemDefinition.RightHand;
-                if(!attachment.IsValid() || Math.Abs(attachment.Determinant())<1e-6) return false;
-                model=Alignment.Apply(key,MatrixD.Invert(attachment)*hand);
+                if(!WeaponPose.TryHandItem(character.HandItemDefinition.RightHand,hand,out model)) return false;
+                model=Alignment.Apply(key,model);
                 muzzle=character.CurrentWeapon.GunBase is Sandbox.Game.Weapons.MyGunBase gun && gun.HasDummies
                     ? Vector3D.Transform(gun.GetMuzzleLocalPosition(),model) : model.Translation;
             }

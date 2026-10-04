@@ -54,15 +54,15 @@ namespace SpaceEngineersVR.Player
             return new View {Position=position,Target=Sandbox.Game.EntityComponents.MyTargetingHelper.Instance.GetLockingPosition(target),InRange=inRange,CircleSize=circle.Size,RangeTextSize=inRange ? Vector2.Zero:MeasureRangeText(),
                 Color=MyHudMarkerRender.MyTargetIndicatorRender.GetTargetingColor(circle.TargetType,inRange).ToVector4()};
         }
-        internal static void Draw(Texture2D target,View value,MatrixD head,MatrixD view,MatrixD projection)
+        internal static void Draw(Texture2D target,View value,MatrixD view,MatrixD projection,Vector3D? up=null,bool faceViewer=false)
         {
             if(value==null || !WorldMarkers.Project(value.Position,view,projection,out _) ||
-                !MarkerBillboard.TryCreatePixels(value.Position,value.CircleSize.X*.8,view,projection,target.Description.Width,out var board)) return;
+                !MarkerBillboard.TryCreatePixels(value.Position,value.CircleSize.X*.8,view,projection,target.Description.Width,out var board,up,faceViewer)) return;
             var output=new List<NativeSprite>();
             var marker=new NativeSprite(@"Textures\GUI\TargetingPredictionMarker.dds",default(RectangleF),value.Color.ToLinearRGB()) {Premultiplied=true};
             if(!board.Project(new RectangleF(-.5f,-.5f,1,1),view,projection,ref marker)) return;
             output.Add(marker);
-            if(MarkerBillboard.TryCreatePixels(value.Target,value.CircleSize.X,view,projection,target.Description.Width,out var ring))
+            if(MarkerBillboard.TryCreatePixels(value.Target,value.CircleSize.X,view,projection,target.Description.Width,out var ring,up,faceViewer))
             {
                 AddLine(output,ring,board,value.CircleSize.X,value.Color,target.Description.Width,target.Description.Height,view,projection);
                 if(!value.InRange)

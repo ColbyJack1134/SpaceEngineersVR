@@ -42,10 +42,12 @@ namespace SpaceEngineersVR.Player
             Up=Vector3D.Normalize(Vector3D.Cross(normal,Right));
         }
 
-        internal static bool TryCreatePixels(Vector3D position,double width,MatrixD view,MatrixD projection,int viewportWidth,out MarkerBillboard board)
+        internal static bool TryCreatePixels(Vector3D position,double width,MatrixD view,MatrixD projection,int viewportWidth,out MarkerBillboard board,Vector3D? up=null,bool faceViewer=false)
         {
             var eye=MatrixD.Invert(view);
+            if(up.HasValue) eye=WithUp(eye,up.Value);
             if(!TryCreate(position,eye,out board)) return false;
+            if(faceViewer) board.FaceViewer(eye.Translation,up);
             double depth=-Vector3D.Transform(position,view).Z;
             if(depth<=.05) return false;
             board.Scale=2*depth*width/(viewportWidth*projection.M11);

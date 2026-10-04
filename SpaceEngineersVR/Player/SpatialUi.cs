@@ -22,7 +22,9 @@ namespace SpaceEngineersVR.Player
         private static string wristHoverSurface,rayPressedSurface;
         private static SurfaceKey rayPressedKey;
         private static DateTime rayPressedUntil;
-        private static bool expanded,failed,wristDirect,wristHoverFeedback;
+        private static bool expanded,wristDirect,wristHoverFeedback;
+        private static readonly RenderRecovery recovery=new RenderRecovery("Physical UI");
+        private static bool failed => recovery.Failed;
         public static bool OwnsRight => wristTouch.Consumed || ringContact;
         public static bool RayTargeted { get; private set; }
         public static bool Available => !failed;
@@ -358,8 +360,9 @@ namespace SpaceEngineersVR.Player
                     }
                 }
                 PhysicalSurface.Draw(target,surfaces,view,projection,tracking && !trackingToWorld.HasValue ? MenuHands.Depth : PhysicalSurface.SceneDepth());
+                recovery.Succeeded();
             }
-            catch(Exception ex) { failed=true; current=new SurfaceView[0]; Logger.Warning(ex,"Physical UI disabled; native menus remain available"); }
+            catch(Exception ex) { current=new SurfaceView[0]; recovery.Fail(ex,"Physical UI disabled; native menus remain available"); }
         }
     }
 }

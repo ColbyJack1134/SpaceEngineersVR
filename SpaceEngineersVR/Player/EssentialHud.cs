@@ -67,7 +67,8 @@ namespace SpaceEngineersVR.Player
         private static readonly string[] stats = { "player_health", "player_oxygen", "player_hydrogen", "player_energy" };
         private static readonly string[] art = { "HealthIcon", "OxygenIcon", "HydrogenIcon", "EnergyIcon" };
         private static int iconRevision;
-        private static bool failed;
+        private static readonly RenderRecovery recovery=new RenderRecovery("Essential HUD");
+        private static bool failed => recovery.Failed;
         internal const float OverlayWidth=1.6f,OverlayHeight=OverlayWidth*560/1280,OverlayY=-.4f,OverlayDepth=1.5f;
         internal static float DisplayScale { get; private set; }=1;
 
@@ -458,8 +459,9 @@ namespace SpaceEngineersVR.Player
                 }
                 Paint(canvas,current);
                 canvas.Upload(); drawn=current; iconRevision=NativeSprites.Revision;
+                recovery.Succeeded();
             }
-            catch (Exception ex) { failed=true; Logger.Warning(ex,"Essential HUD disabled"); canvas?.Hide(); }
+            catch (Exception ex) { drawn=null; recovery.Fail(ex,"Essential HUD disabled"); RenderRecovery.Quietly(()=>canvas?.Hide()); }
         }
         public static void Reset() { snapshot=null; notice=null; nextSample=DateTime.MinValue; }
         public static void Hide() => canvas?.Hide();

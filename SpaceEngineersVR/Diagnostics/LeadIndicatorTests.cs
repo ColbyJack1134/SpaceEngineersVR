@@ -100,7 +100,7 @@ namespace SpaceEngineersVR.Diagnostics
                     var sprites=new List<NativeSprite>();
                     NativeSignalProbe.Ring("Enemy",1).AddNative(sprites,frame.Lead.Target,MatrixD.Identity,frame.Projection,(int)frame.Size.X);
                     NativeSprites.Draw(target,sprites);
-                    NativeLead.Draw(target,frame.Lead,MatrixD.Identity,MatrixD.Identity,frame.Projection);
+                    NativeLead.Draw(target,frame.Lead,MatrixD.Identity,frame.Projection);
                     if(NativeSprites.Pending) return;
                     UiTests.Save(target,Path.Combine(Output,"vr-"+frame.Scenario+".png"));
                     if(frame.HasLine)

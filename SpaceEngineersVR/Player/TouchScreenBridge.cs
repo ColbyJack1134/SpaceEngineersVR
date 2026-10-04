@@ -35,6 +35,9 @@ namespace SpaceEngineersVR.Player
         private static Dictionary<string,Delegate> api;
         public static bool OwnsInput { get; private set; }
         public static bool Pointing { get; private set; }
+        public static bool PointingLeft { get; private set; }
+        internal static bool PointingFor(Controller hand) => hand==Player.HandL ? PointingLeft:Pointing;
+        private static Controller activeHand;
         public static bool Ready => manager!=null && !failed;
         private sealed class Screen
         {
@@ -155,7 +158,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Update()
         {
-            OwnsInput=Pointing=down=secondaryDown=false;
+            OwnsInput=Pointing=PointingLeft=down=secondaryDown=false;
             if(failed) return;
             try
             {
@@ -174,12 +177,8 @@ namespace SpaceEngineersVR.Player
                     Player.Headset.pose.isTracked && Player.HandR.pose.isTracked && Player.HandL.pose.isTracked &&
                     !CockpitControls.Adjusting && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandL) && !CockpitControls.Held(Player.HandR) &&
                     !PlacementControls.OwnsTools;
-                Screen best=null; SurfaceView bestPlane=null; float bestDistance=float.MaxValue; Vector3D intersection=Vector3D.Zero;
-                bool bestDirect=false;
-                MatrixD aim=SpatialUi.DeviceWorld(Player.HandR.AimTracking);
-                if(TrackedArms.TryFreePointPose(Player.HandR,out var pointing)) aim=pointing;
-                rayOrigin=aim.Translation;
-                Vector3D tip=aim.Translation;
+                // The mod has one cursor per screen, so one hand owns it: a held press keeps its hand, a fingertip touch beats a laser.
+                var valid=new List<KeyValuePair<Screen,SurfaceView>>();
                 foreach(var candidate in screens.Values)
                 {
                     candidate.Aiming.SetValue(candidate.Value,false);
@@ -191,51 +190,82 @@ namespace SpaceEngineersVR.Player
                     var plane=candidate.Plane(); if(plane==null) continue;
                     var head=SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation;
                     if(Vector3D.Dot(plane.Pose.Backward,head-plane.Pose.Translation)<.015) continue;
-                    bool near=Vector3D.Distance(tip,plane.Pose.Translation)<Math.Max(plane.Width,plane.Height)*.5+.20;
-                    Vector3D finger=tip;
-                    if(near && TrackedArms.TryFingertip(out var actual)) finger=actual;
-                    var local=PhysicalSurface.Point(plane,finger); var uv=PhysicalSurface.UV(plane,local);
-                    bool direct=local.Z>=-.018f && local.Z<.07f && uv.X>=0 && uv.X<=1 && uv.Y>=0 && uv.Y<=1;
-                    if(near && local.Z>=-.04f && local.Z<.30f && uv.X>=0 && uv.X<=1 && uv.Y>=0 && uv.Y<=1) Pointing=true;
-                    var ray=(Matrix)(aim*MatrixD.Invert(plane.Pose));
-                    bool hit=VrMath.PanelHit(ray,Matrix.Identity,plane.Width,plane.Height,out var rayUv);
-                    if(!direct && !hit) continue;
-                    Vector2 hitUv=direct ? uv : rayUv;
-                    var point=Vector3D.Transform(new Vector3D((hitUv.X-.5f)*plane.Width,(.5f-hitUv.Y)*plane.Height,0),plane.Pose);
-                    float distance=(float)Vector3D.Distance(rayOrigin,point);
-                    if(distance>Math.Min(3,(float)candidate.Distance.GetValue(candidate.Value))) continue;
-                    // Physics hit before the screen means a wall/block hides the surface.
-                    if(MyAPIGateway.Physics!=null && MyAPIGateway.Physics.CastRay(rayOrigin,point,out IHitInfo obstacle) &&
-                        obstacle.HitEntity!=MySession.Static.LocalCharacter && Vector3D.Distance(rayOrigin,obstacle.Position)+.025<distance) continue;
-                    float priority=direct ? Math.Abs(local.Z)-1 : distance;
-                    if(priority>=bestDistance) continue;
-                    best=candidate; bestPlane=plane; bestDistance=priority; intersection=point; bestDirect=direct;
+                    valid.Add(new KeyValuePair<Screen,SurfaceView>(candidate,plane));
+                }
+                Screen best=null; SurfaceView bestPlane=null; float bestDistance=float.MaxValue; Vector3D intersection=Vector3D.Zero,bestTip=Vector3D.Zero,bestOrigin=Vector3D.Zero;
+                bool bestDirect=false,bestPointing=false; Controller bestHand=null;
+                foreach(var hand in new[] { Player.HandR,Player.HandL })
+                {
+                    if(primary.Held && hand!=activeHand) continue;
+                    bool left=hand==Player.HandL;
+                    MatrixD aim=SpatialUi.DeviceWorld(hand.AimTracking);
+                    if(TrackedArms.TryFreePointPose(hand,out var pointing)) aim=pointing;
+                    Vector3D tip=aim.Translation,from=aim.Translation;
+                    bool rays=!left || PointerHand.LeftRayAllowed;
+                    foreach(var entry in valid)
+                    {
+                        var candidate=entry.Key; var plane=entry.Value;
+                        bool near=Vector3D.Distance(tip,plane.Pose.Translation)<Math.Max(plane.Width,plane.Height)*.5+.20;
+                        Vector3D finger=tip;
+                        if(near && TrackedArms.TryFingertip(hand,out var actual)) finger=actual;
+                        var local=PhysicalSurface.Point(plane,finger); var uv=PhysicalSurface.UV(plane,local);
+                        bool direct=local.Z>=-.018f && local.Z<.07f && uv.X>=0 && uv.X<=1 && uv.Y>=0 && uv.Y<=1;
+                        bool close=near && local.Z>=-.04f && local.Z<.30f && uv.X>=0 && uv.X<=1 && uv.Y>=0 && uv.Y<=1;
+                        if(close) { if(left) PointingLeft=true; else Pointing=true; }
+                        var ray=(Matrix)(aim*MatrixD.Invert(plane.Pose));
+                        Vector2 rayUv=Vector2.Zero;
+                        bool hit=rays && VrMath.PanelHit(ray,Matrix.Identity,plane.Width,plane.Height,out rayUv);
+                        if(!direct && !hit) continue;
+                        Vector2 hitUv=direct ? uv : rayUv;
+                        var point=Vector3D.Transform(new Vector3D((hitUv.X-.5f)*plane.Width,(.5f-hitUv.Y)*plane.Height,0),plane.Pose);
+                        float distance=(float)Vector3D.Distance(from,point);
+                        if(distance>Math.Min(3,(float)candidate.Distance.GetValue(candidate.Value))) continue;
+                        // Physics hit before the screen means a wall/block hides the surface.
+                        if(MyAPIGateway.Physics!=null && MyAPIGateway.Physics.CastRay(from,point,out IHitInfo obstacle) &&
+                            obstacle.HitEntity!=MySession.Static.LocalCharacter && Vector3D.Distance(from,obstacle.Position)+.025<distance) continue;
+                        float priority=direct ? Math.Abs(local.Z)-1 : distance;
+                        if(priority>=bestDistance) continue;
+                        best=candidate; bestPlane=plane; bestDistance=priority; intersection=point; bestDirect=direct;
+                        bestHand=hand; bestTip=tip; bestOrigin=from; bestPointing=close;
+                    }
                 }
                 // Existing physical controls have priority over a screen behind their plate.
-                if(CockpitTouch.OwnsRight || SpatialUi.Current.Any(s=>s.Hover>=0)) best=null;
+                if(bestHand!=null && (CockpitTouch.Owns(bestHand) || bestHand==Player.HandR && SpatialUi.Current.Any(s=>s.Hover>=0))) best=null;
                 var next=best?.Value; var controlled=MySession.Static?.ControlledEntity;
-                if(!ReferenceEquals(selected,next) || !ReferenceEquals(owner,controlled) || origin!=Player.PlayerToAbsolute.matrix)
+                if(!ReferenceEquals(selected,next) || !ReferenceEquals(owner,controlled) || origin!=Player.PlayerToAbsolute.matrix || best!=null && bestHand!=activeHand)
                 {
                     if(selected!=null && screens.TryGetValue(selected,out var previous)) previous.Buttons(false,false,false);
                     primary.Block(); secondary.Block(); touch.Reset();
                 }
                 selected=next; owner=controlled; origin=Player.PlayerToAbsolute.matrix;
-                var input=primary.Read(Player.HandR,primary.Held ? primary.Near:bestDirect);
-                primary.Update(best!=null,input); secondary.Update(best!=null && !input.Near,Controls.Static.Secondary.RawPressed);
                 if(best==null) { touch.Reset(); return; }
+                activeHand=bestHand; rayOrigin=bestOrigin;
+                bool leftHand=bestHand==Player.HandL;
+                var input=primary.Read(bestHand,primary.Held ? primary.Near:bestDirect);
+                bool secondaryRaw=leftHand ? Controls.Static.LeftGripPressure.RawPosition.X>InteractionInput.GripThreshold:Controls.Static.Secondary.RawPressed;
+                primary.Update(true,input); secondary.Update(!input.Near,secondaryRaw);
                 best.Intersection.SetValue(best.Value,intersection); best.Coordinates.Invoke(best.Value,null); best.Aiming.SetValue(best.Value,true);
                 hitPoint=intersection;
-                Vector3D touchTip=tip;
-                if(Pointing && TrackedArms.TryFingertip(out var touchFinger)) touchTip=touchFinger;
+                Vector3D touchTip=bestTip;
+                if(bestPointing && TrackedArms.TryFingertip(bestHand,out var touchFinger)) touchTip=touchFinger;
                 var touchLocal=PhysicalSurface.Point(bestPlane,touchTip); var touchUv=PhysicalSurface.UV(bestPlane,touchLocal);
                 int key=touchUv.X>=0 && touchUv.X<=1 && touchUv.Y>=0 && touchUv.Y<=1 ? 0 : -1;
                 int clicked=touch.Update(best.Block.EntityId+":"+best.Index,touchLocal,key);
                 down=primary.Held || touch.Held>=0; secondaryDown=secondary.Held;
                 OwnsInput=down || secondaryDown;
                 if(OwnsInput) input.Consume();
-                Controls.Static.Primary.BlockUntilRelease(); Controls.Static.Secondary.BlockUntilRelease();
-                if(OwnsInput) Controls.Static.ThrustRoll.BlockUntilRelease();
-                if(primary.Pressed || secondary.Pressed || clicked>=0) Player.HandR.Vibrate(0,.025f,100,.28f);
+                if(leftHand)
+                {
+                    // Aiming the left hand at a screen claims its trigger and grip until release.
+                    Controls.Static.LeftClick.BlockUntilRelease(); Controls.Static.LeftTriggerPressure.BlockUntilRelease(false); Controls.Static.LeftGripPressure.BlockUntilRelease(false);
+                    Controls.Static.CrouchOrClimbDown.BlockUntilRelease();
+                }
+                else
+                {
+                    Controls.Static.Primary.BlockUntilRelease(); Controls.Static.Secondary.BlockUntilRelease();
+                    if(OwnsInput) Controls.Static.ThrustRoll.BlockUntilRelease();
+                }
+                if(primary.Pressed || secondary.Pressed || clicked>=0) bestHand.Vibrate(0,.025f,100,.28f);
             }
             catch(Exception ex) { failed=true; primary.Block(); secondary.Block(); selected=null; OwnsInput=Pointing=false; Logger.Warning(ex,"TouchScreenAPI VR adapter disabled; LCD rendering retained"); }
         }
@@ -267,11 +297,12 @@ namespace SpaceEngineersVR.Player
         }
         public static void Draw()
         {
-            if(SpatialUi.OwnsRight || SpatialUi.RayTargeted || CockpitTouch.OwnsRight || HandInteraction.HoldingRight) return;
+            bool left=activeHand==Player.HandL;
+            if(!left && (SpatialUi.OwnsRight || SpatialUi.RayTargeted || CockpitTouch.OwnsRight || HandInteraction.HoldingRight)) return;
             if(!OwnsInput || !InputRouter.Gameplay || Main.MenuOpen) return;
-            var color=new Color(85,235,255).ToVector4();
+            var color=left ? PhysicalSurface.LeftLaser : new Color(85,235,255).ToVector4();
             MySimpleObjectDraw.DrawLine(hitPoint-Vector3D.Up*.004,hitPoint+Vector3D.Up*.004,MyStringId.GetOrCompute("Square"),ref color,.007f);
-            if(Controls.Static.PointerPressure.RawPosition.X>.06 || Controls.Static.Primary.RawPressed)
+            if(left ? Controls.Static.LeftTriggerPressure.RawPosition.X>.06 : Controls.Static.PointerPressure.RawPosition.X>.06 || Controls.Static.Primary.RawPressed)
                 MySimpleObjectDraw.DrawLine(rayOrigin,hitPoint,MyStringId.GetOrCompute("Square"),ref color,.002f);
         }
     }

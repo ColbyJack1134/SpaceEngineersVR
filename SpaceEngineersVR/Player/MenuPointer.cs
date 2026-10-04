@@ -23,6 +23,9 @@ namespace SpaceEngineersVR.Player
         [DllImport("user32.dll")] private static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
         private static bool held, secondaryHeld,shiftHeld,controlHeld;
         private static bool checkTextFocus;
+        private static readonly PointerHand pointer=new PointerHand();
+        private static readonly Control.InputGate leftGrip=new Control.InputGate();
+        internal static Controller Hand => pointer.Hand;
         private static byte pulseKey;
         private static int pulseTicks;
         private static DateTime scrollAfter;
@@ -51,6 +54,12 @@ namespace SpaceEngineersVR.Player
             }
         }
         public static void Release() { ReleaseMouse(); ReleaseKey(); Modifiers(false,false); }
+        private static bool Aimed(Controller hand)
+        {
+            if(!hand.pose.isTracked) return false;
+            var tip=MenuHands.PointerTracking(false,hand);
+            return MenuKeyboard.IsOpen ? FloatingKeyboard.Hits(tip) : Components.VRGUIManager.TryPanelHit(tip,out _);
+        }
         private static void Modifiers(bool shift,bool control)
         {
             if(shift!=shiftHeld) keybd_event(0xA0,0,shift ? 0u:2u,UIntPtr.Zero);
@@ -91,8 +100,11 @@ namespace SpaceEngineersVR.Player
                 if (controls.Interact.HasPressed && !MenuKeyboard.IsOpen) Key(13);
 
             }
-            if (InputRouter.Mode != InputMode.Menu) { Release(); return; }
-            if (!Common.Config.ControllerMenuPointer || !Player.HandR.pose.isTracked || MenuKeyboard.IsOpen || FloatingMenu.OwnsInput)
+            if (InputRouter.Mode != InputMode.Menu) { Release(); pointer.Reset(); leftGrip.Block(); return; }
+            leftGrip.Update(controls.LeftGripPressure.Active,controls.LeftGripPressure.RawPosition.X>.55f);
+            pointer.Update(Aimed(Player.HandR),Aimed(Player.HandL),held || secondaryHeld || FloatingMenu.OwnsInput || FloatingKeyboard.Dragging);
+            var hand=pointer.Hand;
+            if (!Common.Config.ControllerMenuPointer || !hand.pose.isTracked || MenuKeyboard.IsOpen || FloatingMenu.OwnsInput)
             { ReleaseMouse(); Modifiers(false,false); return; }
             IntPtr window=GetForegroundWindow();
             GetWindowThreadProcessId(window,out uint process);
@@ -103,8 +115,13 @@ namespace SpaceEngineersVR.Player
                     mouseUntil=DateTime.UtcNow.AddSeconds(2);
                 lastCursor=current; haveCursor=true;
             }
-            if(!held && DateTime.UtcNow<mouseUntil && !Controls.Static.Primary.HasPressed) { Modifiers(false,false); return; }
-            if (!Components.VRGUIManager.TryPanelHit(MenuHands.PointerTracking(),out Vector2 uv))
+            var trigger=controls.Click(hand);
+            bool click=trigger.Pressed;
+            bool clickHeld=trigger.Held;
+            bool menu=pointer.Left ? leftGrip.Pressed:controls.Secondary.HasPressed;
+            bool menuHeld=pointer.Left ? leftGrip.Held:controls.Secondary.IsPressed;
+            if(!held && DateTime.UtcNow<mouseUntil && !click) { Modifiers(false,false); return; }
+            if (!Components.VRGUIManager.TryPanelHit(MenuHands.PointerTracking(false,hand),out Vector2 uv))
             { ReleaseMouse(); Modifiers(false,false); return; }
             if (!GetClientRect(window,out Rect rect)) { ReleaseMouse(); Modifiers(false,false); return; }
             var point=new Point { X=(int)(uv.X*(rect.Right-rect.Left-1)),Y=(int)(uv.Y*(rect.Bottom-rect.Top-1)) };
@@ -112,11 +129,15 @@ namespace SpaceEngineersVR.Player
             SetCursorPos(point.X,point.Y);
             lastCursor=point;
             // Only a new trigger press over the panel starts a click. Hold supports dragging sliders.
-            Modifiers(Player.HandL.pose.isTracked && controls.LeftGripPressure.Position.X>.55f,Player.HandL.pose.isTracked && controls.LeftTriggerPressure.Position.X>.55f);
-            if (Controls.Static.Primary.HasPressed && !held) { mouse_event(2,0,0,0,UIntPtr.Zero); held=true; }
-            if (!controls.Primary.IsPressed && held) { mouse_event(4,0,0,0,UIntPtr.Zero); held=false; checkTextFocus=true; }
-            if (controls.Secondary.HasPressed && !secondaryHeld) { mouse_event(8,0,0,0,UIntPtr.Zero); secondaryHeld=true; }
-            if (!controls.Secondary.IsPressed && secondaryHeld) { mouse_event(16,0,0,0,UIntPtr.Zero); secondaryHeld=false; }
+            // The other hand's grip and trigger are Shift and Ctrl.
+            var other=pointer.Other;
+            bool otherLeft=other==Player.HandL;
+            Modifiers(other.pose.isTracked && (otherLeft ? controls.LeftGripPressure:controls.RightGripPressure).Position.X>.55f,
+                other.pose.isTracked && (otherLeft ? controls.LeftTriggerPressure:controls.PointerPressure).Position.X>.55f);
+            if (click && !held) { mouse_event(2,0,0,0,UIntPtr.Zero); held=true; }
+            if (!clickHeld && held) { mouse_event(4,0,0,0,UIntPtr.Zero); held=false; checkTextFocus=true; }
+            if (menu && !secondaryHeld) { mouse_event(8,0,0,0,UIntPtr.Zero); secondaryHeld=true; }
+            if (!menuHeld && secondaryHeld) { mouse_event(16,0,0,0,UIntPtr.Zero); secondaryHeld=false; }
             float scroll = controls.MenuNavigate.Position.Y;
             if (System.Math.Abs(scroll) > 0.45f && DateTime.UtcNow >= scrollAfter)
             {

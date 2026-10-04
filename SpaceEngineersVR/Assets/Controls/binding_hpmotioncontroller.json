@@ -51,13 +51,30 @@
                "path" : "/user/hand/right/input/a"
             },
             {
-               "inputs" : {
-                  "click" : {
-                     "output" : "/actions/common/in/primary"
+               "inputs": {
+                  "click": {
+                     "output": "/actions/common/in/primary"
                   }
                },
-               "mode" : "button",
-               "path" : "/user/hand/right/input/trigger"
+               "mode": "button",
+               "path": "/user/hand/right/input/trigger",
+               "parameters": {
+                  "click_activate_threshold": "0.25",
+                  "click_deactivate_threshold": "0.20"
+               }
+            },
+            {
+               "inputs": {
+                  "click": {
+                     "output": "/actions/common/in/LeftClick"
+                  }
+               },
+               "mode": "button",
+               "path": "/user/hand/left/input/trigger",
+               "parameters": {
+                  "click_activate_threshold": "0.25",
+                  "click_deactivate_threshold": "0.20"
+               }
             },
             {
                "inputs" : {

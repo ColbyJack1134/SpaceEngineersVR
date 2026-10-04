@@ -10,110 +10,140 @@ namespace SpaceEngineersVR.Player
     internal static class FloatingKeyboard
     {
         private static readonly KeyboardWindow window=new KeyboardWindow();
-        private static readonly KeyboardContact touch=new KeyboardContact();
-        private static readonly InteractionPress handlePress=new InteractionPress();
-        private static readonly CockpitTouch.SurfaceHold contact=new CockpitTouch.SurfaceHold();
+        private sealed class HandState
+        {
+            public readonly KeyboardContact Touch=new KeyboardContact();
+            public readonly KeyboardRepeat Repeat=new KeyboardRepeat();
+            public readonly InteractionPress HandlePress=new InteractionPress();
+            public readonly CockpitTouch.SurfaceHold Contact=new CockpitTouch.SurfaceHold();
+            public bool DirectHeld;
+            public int Hover=-1,Pressed=-1;
+            public void Reset() { Touch.Reset(); Repeat.Reset(); Contact.Input.Reset(); HandlePress.Block(); DirectHeld=false; Hover=Pressed=-1; }
+        }
+        private static readonly HandState[] hands={ new HandState(),new HandState() };
         private static volatile SurfaceView current;
-        private static bool placed,failed,directDrag,directHeld;
+        private static bool placed,directDrag;
+        private static int dragHand;
+        private static readonly RenderRecovery recovery=new RenderRecovery("Floating keyboard");
+        private static bool failed => recovery.Failed;
         private static int hover=-1,pressed=-1;
         private static DateTime feedbackUntil;
         public static bool Available => !failed && MenuHands.Available;
-        public static void Show(bool reposition)
+        internal static bool Dragging => window.Drag!=0;
+        private static Controller Hand(int index) => index==0 ? Player.HandR:Player.HandL;
+        public static void Show(bool reposition,Vector3? screen=null)
         {
             var head=Player.Headset.pose.deviceToAbsolute.matrix;
-            if(reposition || !placed || Vector3.Distance(head.Translation,window.Pose.Translation)>1.5f) window.Place(head);
+            if(reposition || !placed || !window.Reachable(head,screen)) window.Place(head,screen);
             placed=true; ReleaseInput(); Publish();
         }
-        public static void ReleaseInput() { touch.Reset(); contact.Input.Reset(); handlePress.Block(); directHeld=false; window.Stop(); hover=pressed=-1; }
+        public static void ReleaseInput() { foreach(var state in hands) state.Reset(); window.Stop(); hover=pressed=-1; }
         public static void Close() { ReleaseInput(); current=null; }
+        internal static bool Hits(Matrix aim)
+        {
+            if(!window.Pointer(aim,out var point)) return false;
+            var uv=window.UV(point);
+            return uv.X>=0 && uv.X<=1 && uv.Y>=0 && uv.Y<=1;
+        }
+        private static Matrix Aim(Controller hand)
+        {
+            if(Main.WorldAvailable && !ThirdPersonView.Active && TrackedArms.TryFreePointPose(hand,out var nativePoint))
+                return (Matrix)(nativePoint*MatrixD.Invert(SpatialUi.DeviceWorld(Matrix.Identity)));
+            return MenuHands.PointerTracking(false,hand);
+        }
         public static void Update()
         {
             if(!MenuKeyboard.IsOpen) { Close(); return; }
             if(!Available) { MenuKeyboard.Close(); return; }
-            if(InputRouter.Mode!=InputMode.Menu || !MenuPointer.GameFocused || !Player.Headset.pose.isTracked || !Player.HandR.pose.isTracked)
+            if(InputRouter.Mode!=InputMode.Menu || !MenuPointer.GameFocused || !Player.Headset.pose.isTracked)
             { ReleaseInput(); current=null; return; }
-            var c=Controls.Static; Matrix aim=MenuHands.PointerTracking();
-            Vector3 tip=aim.Translation;
-            if(Main.WorldAvailable && !ThirdPersonView.Active && TrackedArms.TryFreePointPose(Player.HandR,out var nativePoint))
-            {
-                aim=(Matrix)(nativePoint*MatrixD.Invert(SpatialUi.DeviceWorld(Matrix.Identity)));
-                tip=aim.Translation;
-            }
             if(window.Drag!=0)
             {
-                touch.Reset(); contact.Input.Reset();
-                var dragInput=handlePress.Read(Player.HandR,directDrag);
-                if(!dragInput.Down) window.Stop();
+                var hand=Hand(dragHand); var state=hands[dragHand];
+                foreach(var other in hands) { other.Touch.Reset(); other.Repeat.Reset(); other.Contact.Input.Reset(); }
+                var dragInput=state.HandlePress.Read(hand,directDrag);
+                if(!hand.pose.isTracked || !dragInput.Down) window.Stop();
                 else
                 {
-                    Vector3 point=window.Local(tip,true);
+                    var aim=Aim(hand);
+                    Vector3 point=window.Local(aim.Translation,true);
                     if(directDrag || window.Drag==1 || window.Pointer(aim,out point,true)) window.Move(aim,point);
                     dragInput.Consume();
                 }
                 Publish(); return;
             }
-            int previousHover=hover;
-            hover=pressed=-1;
+            for(int i=0;i<2 && window.Drag==0;i++) UpdateHand(i);
+            hover=hands[0].Hover; pressed=hands[0].Pressed;
+            if(MenuKeyboard.IsOpen) Publish();
+        }
+        private static void UpdateHand(int index)
+        {
+            var hand=Hand(index); var state=hands[index];
+            int previousHover=state.Hover;
+            state.Hover=state.Pressed=-1;
+            if(!hand.pose.isTracked) { state.Reset(); return; }
+            Matrix aim=Aim(hand);
+            Vector3 tip=aim.Translation;
             var local=window.Local(tip);
             Vector2 uv=window.UV(local);
             bool near=local.Z>=-.018f && local.Z<.07f && uv.X>=0 && uv.X<=1 && uv.Y>=0 && uv.Y<=1;
-            bool ray=window.Pointer(aim,out var rayPoint);
+            Vector3 rayPoint=Vector3.Zero;
+            bool ray=window.Pointer(aim,out rayPoint);
             Vector2 rayUv=window.UV(rayPoint);
             int handle=near ? KeyboardWindow.Handle(uv) : ray ? KeyboardWindow.Handle(rayUv) : 0;
-            var handleInput=handlePress.Read(Player.HandR,near);
-            bool handlePressed=handlePress.Update(true,handleInput);
+            var handleInput=state.HandlePress.Read(hand,near);
+            bool handlePressed=state.HandlePress.Update(true,handleInput);
             if(handle!=0 && handlePressed)
             {
-                directDrag=near; window.Begin(handle,aim,near ? local : rayPoint);
-                touch.Reset(); contact.Input.Reset(); handleInput.Consume(); CockpitFeedback.Engage(Player.HandR);
+                dragHand=index; directDrag=near; window.Begin(handle,aim,near ? local : rayPoint);
+                foreach(var other in hands) { other.Touch.Reset(); other.Repeat.Reset(); other.Contact.Input.Reset(); }
+                handleInput.Consume(); CockpitFeedback.Engage(hand);
+                return;
             }
-            else
+            var s=MakeView();
+            int key=s.KeyAt(uv);
+            if(near) state.Hover=key;
+            if(ray && state.Hover<0) state.Hover=s.KeyAt(rayUv);
+            MatrixD parent=Main.WorldAvailable && !ThirdPersonView.Active ? SpatialUi.DeviceWorld(window.Pose):(MatrixD)window.Pose;
+            MatrixD wrist=Main.WorldAvailable && !ThirdPersonView.Active ? TrackedArms.FreeWristWorld(hand) : Alignment.Apply(Alignment.HandKey(hand),CockpitHandPose.GripWrist(hand.GripTracking));
+            var localWrist=(Matrix)(wrist*MatrixD.Invert(parent));
+            var input=state.Contact.Input;
+            if(!input.Consumed) state.DirectHeld=near && key>=0;
+            var action=InteractionInput.Read(hand,state.DirectHeld);
+            input.Sample(true,action,state.Hover>=0 ? s.Id:null,state.Hover,
+                reachable:input.Surface==null || !state.DirectHeld || state.Contact.Reachable(localWrist.Translation),guarded:state.Hover>=0,softCapture:false);
+            if(input.Captured)
             {
-                var s=MakeView();
-                int key=s.KeyAt(uv);
-                int clicked=-1;
-                if(near) hover=key;
-                if(ray && hover<0) hover=s.KeyAt(rayUv);
-                MatrixD parent=Main.WorldAvailable && !ThirdPersonView.Active ? SpatialUi.DeviceWorld(window.Pose):(MatrixD)window.Pose;
-                MatrixD wrist=Main.WorldAvailable && !ThirdPersonView.Active ? TrackedArms.FreeWristWorld(Player.HandR) : Alignment.Apply(Alignment.HandKey(Player.HandR),CockpitHandPose.GripWrist(Player.HandR.GripTracking));
-                var localWrist=(Matrix)(wrist*MatrixD.Invert(parent));
-                var input=contact.Input;
-                if(!input.Consumed) directHeld=near && key>=0;
-                var action=InteractionInput.Read(Player.HandR,directHeld);
-                input.Sample(true,action,hover>=0 ? s.Id:null,hover,
-                    reachable:input.Surface==null || !directHeld || contact.Reachable(localWrist.Translation),guarded:hover>=0,softCapture:false);
-                if(input.Captured)
-                {
-                    directHeld=near && key>=0;
-                    var bounds=s.Keys[input.Held].Bounds;
-                    contact.Capture(localWrist,new Vector3((bounds.Center.X-.5f)*s.Width,(.5f-bounds.Center.Y)*s.Height,.001f));
-                }
-                clicked=touch.Update(local,near ? key:-1,input.Pressed ? input.Held:-1,action.Down || input.Consumed);
-                pressed=input.Committed ? input.Held:touch.Held;
-                if(input.Surface!=null) hover=input.Held;
-                if(clicked>=0)
-                {
-                    action.Consume();
-                    CockpitFeedback.Click(Player.HandR,amplitude:.45f,duration:.035f);
-                    feedbackUntil=DateTime.UtcNow.AddMilliseconds(60);
-                    MenuKeyboard.Activate(clicked);
-                }
-                else if(hover>=0 && hover!=previousHover && DateTime.UtcNow>=feedbackUntil) CockpitFeedback.Hover(Player.HandR);
-                if(input.Consumed) action.Consume();
+                state.DirectHeld=near && key>=0;
+                var bounds=s.Keys[input.Held].Bounds;
+                state.Contact.Capture(localWrist,new Vector3((bounds.Center.X-.5f)*s.Width,(.5f-bounds.Center.Y)*s.Height,.001f));
             }
-            if(MenuKeyboard.IsOpen) Publish();
+            int clicked=state.Touch.Update(local,near ? key:-1,input.Pressed ? input.Held:-1,action.Down || input.Consumed);
+            state.Pressed=input.Committed ? input.Held:state.Touch.Held;
+            if(input.Surface!=null) state.Hover=input.Held;
+            clicked=state.Repeat.Update(clicked,MenuKeyboard.Repeatable(state.Pressed) ? state.Pressed:-1,DateTime.UtcNow);
+            if(clicked>=0)
+            {
+                action.Consume();
+                CockpitFeedback.Click(hand,amplitude:.45f,duration:.035f);
+                feedbackUntil=DateTime.UtcNow.AddMilliseconds(60);
+                MenuKeyboard.Activate(clicked);
+            }
+            else if(state.Hover>=0 && state.Hover!=previousHover && DateTime.UtcNow>=feedbackUntil) CockpitFeedback.Hover(hand);
+            if(input.Consumed) action.Consume();
         }
         private static SurfaceView MakeView() => new SurfaceView {
             Id="Keyboard",Style=SurfaceStyle.Keyboard,Pose=window.Pose,Width=window.Width,Height=window.Height,
             TrackingSpace=true,Text=MenuKeyboard.Preview,Keys=MenuKeyboard.Keys,
-            Hover=hover>=0 ? hover : MenuKeyboard.Selected,Pressed=pressed,Handle=window.Drag };
+            Hover=hover>=0 || hands[1].Hover>=0 ? hover : MenuKeyboard.Selected,Pressed=pressed,HoverAlt=hands[1].Hover,PressedAlt=hands[1].Pressed,Handle=window.Drag };
         private static void Publish() { current=MakeView(); }
-        internal static bool TryAttachment(out MatrixD pose,out Vector3D point,out float blend,bool tracking=false)
+        internal static bool TryAttachment(Controller hand,out MatrixD pose,out Vector3D point,out float blend,bool tracking=false)
         {
             pose=MatrixD.Identity; point=Vector3D.Zero; blend=0;
-            if(!MenuKeyboard.IsOpen || !directHeld) return false;
+            var state=hands[hand==Player.HandL ? 1:0];
+            if(!MenuKeyboard.IsOpen || !state.DirectHeld) return false;
             bool world=Main.WorldAvailable && !ThirdPersonView.Active;
-            if(!contact.Attachment(world ? SpatialUi.DeviceWorld(window.Pose):(MatrixD)window.Pose,out pose,out point,out blend)) return false;
+            if(!state.Contact.Attachment(world ? SpatialUi.DeviceWorld(window.Pose):(MatrixD)window.Pose,out pose,out point,out blend)) return false;
             if(world && tracking)
             {
                 var inverse=MatrixD.Invert(SpatialUi.DeviceWorld(Matrix.Identity));
@@ -133,7 +163,7 @@ namespace SpaceEngineersVR.Player
         public static void Draw(Texture2D target,EVREye eye)
         {
             var s=current;
-            if(failed || !MenuKeyboard.IsOpen || s==null || !Player.HandR.renderPose.isTracked) return;
+            if(failed || !MenuKeyboard.IsOpen || s==null) return;
             try
             {
                 Matrix view=Matrix.Invert(OpenVR.System.GetEyeToHeadTransform(eye).ToMatrix()*Player.Headset.renderPose.deviceToAbsolute.matrix);
@@ -141,7 +171,27 @@ namespace SpaceEngineersVR.Player
                 // Match the menu controllers' projection/depth, independent of cockpit walls.
                 PhysicalSurface.Draw(target,new[] { s },view,VrMath.Projection(l,r,t,b,.03),MenuHands.Depth,ThirdPersonView.Active ? null:NativeHandLayer.Depth);
             }
-            catch(Exception ex) { failed=true; current=null; Logger.Warning(ex,"Floating keyboard renderer disabled"); }
+            catch(Exception ex) { current=null; recovery.Fail(ex,"Floating keyboard renderer disabled"); }
+        }
+    }
+
+    internal sealed class KeyboardRepeat
+    {
+        private int key=-1;
+        private DateTime next;
+        public void Reset() { key=-1; next=DateTime.MinValue; }
+        public int Update(int clicked,int held,DateTime now)
+        {
+            if(clicked>=0)
+            {
+                key=clicked==held ? held:-1;
+                next=now.AddSeconds(1);
+                return clicked;
+            }
+            if(held!=key) Reset();
+            if(key<0 || now<next) return -1;
+            next=now.AddMilliseconds(100);
+            return key;
         }
     }
 

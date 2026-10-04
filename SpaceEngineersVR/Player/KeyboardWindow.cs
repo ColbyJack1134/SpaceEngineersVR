@@ -15,10 +15,24 @@ namespace SpaceEngineersVR.Player
         private Matrix startPose,relative;
         private Vector3 startPoint;
         private float startWidth;
-        public void Place(Matrix head)
+        public void Place(Matrix head,Vector3? screen=null)
         {
             Stop();
-            Pose=Matrix.CreateRotationX(-.4f)*Matrix.CreateTranslation(0,-.36f,-.55f)*VrMath.TrackingOrigin(head);
+            Pose=Matrix.CreateRotationX(-.4f)*Matrix.CreateTranslation(0,-.36f,-.55f)*VrMath.TrackingOrigin(Facing(head,screen));
+        }
+        public bool Reachable(Matrix head,Vector3? screen=null)
+        {
+            var origin=VrMath.TrackingOrigin(Facing(head,screen));
+            var local=Vector3.Transform(Pose.Translation,Matrix.Invert(origin));
+            return local.IsValid() && local.Length()<=1.2f && local.Z<-.15f && Math.Abs(local.X)<=-local.Z*.7f;
+        }
+        private static Matrix Facing(Matrix head,Vector3? screen)
+        {
+            if(!screen.HasValue) return head;
+            var forward=screen.Value-head.Translation; forward.Y=0;
+            if(!forward.IsValid() || forward.LengthSquared()<.01f) return head;
+            head.Forward=Vector3.Normalize(forward);
+            return head;
         }
         public static int Handle(Vector2 uv)
         {

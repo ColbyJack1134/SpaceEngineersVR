@@ -46,6 +46,8 @@ namespace SpaceEngineersVR.Player
                 yield return new ActionChoice("VR: "+title,()=>Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(GUI.MyPluginConfigDialog.CreatePage(title)),true,searchTerms:"settings options controls");
             }
             if(MySession.Static==null) yield break;
+            // Native suicide asks for confirmation and honors campaign respawn rules.
+            yield return new ActionChoice("Respawn",()=>NativeActions.Pulse(Sandbox.Game.MyControlsSpace.SUICIDE),searchTerms:"suicide kill die stuck");
             if(native==null) native=NativeEntries();
             foreach(var action in native) yield return action;
             var ids=new HashSet<MyStringId>();

@@ -39,7 +39,8 @@ namespace SpaceEngineersVR.Player
         private static CockpitGeometry geometry,fighterGeometry;
         private static CockpitRig activeRig;
         private static MyCockpit owner;
-        private static bool failed;
+        private static readonly RenderRecovery recovery=new RenderRecovery("Cockpit controls");
+        private static bool failed => recovery.Failed;
         private static Vector3? appliedColor;
         private static DateTime deadline;
         public static bool Ready => verification!=null && verification.NativeHidden && Volatile.Read(ref verification.ReadyCount)==verification.Verified.Length && verification.Error==null;
@@ -58,7 +59,7 @@ namespace SpaceEngineersVR.Player
                 foreach(string material in previous.Materials)
                     MyRenderProxy.UpdateModelProperties(previous.Interior,material,RenderFlags.Visible,RenderFlags.Visible|Hidden,null,null);
             }
-            owner=null; activeRig=null; failed=false; appliedColor=null; feedback.Clear();
+            owner=null; activeRig=null; recovery.Clear(); appliedColor=null; feedback.Clear();
         }
         public static void Update(MyCockpit cockpit,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3))
         {
@@ -173,8 +174,8 @@ namespace SpaceEngineersVR.Player
             }
             catch(Exception ex)
             {
-                var previousOwner=owner; Reset(); owner=previousOwner; failed=true;
-                Logger.Warning(ex,"COCKPIT CONTROLS disabled; native interior and button flight restored");
+                var previousOwner=owner; Reset(); owner=previousOwner;
+                recovery.Fail(ex,"COCKPIT CONTROLS disabled; native interior and button flight restored");
             }
         }
         private static void UpdateRigStick(Verification check,CockpitRig.Stick stick,Matrix visual,Vector3 offset,bool held,MatrixD world)

@@ -34,6 +34,8 @@ namespace SpaceEngineersVR.Player
             return bone?.GetAbsoluteRigTransform().Translation.Y ?? 1.69f;
         }
         public static float DesiredEye(MyCharacter character) => EyeReference(character)*ScaleFor(character);
+        public static float CrouchDepth(MyCharacter character) =>
+            Math.Max(0,character.Definition.CharacterCollisionHeight-character.Definition.CharacterCollisionCrouchHeight)*ScaleFor(character);
         public static float StandingReference()
         {
             var config=Common.Config;

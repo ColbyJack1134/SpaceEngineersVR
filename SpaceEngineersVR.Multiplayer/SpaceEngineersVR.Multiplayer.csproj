@@ -26,5 +26,6 @@
     <Compile Include="../SpaceEngineersVR/Player/ArmSkeleton.cs" Link="Shared/ArmSkeleton.cs" />
     <Compile Include="../SpaceEngineersVR/Player/ArmMath.cs" Link="Shared/ArmMath.cs" />
     <Compile Include="../SpaceEngineersVR/Player/CockpitHandPose.cs" Link="Shared/CockpitHandPose.cs" />
+    <Compile Include="../SpaceEngineersVR/Player/WeaponPose.cs" Link="Shared/WeaponPose.cs" />
   </ItemGroup>
 </Project>

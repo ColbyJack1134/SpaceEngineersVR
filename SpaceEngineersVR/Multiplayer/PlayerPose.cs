@@ -7,11 +7,12 @@ namespace SpaceEngineersVR.Multiplayer
 {
     internal sealed class PlayerPose
     {
-        internal const int Size=85;
+        // Version 1 packets (85 bytes) carry hands only; the head pose is appended.
+        internal const int LegacySize=85,Size=113,HeadTracked=4;
         internal long Character,Seat;
         internal uint Sequence;
         internal byte Tracked;
-        internal Matrix Left,Right;
+        internal Matrix Left,Right,Head=Matrix.Identity;
         internal ArmSkeleton.Fingers LeftFingers,RightFingers;
         internal float LeftTrigger,RightTrigger;
 
@@ -24,19 +25,22 @@ namespace SpaceEngineersVR.Multiplayer
                 Write(writer,Left); Write(writer,Right);
                 writer.Write((byte)LeftFingers); writer.Write((byte)RightFingers);
                 writer.Write((byte)(MathHelper.Clamp(LeftTrigger,0,1)*255)); writer.Write((byte)(MathHelper.Clamp(RightTrigger,0,1)*255));
+                Write(writer,Head);
                 return stream.ToArray();
             }
         }
         internal static PlayerPose Decode(byte[] data)
         {
-            if(data==null || data.Length!=Size) return null;
+            if(data==null || data.Length!=Size && data.Length!=LegacySize) return null;
             using(var reader=new BinaryReader(new MemoryStream(data,false)))
             {
                 if(reader.ReadInt32()!=0x31525653) return null;
                 var value=new PlayerPose {Character=reader.ReadInt64(),Seat=reader.ReadInt64(),Sequence=reader.ReadUInt32(),Tracked=reader.ReadByte()};
-                if(value.Character==0 || value.Tracked>3 || !Read(reader,out value.Left) || !Read(reader,out value.Right)) return null;
+                if(value.Character==0 || value.Tracked>7 || !Read(reader,out value.Left) || !Read(reader,out value.Right)) return null;
                 value.LeftFingers=(ArmSkeleton.Fingers)reader.ReadByte(); value.RightFingers=(ArmSkeleton.Fingers)reader.ReadByte();
                 value.LeftTrigger=reader.ReadByte()/255f; value.RightTrigger=reader.ReadByte()/255f;
+                if(data.Length==LegacySize) value.Tracked&=3;
+                else if(!Read(reader,out value.Head)) return null;
                 return value.LeftFingers>ArmSkeleton.Fingers.Stick || value.RightFingers>ArmSkeleton.Fingers.Stick ? null:value;
             }
         }
@@ -77,6 +81,11 @@ namespace SpaceEngineersVR.Multiplayer
             pose=current;
             if(pose==null || now-received>.5 || now<received) return false;
             return true;
+        }
+        internal Matrix Head(double now)
+        {
+            if((previous.Tracked&PlayerPose.HeadTracked)==0) return current.Head;
+            return PlayerPose.Blend(previous.Head,current.Head,(float)MathHelper.Clamp((now-received)/interval,0,1));
         }
         internal Matrix Hand(bool left,double now)
         {

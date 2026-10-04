@@ -28,6 +28,7 @@ namespace SpaceEngineersVR.Player.Control
         public double PanSensitivity=1,ZoomSensitivity=1,RotationSensitivity=1,PanGlide=1,ZoomGlide=1,RotationGlide=1;
         public int Hands { get; private set; }
         public bool Held => Hands!=0;
+        public volatile string CancelReason;
         public bool Coasting => coastPan.LengthSquared()>0 || coastZoom!=0 || coastRotation.LengthSquared()>0;
         private bool SplitRelease => splitZoomVelocity!=0 || splitRotationVelocity.LengthSquared()>0;
         public double LastTranslation { get; private set; }
@@ -71,7 +72,7 @@ namespace SpaceEngineersVR.Player.Control
         }
         public bool Input(bool available,float leftPressure,float rightPressure,bool flightActive=false)
         {
-            if(!available || float.IsNaN(leftPressure) || float.IsNaN(rightPressure)) { Cancel(); return false; }
+            if(!available || float.IsNaN(leftPressure) || float.IsNaN(rightPressure)) { if(Held) CancelReason="input unavailable"; Cancel(); return false; }
             int next=(leftPressure>.025f ? 1:0)|(rightPressure>.025f ? 2:0);
             if(next==0)
             {
@@ -91,12 +92,12 @@ namespace SpaceEngineersVR.Player.Control
         {
             LastTranslation=LastRotation=0;
             if(!Held && !releasePending && !Coasting) return false;
-            if(!newLeft.Translation.IsValid() || !newRight.Translation.IsValid()) { Cancel(); return false; }
-            if(double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds<0) { Cancel(); return false; }
+            if(!newLeft.Translation.IsValid() || !newRight.Translation.IsValid()) { CancelReason="invalid hand pose"; Cancel(); return false; }
+            if(double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds<0) { CancelReason="invalid frame time"; Cancel(); return false; }
             int trackedHands=SplitRelease ? 3 : sampledHands;
             if(trackedHands!=0 &&
                 (((trackedHands&1)!=0 && Discontinuous(rawLeft,newLeft)) || ((trackedHands&2)!=0 && Discontinuous(rawRight,newRight))))
-            { Cancel(); return false; }
+            { CancelReason="hand tracking jump"; Cancel(); return false; }
             if(seconds>.1) { Brake(); poseReady=false; panVelocity=rotationVelocity=Vector3D.Zero; zoomVelocity=0; }
             if(!Held)
             {

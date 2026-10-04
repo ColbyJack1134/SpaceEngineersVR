@@ -116,6 +116,11 @@
       "type": "boolean"
     },
     {
+      "name": "/actions/common/in/LeftClick",
+      "requirement": "suggested",
+      "type": "boolean"
+    },
+    {
       "name": "/actions/common/in/Secondary",
       "requirement": "suggested",
       "type": "boolean"
@@ -409,7 +414,7 @@
       "/actions/walking/in/WalkBackward": "Backward",
       "/actions/walking/in/WalkRotate": "Rotate",
       "/actions/walking/in/JumpOrClimbUp": "Jump or climb up",
-      "/actions/walking/in/CrouchOrClimbDown": "Crouch or climb down",
+      "/actions/walking/in/CrouchOrClimbDown": "Sprint",
       "/actions/flying": "Flying",
       "/actions/flying/in/ThrustLRUD": "Left/right up/down",
       "/actions/flying/in/ThrustLRFB": "Left/right forward/backward",
@@ -422,6 +427,7 @@
       "/actions/flying/in/Dampener": "Dampener",
       "/actions/common": "Common",
       "/actions/common/in/Primary": "Use primary",
+      "/actions/common/in/LeftClick": "Left trigger click",
       "/actions/common/in/Secondary": "Use secondary",
       "/actions/common/in/Reload": "Reload",
       "/actions/common/in/Unequip": "Tap unequip / hold wheel / menu Back",

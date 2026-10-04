@@ -49,6 +49,8 @@ namespace SpaceEngineersVR.Player
 
         // Tool
         public readonly Button Primary;
+        public readonly Button LeftClick;
+        internal TriggerClick Click(Controller hand) => hand==Player.HandR ? new TriggerClick(Primary,PointerPressure):new TriggerClick(LeftClick,LeftTriggerPressure);
         public readonly Analog PointerPressure;
         public readonly Analog LeftTriggerPressure;
         public readonly Analog LeftGripPressure,RightGripPressure;
@@ -137,6 +139,7 @@ namespace SpaceEngineersVR.Player
             Dampener = new Button("/actions/flying/in/Dampener");
             FlightJump = new Button("/actions/flying/in/SeatTerminal");
             Primary = new Button("/actions/common/in/Primary");
+            LeftClick = new Button("/actions/common/in/LeftClick");
             PointerPressure = new Analog("/actions/common/in/PointerPressure",.55f);
             LeftTriggerPressure = new Analog("/actions/common/in/LeftTriggerPressure",.55f);
             LeftGripPressure = new Analog("/actions/common/in/LeftGripPressure",InteractionInput.GripThreshold);

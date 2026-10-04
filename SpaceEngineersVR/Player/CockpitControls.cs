@@ -33,7 +33,9 @@ namespace SpaceEngineersVR.Player
         private static bool SingleLeft => Rig!=null && Rig.Right==null;
         internal static bool OwnsRightThumb => seat!=null && !Adjusting && (right.Held || SingleLeft && left.Held);
         public static bool Held(Controller hand) => hand==Player.HandL ? left.Held : right.Held;
-        internal static bool NearGrip(Controller hand) => seat!=null && Eligible(seat) && CockpitRender.Ready && hand.pose.isTracked && GripDistance(hand)<FighterProfile.CaptureRadius;
+        private static bool Available => !ThirdPersonView.Active && seat!=null && Eligible(seat) && CockpitRender.Ready && (InputRouter.Mode==InputMode.Piloting || InputRouter.Mode==InputMode.Turret) && !RemoteView.OwnsInput && !Main.MenuOpen && !TouchScreenBridge.OwnsInput &&
+                Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;
+        internal static bool NearGrip(Controller hand) => Available && GripDistance(hand)<FighterProfile.CaptureRadius;
         private static float GripDistance(Controller hand)
         {
             bool isLeft=hand==Player.HandL;
@@ -160,8 +162,7 @@ namespace SpaceEngineersVR.Player
             }
             if (origin!=Player.PlayerToAbsolute.matrix || fit!=SeatFit.Offset) { Release(); origin=Player.PlayerToAbsolute.matrix; fit=SeatFit.Offset; }
             RefreshVisuals();
-            bool available=!ThirdPersonView.Manipulating && CockpitRender.Ready && (InputRouter.Mode==InputMode.Piloting || InputRouter.Mode==InputMode.Turret) && !RemoteView.OwnsInput && !Main.MenuOpen && !TouchScreenBridge.OwnsInput &&
-                Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;
+            bool available=Available;
             if (!available && Adjusting) Release();
             var c=Controls.Static;
             bool leftDown=left.AnalogDown(c.ThrustDown.Position.X,c.ThrustDown.RawPosition.X);

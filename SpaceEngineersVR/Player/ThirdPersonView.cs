@@ -19,7 +19,6 @@ namespace SpaceEngineersVR.Player
         private static readonly Diorama view=new Diorama();
         private static readonly GripDescent descent=new GripDescent();
         internal static bool DescentReady => !Active || descent.Ready && !consumed;
-        internal static bool CrouchPressed { get; private set; }
         private static readonly ObserverFollow follow=new ObserverFollow();
         private static readonly object sync=new object();
         private static MyEntity subject;
@@ -57,7 +56,6 @@ namespace SpaceEngineersVR.Player
         }
         public static void Toggle()
         {
-            CrouchPressed=false;
             var candidate=Candidate;
             if(candidate==null) { EssentialHud.Notify("Third person is unavailable here"); return; }
             Fade(()=> {
@@ -129,7 +127,6 @@ namespace SpaceEngineersVR.Player
         }
         public static void Update()
         {
-            CrouchPressed=false;
             var candidate=Candidate;
             if(subject!=null && candidate!=subject) Reset();
             if(transition!=null && DateTime.UtcNow>=changeAt)
@@ -163,8 +160,11 @@ namespace SpaceEngineersVR.Player
                 bool flight=c.Primary.IsPressed || c.Secondary.IsPressed || c.ThrustRoll.IsPressed ||
                     c.ThrustLRFB.Position!=Vector2.Zero || c.ThrustLRUD.Position!=Vector2.Zero || c.ThrustRotate.Position!=Vector2.Zero ||
                     c.ThrustUp.Position.X!=0 || c.ThrustDown.Position.X!=0 || c.ThrustForward.Position.X!=0 || c.ThrustBackward.Position.X!=0;
+                bool wasHeld=heldLast;
                 started=view.Input(allowed,left,right,flight);
                 if(view.Held) consumed=true;
+                else if(wasHeld && left>.55f && right>.55f) LogInterruption();
+                heldLast=view.Held;
             }
             if(consumed && !previouslyConsumed) NativeActions.Reset();
             if(started)
@@ -180,8 +180,20 @@ namespace SpaceEngineersVR.Player
                 c.ThrustLRUD.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease();
                 c.ThrustForward.BlockUntilRelease(); c.ThrustBackward.BlockUntilRelease();
             }
-            CrouchPressed=descent.TakePress(!consumed && !WeaponHandling.ConsumesLeftGrip && c.CrouchOrClimbDown.IsPressed);
             Publish();
+        }
+        private static DateTime nextInterruptionLog;
+        private static bool heldLast;
+        private static void LogInterruption()
+        {
+            if(DateTime.UtcNow<nextInterruptionLog) return;
+            nextInterruptionLog=DateTime.UtcNow.AddSeconds(1);
+            Logger.Info("THIRD PERSON view hold dropped: reason="+(view.CancelReason ?? "none")+"; gameplay="+InputRouter.Gameplay+"; menu="+Main.MenuOpen+
+                "; viewGesture="+HelmetHud.ViewGestureHeld+"; transition="+(transition!=null)+"; cockpitTouchR="+CockpitTouch.OwnsRight+"; cockpitTouchL="+CockpitTouch.Owns(Player.HandL)+
+                "; wrist="+SpatialUi.OwnsRight+"; feed="+RemoteView.OwnsInput+"; sticksHeld="+(CockpitControls.Held(Player.HandL) || CockpitControls.Held(Player.HandR))+
+                "; sticksNear="+(CockpitControls.NearGrip(Player.HandL) || CockpitControls.NearGrip(Player.HandR))+"; tracked="+(Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked)+
+                "; focused="+MenuPointer.GameFocused);
+            view.CancelReason=null;
         }
         public static void Publish()
         {

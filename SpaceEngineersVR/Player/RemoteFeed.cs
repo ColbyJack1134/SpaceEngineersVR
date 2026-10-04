@@ -97,7 +97,7 @@ namespace SpaceEngineersVR.Player
             {
                 var delta=remote.RayEnd.Value-remote.RayStart.Value;
                 if(delta.LengthSquared()>.0001)
-                    PhysicalSurface.Draw(target,new[] {new SurfaceView {Id="CameraRay",Style=SurfaceStyle.Pointer,Width=.002f,Height=(float)delta.Length(),
+                    PhysicalSurface.Draw(target,new[] {new SurfaceView {Id="CameraRay",Style=SurfaceStyle.Pointer,Width=.002f,Height=(float)delta.Length(),LeftHand=remote.LeftHand,
                         Pose=MatrixD.CreateWorld((remote.RayStart.Value+remote.RayEnd.Value)*.5,Vector3D.Normalize(delta),remote.Pose.Up)}},view,projection,null);
             }
         }
