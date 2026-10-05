@@ -33,6 +33,7 @@ namespace SpaceEngineersVR.Diagnostics
         private readonly object previousComponent;
         private readonly MyGuiControlToolbar toolbar;
         private readonly CockpitAssignment assignment;
+        private readonly MyGuiScreenToolbarConfigBase owner;
         private readonly bool ordinary;
         private static int Count => Player.CockpitLayout.Count(Player.FighterProfile.Subtype);
         public override string GetFriendlyName() => "SEVR assignment preview";
@@ -54,7 +55,7 @@ namespace SpaceEngineersVR.Diagnostics
             MyToolbarComponent.CurrentToolbar=target;
             toolbar=new PreviewToolbar(style) { Position=new Vector2(.33f,.20f),OriginAlign=MyGuiDrawAlignEnum.HORISONTAL_RIGHT_AND_VERTICAL_BOTTOM };
             Controls.Add(toolbar);
-            var owner=(MyGuiScreenToolbarConfigBase)FormatterServices.GetUninitializedObject(typeof(MyGuiScreenToolbarConfigBase));
+            owner=(MyGuiScreenToolbarConfigBase)FormatterServices.GetUninitializedObject(typeof(MyGuiScreenToolbarConfigBase));
             Set(owner,"m_position",new Vector2(.5f));
             Set(owner,"m_controls",Controls); Set(owner,"m_toolbarControl",toolbar);
             var drag=new MyGuiControlGridDragAndDrop(MyGuiConstants.DRAG_AND_DROP_BACKGROUND_COLOR,MyGuiConstants.DRAG_AND_DROP_TEXT_COLOR,.7f,MyGuiConstants.DRAG_AND_DROP_TEXT_OFFSET,true);
@@ -73,6 +74,7 @@ namespace SpaceEngineersVR.Diagnostics
         }
         internal void VerifyAndPage()
         {
+            VerifyDoubleClick();
             if(ordinary)
             {
                 if(target.CurrentPage!=1 || toolbar.ToolbarGrid.SelectedIndex!=1 || target.SelectedSlot.HasValue || target.GetItemAtIndex(10)!=null)
@@ -115,6 +117,32 @@ namespace SpaceEngineersVR.Diagnostics
             if(target.CurrentPage!=0) throw new Exception("Switch page wrap failed");
             ((MyGuiControlButton)Controls.GetControlByName("SwitchPreviousPage")).PressButton(); FillArtwork();
             Plugin.Logger.Info("PASS native assignment UI: square buttons, independent page changes, all switch pages, wrap and disabled unused slots.");
+        }
+        private void VerifyDoubleClick()
+        {
+            int page=target.CurrentPage,requests=0;
+            var grid=new MyGuiControlGrid {ColumnsCount=1,RowsCount=1};
+            var item=new MyGuiGridItem((string[])null,null,"Assignment",new MyGuiScreenToolbarConfigBase.GridItemUserData {
+                ItemData=()=> {requests++; return new MyObjectBuilder_ToolbarItemEmpty();} });
+            grid.SetItemAt(0,item);
+            target.SwitchToPage(1); assignment.Update();
+            var drop=CockpitAssignment.DoubleClickDrop(owner,grid,item,0);
+            if(drop?.DropTo.Grid!=toolbar.ToolbarGrid || drop.DropTo.ItemIndex!=1 || drop.DragFrom.Grid!=grid || drop.Item!=item)
+                throw new Exception("Double-click did not target the highlighted page/slot");
+            var click=AccessTools.Method(typeof(MyGuiScreenToolbarConfigBase),"OnGridItemDoubleClicked",new[] {typeof(MyGuiControlGrid),typeof(MyGuiControlGrid.EventArgs),typeof(bool)});
+            click.Invoke(owner,new object[] {grid,new MyGuiControlGrid.EventArgs {RowIndex=0,ColumnIndex=0,ItemIndex=0},false});
+            if(requests!=1 || target.SelectedSlot.HasValue) throw new Exception("Double-click lost the native drop path or activated equipment");
+            item.Enabled=false;
+            if(CockpitAssignment.DoubleClickDrop(owner,grid,item,0)!=null) throw new Exception("Disabled assignment accepted");
+            item.Enabled=true;
+            if(CockpitAssignment.DoubleClickDrop(owner,toolbar.ToolbarGrid,item,0)!=null) throw new Exception("Toolbar double-click was intercepted");
+            MyToolbarComponent.CurrentToolbar=new MyToolbar(MyToolbarType.Character);
+            if(CockpitAssignment.DoubleClickDrop(owner,grid,item,0)!=null) throw new Exception("Stale toolbar owner accepted");
+            MyToolbarComponent.CurrentToolbar=target;
+            target.SwitchToPage(0); assignment.Update();
+            if(CockpitAssignment.DoubleClickDrop(owner,grid,item,0)!=null) throw new Exception("Hidden assignment slot accepted");
+            target.SwitchToPage(page); assignment.Update();
+            Plugin.Logger.Info("PASS native double-click assignment: highlighted page/slot, native drop dispatch, disabled/hidden/toolbar/stale-owner rejection and no equipment activation.");
         }
         internal void Finish()
         {

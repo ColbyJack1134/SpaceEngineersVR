@@ -16,6 +16,7 @@ namespace SpaceEngineersVR.GUI
     internal sealed class CockpitAssignment : IDisposable
     {
         private static CockpitAssignment current;
+        private static readonly System.Reflection.MethodInfo nativeDrop=AccessTools.Method(typeof(MyGuiScreenToolbarConfigBase),"OnDragAndDropOnDrop");
         private readonly MyGuiScreenToolbarConfigBase screen;
         private readonly MyToolbar target,source;
         private readonly int count,selected;
@@ -125,6 +126,24 @@ namespace SpaceEngineersVR.GUI
             drag.StartDragging(MyDropHandleType.MouseRelease,args.Button,item,
                 new MyDragAndDropInfo { Grid=sender,ItemIndex=args.ItemIndex },includeTooltip:false);
             sender.HideToolTip();
+        }
+        internal static MyDragAndDropEventArgs DoubleClickDrop(MyGuiScreenToolbarConfigBase screen,MyGuiControlGrid grid,MyGuiGridItem item,int itemIndex)
+        {
+            var c=current;
+            if(c==null || c.screen!=screen || c.toolbar==null || c.selected<0 || c.selected>=c.count ||
+                !ReferenceEquals(MyToolbarComponent.CurrentToolbar,c.target) || c.toolbar.IsToolbarGrid(grid)) return null;
+            int slot=c.selected-c.target.CurrentPage*c.target.SlotCount;
+            if(slot<0 || slot>=c.target.SlotCount || item?.Enabled!=true) return null;
+            return new MyDragAndDropEventArgs { Item=item,DragFrom=new MyDragAndDropInfo {Grid=grid,ItemIndex=itemIndex},
+                DropTo=new MyDragAndDropInfo {Grid=c.toolbar.ToolbarGrid,ItemIndex=slot} };
+        }
+        internal static bool HandleDoubleClick(MyGuiScreenToolbarConfigBase screen,MyGuiControlGrid grid,MyGuiControlGrid.EventArgs args)
+        {
+            var drop=DoubleClickDrop(screen,grid,grid.TryGetItemAt(args.RowIndex,args.ColumnIndex),args.ItemIndex);
+            if(drop==null) return false;
+            // Reuse the native action chooser and parameter prompts for this exact destination.
+            nativeDrop.Invoke(screen,new object[] {grid,drop});
+            return true;
         }
         internal static bool HandleDrop(MyGuiScreenToolbarConfigBase screen,MyDragAndDropEventArgs args)
         {
