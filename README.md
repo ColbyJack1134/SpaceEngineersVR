@@ -1,4 +1,4 @@
-<img width="1280" height="640" alt="SEVR-social" src="https://github.com/user-attachments/assets/536f4f07-fc1f-4b59-a4dd-aa231049e232" />
+<img width="1280" height="640" alt="SEVR-social-2" src="https://github.com/user-attachments/assets/5b3f467d-803e-4a3c-98ac-c6295ae56bec" />
 
 ## WIP!
 
