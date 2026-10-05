@@ -1,3 +1,5 @@
+<img width="2880" height="2160" alt="SEVR" src="https://github.com/user-attachments/assets/5c0c1500-afa7-4107-89aa-59150e251ff0" />
+
 ## WIP!
 
 Space Engineers 1 VR Plugin
