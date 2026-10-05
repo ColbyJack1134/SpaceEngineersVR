@@ -66,7 +66,7 @@ namespace SpaceEngineersVR.GUI
             lines.Add("TABLET: bring the right finger capsule near a button, then click the trigger.");
             lines.Add("Controls: direct actions. Toolbar: slots/pages. Search: all actions. Close: fold.");
             lines.Add("COCKPIT: bring a fingertip near a control, lightly squeeze trigger, then complete click.");
-            lines.Add("Hold and move levers/covers. Release early to cancel; move well away to detach.");
+            lines.Add("Hold and move levers/covers. Release early to cancel; a held control stays attached until you let go.");
             lines.Add("Hover a switch and tap B to assign it. Holding B still opens the toolbar.");
             lines.Add("Fighter: 41 switches and pull bar. Control Seat: four assignable keypad controls.");
             lines.Add("Grip physical sticks: RIGHT tilt pitch/roll, twist/thumbstick yaw. LEFT tilt thrust, twist/thumbstick lift.");
