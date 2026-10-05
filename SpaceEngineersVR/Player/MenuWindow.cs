@@ -59,7 +59,12 @@ namespace SpaceEngineersVR.Player
                     if(axis.LengthSquared()>1) axis.Normalize();
                     float step=.8f*Math.Min(seconds,.05f);
                     var p=relative.Translation;
-                    if(axis.X!=0) p.X=MathHelper.Clamp(p.X+axis.X*step,-1.5f,1.5f);
+                    if(axis.X!=0)
+                    {
+                        float oldWidth=Width;
+                        Width=MathHelper.Clamp(Width+axis.X*step,MinimumWidth,MaximumWidth);
+                        p+=relative.Up*((Width-oldWidth)*Aspect/2);
+                    }
                     if(axis.Y!=0) p.Z=MathHelper.Clamp(p.Z-axis.Y*step,-3.5f,-.35f);
                     relative.Translation=p;
                 }

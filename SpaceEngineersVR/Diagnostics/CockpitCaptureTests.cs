@@ -216,6 +216,14 @@ namespace SpaceEngineersVR.Diagnostics
                 }
             }
             Require(cycles==8,"Held-near-head gesture failed to rearm between trigger presses");
+            gesture.Update(true,temple,Matrix.Identity,false,false);
+            gesture.Update(true,temple,Matrix.Identity,true,false);
+            Require(gesture.Inside && !gesture.Pressed,"Equipped gun trigger cycled HUD or disabled helmet grip zone");
+            gesture.Update(true,temple,Matrix.Identity,true,true);
+            Require(!gesture.Pressed,"Unequipping a gun rearmed a held helmet trigger");
+            gesture.Update(true,temple,Matrix.Identity,false,true);
+            gesture.Update(true,temple,Matrix.Identity,true,true);
+            Require(gesture.Pressed,"Fresh empty-hand helmet trigger did not recover");
             gesture.Update(true,Matrix.CreateTranslation(.5f,-.3f,0),Matrix.Identity,false);
             Require(!gesture.Inside,"Withdrawn gesture retained tool ownership");
             gesture.Update(true,Matrix.CreateTranslation(.27f,0,0),Matrix.Identity,true);

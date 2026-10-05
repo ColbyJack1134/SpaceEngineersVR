@@ -34,6 +34,7 @@ namespace SpaceEngineersVR.Player
         public static void Update()
         {
             Current=null; ConsumesSecondary=false;
+            if(WeaponHandling.ToolEquipped) return;
             var character=MySession.Static?.LocalCharacter;
             bool grip=Controls.Static.Secondary.RawPressed;
             if(!grip && !Common.Config.InspectWithoutGrip) return;

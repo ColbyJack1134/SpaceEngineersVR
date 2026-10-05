@@ -207,15 +207,22 @@ namespace SpaceEngineersVR.Player
                 Logger.Info("INPUT context=" + mode + "; walk=" + WalkLongitudinal.Active + "; flight=" + ThrustLRFB.Active);
         }
 
-        public void BlockUntilRelease(bool continueLocomotion = false)
+        public void BlockUntilRelease(bool continueLocomotion = false,bool continueFire = false)
         {
             continuingOrigins.Clear();
             if (continueLocomotion)
                 foreach (var analog in locomotion)
                     if (analog.HeldOrigin != OpenVR.k_ulInvalidInputValueHandle)
                         continuingOrigins.Add(analog.HeldOrigin);
-            foreach (var button in buttons) button.BlockUntilRelease();
-            foreach (var analog in analogs) analog.BlockUntilRelease();
+            foreach (var button in buttons) if(button!=Primary) button.BlockUntilRelease();
+            foreach (var analog in analogs)
+                if(analog!=PointerPressure && analog!=RightGripPressure) analog.BlockUntilRelease();
+            BlockFireInput(Primary,PointerPressure,RightGripPressure,continueFire);
+        }
+        internal static void BlockFireInput(Button trigger,Analog pressure,Analog modifier,bool continuing)
+        {
+            if(continuing) return;
+            trigger.BlockUntilRelease(); pressure.BlockUntilRelease(); modifier.BlockUntilRelease();
         }
     }
 }

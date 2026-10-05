@@ -249,6 +249,7 @@ namespace SpaceEngineersVR.Player
             if(!ThirdPersonView.Active) output.AddRange(CockpitTouch.Labels());
             if(!ThirdPersonView.Active) output.AddRange(HandInteraction.Labels());
             if(BlockInspection.Current!=null) output.Add(BlockInspection.Current);
+            var ammo=WeaponAmmo.View(); if(ammo!=null) output.Add(ammo);
             foreach(var s in output)
             {
                 Vector3 local=PhysicalSurface.Point(s,point);

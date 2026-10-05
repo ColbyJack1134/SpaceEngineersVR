@@ -48,7 +48,8 @@ namespace SpaceEngineersVR.Player
             {
                 if(Main.WorldAvailable) Logger.Info("INPUT transition: "+Mode+" -> "+next+"; owner="+nextOwner?.GetType().Name+"; clipboard="+PlacementControls.ClipboardActive);
                 if (!ReferenceEquals(nextOwner, owner) || next == InputMode.Blocked) GameActions.Reset();
-                Reset(CanContinueLocomotion(Mode, next, owner, nextOwner));
+                Reset(CanContinueLocomotion(Mode, next, owner, nextOwner),
+                    WeaponHandling.Profile!=null && CanContinueHeldItem(Mode,next,owner,nextOwner));
                 Mode = next;
                 owner = nextOwner;
                 wasFlying = flying;
@@ -64,14 +65,18 @@ namespace SpaceEngineersVR.Player
         private static bool IsCharacterLocomotion(InputMode mode) =>
             mode == InputMode.Walking || mode == InputMode.Jetpack || mode == InputMode.Building;
 
+        internal static bool CanContinueHeldItem(InputMode previous,InputMode next,object previousOwner,object nextOwner) =>
+            previousOwner!=null && ReferenceEquals(previousOwner,nextOwner) &&
+            (previous==InputMode.Walking || previous==InputMode.Jetpack) && (next==InputMode.Walking || next==InputMode.Jetpack);
+
         public static void Reset() => Reset(false);
 
-        private static void Reset(bool continueLocomotion)
+        private static void Reset(bool continueLocomotion,bool continueItem=false)
         {
             GameActions.ResetJumpHold();
-            Controls.Static.BlockUntilRelease(continueLocomotion);
+            Controls.Static.BlockUntilRelease(continueLocomotion,continueItem && VRMovementComponent.ToolActionHeld);
             SpatialUi.ReleaseInput();
-            WeaponHandling.Reset();
+            if(!continueItem) WeaponHandling.Reset();
             CockpitControls.Release();
             VRMovementComponent.StopActive();
             NativeActions.Reset();

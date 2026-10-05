@@ -184,7 +184,7 @@ namespace SpaceEngineersVR.Player
             MyRenderProxy.UpdateRenderObject(check.Actors[index],pose);
         }
         private static readonly System.Collections.Generic.Dictionary<uint,int> feedback=new System.Collections.Generic.Dictionary<uint,int>();
-        private static void ApplyFeedback(uint id,string material,int state)
+        internal static void ApplyFeedback(uint id,string material,int state)
         {
             MyRenderProxy.UpdateModelProperties(id,material,RenderFlags.Visible,RenderFlags.Visible,
                 state==2 ? new Color(160,255,190) : state==1 ? new Color(160,220,255) : Color.White,state==2 ? .10f : state==1 ? .05f : 0f);

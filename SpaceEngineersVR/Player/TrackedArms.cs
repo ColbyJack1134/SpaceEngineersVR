@@ -71,6 +71,7 @@ namespace SpaceEngineersVR.Player
                 BodyFit.Apply(character);
                 bool applied=Common.Config.TrackedArms && (Apply(left,Player.HandL,character) | Apply(right,Player.HandR,character));
                 character.AnimationController.UpdateTransformations();
+                Multiplayer.ReloadAnimation.Apply(character);
                 latestPose=CreatePose(); poseTime=Multiplayer.MultiplayerRuntime.Now;
                 if(applied && !reportedPose) { reportedPose=true; Logger.Info("TRACKED ARMS applied after physics/vanilla hand animation (local cosmetic pose)"); }
             }
@@ -86,8 +87,8 @@ namespace SpaceEngineersVR.Player
             MatrixD world=WristWorld(character,hand);
             Matrix target=(Matrix)(world*character.PositionComp.WorldMatrixNormalizedInv);
             if(!target.IsValid()) return false;
-            bool posed=ArmSkeleton.Apply(arm,target,Common.Config.AdaptiveArms,hand==Player.HandL && !CockpitControls.Held(hand),
-                BodyFit.ScaleFor(character),FingerMode(character,hand),Trigger(hand),FreeFingers(character,hand) ? hand.Fingers.Curls:null);
+            bool posed=ArmSkeleton.Apply(arm,target,Common.Config.AdaptiveArms,hand==Player.HandL && !CockpitControls.Held(hand) && !WeaponHandling.Supported,
+                BodyFit.ScaleFor(character),FingerMode(character,hand),Trigger(hand),FreeFingers(character,hand) ? hand.Fingers.Curls:null, WeaponHandling.Profile, hand==Player.HandL);
             if(posed) Diagnostics.ArmPoseCapture.Record(character,hand,arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone);
             return posed;
         }
@@ -108,6 +109,9 @@ namespace SpaceEngineersVR.Player
                 { pose.Tracked|=1; pose.Left=(Matrix)(WristWorld(character,Player.HandL)*character.PositionComp.WorldMatrixNormalizedInv); }
                 if(right?.Applied==true && Player.HandR.pose.isTracked)
                 { pose.Tracked|=2; pose.Right=(Matrix)(WristWorld(character,Player.HandR)*character.PositionComp.WorldMatrixNormalizedInv); }
+                if(WeaponHandling.ToolEquipped && TryFreePointPose(Player.HandR,out var ray))
+                { pose.Tracked|=Multiplayer.PlayerPose.ToolRayTracked; pose.ToolRay=(Matrix)(ray*character.PositionComp.WorldMatrixNormalizedInv); }
+                if(WeaponHandling.Supported) pose.Tracked|=Multiplayer.PlayerPose.ItemSupported;
                 pose.LeftFingers=FingerMode(character,Player.HandL); pose.RightFingers=FingerMode(character,Player.HandR);
                 pose.LeftTrigger=Trigger(Player.HandL); pose.RightTrigger=Trigger(Player.HandR);
                 // Seated heads need the first-person seat frame; observer views would send a stale camera pose.
@@ -125,6 +129,10 @@ namespace SpaceEngineersVR.Player
             !CockpitControls.Held(hand) && !RequiresPointing(hand);
         internal static ArmSkeleton.Fingers FingerMode(MyCharacter character,Controller hand)
         {
+            if(hand==Player.HandR && WeaponHandling.Profile?.Tool==true && !Main.MenuOpen)
+                return WeaponHandling.Supported || WeaponHandling.ToolContactActive ? ArmSkeleton.Fingers.Stick:ArmSkeleton.Fingers.Point;
+            if(hand==Player.HandL && WeaponHandling.Reloading && !WeaponHandling.Supported) return ArmSkeleton.Fingers.Native;
+            if(WeaponHandling.Profile!=null && !RequiresPointing(hand) && (hand==Player.HandR || WeaponHandling.Supported)) return ArmSkeleton.Fingers.Stick;
             if(CockpitControls.Held(hand) || CockpitTouch.HoldingBar(hand)) return ArmSkeleton.Fingers.Stick;
             if(character.CurrentWeapon==null || RequiresPointing(hand))
                 return CockpitTouch.Pinching(hand) || hand==Player.HandR && SpatialUi.PinchingKnob ? ArmSkeleton.Fingers.Pinch:ArmSkeleton.Fingers.Point;
@@ -176,6 +184,7 @@ namespace SpaceEngineersVR.Player
                 result.Translation=Vector3D.Lerp(world.Translation,attached.Translation,blend);
                 return result;
             }
+            if(arm!=null && WeaponHandling.TryPalm(character,hand,out var itemPalm)) return (MatrixD)Matrix.Invert(arm.PalmOffset)*itemPalm;
             return world;
         }
         internal static MatrixD FreeWristWorld(Controller hand)
@@ -220,6 +229,13 @@ namespace SpaceEngineersVR.Player
             region.Start=Vector3D.Transform(BarPalmCenter,palm);
             region.End=Vector3D.Transform(BarFingerCavity,palm);
             return region.Start.IsValid() && region.End.IsValid();
+        }
+        internal static bool TryFreePalm(MyCharacter character,Controller hand,out MatrixD world)
+        {
+            world=MatrixD.Identity;
+            var arm=hand==Player.HandL ? left:right;
+            if(owner!=character || arm==null || !hand.pose.isTracked) return false;
+            world=(MatrixD)arm.PalmOffset*FreeWristWorld(hand); return world.IsValid();
         }
         internal static bool TryDesiredPalm(MyCharacter character,Controller hand,out MatrixD world)
         {

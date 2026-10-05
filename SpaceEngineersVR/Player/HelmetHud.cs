@@ -82,13 +82,15 @@ namespace SpaceEngineersVR.Player
             float leftPressure=c.LeftTriggerPressure.RawPosition.X;
             if(leftPressure<=.025f) leftConsumed=false;
             if(c.PointerPressure.RawPosition.X<=.025f && !c.Primary.RawPressed) rightConsumed=false;
+            bool gun=character?.CurrentWeapon is Sandbox.Game.Weapons.MyAutomaticRifleGun;
+            if(gun) rightConsumed=false;
             bool active=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && Player.Headset.pose.isTracked;
             bool guard=InputRouter.Gameplay && !Main.MenuOpen && Player.Headset.pose.isTracked;
             rightGesture.Update(active && Player.HandR.pose.isTracked && c.Primary.Active,
-                Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,c.Primary.RawPressed);
+                Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,c.Primary.RawPressed,triggerAllowed:!gun);
             bool nearLeft=guard && Player.HandL.pose.isTracked && NearHead(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix);
             bool nearRight=guard && Player.HandR.pose.isTracked && (rightGesture.Inside || NearHead(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix));
-            Reveal=active && Markers && (Mode==2 || (nearLeft || nearRight) && DateTime.UtcNow>=revealPauseUntil);
+            Reveal=active && Markers && (Mode==2 || (nearLeft || nearRight && !gun) && DateTime.UtcNow>=revealPauseUntil);
             rightGrip.Update(active && Player.HandR.pose.isTracked && c.Secondary.Active,c.Secondary.RawPressed);
             float grip=c.LeftGripPressure.RawPosition.X;
             if(grip<=.025f) ViewGestureHeld=false;
@@ -109,11 +111,11 @@ namespace SpaceEngineersVR.Player
                 Player.HandL.Vibrate(0,.035f,120,.25f);
             }
             if(nearLeft && leftPressure>.025f) leftConsumed=true;
-            if(nearRight && (c.PointerPressure.RawPosition.X>.025f || c.Primary.RawPressed)) rightConsumed=true;
-            ProtectsRight=nearRight || rightConsumed;
+            if(!gun && nearRight && (c.PointerPressure.RawPosition.X>.025f || c.Primary.RawPressed)) rightConsumed=true;
+            ProtectsRight=!gun && (nearRight || rightConsumed);
             if(nearLeft)
             { c.LeftGripPressure.BlockUntilRelease(); c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); }
-            if(nearRight || rightConsumed) c.Primary.BlockUntilRelease();
+            if(!gun && (nearRight || rightConsumed)) c.Primary.BlockUntilRelease();
             if(nearRight) { c.RightGripPressure.BlockUntilRelease(); c.Secondary.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); }
             if(leftConsumed)
             {
@@ -121,7 +123,7 @@ namespace SpaceEngineersVR.Player
                 c.ThrustForward.BlockUntilRelease(); c.JumpOrClimbUp.BlockUntilRelease();
             }
             if(!active || !Player.HandR.pose.isTracked || !rightGesture.Inside) return;
-            if (rightGesture.Pressed && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandR))
+            if (!gun && rightGesture.Pressed && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandR))
             {
                 Common.Config.CycleHud();
                 revealPauseUntil=DateTime.UtcNow.AddSeconds(RevealPause);

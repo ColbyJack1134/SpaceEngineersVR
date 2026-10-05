@@ -116,7 +116,7 @@ namespace SpaceEngineersVR.Player
                 if (weapon != null && MyDefinitionManager.Static.GetPhysicalItemForHandItem(weapon.DefinitionId) is MyPhysicalItemDefinition definition)
                 { selected = definition.DisplayNameText; icons = definition.Icons; }
             }
-            string ammo = piloting ? item?.IconText?.ToString() : weapon?.GunBase is Sandbox.Game.Weapons.MyGunBase gun ? gun.CurrentAmmo.ToString("N0") : "";
+            string ammo = piloting ? item?.IconText?.ToString() : weapon?.GunBase is Sandbox.Game.Weapons.MyGunBase gun ? WeaponAmmo.Count(gun) : "";
             if(!piloting && block==null && weapon==null) { selected=null; icons=null; ammo=null; }
             if (InputRouter.Mode == InputMode.Clipboard) selected = "Blueprint preview";
             var view = new View {

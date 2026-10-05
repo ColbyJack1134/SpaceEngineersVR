@@ -103,12 +103,14 @@ namespace SpaceEngineersVR.Player.Components
                 RemoteView.Refresh();
                 Patches.MotionToolPatch.Refresh(Character);
                 TrackedArms.Update(Character);
+                if(WeaponHandling.ToolEquipped) HandInteraction.Update();
                 SpatialUi.Publish();
                 if(firstCameraAfterTick) { Logger.Info("VR camera receives post-physics character updates"); firstCameraAfterTick=false; }
             }
             catch(System.Exception ex) { Main.Fail(ex,"Post-physics VR camera update failed"); }
         }
 
+        internal static bool ToolActionHeld => active!=null && (active.wasShooting || active.wasSecondary);
         internal static void StopActive() => active?.StopInput();
         private void TraceInput()
         {
@@ -246,7 +248,7 @@ namespace SpaceEngineersVR.Player.Components
             move = FlightAxes.Translation(controls.ThrustLRUD.Position, controls.ThrustLRFB.Position,
                 ship && CockpitControls.Held(Player.HandL) ? 0 : controls.ThrustUp.Position.X, WeaponHandling.ConsumesLeftGrip ? 0 : ThirdPersonView.Descent(controls.ThrustDown.Position.X), controls.ThrustForward.Position.X, controls.ThrustBackward.Position.X);
             float rollSensitivity = ship ? Common.Config.ShipRollSensitivity : Common.Config.JetpackRoll;
-            FlightAxes.Rotation(controls.ThrustRotate.Position, controls.ThrustRoll.IsPressed && !TouchScreenBridge.OwnsInput, ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
+            FlightAxes.Rotation(controls.ThrustRotate.Position, controls.ThrustRoll.IsPressed && !TouchScreenBridge.OwnsInput && !(WeaponHandling.ToolModifier && controls.Primary.IsPressed), ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
         }
 
         void ApplyMoveAndRotation(Vector3 move, Vector2 rotate, float roll)
@@ -287,23 +289,24 @@ namespace SpaceEngineersVR.Player.Components
             if(controlledEntity is Sandbox.Game.Entities.Character.MyCharacter character && character.CurrentWeapon==null)
                 secondaryPressed=false;
 
+            if(WeaponHandling.ToolEquipped)
+            {
+                bool trigger=controls.Primary.IsPressed && !HelmetHud.ProtectsRight && !uiOwnsRight && !PlacementControls.OwnsTools;
+                primaryPressed=trigger && !WeaponHandling.ToolModifier;
+                secondaryPressed=trigger && WeaponHandling.ToolModifier;
+            }
+            // Release the previous action before starting the other half of a tool chord.
+            if(!primaryPressed && wasShooting) controlledEntity?.EndShoot(MyShootActionEnum.PrimaryAction);
+            if(!secondaryPressed && wasSecondary && !turret) controlledEntity?.EndShoot(MyShootActionEnum.SecondaryAction);
             if (primaryPressed && !wasShooting)
             {
                 controlledEntity?.BeginShoot(MyShootActionEnum.PrimaryAction);
-            }
-            else if (!primaryPressed && wasShooting)
-            {
-                controlledEntity?.EndShoot(MyShootActionEnum.PrimaryAction);
             }
 
             if (secondaryPressed && !wasSecondary)
             {
                 if(!turret) controlledEntity?.BeginShoot(MyShootActionEnum.SecondaryAction);
                 ShipTargeting.SecondaryPressed(controlledEntity);
-            }
-            else if (!secondaryPressed && wasSecondary)
-            {
-                if(!turret) controlledEntity?.EndShoot(MyShootActionEnum.SecondaryAction);
             }
 
             wasShooting = primaryPressed;

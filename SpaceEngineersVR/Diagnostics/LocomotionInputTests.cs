@@ -20,11 +20,29 @@ namespace SpaceEngineersVR.Diagnostics
                 foreach (InputMode after in Enum.GetValues(typeof(InputMode)))
                 {
                     bool expected = Array.IndexOf(characterModes, before) >= 0 && Array.IndexOf(characterModes, after) >= 0;
+                    bool toolTransfer=(before==InputMode.Walking || before==InputMode.Jetpack) && (after==InputMode.Walking || after==InputMode.Jetpack);
+                    if(InputRouter.CanContinueHeldItem(before,after,character,character)!=toolTransfer ||
+                        InputRouter.CanContinueHeldItem(before,after,character,new object()))
+                        throw new Exception("Held fire crossed an equipment, menu or control boundary");
                     if (InputRouter.CanContinueLocomotion(before, after, character, character) != expected ||
                         InputRouter.CanContinueLocomotion(before, after, character, new object()) ||
                         InputRouter.CanContinueLocomotion(before, after, null, null))
                         throw new Exception("Locomotion transfer crossed a menu, tracking, cockpit or owner boundary");
                 }
+
+            var trigger=new Button(8); var pressure=new Analog(9,.55f); var modifier=new Analog(10,.5f);
+            var released=new InputDigitalActionData_t {bActive=true,activeOrigin=31};
+            trigger.AcceptSample(released); pressure.AcceptSample(Sample(31,0)); modifier.AcceptSample(Sample(32,0));
+            var squeezed=released; squeezed.bState=true; trigger.AcceptSample(squeezed);
+            pressure.AcceptSample(Sample(31,0,horizontal:1)); modifier.AcceptSample(Sample(32,0,horizontal:1));
+            Controls.BlockFireInput(trigger,pressure,modifier,true);
+            trigger.AcceptSample(squeezed); pressure.AcceptSample(Sample(31,0,horizontal:1)); modifier.AcceptSample(Sample(32,0,horizontal:1));
+            if(!trigger.IsPressed || !pressure.CanPress || !modifier.CanPress) throw new Exception("Jetpack transition lost held fire or tool alternate modifier");
+            Controls.BlockFireInput(trigger,pressure,modifier,false); trigger.AcceptSample(squeezed);
+            if(trigger.IsPressed || pressure.CanPress || modifier.CanPress) throw new Exception("Held fire escaped a full input reset");
+            trigger.AcceptSample(released); trigger.AcceptSample(squeezed);
+            if(!trigger.IsPressed) throw new Exception("Trigger did not rearm after release");
+            log("PASS held fire: jetpack continuity preserves trigger and alternate modifier; full resets still require release.");
 
             // Different actions, same physical stick. The flight action was inactive
             // throughout walking; merely removing the router's reset would not fix it.

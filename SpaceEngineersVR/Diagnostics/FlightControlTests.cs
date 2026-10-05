@@ -79,7 +79,7 @@ namespace SpaceEngineersVR.Diagnostics
             Require(filter.Update(false,Vector3.One,.01f,.05f)==Vector3.Zero,"Visual return leaked flight input");
             foreach(float width in new[] {.55f,.62f,1.2f,2.4f})
             {
-                var shared=new MenuWindow {Width=width}; shared.Pose=Matrix.CreateTranslation(0,0,-1);
+                var shared=new MenuWindow {Width=width,MinimumWidth=.3f}; shared.Pose=Matrix.CreateTranslation(0,0,-1);
                 var handles=new WindowInteraction(shared);
                 var aim=Matrix.CreateTranslation(0,-shared.Height/2-shared.BarOffset,0);
                 handles.Sample(aim,false,true,true,Vector2.One,.05f);
@@ -89,8 +89,9 @@ namespace SpaceEngineersVR.Diagnostics
                 handles.Sample(aim,false,false,true,Vector2.Zero,.05f);
                 handles.Sample(aim,false,false,true,Vector2.UnitY,.05f);
                 Require(Math.Abs(shared.Pose.Translation.Z+1.04f)<.0001f,"Shared ray drag ignored thumbstick depth");
+                float priorWidth=shared.Width; var bar=shared.Pose.Translation-shared.Pose.Up*shared.Height/2;
                 handles.Sample(aim,false,false,true,Vector2.UnitX,.05f);
-                Require(Math.Abs(shared.Pose.Translation.X-.04f)<.0001f,"Shared ray drag ignored thumbstick lateral movement");
+                Require(Math.Abs(shared.Width-priorWidth-.04f)<.0001f && Vector3.Distance(shared.Pose.Translation-shared.Pose.Up*shared.Height/2,bar)<.0001f,"Shared bar resize moved its anchor or ignored horizontal input");
                 handles.Sample(aim,false,false,false,Vector2.UnitX,.05f);
                 var stopped=shared.Pose;
                 handles.Sample(aim,false,false,false,Vector2.UnitX,.05f);

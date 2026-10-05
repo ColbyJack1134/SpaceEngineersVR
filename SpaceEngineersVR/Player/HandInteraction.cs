@@ -76,16 +76,17 @@ namespace SpaceEngineersVR.Player
             var hand = UseHand;
             if (!InputRouter.Gameplay || character == null || character.IsDead || character.IsSitting ||
                 MySession.Static.ControlledEntity != character || !TryWorldPose(hand, out MatrixD pose)) return false;
-            if (hand == Player.HandR && WeaponHandling.TryPose(character, out MatrixD model, out Vector3D muzzle))
-            { pose = model; pose.Translation = muzzle; }
-            else if((hand == Player.HandL || character.CurrentWeapon==null) && TrackedArms.TryPointPose(hand,out var finger))
-                pose=finger;
+            if(TrackedArms.TryFreePointPose(hand,out var finger)) pose=finger;
             ray = RayForPose(pose);
             return true;
         }
 
         internal static float ObstacleDistance(MatrixD pose,float maximum)
         {
+            if(WeaponHandling.ToolEquipped && Multiplayer.ToolContact.Cast(MySession.Static.LocalCharacter,
+                MySession.Static.LocalCharacter.CurrentWeapon as MyEntity,pose,maximum,out _,out _,out var contact))
+                return (float)Vector3D.Distance(pose.Translation,contact);
+            if(WeaponHandling.ToolEquipped) return maximum;
             if(MyAPIGateway.Physics!=null && MyAPIGateway.Physics.CastRay(pose.Translation,pose.Translation+pose.Forward*maximum,out IHitInfo hit) &&
                 hit.HitEntity!=MySession.Static?.LocalCharacter)
                 return Math.Min(maximum,(float)Vector3D.Distance(pose.Translation,hit.Position));
@@ -321,7 +322,7 @@ namespace SpaceEngineersVR.Player
                         MyStringId.GetOrCompute("Square"),ref lineColor,0.025f);
                     bool show = hand == Player.HandL ? LeftAiming :
                         !LeftAiming && rayVisible && !SpatialUi.RayTargeted && !SpatialUi.OwnsRight && !CockpitTouch.OwnsRight && !HoldingRight && !TouchScreenBridge.Pointing;
-                    if (show && TryInteractionRay(out LineD ray))
+                    if (show && !WeaponHandling.HideUseRay && TryInteractionRay(out LineD ray))
                     {
                         var aim=MatrixD.CreateWorld(ray.From,ray.Direction,Vector3D.CalculatePerpendicularVector(ray.Direction));
                         var end=ray.From+ray.Direction*ObstacleDistance(aim,(float)ray.Length);

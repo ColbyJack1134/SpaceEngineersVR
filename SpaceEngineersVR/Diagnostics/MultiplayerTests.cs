@@ -25,13 +25,36 @@ namespace SpaceEngineersVR.Diagnostics
         internal static void Run(Action<string> log)
         {
             var original=Pose(); var bytes=original.Encode(); var decoded=PlayerPose.Decode(bytes);
-            Require(bytes.Length==PlayerPose.Size && decoded!=null && decoded.Character==100 && decoded.Tracked==3,"Pose packet round trip failed");
+            Require(bytes.Length==PlayerPose.HeadSize && decoded!=null && decoded.Character==100 && decoded.Tracked==3,"Pose packet round trip failed");
             Require(decoded.Left==original.Left && decoded.Right==original.Right && Math.Abs(decoded.RightTrigger-.8f)<.005f,"Pose transforms or trigger lost");
             for(int n=0;n<bytes.Length;n++) if(n!=PlayerPose.LegacySize) Require(PlayerPose.Decode(bytes.Take(n).ToArray())==null,"Truncated pose accepted");
-            var bad=(byte[])bytes.Clone(); bad[24]=8; Require(PlayerPose.Decode(bad)==null,"Unknown tracking bits accepted");
+            var bad=(byte[])bytes.Clone(); bad[24]=32; Require(PlayerPose.Decode(bad)==null,"Unknown tracking bits accepted");
             var looking=Pose(); looking.Tracked|=PlayerPose.HeadTracked; looking.Head=Matrix.CreateFromYawPitchRoll(.6f,-.3f,.1f); looking.Head.Translation=new Vector3(0,1.6f,0);
             var lookingBytes=looking.Encode(); var lookingDecoded=PlayerPose.Decode(lookingBytes);
             Require(lookingDecoded!=null && lookingDecoded.Tracked==7 && Vector3.Distance(lookingDecoded.Head.Forward,looking.Head.Forward)<1e-4f,"Head pose lost in transit");
+            var aiming=Pose(); aiming.Tracked|=PlayerPose.ToolRayTracked;
+            aiming.ToolRay=Matrix.CreateFromYawPitchRoll(.8f,-.4f,.1f); aiming.ToolRay.Translation=new Vector3(.1f,1.1f,-.6f);
+            var aimedBytes=aiming.Encode(); var aimed=PlayerPose.Decode(aimedBytes);
+            Require(aimedBytes.Length==PlayerPose.Size && aimed!=null && (aimed.Tracked&PlayerPose.ToolRayTracked)!=0 &&
+                Vector3.Distance(aimed.ToolRay.Forward,aiming.ToolRay.Forward)<1e-5f && Vector3.Distance(aimed.ToolRay.Translation,aiming.ToolRay.Translation)<1e-5f,"Independent tool ray lost in transit");
+            for(int n=PlayerPose.HeadSize+1;n<PlayerPose.Size;n++) Require(PlayerPose.Decode(aimedBytes.Take(n).ToArray())==null,"Partial tool ray accepted");
+            var headOnly=PlayerPose.Decode(aimedBytes.Take(PlayerPose.HeadSize).ToArray());
+            Require(headOnly!=null && (headOnly.Tracked&PlayerPose.ToolRayTracked)==0,"Legacy pose invented a tool ray");
+            foreach(bool tool in new[] {false,true})
+            {
+                var supported=tool ? aiming:Pose(); supported.Tracked|=PlayerPose.ItemSupported;
+                var restored=PlayerPose.Decode(supported.Encode());
+                Require(restored!=null && (restored.Tracked&PlayerPose.ItemSupported)!=0,"Support ownership lost in transit");
+                supported.Tracked&=unchecked((byte)~PlayerPose.ItemSupported);
+                Require((PlayerPose.Decode(supported.Encode()).Tracked&PlayerPose.ItemSupported)==0,"Support survived release in transit");
+            }
+            bad=(byte[])aimedBytes.Clone(); Array.Copy(BitConverter.GetBytes(float.NaN),0,bad,PlayerPose.HeadSize,4); Require(PlayerPose.Decode(bad)==null,"Nonfinite tool ray accepted");
+            var toolStream=new PoseStream(); toolStream.Push(aiming,1);
+            var movedRay=PlayerPose.Decode(aimedBytes); movedRay.Sequence++;
+            movedRay.ToolRay.Translation+=Vector3.Right; toolStream.Push(movedRay,1.05);
+            Require(Vector3.Distance(toolStream.ToolRay(1.075).Translation,Vector3.Lerp(aiming.ToolRay.Translation,movedRay.ToolRay.Translation,.5f))<.0001f,"Tool ray interpolation misses midpoint");
+            var reacquired=new PoseStream(); reacquired.Push(Pose(),1); reacquired.Push(movedRay,1.05);
+            Require(reacquired.ToolRay(1.05)==movedRay.ToolRay,"New tool ray interpolates from an untracked frame");
             var legacy=PlayerPose.Decode(lookingBytes.Take(PlayerPose.LegacySize).ToArray());
             Require(legacy!=null && legacy.Tracked==3 && legacy.Head==Matrix.Identity,"Version 1 hand-only packet rejected or given a head");
             bad=(byte[])lookingBytes.Clone(); Array.Copy(BitConverter.GetBytes(float.NaN),0,bad,PlayerPose.LegacySize+12,4); Require(PlayerPose.Decode(bad)==null,"Nonfinite head accepted");
@@ -111,12 +134,12 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 support.GetMethod("Start").Invoke(null,null);
                 int count=Harmony.GetAllPatchedMethods().Count(m=>Harmony.GetPatchInfo(m).Owners.Contains("SpaceEngineersVR.Multiplayer"));
-                Require(count==6,"Companion did not attach all six native storage/actuator/arm patches");
+                Require(count==23,"Companion did not attach all 23 native storage/actuator/arm/held-item patches");
                 support.GetMethod("Update").Invoke(null,null);
             }
             finally { support.GetMethod("Stop").Invoke(null,null); }
             Require(!Harmony.HasAnyPatches("SpaceEngineersVR.Multiplayer"),"Companion left patches after shutdown");
-            log("PASS flatscreen companion: independent assembly, six native patch attachments, no-world update and clean shutdown without OpenVR initialization.");
+            log("PASS flatscreen companion: independent assembly, 23 native patch attachments, no-world update and clean shutdown without OpenVR initialization.");
         }
         public static void Export(string game,string output,Action<string> log)
         {

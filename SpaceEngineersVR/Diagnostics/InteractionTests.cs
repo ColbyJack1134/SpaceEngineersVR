@@ -43,8 +43,10 @@ namespace SpaceEngineersVR.Diagnostics
             dragged.Move(hand,Vector3.Zero,Vector2.Zero,1f/60);
             for(int i=0;i<60;i++) dragged.Move(hand,Vector3.Zero,new Vector2(0,-1),1f/60);
             Near(dragged.Pose.Translation,before.Translation+hand.Backward*.8f,"Stick pull did not bring menu closer along hand ray");
+            var bar=Vector3.Transform(new Vector3(0,-dragged.Height/2-dragged.BarOffset,0),dragged.Pose);
             for(int i=0;i<60;i++) dragged.Move(hand,Vector3.Zero,new Vector2(1,0),1f/60);
-            Near(dragged.Pose.Translation,before.Translation+hand.Backward*.8f+hand.Right*.8f,"Stick lateral move used wrong frame");
+            Require(Math.Abs(dragged.Width-MenuWindow.MaxWidth)<.0003f,"Horizontal stick did not enlarge menu");
+            Near(Vector3.Transform(new Vector3(0,-dragged.Height/2-dragged.BarOffset,0),dragged.Pose),bar,"Stick resize moved the grabbed bar");
             var nudged=dragged.Pose;
             dragged.Move(hand,Vector3.Zero,new Vector2(.1f,-.1f),1f/60);
             Near(dragged.Pose.Translation,nudged.Translation,"Menu drifts inside thumbstick deadzone");
@@ -52,8 +54,10 @@ namespace SpaceEngineersVR.Diagnostics
             Require(Math.Abs((dragged.Pose*Matrix.Invert(hand)).Translation.Z+.35f)<.0003f,"Menu could be pulled through hand");
             for(int i=0;i<1000;i++) dragged.Move(hand,Vector3.Zero,new Vector2(1,1),1f/60);
             var limit=(dragged.Pose*Matrix.Invert(hand)).Translation;
-            Require(Math.Abs(limit.X-1.5f)<.0003f && Math.Abs(limit.Z+3.5f)<.0003f,"Menu stick travel exceeded lateral/far bounds");
-            dragged.Cancel(); Near(dragged.Pose.Translation,before.Translation,"Interrupted stick nudge did not restore menu");
+            Require(Math.Abs(limit.X-(before*Matrix.Invert(hand)).Translation.X)<.0003f && Math.Abs(limit.Z+3.5f)<.0003f && dragged.Width==dragged.MaximumWidth,"Menu stick resize/depth exceeded bounds");
+            for(int i=0;i<1000;i++) dragged.Move(hand,Vector3.Zero,new Vector2(-1,0),1f/60);
+            Require(dragged.Width==dragged.MinimumWidth,"Horizontal stick did not shrink to minimum");
+            dragged.Cancel(); Require(dragged.Width==MenuWindow.DefaultWidth,"Cancelled stick resize retained changed width"); Near(dragged.Pose.Translation,before.Translation,"Interrupted stick nudge did not restore menu");
             dragged.Begin(2,hand,Vector3.Zero);
             dragged.Move(hand,Vector3.Zero,Vector2.Zero,1f/60);
             dragged.Move(hand,Vector3.Zero,Vector2.One,1f/60);
@@ -99,12 +103,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(Vector2.Distance(uv,new Vector2(.7f,.75f))<.0001f,"LCD UV orientation flipped");
             }
             Require(TouchScreenBridge.PlaneFor(Vector3.Zero,Vector3.Zero,Vector3.One,MatrixD.Identity)==null,"Degenerate LCD accepted");
-            Require(WeaponProfile.Find("WelderItem","Models/Weapons/Welder.mwm")==null &&
-                WeaponProfile.Find("AngleGrinderItem","Models/Weapons/AngleGrinder.mwm")==null &&
-                WeaponProfile.Find("SemiAutoPistolItem","Models/Weapons/Pistol_Warfare.mwm")==null,
-                "Tools without support grips acquired a two-hand profile");
-            Require(WeaponProfile.Find(WeaponProfile.Rifle.Item,WeaponProfile.Rifle.Model)==WeaponProfile.Rifle &&
-                WeaponProfile.Find(WeaponProfile.Launcher.Item,WeaponProfile.Launcher.Model)==WeaponProfile.Launcher,"Accepted original weapon profiles lost");
+            WeaponTests.Run(log);
             var seatKeys=SeatPanel.Keys(true,true);
             var seatView=new SurfaceView { Keys=seatKeys };
             Require(seatKeys.Length==14,"Seat ship controls or adjustment controls missing");

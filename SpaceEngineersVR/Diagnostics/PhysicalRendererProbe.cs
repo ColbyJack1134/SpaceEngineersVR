@@ -16,7 +16,7 @@ using VRageRender.Messages;
 namespace SpaceEngineersVR.Diagnostics
 {
     // An isolated main-menu scene in an explicitly launched diagnostic process. No world/save is loaded.
-    internal static class PhysicalRendererProbe
+    internal static partial class PhysicalRendererProbe
     {
         private sealed class CameraHudPreview : GUI.MyPluginConfigDialog
         {
@@ -134,6 +134,7 @@ namespace SpaceEngineersVR.Diagnostics
                 if (MySession.Static!=null) throw new InvalidOperationException("Renderer probe requires the main menu, without a loaded world.");
                 if (renderError!=null) throw new InvalidOperationException(renderError);
                 if (DateTime.UtcNow>deadline) throw new TimeoutException("Native renderer probe timed out in phase "+phase);
+                if(Environment.GetEnvironmentVariable("SEVR_ITEM_GRABS")=="1") { UpdateItemGrabs(); return; }
                 if(phase>=50) { UpdateRig(); return; }
                 if (phase==0)
                 {
@@ -448,6 +449,16 @@ namespace SpaceEngineersVR.Diagnostics
                     finally { if (ao!=null) new Wrappers.BorrowedRtvTexture(ao).Release(); }
                     // Exercise the installed engine's depth SRV and our spatial shader in a real scene.
                     var physicalTarget=(Texture2D)target.GetResource();
+                    if(Environment.GetEnvironmentVariable("SEVR_ITEM_GRABS")=="1") UiTests.Save(physicalTarget,Path.ChangeExtension(path,null)+"-lit.png");
+                    if(Environment.GetEnvironmentVariable("SEVR_AMMO_PARENT")=="1")
+                    {
+                        var item=WeaponProfile.All.First(p=>p.Model=="Models/Weapons/"+grabModels[grabStep/4]+".mwm");
+                        var ammo=WeaponAmmo.Label(item,MatrixD.Identity,18,20); ammo.RenderParent=native;
+                        PhysicalSurface.Draw(physicalTarget,new[] {ammo},camera.ViewMatrix,camera.ProjectionMatrix,PhysicalSurface.SceneDepth());
+                        SignalTests.WaitIcons();
+                        PhysicalSurface.Draw(physicalTarget,new[] {ammo},camera.ViewMatrix,camera.ProjectionMatrix,PhysicalSurface.SceneDepth());
+                        UiTests.Save(physicalTarget,Path.ChangeExtension(path,null)+"-ammo.png");
+                    }
                     if(phase==24)
                     {
                         if(RemoteHud.SpriteCount<2) throw new InvalidOperationException("Expected native filter and crosshair: "+RemoteHud.FixtureSprites);

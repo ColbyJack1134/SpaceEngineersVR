@@ -9,7 +9,7 @@ using Color=System.Drawing.Color;
 
 namespace SpaceEngineersVR.Player
 {
-    internal enum SurfaceStyle { Default,WristStatus,WristMenu,Keyboard,ModelControl,Pointer,Label,BlockInfo }
+    internal enum SurfaceStyle { Default,WristStatus,WristMenu,Keyboard,ModelControl,Pointer,Label,BlockInfo,Ammo }
     internal sealed class SurfaceKey
     {
         public string Label;
@@ -45,6 +45,8 @@ namespace SpaceEngineersVR.Player
         public MatrixD Pose;
         public MatrixD? HandLocal;
         internal MatrixD? WindowPose;
+        internal uint RenderParent=uint.MaxValue;
+        internal MatrixD ParentLocal;
         internal int WindowHover;
         internal SurfaceView At(MatrixD pose) { var copy=(SurfaceView)MemberwiseClone(); copy.Pose=pose; return copy; }
         public float Width,Height;
@@ -89,7 +91,7 @@ namespace SpaceEngineersVR.Player
     internal static class PhysicalSurface
     {
         internal static readonly Vector4 LeftLaser=new Vector4(1,.706f,.235f,1);
-        internal static Vector2I TextureSize(SurfaceStyle style) => style==SurfaceStyle.Label ? new Vector2I(1536,236) : style==SurfaceStyle.BlockInfo ? new Vector2I(2048,1280) : new Vector2I(1024,640);
+        internal static Vector2I TextureSize(SurfaceStyle style) => style==SurfaceStyle.Ammo ? new Vector2I(512,192) : style==SurfaceStyle.Label ? new Vector2I(1536,236) : style==SurfaceStyle.BlockInfo ? new Vector2I(2048,1280) : new Vector2I(1024,640);
         private sealed class Cache { public OverlayCanvas Canvas; public ShaderResourceView Texture; public string Content; public int Revision; public EssentialHud.View Status; }
         private static readonly Dictionary<string,Cache> cache=new Dictionary<string,Cache>();
         private static readonly Font title=new Font("Segoe UI",32,FontStyle.Bold,GraphicsUnit.Pixel),text=new Font("Segoe UI",27,FontStyle.Regular,GraphicsUnit.Pixel);
@@ -108,6 +110,7 @@ namespace SpaceEngineersVR.Player
         internal static void Paint(OverlayCanvas target,SurfaceView s)
         {
             if(s.Style==SurfaceStyle.Pointer) { target.Clear(Color.White); return; }
+            if(s.Style==SurfaceStyle.Ammo) { WeaponAmmo.Paint(target,s); return; }
             if(s.Style==SurfaceStyle.BlockInfo) { BlockInspection.Paint(target,s); return; }
             if(s.Style==SurfaceStyle.Label)
             {
@@ -413,11 +416,18 @@ namespace SpaceEngineersVR.Player
                     sprites.Add(pointer);
                     continue;
                 }
-                if(s.Style==SurfaceStyle.ModelControl || s.Style==SurfaceStyle.Label || s.Style==SurfaceStyle.BlockInfo)
+                if(s.Style==SurfaceStyle.ModelControl || s.Style==SurfaceStyle.Label || s.Style==SurfaceStyle.BlockInfo || s.Style==SurfaceStyle.Ammo)
                 {
-                    if(Vector3D.Dot(s.Pose.Backward,MatrixD.Invert(view).Translation-s.Pose.Translation)>0)
+                    var pose=s.Pose;
+                    if(s.RenderParent!=uint.MaxValue)
                     {
-                        var sprite=Quad(c.Texture,s.Pose,full,new Vector4(0,0,1,1),Vector4.One,view,projection,.001f);
+                        var parent=VRage.Render.Scene.MyIDTracker<VRage.Render.Scene.MyActor>.FindByID(s.RenderParent);
+                        if(parent==null) continue;
+                        pose=s.ParentLocal*parent.WorldMatrix;
+                    }
+                    if(Vector3D.Dot(pose.Backward,MatrixD.Invert(view).Translation-pose.Translation)>0)
+                    {
+                        var sprite=Quad(c.Texture,pose,full,new Vector4(0,0,1,1),Vector4.One,view,projection,.001f);
                         sprite.IgnoreSceneDepth=s.Style==SurfaceStyle.Label || s.Style==SurfaceStyle.BlockInfo;
                         sprites.Add(sprite);
                     }

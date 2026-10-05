@@ -30,7 +30,7 @@ namespace SpaceEngineersVR.Player
             return importer.GetTagData();
         }
         private static object Member(object value,string name) => AccessTools.Field(value.GetType(),name)?.GetValue(value) ?? AccessTools.Property(value.GetType(),name)?.GetValue(value);
-        internal static GloveGeometry Load(string content,string model,bool left)
+        internal static Dictionary<string,object> GeometryTags(string content,string model)
         {
             var tags=Tags(Path.Combine(content,model));
             if(tags.TryGetValue("GeometryDataAsset",out var asset) && asset is string path && !string.IsNullOrEmpty(path))
@@ -40,6 +40,11 @@ namespace SpaceEngineersVR.Player
                 foreach(var pair in geometry)
                     if(pair.Key!="Bones" || !tags.ContainsKey("Bones") || ((ICollection)tags["Bones"]).Count==0) tags[pair.Key]=pair.Value;
             }
+            return tags;
+        }
+        internal static GloveGeometry Load(string content,string model,bool left)
+        {
+            var tags=GeometryTags(content,model);
             var bones=((IEnumerable)tags["Bones"]).Cast<object>().ToArray();
             var names=bones.Select(b=>(string)Member(b,"Name")).ToArray();
             var parents=bones.Select(b=>Convert.ToInt32(Member(b,"Parent"))).ToArray();

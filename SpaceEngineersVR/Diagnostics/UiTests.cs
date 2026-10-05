@@ -617,7 +617,7 @@ namespace SpaceEngineersVR.Diagnostics
                 }
             return false;
         }
-        private static void Render(OverlayCanvas canvas, Action paint)
+        internal static void Render(OverlayCanvas canvas, Action paint)
         {
             paint(); canvas.Upload();
             var deadline=DateTime.UtcNow.AddSeconds(15);

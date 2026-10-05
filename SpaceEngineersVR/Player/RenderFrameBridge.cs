@@ -30,11 +30,16 @@ namespace SpaceEngineersVR.Player
         }
 
         public static void CaptureMarkers(WorldMarkers.View markers) => latestMarkers=markers;
-        public static void Commit()
+        public static void Commit() => Commit(SpatialUi.Current);
+        internal static void Commit(SurfaceView[] surfaces)
         {
             // HUD draw follows camera enqueue. Finalize before AfterUpdate publishes the native batch.
             // Camera-only updates do not mean the native HUD removed its markers.
-            foreach(var packet in pending) packet.Markers=latestMarkers;
+            foreach(var packet in pending)
+            {
+                packet.Markers=latestMarkers;
+                packet.Surfaces=surfaces;
+            }
             pending.Clear();
         }
 

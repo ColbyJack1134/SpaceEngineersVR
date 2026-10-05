@@ -25,7 +25,7 @@ namespace SpaceEngineersVR.Multiplayer
         {
             if(MultiplayerRuntime.Enabled) return;
             harmony=new Harmony("SpaceEngineersVR.Multiplayer");
-            foreach(var type in new[] {typeof(CockpitStoragePatch),typeof(CockpitRemapPatch),typeof(AnalogSavePatch),typeof(RemoteArmsRestorePatch),typeof(RemoteArmsUpdatePatch)})
+            foreach(var type in new[] {typeof(CockpitStoragePatch),typeof(CockpitRemapPatch),typeof(AnalogSavePatch),typeof(RemoteArmsRestorePatch),typeof(RemoteArmsUpdatePatch),typeof(HeldWeaponShotPatch),typeof(HeldProjectileStartPatch),typeof(HeldDirectionPatch),typeof(HeldStraightAimPatch),typeof(HeldReloadAnimationPatch),typeof(HeldMagazineAlignmentPatch),typeof(ToolSensorPatch),typeof(ToolTargetPatch),typeof(ToolProjectionPatch),typeof(HeldDrillPosePatch),typeof(ToolFeedbackPatch),typeof(HeldDrillContactPatch),typeof(WelderContactEffectPatch)})
                 harmony.CreateClassProcessor(type).Patch();
             MultiplayerRuntime.Enabled=true;
         }
@@ -136,10 +136,11 @@ namespace SpaceEngineersVR.Multiplayer
                 if(pose!=null)
                 {
                     var encoded=pose.Encode();
+                    if(!network.IsServer) network.SendMessageToServer(PoseChannel,encoded,false);
                     foreach(var pair in peers)
                     {
                         var player=players.FirstOrDefault(p=>p.SteamUserId==pair.Key);
-                        if(player?.Character!=null && session.LocalCharacter!=null &&
+                        if((network.IsServer || pair.Key!=network.ServerId) && player?.Character!=null && session.LocalCharacter!=null &&
                             VRageMath.Vector3D.DistanceSquared(player.Character.GetPosition(),session.LocalCharacter.PositionComp.GetPosition())<250*250)
                             network.SendMessageTo(PoseChannel,encoded,pair.Key,false);
                     }
@@ -153,7 +154,7 @@ namespace SpaceEngineersVR.Multiplayer
             if(player==null && !message.Server) return;
             if(message.Channel==PoseChannel)
             {
-                if(Sandbox.Engine.Platform.Game.IsDedicated || player==null || !peers.TryGetValue(message.Sender,out var peer)) return;
+                if(player==null || !peers.TryGetValue(message.Sender,out var peer)) return;
                 var pose=PlayerPose.Decode(message.Data);
                 if(pose==null || player.Character?.EntityId!=pose.Character ||
                     !(player.Character is MyCharacter character) || (character.Parent?.EntityId ?? 0)!=pose.Seat) return;
@@ -295,6 +296,18 @@ namespace SpaceEngineersVR.Multiplayer
         internal static void Restore(MyCharacter character)
         {
             if(characters.TryGetValue(character.EntityId,out var arms)) arms.Restore();
+        }
+        internal static bool ItemPose(MyCharacter character,out VRageMath.MatrixD model)
+        {
+            model=VRageMath.MatrixD.Identity;
+            return Enabled && character!=null && characters.TryGetValue(character.EntityId,out var arms) && arms.TryItemPose(Now,out model);
+        }
+        internal static bool ItemSupported(MyCharacter character) => Enabled && character!=null &&
+            characters.TryGetValue(character.EntityId,out var arms) && arms.Supported(Now);
+        internal static bool ToolRay(MyCharacter character,out VRageMath.MatrixD ray)
+        {
+            ray=VRageMath.MatrixD.Identity;
+            return Enabled && character!=null && characters.TryGetValue(character.EntityId,out var arms) && arms.TryToolRay(Now,out ray);
         }
         internal static void Animate(MyCharacter character)
         {

@@ -11,6 +11,7 @@
   <ItemGroup>
     <PackageReference Include="Lib.Harmony" Version="2.4.2" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="HavokWrapper"><HintPath>$(GameBinPath)/HavokWrapper.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Sandbox.Common"><HintPath>$(GameBinPath)/Sandbox.Common.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Sandbox.Game"><HintPath>$(GameBinPath)/Sandbox.Game.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Sandbox.Graphics"><HintPath>$(GameBinPath)/Sandbox.Graphics.dll</HintPath><Private>false</Private></Reference>
@@ -27,6 +28,7 @@
     <Compile Include="../SpaceEngineersVR/Player/ArmSkeleton.cs" Link="Shared/ArmSkeleton.cs" />
     <Compile Include="../SpaceEngineersVR/Player/ArmMath.cs" Link="Shared/ArmMath.cs" />
     <Compile Include="../SpaceEngineersVR/Player/CockpitHandPose.cs" Link="Shared/CockpitHandPose.cs" />
+    <Compile Include="../SpaceEngineersVR/Player/SegmentBox.cs" Link="Shared/SegmentBox.cs" />
     <Compile Include="../SpaceEngineersVR/Player/WeaponPose.cs" Link="Shared/WeaponPose.cs" />
   </ItemGroup>
 </Project>
