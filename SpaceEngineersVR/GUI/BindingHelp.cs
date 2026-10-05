@@ -36,12 +36,12 @@ namespace SpaceEngineersVR.GUI
             Add("Turn on foot", "walking/WalkRotate");
             Add("Jump / climb up", "walking/JumpOrClimbUp");
             Add("Crouch / climb down", "walking/CrouchOrClimbDown");
-            Add("Tap: dampeners. Character hold: jetpack", "flying/SeatTerminal");
+            Add("Tap: dampeners. Double tap: auto dampeners. Character hold: jetpack", "flying/SeatTerminal");
             Add("Flight translation", "flying/ThrustLRFB");
             Add("Pitch / yaw", "flying/ThrustRotate");
             Add("Rise", "flying/ThrustUp");
             Add("Descend", "flying/ThrustDown");
-            lines.Add("In flight, right grip + right stick sideways rolls. Auto dampeners: right grip + left-stick click while jetpacking, or quick actions.");
+            lines.Add("In flight, right grip + right stick sideways rolls. Auto dampeners: double-click the left stick, right grip + left-stick click, or quick actions.");
             lines.Add("Invert jetpack pitch in Character settings; invert ship pitch in Flight settings.");
             lines.Add("HELMET: left-temple trigger toggles light; left-temple grip toggles ship third person.");
             lines.Add("Right-temple trigger cycles HUD: off, vitals, markers, details. Grip opens/closes visor.");
@@ -62,7 +62,7 @@ namespace SpaceEngineersVR.GUI
             lines.Add("X opens typing; Y brings the keyboard forward. B / Done closes typing.");
             lines.Add("Keyboard: tap keys, point + trigger, or select with right stick + A.");
             lines.Add("Hold the bar BELOW a window/keyboard to move it; bottom-right handle resizes.");
-            lines.Add("G menu: drag items to slots. Use its page arrows; left-hand controls are modifiers.");
+            lines.Add("G menu: drag items to slots or hold the trigger on one. Use its page arrows; left-hand controls are modifiers.");
             lines.Add("TABLET: bring the right finger capsule near a button, then click the trigger.");
             lines.Add("Controls: direct actions. Toolbar: slots/pages. Search: all actions. Close: fold.");
             lines.Add("COCKPIT: bring a fingertip near a control, lightly squeeze trigger, then complete click.");

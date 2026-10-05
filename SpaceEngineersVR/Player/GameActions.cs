@@ -236,7 +236,8 @@ namespace SpaceEngineersVR.Player
             new MyActionUnequip().ExecuteAction();
         }
         private static readonly Control.JumpHold jumpHold=new Control.JumpHold();
-        internal static void ResetJumpHold() => jumpHold.Reset();
+        private static readonly Control.DoubleTap dampenerTap=new Control.DoubleTap();
+        internal static void ResetJumpHold() { jumpHold.Reset(); dampenerTap.Reset(); }
         public static void Reset() { AlternateTrigger=false; ResetJumpHold(); }
         public static void ToolbarConfig() => ToolbarConfig(-1);
         public static void AssignToolbarSlot(int slot)
@@ -279,8 +280,15 @@ namespace SpaceEngineersVR.Player
             bool flight=InputRouter.Flying && InputRouter.Gameplay && !RemoteView.Turret;
             bool alternate=character && InputRouter.Flying &&
                 (c.ThrustRoll.RawPressed || c.RightGripPressure.RawPosition.X>.55f);
-            if(jumpHold.Update(character || flight,jump.HasPressed,jump.IsPressed,DateTime.UtcNow,character,alternate)) Execute(JetpackAction);
-            else if(flight && jumpHold.Tapped) Execute(jumpHold.Alternate ? RelativeDampeners:Dampeners);
+            var now=DateTime.UtcNow;
+            if(jumpHold.Update(character || flight,jump.HasPressed,jump.IsPressed,now,character,alternate)) { dampenerTap.Reset(); Execute(JetpackAction); }
+            else if(flight && jumpHold.Tapped && jumpHold.Alternate) { dampenerTap.Reset(); Execute(RelativeDampeners); }
+            else
+            {
+                int taps=dampenerTap.Update(flight,jump.HasPressed,jump.IsPressed,flight && jumpHold.Tapped,now);
+                if(taps==1) Execute(Dampeners);
+                else if(taps==2) Execute(RelativeDampeners);
+            }
             HandInteraction.UpdateLeftUse();
             if (c.Interact.HasPressed && !PlacementControls.Painting || c.Terminal.HasPressed || c.Inventory.HasPressed)
                 HandInteraction.RefreshTarget();

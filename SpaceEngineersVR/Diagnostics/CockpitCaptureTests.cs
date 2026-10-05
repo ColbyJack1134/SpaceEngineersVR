@@ -113,6 +113,36 @@ namespace SpaceEngineersVR.Diagnostics
             Require(!descent.Ready,"Fresh grip inherited the previous delay");
             descent.Update(false,1,pressed.AddSeconds(8));
             Require(!descent.Ready,"Pan ownership leaked descent/sprint");
+            float Burst(GripDescent replay,Func<double,float> grip,double seconds,out double first,out double last)
+            {
+                double total=0; first=last=-1;
+                for(int frame=0;frame*(1/90.0)<=seconds;frame++)
+                {
+                    double time=frame/90.0;
+                    if(replay.Replay(grip(time),pressed.AddSeconds(time))<=0) continue;
+                    total+=1/90.0; if(first<0) first=time; last=time;
+                }
+                return (float)total;
+            }
+            var replayed=new GripDescent();
+            float tapThrust=Burst(replayed,at => at<.1 ? .6f:0,1,out double burstStart,out double burstEnd);
+            Require(burstStart>=GripDescent.Delay-.001 && burstStart<GripDescent.Delay+.012 && Math.Abs(tapThrust-.1f)<.012f,"Short descent tap did not replay late for its own length");
+            Require(replayed.Replay(0,pressed.AddSeconds(1.01))==0,"Descent tap repeated after playback");
+            replayed=new GripDescent();
+            float holdThrust=Burst(replayed,at => at<.6 ? 1:0,1.2,out burstStart,out burstEnd);
+            Require(Math.Abs(holdThrust-.6f)<.012f && burstEnd<.6+GripDescent.Delay+.012,"Held descent lost or extended its length");
+            replayed=new GripDescent();
+            float doubleThrust=Burst(replayed,at => at<.05 || at>=.1 && at<.14 ? 1:0,1,out burstStart,out burstEnd);
+            Require(Math.Abs(doubleThrust-.09f)<.025f && burstEnd<.14+GripDescent.Delay+.012,"Two quick descent taps did not replay as two bursts");
+            replayed=new GripDescent();
+            replayed.Replay(1,pressed); replayed.Replay(1,pressed.AddSeconds(.1));
+            replayed.Cancel();
+            Require(replayed.Replay(0,pressed.AddSeconds(.2))==0 && replayed.Replay(0,pressed.AddSeconds(.3))==0,"Pan start fired queued descent");
+            replayed.Replay(1,pressed.AddSeconds(3));
+            Require(replayed.Replay(0,pressed.AddSeconds(5))==0,"Paused input replayed stale descent");
+            replayed=new GripDescent();
+            replayed.Replay(1,pressed);
+            Require(replayed.Replay(1,pressed.AddSeconds(.25))==1 && replayed.Replay(1,pressed.AddSeconds(.5))==1,"Low frame rate suppressed held descent");
             var tap=new GripTap();
             Require(!tap.Update(true,false,false,pressed) && tap.Update(false,true,false,pressed.AddMilliseconds(200)),"Short centered grip tap did not lock");
             tap.Update(true,false,false,pressed); tap.Update(true,false,true,pressed.AddMilliseconds(100));

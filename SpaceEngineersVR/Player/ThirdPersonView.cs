@@ -23,6 +23,12 @@ namespace SpaceEngineersVR.Player
         private static readonly Diorama view=new Diorama();
         private static readonly GripDescent descent=new GripDescent();
         internal static bool DescentReady => !Active || descent.Ready && !consumed;
+        internal static float Descent(float pressure)
+        {
+            if(!Active) return pressure;
+            if(!consumed) return descent.Replay(pressure,DateTime.UtcNow);
+            descent.Cancel(); return 0;
+        }
         private static readonly ObserverFollow follow=new ObserverFollow();
         private static readonly object sync=new object();
         private static MyEntity subject;
@@ -184,6 +190,7 @@ namespace SpaceEngineersVR.Player
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked && MenuPointer.GameFocused;
             descent.Update(allowed,left,DateTime.UtcNow);
             if(allowed && left>.025f && right>.025f) consumed=true;
+            if(consumed) descent.Cancel();
             bool started;
             lock(sync)
             {

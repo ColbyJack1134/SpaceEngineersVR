@@ -144,6 +144,7 @@ namespace SpaceEngineersVR.Plugin
 
         public void Update()
         {
+            if (Harmony != null) Patches.DoubleClickTolerancePatch.Install(Harmony);
             if (PhysicalRendererProbe.Active) { PhysicalRendererProbe.Update(); return; }
             Multiplayer.MultiplayerRuntime.Update();
             if (cleanupRequested)

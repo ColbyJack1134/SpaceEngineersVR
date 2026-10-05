@@ -161,6 +161,25 @@ namespace SpaceEngineersVR.Diagnostics
             Require(!jumpHold.Update(true,false,true,holdTime.AddSeconds(1),holdAction:false),"Seated stick hold toggled jetpack");
             jumpHold.Update(true,false,false,holdTime.AddSeconds(2),holdAction:false);
             Require(!jumpHold.Tapped,"Long seated hold became a dampener tap");
+            foreach(var method in Patches.DoubleClickTolerancePatch.Targets)
+            {
+                var patched=Patches.DoubleClickTolerancePatch.Transpiler(HarmonyLib.PatchProcessor.GetOriginalInstructions(method),method).ToList();
+                Require(patched.Count(c => c.operand is float value && value==Patches.DoubleClickTolerancePatch.Tolerance)==1 &&
+                    !patched.Any(c => c.operand is float value && value==Patches.DoubleClickTolerancePatch.Native),"Double-click tolerance missed "+method.DeclaringType.Name);
+            }
+            var taps=new DoubleTap(); double window=DoubleTap.Window;
+            Require(taps.Update(true,false,false,true,holdTime)==0 && taps.Update(true,false,false,false,holdTime.AddSeconds(window*.8))==0,"Single dampener tap fired before the double-click window");
+            Require(taps.Update(true,false,false,false,holdTime.AddSeconds(window+.01))==1 && taps.Update(true,false,false,false,holdTime.AddSeconds(window+.3))==0,"Single dampener tap lost or repeated");
+            taps.Update(true,false,false,true,holdTime);
+            Require(taps.Update(true,true,true,false,holdTime.AddSeconds(window*.8))==0 && taps.Update(true,false,true,false,holdTime.AddSeconds(window+.2))==0,"Second press toggled dampeners");
+            Require(taps.Update(true,false,false,true,holdTime.AddSeconds(window+.25))==2 && taps.Update(true,false,false,false,holdTime.AddSeconds(1))==0,"Double click did not select auto dampeners once");
+            taps.Update(true,false,false,true,holdTime);
+            taps.Update(true,true,true,false,holdTime.AddSeconds(window/2));
+            Require(taps.Update(true,false,false,false,holdTime.AddSeconds(1))==0 && taps.Update(true,false,false,false,holdTime.AddSeconds(2))==0,"Second press held past a tap still toggled dampeners");
+            taps.Update(true,false,false,true,holdTime);
+            Require(taps.Update(true,true,true,false,holdTime.AddSeconds(window+.05))==1,"Slow second press joined a double click");
+            taps.Update(true,false,false,true,holdTime);
+            Require(taps.Update(false,false,false,false,holdTime.AddSeconds(window/2))==0 && taps.Update(true,false,false,false,holdTime.AddSeconds(window+.3))==0,"Leaving flight kept a pending dampener tap");
             var gesture=new ToolbarGesture(); var cockpit=new object(); var now=DateTime.UtcNow;
             foreach(int slot in new[] {0,3,8,9,12})
             {

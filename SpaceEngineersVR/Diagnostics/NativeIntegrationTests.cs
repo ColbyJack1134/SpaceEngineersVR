@@ -85,6 +85,10 @@ namespace SpaceEngineersVR.Diagnostics
         private static void Require(bool condition,string reason) { if(!condition) throw new Exception(reason); }
         public static void Run(Action<string> log)
         {
+            foreach(var method in Patches.DoubleClickTolerancePatch.Targets)
+                if(Harmony.GetPatchInfo(method)?.Transpilers.Count!=1)
+                    throw new Exception("Double-click tolerance is not attached to "+method.DeclaringType.Name);
+            log("PASS native double-click tolerance attached to grids, lists and tables after startup.");
             MultiplayerTests.RunNative(log);
             var character=(Sandbox.Game.Entities.Character.MyCharacter)FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.Character.MyCharacter));
             var placer=FormatterServices.GetUninitializedObject(AccessTools.TypeByName("SpaceEngineers.Game.Entities.Weapons.MyCubePlacer"));

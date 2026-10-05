@@ -244,7 +244,7 @@ namespace SpaceEngineersVR.Player.Components
         {
             var controls = Controls.Static;
             move = FlightAxes.Translation(controls.ThrustLRUD.Position, controls.ThrustLRFB.Position,
-                ship && CockpitControls.Held(Player.HandL) ? 0 : controls.ThrustUp.Position.X, WeaponHandling.ConsumesLeftGrip || !ThirdPersonView.DescentReady ? 0 : controls.ThrustDown.Position.X, controls.ThrustForward.Position.X, controls.ThrustBackward.Position.X);
+                ship && CockpitControls.Held(Player.HandL) ? 0 : controls.ThrustUp.Position.X, WeaponHandling.ConsumesLeftGrip ? 0 : ThirdPersonView.Descent(controls.ThrustDown.Position.X), controls.ThrustForward.Position.X, controls.ThrustBackward.Position.X);
             float rollSensitivity = ship ? Common.Config.ShipRollSensitivity : Common.Config.JetpackRoll;
             FlightAxes.Rotation(controls.ThrustRotate.Position, controls.ThrustRoll.IsPressed && !TouchScreenBridge.OwnsInput, ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
         }

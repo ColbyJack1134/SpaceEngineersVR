@@ -19,6 +19,9 @@ namespace SpaceEngineersVR.GUI
     {
         private static CockpitAssignment current;
         private static readonly System.Reflection.MethodInfo nativeDrop=AccessTools.Method(typeof(MyGuiScreenToolbarConfigBase),"OnDragAndDropOnDrop");
+        private static readonly System.Reflection.MethodInfo nativeDoubleClick=AccessTools.Method(typeof(MyGuiScreenToolbarConfigBase),"OnGridItemDoubleClicked",
+            new[] {typeof(MyGuiControlGrid),typeof(MyGuiControlGrid.EventArgs),typeof(bool)});
+        internal const double HoldSeconds=.4;
         private readonly MyGuiScreenToolbarConfigBase screen;
         private readonly MyToolbar target,source;
         private readonly int count,selected;
@@ -29,7 +32,8 @@ namespace SpaceEngineersVR.GUI
         private MyDragAndDropEventArgs pendingClick;
         private MyGuiControlContextMenu clickMenu;
         private MyGuiControlLabel sourceLabel;
-        private int sourcePage,dropSlot=-1;
+        private int sourcePage,dropSlot=-1,heldItem=-1;
+        private DateTime heldSince;
         internal static string MarkerIcon => System.IO.Path.Combine(Plugin.Common.AssetFolder,"Icons","vr.dds");
         public CockpitAssignment(MyGuiScreenToolbarConfigBase screen,MyToolbar target,MyToolbar source,int count,int selected,bool switches=true)
         { this.screen=screen; this.target=target; this.source=source; this.count=count; this.selected=selected; this.switches=switches; sourcePage=source?.CurrentPage ?? 0; current=this; screen.Closed+=Closed; }
@@ -154,6 +158,8 @@ namespace SpaceEngineersVR.GUI
         {
             var c=current;
             if(c==null || c.screen!=screen) return false;
+            if(c.pendingClick==null && c.clickMenu==null) c.HoldToAssign(DateTime.UtcNow);
+            else c.heldItem=-1;
             if(c.pendingClick!=null)
             {
                 if(MyInput.Static.IsPrimaryButtonPressed()) return true;
@@ -186,6 +192,25 @@ namespace SpaceEngineersVR.GUI
             c.clickMenu.IsMouseOver=c.clickMenu.GetInnerList().CheckMouseOver(false);
             c.clickMenu.HandleInput();
             return true;
+        }
+        // Holding the trigger on one catalog item acts as a double click. Leaving the item first keeps the native drag.
+        private void HoldToAssign(DateTime now)
+        {
+            var grid=Field<MyGuiControlGrid>("m_gridBlocks");
+            if(grid==null || !MyInput.Static.IsPrimaryButtonPressed()) { heldItem=-1; return; }
+            int over=grid.MouseOverIndex;
+            if(MyInput.Static.IsNewPrimaryButtonPressed())
+            {
+                heldItem=grid.IsValidIndex(over) && grid.MouseOverItem?.Enabled==true ? over:-1;
+                heldSince=now; return;
+            }
+            if(heldItem<0) return;
+            if(over!=heldItem) { heldItem=-1; return; }
+            if((now-heldSince).TotalSeconds<HoldSeconds) return;
+            heldItem=-1;
+            drag?.Stop();
+            var args=new MyGuiControlGrid.EventArgs { ItemIndex=over,RowIndex=over/grid.ColumnsCount,ColumnIndex=over%grid.ColumnsCount,Button=MySharedButtonsEnum.Primary };
+            nativeDoubleClick.Invoke(screen,new object[] {grid,args,false});
         }
         internal static bool HandleDrop(MyGuiScreenToolbarConfigBase screen,MyDragAndDropEventArgs args)
         {
