@@ -67,7 +67,7 @@ namespace SpaceEngineersVR.Player
             if (InputRouter.RadialOpen)
             {
                 if (InputRouter.Mode != InputMode.Radial || Main.MenuOpen || !Player.Headset.pose.isTracked || !Player.HandR.pose.isTracked ||
-                    !Player.HandL.pose.isTracked || !MenuPointer.GameFocused ||
+                    !Player.HandL.pose.isTracked ||
                     !ReferenceEquals(owner, MySession.Static?.ControlledEntity) || MySession.Static?.LocalCharacter?.IsDead != false)
                 { Close(); return; }
                 if(group==1 && controls.Unequip.HasPressed) { Close(); return; }

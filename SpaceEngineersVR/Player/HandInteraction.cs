@@ -152,7 +152,7 @@ namespace SpaceEngineersVR.Player
             var character=MySession.Static?.LocalCharacter;
             bool available=!disabled && character!=null && !character.IsDead && !character.IsSitting && !character.IsOnLadder &&
                 MySession.Static.ControlledEntity==character && character.CurrentWeapon==null && InputRouter.Gameplay &&
-                MenuPointer.GameFocused && !Main.MenuOpen && Player.Headset.pose.isTracked &&
+                !Main.MenuOpen && Player.Headset.pose.isTracked &&
                 !PlacementControls.OwnsTools && !TouchScreenBridge.OwnsInput && !SpatialUi.Pointing;
             var c=Controls.Static;
             if(owner!=character?.EntityId) { ResetTouch(); owner=character?.EntityId ?? 0; available=false; }

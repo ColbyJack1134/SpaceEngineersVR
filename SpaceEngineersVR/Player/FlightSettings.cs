@@ -40,7 +40,7 @@ namespace SpaceEngineersVR.Player
         internal static void Check()
         {
             if(IsOpen && (owner!=SeatFit.Seat || !SeatFit.Eligible(owner) || Main.MenuOpen || ThirdPersonView.Active ||
-                !Player.Headset.pose.isTracked || !Player.HandL.pose.isTracked || !Player.HandR.pose.isTracked || !MenuPointer.GameFocused)) Close();
+                !Player.Headset.pose.isTracked || !Player.HandL.pose.isTracked || !Player.HandR.pose.isTracked)) Close();
         }
         internal static bool UpdateWindow(MatrixD pointer)
         {

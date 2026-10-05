@@ -66,7 +66,7 @@ namespace SpaceEngineersVR.Player
         {
             FlightSettings.Check();
             if(failed || !Player.Headset.pose.isTracked || !Player.HandR.pose.isTracked || !Player.HandL.pose.isTracked ||
-                !MenuPointer.GameFocused || (!InputRouter.Gameplay && InputRouter.Mode!=InputMode.Menu))
+                (!InputRouter.Gameplay && InputRouter.Mode!=InputMode.Menu))
             { current=new SurfaceView[0]; wristTouch.Reset(); CockpitTouch.Reset(); wrist=wristMenu=seat=null; Pointing=RayTargeted=wristHoverFeedback=false; return; }
             var now=DateTime.UtcNow;
             float dt=(float)Math.Min(.05,Math.Max(0,(now-lastUpdate).TotalSeconds)); lastUpdate=now;

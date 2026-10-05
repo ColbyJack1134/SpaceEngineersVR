@@ -30,7 +30,7 @@ namespace SpaceEngineersVR.Player
             var character = MySession.Static?.LocalCharacter;
             object nextOwner = Main.MenuOpen ? (object)VRGUIManager.TopScreen : MySession.Static?.ControlledEntity;
             InputMode next;
-            if (!Player.Headset.pose.isTracked || !MenuPointer.GameFocused ||
+            if (!Player.Headset.pose.isTracked ||
                 !Valve.VR.OpenVR.System.IsInputAvailable()) next = InputMode.Blocked;
             else if (Main.MenuOpen) next = InputMode.Menu;
             else if (Player.IsCalibrating || character == null || character.IsDead || MySandboxGame.IsPaused ||

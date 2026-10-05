@@ -181,7 +181,7 @@ namespace SpaceEngineersVR.Player
                 Zoom(-controls.ThrustRotate.Position.Y*seconds*.6f);
             if(InputRouter.Gameplay && !Main.MenuOpen) PickHand();
             var hand=Hand;
-            bool available=InputRouter.Gameplay && !Main.MenuOpen && MenuPointer.GameFocused && !ThirdPersonView.Manipulating && Free(hand);
+            bool available=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && Free(hand);
             if(!available) { interaction.Reset(); if(placementDirty) Save(); window.Stop(); directHeld=false; lastHover=0; Publish(); return; }
             MatrixD aim=Aim(hand);
             bool Reachable(Vector3 point)

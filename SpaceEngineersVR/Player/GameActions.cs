@@ -97,7 +97,7 @@ namespace SpaceEngineersVR.Player
         public static void RunScheduled()
         {
             if(pending==null) return;
-            if(DateTime.UtcNow>pendingUntil || !ReferenceEquals(pendingOwner,MySession.Static?.ControlledEntity) || !MenuPointer.GameFocused)
+            if(DateTime.UtcNow>pendingUntil || !ReferenceEquals(pendingOwner,MySession.Static?.ControlledEntity))
             { pending=null; pendingOwner=null; return; }
             if(!InputRouter.Gameplay || Main.MenuOpen) return;
             var action=pending; pending=null; pendingOwner=null; Execute(action);

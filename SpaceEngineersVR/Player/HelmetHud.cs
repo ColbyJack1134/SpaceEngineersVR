@@ -82,7 +82,7 @@ namespace SpaceEngineersVR.Player
             float leftPressure=c.LeftTriggerPressure.RawPosition.X;
             if(leftPressure<=.025f) leftConsumed=false;
             if(c.PointerPressure.RawPosition.X<=.025f && !c.Primary.RawPressed) rightConsumed=false;
-            bool active=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && MenuPointer.GameFocused && Player.Headset.pose.isTracked;
+            bool active=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && Player.Headset.pose.isTracked;
             bool guard=InputRouter.Gameplay && !Main.MenuOpen && Player.Headset.pose.isTracked;
             rightGesture.Update(active && Player.HandR.pose.isTracked && c.Primary.Active,
                 Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,c.Primary.RawPressed);
