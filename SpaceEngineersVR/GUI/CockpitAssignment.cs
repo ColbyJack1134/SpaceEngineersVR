@@ -7,6 +7,7 @@ using Sandbox.Game.Screens.Helpers;
 using Sandbox.Graphics.GUI;
 using SpaceEngineersVR.Player;
 using VRage.Game;
+using VRage.Input;
 using VRage.Utils;
 using VRageMath;
 
@@ -24,6 +25,8 @@ namespace SpaceEngineersVR.GUI
         private MyGuiControlToolbar toolbar;
         private MyGuiControlGrid sourceGrid;
         private MyGuiControlGridDragAndDrop drag;
+        private MyDragAndDropEventArgs pendingClick;
+        private MyGuiControlContextMenu clickMenu;
         private MyGuiControlLabel sourceLabel;
         private int sourcePage;
         public CockpitAssignment(MyGuiScreenToolbarConfigBase screen,MyToolbar target,MyToolbar source,int count,int selected,bool switches=true)
@@ -141,8 +144,45 @@ namespace SpaceEngineersVR.GUI
         {
             var drop=DoubleClickDrop(screen,grid,grid.TryGetItemAt(args.RowIndex,args.ColumnIndex),args.ItemIndex);
             if(drop==null) return false;
-            // Reuse the native action chooser and parameter prompts for this exact destination.
-            nativeDrop.Invoke(screen,new object[] {grid,drop});
+            // The catalog still owns the second press and can reclaim focus on release.
+            current.pendingClick=drop;
+            return true;
+        }
+        internal static bool HandleInput(MyGuiScreenToolbarConfigBase screen)
+        {
+            var c=current;
+            if(c==null || c.screen!=screen) return false;
+            if(c.pendingClick!=null)
+            {
+                if(MyInput.Static.IsPrimaryButtonPressed()) return true;
+                var drop=c.pendingClick; c.pendingClick=null;
+                if(DoubleClickDrop(screen,drop.DragFrom.Grid,drop.Item,drop.DragFrom.ItemIndex)==null) return true;
+                nativeDrop.Invoke(screen,new object[] {drop.DragFrom.Grid,drop});
+                var menu=c.Field<MyGuiControlContextMenu>("m_onDropContextMenu");
+                if(menu?.Enabled==true)
+                {
+                    menu.Enabled=false;
+                    c.Field<MyGuiControlContextMenu>("m_contextMenu").Enabled=false;
+                    c.toolbar.HideContextMenu();
+                    menu.AllowKeyboardNavigation=true;
+                    menu.Activate();
+                    screen.FocusedControl=menu.GetInnerList();
+                    c.clickMenu=menu;
+                }
+                return true;
+            }
+            if(c.clickMenu==null) return false;
+            if(!c.clickMenu.Visible)
+            {
+                if(MyInput.Static.IsPrimaryButtonPressed()) return true;
+                c.clickMenu=null;
+                return false;
+            }
+            if(!ReferenceEquals(MyToolbarComponent.CurrentToolbar,c.target))
+            { c.clickMenu.Deactivate(); c.clickMenu=null; return true; }
+            // Route the overlay before the catalog, including outside-click and Escape cancellation.
+            c.clickMenu.IsMouseOver=c.clickMenu.GetInnerList().CheckMouseOver(false);
+            c.clickMenu.HandleInput();
             return true;
         }
         internal static bool HandleDrop(MyGuiScreenToolbarConfigBase screen,MyDragAndDropEventArgs args)

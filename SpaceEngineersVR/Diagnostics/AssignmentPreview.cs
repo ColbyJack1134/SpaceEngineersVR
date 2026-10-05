@@ -131,6 +131,7 @@ namespace SpaceEngineersVR.Diagnostics
                 throw new Exception("Double-click did not target the highlighted page/slot");
             var click=AccessTools.Method(typeof(MyGuiScreenToolbarConfigBase),"OnGridItemDoubleClicked",new[] {typeof(MyGuiControlGrid),typeof(MyGuiControlGrid.EventArgs),typeof(bool)});
             click.Invoke(owner,new object[] {grid,new MyGuiControlGrid.EventArgs {RowIndex=0,ColumnIndex=0,ItemIndex=0},false});
+            CockpitAssignment.HandleInput(owner);
             if(requests!=1 || target.SelectedSlot.HasValue) throw new Exception("Double-click lost the native drop path or activated equipment");
             item.Enabled=false;
             if(CockpitAssignment.DoubleClickDrop(owner,grid,item,0)!=null) throw new Exception("Disabled assignment accepted");
@@ -143,6 +144,7 @@ namespace SpaceEngineersVR.Diagnostics
             if(CockpitAssignment.DoubleClickDrop(owner,grid,item,0)!=null) throw new Exception("Hidden assignment slot accepted");
             target.SwitchToPage(page); assignment.Update();
             Plugin.Logger.Info("PASS native double-click assignment: highlighted page/slot, native drop dispatch, disabled/hidden/toolbar/stale-owner rejection and no equipment activation.");
+            AssignmentMenuTests.Run(owner,target,toolbar,assignment,Controls);
         }
         internal void Finish()
         {

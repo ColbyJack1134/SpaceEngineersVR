@@ -24,6 +24,11 @@ namespace SpaceEngineersVR.Patches
         private static bool Prefix(MyGuiScreenToolbarConfigBase __instance,MyGuiControlGrid sender,MyGuiControlGrid.EventArgs eventArgs) =>
             !GUI.CockpitAssignment.HandleDoubleClick(__instance,sender,eventArgs);
     }
+    [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),nameof(MyGuiScreenToolbarConfigBase.HandleInput))]
+    internal static class ToolbarAssignmentInputPatch
+    {
+        private static bool Prefix(MyGuiScreenToolbarConfigBase __instance) => !GUI.CockpitAssignment.HandleInput(__instance);
+    }
     [HarmonyPatch(typeof(MyToolbarItemTerminalBlock),nameof(MyToolbarItemTerminalBlock.PossibleActions))]
     internal static class CockpitViewAssignmentPatch
     {
