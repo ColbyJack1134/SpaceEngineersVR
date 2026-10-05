@@ -18,13 +18,11 @@ namespace SpaceEngineersVR.Player
         public string[] Icons=new string[0];
         public string SubIcon,Text,Value;
         public ActionChoice Action;
-        public long TargetId;
         public float? Knob;
         public bool Invisible,DirectOnly,Round;
         public VRageMath.RectangleF Bounds;
         internal bool Contains(Vector2 uv)
         {
-            if(TargetId!=0 && (!WristSignals.Aperture.Contains(uv) || WristKnob.Reserved.Contains(uv))) return false;
             if(Bounds.Width<=0 || Bounds.Height<=0 || !Bounds.Contains(uv)) return false;
             var delta=(uv-Bounds.Center)/new Vector2(Bounds.Width/2,Bounds.Height/2);
             return !Round || delta.LengthSquared()<=1;

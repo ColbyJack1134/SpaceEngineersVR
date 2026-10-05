@@ -34,12 +34,11 @@ namespace SpaceEngineersVR.Diagnostics
                 }
             }
             var now=DateTime.UtcNow; var sample=new BuildOrientationHud.View { Captured=now };
-            foreach(InputMode mode in Enum.GetValues(typeof(InputMode)))
-                Require(BuildOrientationHud.Visible(sample,now,true,mode)==(mode==InputMode.Building || mode==InputMode.Clipboard),
-                    "Build orientation leaks outside placement context");
-            Require(!BuildOrientationHud.Visible(sample,now,false,InputMode.Building) &&
-                !BuildOrientationHud.Visible(sample,now.AddSeconds(1),true,InputMode.Building),"Hidden/stale building hint survived");
-            log("PASS build orientation HUD: both asymmetric eye frusta, placement-only visibility and stale/hidden cleanup.");
+            Require(BuildOrientationHud.Visible(sample,now,true,true) && !BuildOrientationHud.Visible(sample,now,true,false),
+                "Build orientation shows outside rotate mode");
+            Require(!BuildOrientationHud.Visible(sample,now,false,true) &&
+                !BuildOrientationHud.Visible(sample,now.AddSeconds(1),true,true),"Hidden/stale building hint survived");
+            log("PASS build orientation HUD: both asymmetric eye frusta, rotate-mode-only visibility and stale/hidden cleanup.");
         }
         internal static readonly System.Collections.Generic.List<BuildOrientationHud.View> Previews=new System.Collections.Generic.List<BuildOrientationHud.View>();
         private static void LoadMaterials()

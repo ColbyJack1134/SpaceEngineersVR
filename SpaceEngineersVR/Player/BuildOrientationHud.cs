@@ -56,8 +56,8 @@ namespace SpaceEngineersVR.Player
         private static OverlayCanvas canvas;
         private static DateTime nextDraw;
         private static bool failed;
-        internal static bool Visible(View view,DateTime now,bool hud,InputMode mode) => view!=null && hud &&
-            (mode==InputMode.Building || mode==InputMode.Clipboard) && now>=view.Captured && (now-view.Captured).TotalSeconds<.25;
+        internal static bool Visible(View view,DateTime now,bool hud,bool rotating) => view!=null && hud && rotating &&
+            now>=view.Captured && (now-view.Captured).TotalSeconds<.25;
         internal static void Paint(OverlayCanvas target,View view)
         {
             target.Clear(System.Drawing.Color.Transparent);
@@ -69,7 +69,7 @@ namespace SpaceEngineersVR.Player
             try
             {
                 var view=current; var now=DateTime.UtcNow;
-                if(!Visible(view,now,HelmetHud.Visible && !Main.MenuOpen,PlacementControls.Mode) || !Player.Headset.renderPose.isTracked)
+                if(!Visible(view,now,HelmetHud.Visible && !Main.MenuOpen,PlacementControls.Adjusting) || !Player.Headset.renderPose.isTracked)
                 { Hide(); nextDraw=DateTime.MinValue; return; }
                 if(now<nextDraw) return;
                 nextDraw=now.AddMilliseconds(1000.0/30);

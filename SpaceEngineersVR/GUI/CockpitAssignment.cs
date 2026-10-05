@@ -6,6 +6,7 @@ using Sandbox.Game.Gui;
 using Sandbox.Game.Screens.Helpers;
 using Sandbox.Graphics.GUI;
 using SpaceEngineersVR.Player;
+using VRage.Collections;
 using VRage.Game;
 using VRage.Input;
 using VRage.Utils;
@@ -28,7 +29,8 @@ namespace SpaceEngineersVR.GUI
         private MyDragAndDropEventArgs pendingClick;
         private MyGuiControlContextMenu clickMenu;
         private MyGuiControlLabel sourceLabel;
-        private int sourcePage;
+        private int sourcePage,dropSlot=-1;
+        internal static string MarkerIcon => System.IO.Path.Combine(Plugin.Common.AssetFolder,"Icons","vr.dds");
         public CockpitAssignment(MyGuiScreenToolbarConfigBase screen,MyToolbar target,MyToolbar source,int count,int selected,bool switches=true)
         { this.screen=screen; this.target=target; this.source=source; this.count=count; this.selected=selected; this.switches=switches; sourcePage=source?.CurrentPage ?? 0; current=this; screen.Closed+=Closed; }
         internal static void Update(MyGuiScreenToolbarConfigBase screen)
@@ -191,6 +193,7 @@ namespace SpaceEngineersVR.GUI
             if(c==null || c.screen!=screen) return false;
             bool target=args.DropTo!=null && c.toolbar.IsToolbarGrid(args.DropTo.Grid);
             int index=target ? c.target.SlotToIndex(args.DropTo.ItemIndex) : -1;
+            c.dropSlot=index;
             if(target && index>=c.count) return true;
             if(c.sourceGrid==null) return false;
             if(args.DropTo?.Grid==c.sourceGrid) return true;
@@ -200,6 +203,37 @@ namespace SpaceEngineersVR.GUI
                 var copy=MyToolbarItemFactory.CreateToolbarItem(item.GetObjectBuilder());
                 if(copy!=null) c.target.SetItemAtIndex(index,copy);
             }
+            return true;
+        }
+        internal static bool FillActions(MyGuiScreenToolbarConfigBase screen,MyGuiControlContextMenu menu,MyToolbarItemActions item,out bool filled)
+        {
+            filled=false;
+            var c=current;
+            // Only the chooser that follows a drop onto a switch; the catalog's secondary-click menu has no target switch.
+            if(c==null || c.screen!=screen || !c.switches || c.dropSlot<0 || item==null || menu!=c.Field<MyGuiControlContextMenu>("m_onDropContextMenu")) return false;
+            int slot=c.dropSlot;
+            filled=Fill(menu,item.PossibleActions(c.target.ToolbarType),id=>CockpitActions.Compatible(slot,item,id));
+            return true;
+        }
+        // Compatible actions first with the VR icon in place of the action icon; native order is kept within each group.
+        internal static bool Fill(MyGuiControlContextMenu menu,ListReader<ITerminalAction> actions,Func<string,bool> compatible)
+        {
+            if(actions.Count==0) return false;
+            menu.Enabled=true;
+            menu.CreateNewContextMenu();
+            foreach(var entry in actions.Select(a=>new { Action=a,Compatible=compatible(a.Id) }).OrderBy(a=>a.Compatible ? 0:1).ToList())
+                menu.AddItem(entry.Action.Name,"",entry.Compatible ? MarkerIcon:entry.Action.Icon,entry.Action.Id);
+            return true;
+        }
+        // A handle supplies the target value itself, so its numeric actions skip the native value dialogs.
+        internal static bool SkipParameters(MyToolbarItem item)
+        {
+            var c=current;
+            // Only the item chosen from the drop chooser, so dropSlot is the slot it is assigned to.
+            if(c==null || !c.switches || c.dropSlot<0 || !ReferenceEquals(MyToolbarComponent.CurrentToolbar,c.target) ||
+                !ReferenceEquals(item,c.Field<MyToolbarItem>("m_onDropContextMenuItem")) ||
+                !(item is MyToolbarItemActions action) || !CockpitActions.Analog(c.dropSlot,action)) return false;
+            Multiplayer.AnalogControl.DefaultParameters(item,action.ActionId);
             return true;
         }
         public void Dispose()

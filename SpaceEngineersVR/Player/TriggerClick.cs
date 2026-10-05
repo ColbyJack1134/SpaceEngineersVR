@@ -11,6 +11,7 @@ namespace SpaceEngineersVR.Player
         internal bool Pressed => button.HasPressed;
         internal bool Held => button.IsPressed;
         internal bool Active => button.Active;
+        internal float Pressure => pressure.RawPosition.X;
         internal void Consume(bool near,bool down)
         {
             button.BlockUntilRelease();

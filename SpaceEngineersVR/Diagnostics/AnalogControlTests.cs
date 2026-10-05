@@ -19,7 +19,7 @@ namespace SpaceEngineersVR.Diagnostics
                 var call=(IMethodCallMessage)message; object result=null;
                 switch(call.MethodName)
                 {
-                    case "GetProperty": result=Property; break;
+                    case "GetProperty": result=Property?.Id==(string)call.Args[0] ? Property:null; break;
                     case "get_MinLimit": case "get_LowerLimitRad": result=Min; break;
                     case "get_MaxLimit": case "get_UpperLimitRad": result=Max; break;
                     case "get_CurrentPosition": case "get_Angle": result=Position; break;
@@ -106,7 +106,18 @@ namespace SpaceEngineersVR.Diagnostics
             numeric.Property.SetValue(numeric.Block,numeric.Value(lever));
             Require(Math.Abs(scalar-100)<.01f,"Native slider setter did not receive the lever value");
             Require(AnalogControl.Resolve((IMyTerminalBlock)sliderOwner.GetTransparentProxy(),"OnOff")==null,"Boolean switch became analog");
-            log("PASS native analog slider: logarithmic range mapping, setter and nonnumeric fallback.");
+            float ratio=50; bool targeted=false;
+            var distance=new Sandbox.Game.Gui.MyTerminalControlSlider<Sandbox.Game.Entities.MyJumpDrive>("JumpDistance",VRage.Utils.MyStringId.NullOrEmpty,VRage.Utils.MyStringId.NullOrEmpty);
+            distance.SetLimits(0,100); distance.Getter=_=>ratio; distance.Setter=(_,value)=>ratio=value; distance.Enabled=_=>!targeted;
+            var jump=AnalogControl.Resolve((IMyTerminalBlock)new Actuator(typeof(Sandbox.ModAPI.IMyJumpDrive)) {Property=distance}.GetTransparentProxy(),"SetGravityAcceleration");
+            Require(jump!=null,"Native jump distance Set action did not resolve its slider");
+            jump.Block=(IMyTerminalBlock)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.MyJumpDrive));
+            var jumps=new System.Collections.Generic.List<AnalogControl.Channel> {jump};
+            AnalogControl.Set(null,0,jumps,1);
+            Require(ratio==100,"Jump distance handle did not reach the full distance");
+            targeted=true; AnalogControl.Set(null,0,jumps,0);
+            Require(ratio==100,"Jump distance changed while the native slider was disabled by a selected target");
+            log("PASS native analog slider: logarithmic range mapping, setter, mismatched Set action IDs, disabled sliders and nonnumeric fallback.");
         }
     }
 }

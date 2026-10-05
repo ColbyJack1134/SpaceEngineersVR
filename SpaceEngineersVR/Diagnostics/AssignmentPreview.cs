@@ -144,7 +144,7 @@ namespace SpaceEngineersVR.Diagnostics
             if(CockpitAssignment.DoubleClickDrop(owner,grid,item,0)!=null) throw new Exception("Hidden assignment slot accepted");
             target.SwitchToPage(page); assignment.Update();
             Plugin.Logger.Info("PASS native double-click assignment: highlighted page/slot, native drop dispatch, disabled/hidden/toolbar/stale-owner rejection and no equipment activation.");
-            AssignmentMenuTests.Run(owner,target,toolbar,assignment,Controls);
+            AssignmentMenuTests.Run(owner,target,toolbar,assignment,Controls,!ordinary);
         }
         internal void Finish()
         {

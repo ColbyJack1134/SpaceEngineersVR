@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.Remoting.Messaging;
 using System.Runtime.Remoting.Proxies;
@@ -52,7 +53,7 @@ namespace SpaceEngineersVR.Diagnostics
         }
         private static void Require(bool condition,string message) { if(!condition) throw new Exception(message); }
         private static void Set(object owner,string name,object value) => AccessTools.Field(owner.GetType(),name).SetValue(owner,value);
-        internal static void Run(MyGuiScreenToolbarConfigBase owner,MyToolbar target,MyGuiControlToolbar toolbar,CockpitAssignment assignment,MyGuiControls controls)
+        internal static void Run(MyGuiScreenToolbarConfigBase owner,MyToolbar target,MyGuiControlToolbar toolbar,CockpitAssignment assignment,MyGuiControls controls,bool switches)
         {
             var original=MyInput.Static;
             var cursor=MyGuiManager.MouseCursorPosition;
@@ -68,11 +69,12 @@ namespace SpaceEngineersVR.Diagnostics
             // Supply a terminal action menu without creating blocks or loading a world.
             grid.SetItemAt(0,new MyGuiGridItem((string[])null,null,"Light",new MyGuiScreenToolbarConfigBase.GridItemUserData {ItemData=()=> {
                 requests++;
-                menu.CreateNewContextMenu();
-                menu.AddItem(new StringBuilder("On/Off"),userData:"OnOff");
-                menu.AddItem(new StringBuilder("On"),userData:"OnOff_On");
-                menu.AddItem(new StringBuilder("Off"),userData:"OnOff_Off");
-                menu.Enabled=true;
+                // Thruster actions on an analog handle: numeric actions rank first with the VR icon; the ship toolbar keeps native order.
+                CockpitAssignment.Fill(menu,new List<ITerminalAction> {
+                    new MyTerminalAction<Sandbox.Game.Entities.MyThrust>("OnOff",new StringBuilder("On/Off"),""),
+                    new MyTerminalAction<Sandbox.Game.Entities.MyThrust>("IncreaseOverride",new StringBuilder("Increase thrust override"),""),
+                    new MyTerminalAction<Sandbox.Game.Entities.MyThrust>("SetOverride",new StringBuilder("Set thrust override"),"") },
+                    id=>switches && id!="OnOff");
                 Set(owner,"m_onDropContextMenuToolbarIndex",1); Set(owner,"m_onDropContextMenuItem",action);
                 return new MyObjectBuilder_ToolbarItemEmpty();
             }}));
@@ -94,6 +96,10 @@ namespace SpaceEngineersVR.Diagnostics
                 open();
                 Require(requests==1 && target.GetItemAtIndex(10)==null,"Opening the chooser changed the assignment");
                 var list=(MyGuiControlListbox)menu.GetInnerList();
+                string first=switches ? "IncreaseOverride":"OnOff";
+                Require(list.Items.Select(i=>(string)i.UserData).SequenceEqual(switches ? new[] {"IncreaseOverride","SetOverride","OnOff"}:new[] {"OnOff","IncreaseOverride","SetOverride"}) &&
+                    list.Items.Count(i=>i.Icon==CockpitAssignment.MarkerIcon)==(switches ? 2:0),
+                    "Compatible actions are not first and marked in native order");
                 MyGuiManager.MouseCursorPosition=list.GetPositionAbsoluteTopLeft()+new Vector2(.025f,.015f);
                 owner.FocusedControl=grid;
                 menu.IsMouseOver=false; menu.HandleInput();
@@ -101,7 +107,7 @@ namespace SpaceEngineersVR.Diagnostics
                 owner.HandleInput(false);
                 Require(list.MouseOverItem==list.Items[0],"Action row cannot be hovered after catalog focus");
                 input.Pressed=true; input.Held=true; owner.HandleInput(false);
-                Require(!menu.Visible && target.GetItemAtIndex(10)==action && action.ActionId=="OnOff" && !target.SelectedSlot.HasValue,
+                Require(!menu.Visible && target.GetItemAtIndex(10)==action && action.ActionId==first && !target.SelectedSlot.HasValue,
                     "Action click did not assign the highlighted slot without activation");
                 Require(CockpitAssignment.HandleInput(owner),"Action click leaked to the catalog while held");
                 target.SetItemAtIndex(10,null);
@@ -113,7 +119,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(!menu.Visible && target.GetItemAtIndex(10)==null,"Outside click committed an assignment");
                 input.Pressed=false; input.Held=false;
                 Require(!CockpitAssignment.HandleInput(owner),"Canceled chooser retained input");
-                Plugin.Logger.Info("PASS native assignment action chooser: waits for release, hover after catalog focus, On/Off click to highlighted slot, no activation, Escape/outside cancellation and input recovery.");
+                Plugin.Logger.Info("PASS native assignment action chooser: compatible actions first and marked, waits for release, hover after catalog focus, first-row click to highlighted slot, no activation, Escape/outside cancellation and input recovery.");
                 MyGuiManager.MouseCursorPosition=new Vector2(.48f,.35f); open();
                 list=(MyGuiControlListbox)menu.GetInnerList();
                 MyGuiManager.MouseCursorPosition=list.GetPositionAbsoluteTopLeft()+new Vector2(.025f,.015f); owner.HandleInput(false);

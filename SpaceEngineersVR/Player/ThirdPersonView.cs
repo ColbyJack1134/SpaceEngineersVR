@@ -163,10 +163,13 @@ namespace SpaceEngineersVR.Player
                 try { action(); }
                 finally { OpenVR.Compositor?.FadeToColor(.15f,0,0,0,0,false); }
             }
-            if(candidate!=null && !((IMyCameraController)candidate).IsInFirstPersonView && subject==null && transition==null)
+            if(candidate!=null && !((IMyCameraController)candidate).IsInFirstPersonView && subject==null && transition==null && !Main.MenuOpen)
             {
-                // Also handle a saved view or a native camera toggle.
-                subject=candidate; Fit();
+                // Only the explicit toggle enters third person. Saved views, default-third-person cockpits and a death
+                // camera carried into the respawn pod return to first person; an active toggle survives turret control.
+                var camera=(IMyCameraController)candidate;
+                if(camera.EnableFirstPersonView) camera.IsInFirstPersonView=true;
+                else { subject=candidate; Fit(); }
             }
             if(!Active) return;
             if(SubjectCamera.IsInFirstPersonView) { Reset(); return; }

@@ -47,6 +47,16 @@ namespace SpaceEngineersVR.Diagnostics
             gripGate.Update(true,false); paintGate.Update(true,false);
             gripGate.Update(true,true); paintGate.Update(true,true);
             Require(PlacementControls.PaintChord(InputMode.Building,gripGate.Held,paintGate.Held,false),"Painting did not rearm after transition release");
+            var rotateTap=new GripTap(); var tapped=DateTime.MinValue.AddSeconds(1);
+            rotateTap.Update(true,false,false,tapped);
+            bool rotating=PlacementControls.Rotating(false,true,rotateTap.Update(false,true,false,tapped.AddMilliseconds(150)),false);
+            Require(rotating,"Grip tap did not start rotate mode");
+            Require(!PlacementControls.Rotating(rotating,true,false,true),"Placing a block did not end rotate mode");
+            Require(!PlacementControls.Rotating(rotating,false,false,false),"Rotate mode survived leaving the build tool or opening a menu");
+            rotateTap.Update(true,false,false,tapped.AddSeconds(1)); rotateTap.Update(true,false,true,tapped.AddSeconds(1.1));
+            Require(!PlacementControls.Rotating(false,true,rotateTap.Update(false,true,false,tapped.AddSeconds(1.2)),false),"Grip chord started rotate mode");
+            rotateTap.Update(true,false,false,tapped.AddSeconds(2));
+            Require(!PlacementControls.Rotating(rotating,true,rotateTap.Update(false,true,false,tapped.AddSeconds(2.1)),false),"Second grip tap did not end rotate mode");
             foreach(double scale in new[] {.1,1,3,100,100000})
             foreach(double origin in new[] {0d,1e9})
             {

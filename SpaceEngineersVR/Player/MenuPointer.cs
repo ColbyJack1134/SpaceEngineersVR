@@ -25,6 +25,7 @@ namespace SpaceEngineersVR.Player
         private static bool checkTextFocus;
         private static readonly PointerHand pointer=new PointerHand();
         private static readonly Control.InputGate leftGrip=new Control.InputGate();
+        private static readonly Control.PartialClick rightClick=new Control.PartialClick(),leftClick=new Control.PartialClick();
         internal static Controller Hand => pointer.Hand;
         private static byte pulseKey;
         private static int pulseTicks;
@@ -116,8 +117,10 @@ namespace SpaceEngineersVR.Player
                 lastCursor=current; haveCursor=true;
             }
             var trigger=controls.Click(hand);
-            bool click=trigger.Pressed;
-            bool clickHeld=trigger.Held;
+            var partial=hand==Player.HandR ? rightClick:leftClick;
+            partial.Update(trigger.Held,trigger.Pressed,trigger.Pressure);
+            bool click=partial.Pressed;
+            bool clickHeld=partial.Held;
             bool menu=pointer.Left ? leftGrip.Pressed:controls.Secondary.HasPressed;
             bool menuHeld=pointer.Left ? leftGrip.Held:controls.Secondary.IsPressed;
             if(!held && DateTime.UtcNow<mouseUntil && !click) { Modifiers(false,false); return; }

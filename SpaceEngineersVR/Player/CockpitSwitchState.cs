@@ -21,13 +21,15 @@ namespace SpaceEngineersVR.Player
             active=ReferenceEquals(block.Block,MySession.Static?.CameraController) || ReferenceEquals(block.Block,MySession.Static?.ControlledEntity);
             return true;
         }
+        private static string StateId(string action) => action.EndsWith("_On",StringComparison.Ordinal) ? action.Substring(0,action.Length-3) :
+            action.EndsWith("_Off",StringComparison.Ordinal) ? action.Substring(0,action.Length-4) : action;
+        // Connector lock is the one switch state with a middle position (Ready to lock).
+        internal static bool ShowsReady(Block block,string action) => action=="SwitchLock" && block is IMyShipConnector;
         private static bool Resolve(MyToolbarItem item)
         {
             blocks.Clear(); properties.Clear();
             if(!(item is MyToolbarItemActions action) || string.IsNullOrEmpty(action.ActionId)) return false;
-            string id=action.ActionId;
-            if(id.EndsWith("_On",StringComparison.Ordinal)) id=id.Substring(0,id.Length-3);
-            else if(id.EndsWith("_Off",StringComparison.Ordinal)) id=id.Substring(0,id.Length-4);
+            string id=StateId(action.ActionId);
             if(item is MyToolbarItemTerminalBlock block) block.FetchAllBlocks(blocks);
             else if(item is MyToolbarItemTerminalGroup group) group.FetchAllBlocks(blocks);
             else return false;

@@ -24,6 +24,24 @@ namespace SpaceEngineersVR.Patches
         private static bool Prefix(MyGuiScreenToolbarConfigBase __instance,MyGuiControlGrid sender,MyGuiControlGrid.EventArgs eventArgs) =>
             !GUI.CockpitAssignment.HandleDoubleClick(__instance,sender,eventArgs);
     }
+    [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),"UpdateContextMenu")]
+    internal static class SwitchActionRankPatch
+    {
+        private static bool Prefix(MyGuiScreenToolbarConfigBase __instance,ref MyGuiControlContextMenu currentContextMenu,MyToolbarItemActions item,ref bool __result)
+        {
+            if(!GUI.CockpitAssignment.FillActions(__instance,currentContextMenu,item,out bool filled)) return true;
+            __result=filled; return false;
+        }
+    }
+    [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),nameof(MyGuiScreenToolbarConfigBase.RequestItemParameters))]
+    internal static class HandleParameterPatch
+    {
+        private static bool Prefix(MyToolbarItem item,System.Action<bool> callback)
+        {
+            if(!GUI.CockpitAssignment.SkipParameters(item)) return true;
+            callback(true); return false;
+        }
+    }
     [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),nameof(MyGuiScreenToolbarConfigBase.HandleInput))]
     internal static class ToolbarAssignmentInputPatch
     {
@@ -32,9 +50,11 @@ namespace SpaceEngineersVR.Patches
     [HarmonyPatch(typeof(MyToolbarItemTerminalBlock),nameof(MyToolbarItemTerminalBlock.PossibleActions))]
     internal static class CockpitViewAssignmentPatch
     {
+        // Switches are the pilot's ship controls: offer the ship-only view, control and Jump actions native button panels exclude.
         private static void Prefix(MyToolbarItemTerminalBlock __instance,ref MyToolbarType type)
         {
-            if(type==MyToolbarType.ButtonPanel && CockpitActions.Toolbar!=null && ReferenceEquals(MyToolbarComponent.CurrentToolbar,CockpitActions.Toolbar) && CockpitSwitchState.ViewBlock(__instance.Block))
+            if(type==MyToolbarType.ButtonPanel && CockpitActions.Toolbar!=null && ReferenceEquals(MyToolbarComponent.CurrentToolbar,CockpitActions.Toolbar) &&
+                (CockpitSwitchState.ViewBlock(__instance.Block) || __instance.Block is Sandbox.Game.Entities.MyJumpDrive))
                 type=MyToolbarType.Ship;
         }
     }

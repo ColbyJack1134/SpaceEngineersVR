@@ -32,7 +32,9 @@ namespace SpaceEngineersVR.Player
         private static MatrixD? lastPose;
         [ThreadStatic] internal static bool EditingDistance;
 
+        // Rotate mode: a right grip tap lets the sticks rotate the preview, so a held grip still rolls in flight.
         public static bool Adjusting { get; private set; }
+        private static readonly GripTap rotateTap=new GripTap();
         private static bool leftReady,rightReady;
         private static DateTime sampled;
         private static float elapsed,distanceFactor=1.1f;
@@ -54,18 +56,28 @@ namespace SpaceEngineersVR.Player
                 c.Primary.BlockUntilRelease();
                 NativeActions.Pulse(MyControlsSpace.CUBE_COLOR_CHANGE);
             }
-            bool active=OwnsTools && grip && !Main.MenuOpen;
+            bool tools=OwnsTools && !Main.MenuOpen;
+            Vector2 left=InputRouter.Flying ? c.ThrustLRFB.Position:c.WalkLongitudinal.Position;
+            Vector2 right=InputRouter.Flying ? c.ThrustRotate.Position:c.WalkRotate.Position;
+            // Grip chords (roll, remove, paint, size, view grab) are not taps.
+            bool chord=c.Primary.IsPressed || c.Interact.IsPressed || c.Jetpack.IsPressed || ThirdPersonView.Manipulating ||
+                left.LengthSquared()>=.09f || right.LengthSquared()>=.09f;
+            bool tap=rotateTap.Update(grip,c.Secondary.HasReleased,chord || !tools,now);
+            bool placed=Adjusting && c.Primary.HasPressed;
+            bool active=Rotating(Adjusting,tools,tap,placed);
             if(active && !Adjusting)
             {
                 leftReady=rightReady=false; Array.Clear(repeat,0,repeat.Length);
-                c.Primary.BlockUntilRelease(); Components.VRMovementComponent.StopActive();
+                Components.VRMovementComponent.StopActive();
             }
             if(!active && Adjusting)
-            { c.Primary.BlockUntilRelease(); c.WalkLongitudinal.BlockUntilRelease(); c.WalkRotate.BlockUntilRelease(); c.ThrustLRFB.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease(); }
+            {
+                // The placing press must reach the builder.
+                if(!placed) c.Primary.BlockUntilRelease();
+                c.WalkLongitudinal.BlockUntilRelease(); c.WalkRotate.BlockUntilRelease(); c.ThrustLRFB.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease();
+            }
             Adjusting=active;
             if(!active || Painting) return;
-            Vector2 left=InputRouter.Flying ? c.ThrustLRFB.Position:c.WalkLongitudinal.Position;
-            Vector2 right=InputRouter.Flying ? c.ThrustRotate.Position:c.WalkRotate.Position;
             if(left.LengthSquared()<.09f) leftReady=true;
             if(right.LengthSquared()<.09f) rightReady=true;
             if(rightReady) { Axis(0,right.X,MyControlsSpace.CUBE_ROTATE_VERTICAL_POSITIVE,MyControlsSpace.CUBE_ROTATE_VERTICAL_NEGATIVE); Axis(1,right.Y,MyControlsSpace.CUBE_ROTATE_HORISONTAL_POSITIVE,MyControlsSpace.CUBE_ROTATE_HORISONTAL_NEGATIVE); }
@@ -94,6 +106,7 @@ namespace SpaceEngineersVR.Player
             if(now<next) return false;
             next=now.AddSeconds(.22); return true;
         }
+        internal static bool Rotating(bool rotating,bool tools,bool tap,bool placed) => tools && !placed && (tap ? !rotating:rotating);
         internal static bool PaintChord(InputMode mode,bool grip,bool interact,bool blocked) =>
             mode==InputMode.Building && grip && interact && !blocked;
 

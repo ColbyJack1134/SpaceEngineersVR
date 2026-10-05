@@ -151,6 +151,19 @@ namespace SpaceEngineersVR.Player
             if(!stateful && desired==false) return false;
             return stateful && desired.HasValue ? CockpitSwitchState.Set(item,desired.Value) : toolbar.ActivateItemAtIndex(slot);
         }
+        private static readonly List<Sandbox.ModAPI.Ingame.IMyTerminalBlock> rankBlocks=new List<Sandbox.ModAPI.Ingame.IMyTerminalBlock>();
+        private static bool Handle(int slot) => owner!=null && AnalogControl.IsHandle(owner.BlockDefinition.Id.SubtypeName,slot);
+        private static bool AllBlocks(MyToolbarItemActions item,Predicate<Sandbox.ModAPI.Ingame.IMyTerminalBlock> test)
+        {
+            rankBlocks.Clear();
+            if(item is MyToolbarItemTerminalBlock block) block.FetchAllBlocks(rankBlocks);
+            else if(item is MyToolbarItemTerminalGroup group) group.FetchAllBlocks(rankBlocks);
+            return rankBlocks.Count>0 && rankBlocks.TrueForAll(b=>b!=null && test(b));
+        }
+        internal static bool Analog(int slot,MyToolbarItemActions item) => Handle(slot) && AllBlocks(item,b=>AnalogControl.Resolve(b,item.ActionId)!=null);
+        // Handles drive numeric actions; other switches gain only connector lock's Ready position.
+        internal static bool Compatible(int slot,MyToolbarItemActions item,string action) => owner!=null &&
+            AllBlocks(item,b=>Handle(slot) ? AnalogControl.Resolve(b,action)!=null : CockpitSwitchState.ShowsReady(b,action));
         public static bool ReadState(int slot,out float state)
         {
             state=0;

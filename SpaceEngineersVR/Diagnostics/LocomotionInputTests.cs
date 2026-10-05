@@ -94,6 +94,12 @@ namespace SpaceEngineersVR.Diagnostics
                 if (walkRotate.Position != Vector2.Zero)
                     throw new Exception("Held turn escaped a full reset");
             }
+            // Native wheels steer from X and drive forward on negative Z.
+            if (DriveInput.Mix(new Vector3(1, 1, -.3f), false) != new Vector3(1, 1, 0) ||
+                DriveInput.Mix(new Vector3(-.6f, 0, .7f), false) != new Vector3(-.6f, 0, .7f) ||
+                DriveInput.Mix(new Vector3(.8f, 0, .7f), true) != new Vector3(.8f, 0, -1))
+                throw new Exception("Wheels must steer from the left stick, ignore throttle drift and drive forward from the trigger");
+            log("PASS wheel input: left stick steers, steering drift does not throttle, trigger drives forward");
             log("PASS locomotion continuity: held forward and left/right yaw through jetpack on/off, flight pitch, 600 held frames, source matching, release and reset boundaries");
         }
     }

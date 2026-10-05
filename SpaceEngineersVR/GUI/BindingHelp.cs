@@ -52,10 +52,10 @@ namespace SpaceEngineersVR.GUI
             lines.Add("Release both grips and neutralize controls to resume flight. Recenter fits the ship.");
             lines.Add("Third person settings: pan/zoom/rotation sensitivity; Release glide has separate gains.");
             lines.Add("BUILDING: right trigger places. Hold right grip, then pull right trigger to remove.");
-            lines.Add("While holding right grip: right stick yaw/pitch; left stick roll/distance.");
-            lines.Add("Center sticks before adjusting; release/center again to resume moving.");
+            lines.Add("Tap right grip to rotate: right stick yaw/pitch, left stick roll/distance.");
+            lines.Add("Arrows show while rotating. Placing or another tap ends it; center sticks to move.");
             lines.Add("Quick actions: alignment, placement mode, size, variants, palette and symmetry.");
-            lines.Add("Blueprint preview: right trigger pastes; right grip or tap B cancels.");
+            lines.Add("Blueprint preview: right trigger pastes; tap B cancels.");
             lines.Add("MENUS: point + right trigger clicks/drags. Right grip right-clicks; right stick scrolls.");
             lines.Add("Hold LEFT grip for Shift; LEFT trigger for Ctrl; combine with right-trigger click.");
             lines.Add("Use both for Shift+Ctrl. These modifiers also apply in the terminal/control panel.");
@@ -71,7 +71,8 @@ namespace SpaceEngineersVR.GUI
             lines.Add("Fighter: 41 switches and pull bar. Control Seat: four assignable keypad controls.");
             lines.Add("Grip physical sticks: RIGHT tilt pitch/roll, twist/thumbstick yaw. LEFT tilt thrust, twist/thumbstick lift.");
             lines.Add("Single-stick cockpits: stick rotates, right thumbstick yaws; controller translation stays.");
-            lines.Add("Rover/buggy wheels and speeder handlebars are not active. Their seat panel works.");
+            lines.Add("WHEELS: right trigger drives with nothing selected, left stick steers/reverses, rise brakes.");
+            lines.Add("Modeled rover/buggy wheels and speeder handlebars are not interactive. Their seat panel works.");
             lines.Add("Each grab captures neutral. Flight options: physical sticks only in first person.");
             lines.Add("Seat panel padlock: unlock/move/lock stick placement; reset is available unlocked.");
             lines.Add("Rifle / launcher: hold left grip near foregrip for two-handed aiming.");

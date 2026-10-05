@@ -121,6 +121,12 @@ namespace SpaceEngineersVR.Diagnostics
             Require(!tap.Update(false,true,false,pressed.AddMilliseconds(500)),"Held roll grip requested a lock on release");
             tap.Update(true,false,false,pressed);
             Require(!tap.Update(false,false,false,pressed.AddMilliseconds(100)) && !tap.Update(false,true,false,pressed.AddMilliseconds(150)),"Blocked third-person grip requested a lock");
+            var menuClick=new PartialClick(); int clicks=0;
+            foreach(float pressure in new[] {0,.3f,1,.75f,1,.65f,.95f,.6f,.1f,0,.26f})
+            { menuClick.Update(pressure>=.2f,pressure>=.25f && !menuClick.Held && pressure<=.3f,pressure); if(menuClick.Pressed) clicks++; }
+            Require(clicks==3,"Menu trigger needs a full release between clicks or a held drag let go on small drift: "+clicks+" clicks");
+            menuClick.Update(false,false,1); menuClick.Update(true,false,1);
+            Require(!menuClick.Held,"A trigger held through a consumed press became a menu click");
             var recovery=new RenderRecovery("Test");
             Require(recovery.Fail(null,"",pressed)==2 && recovery.FailedAt(pressed.AddSeconds(1)) && !recovery.FailedAt(pressed.AddSeconds(2.1)),"Failed renderer does not retry after two seconds");
             Require(recovery.Fail(null,"",pressed.AddSeconds(3))==4 && recovery.Fail(null,"",pressed.AddSeconds(8))==8,"Repeated renderer failures do not back off");

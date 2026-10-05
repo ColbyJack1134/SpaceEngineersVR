@@ -120,6 +120,28 @@ namespace SpaceEngineersVR.Multiplayer
             }
             return result;
         }
+        // What the native dialogs offer by default: the current position or angle at the block's full speed.
+        internal static void DefaultParameters(MyToolbarItem toolbarItem,string action)
+        {
+            var item=toolbarItem as IUserCustomizableTerminalAction;
+            var parameters=item?.Parameters;
+            var block=item?.GetBlock();
+            if(action=="SetAndMove" && block is Sandbox.Game.Entities.Blocks.MyPistonBase piston && parameters?.Count>1)
+            {
+                parameters[0]=TerminalActionParameter.Get(piston.CurrentPosition);
+                parameters[1]=TerminalActionParameter.Get(piston.BlockDefinition.MaxVelocity);
+            }
+            else if(action=="RotateToAngle" && block is Sandbox.Game.Entities.Cube.MyMotorStator rotor && parameters?.Count>2)
+            {
+                parameters[0]=TerminalActionParameter.Get(MathHelper.ToDegrees(((IMyMotorStator)rotor).Angle));
+                parameters[1]=TerminalActionParameter.Get(rotor.MaxRotorAngularVelocity*30/MathHelper.Pi);
+                parameters[2]=TerminalActionParameter.Get((long)MyRotationDirection.AUTO);
+            }
+        }
+        // Native Set actions whose IDs differ from their slider IDs; the jump drive one is a native copy-paste name.
+        private static readonly Dictionary<string,string> SetAliases=new Dictionary<string,string> {
+            {"SetGravityAcceleration","JumpDistance"},{"SetBlinkInterval","Blink Interval"},
+            {"SetPropulsionOverride","Propulsion override"},{"SetSteerOverride","Steer override"} };
         internal static Channel Resolve(Block block,string action,float speed=0)
         {
             var channel=new Channel { Block=block,Speed=speed };
@@ -130,6 +152,7 @@ namespace SpaceEngineersVR.Multiplayer
             {
                 string id=action.StartsWith("Increase",StringComparison.Ordinal) || action.StartsWith("Decrease",StringComparison.Ordinal) ? action.Substring(8) :
                     action.StartsWith("Set",StringComparison.Ordinal) ? action.Substring(3):null;
+                if(id!=null && !(block.GetProperty(id) is IMyTerminalControlSlider) && SetAliases.TryGetValue(action,out string alias)) id=alias;
                 if(id==null || !(block.GetProperty(id) is ITerminalProperty<float> property) || !(property is IMyTerminalControlSlider)) return null;
                 channel.Type=Kind.Slider; channel.Property=property;
                 var type=property.GetType();
@@ -156,6 +179,8 @@ namespace SpaceEngineersVR.Multiplayer
                 if(!Finite(value)) continue;
                 if(channel.Type==Kind.Slider)
                 {
+                    // Respect sliders the terminal disables, such as jump distance while a GPS target is selected.
+                    if(channel.Property is IMyTerminalControl control && control.Enabled?.Invoke((Sandbox.ModAPI.IMyTerminalBlock)channel.Block)==false) continue;
                     if(channel.Property.Id=="Velocity") motions.Remove(channel.Block.EntityId);
                     channel.Property.SetValue(channel.Block,value);
                 }

@@ -83,18 +83,7 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Run(Action<string> log)
         {
             HudProfileTests.Run(log);
-            var target=new WristTargeting.State {Owner=1,Target=2,Kind=WristTargeting.Request.Lock};
-            Require(WristTargeting.Matches(target,new WristTargeting.State {Owner=1,Target=2,Kind=target.Kind}),"Wrist native target identity rejected");
-            Require(!WristTargeting.Matches(target,new WristTargeting.State {Owner=1,Target=3,Kind=target.Kind}) &&
-                !WristTargeting.Matches(target,new WristTargeting.State {Owner=4,Target=2,Kind=target.Kind}) &&
-                !WristTargeting.Matches(target,new WristTargeting.State {Owner=1,Target=2,Kind=WristTargeting.Request.Cancel}),"Wrist request survived a target/owner/state change");
-            Require(!WristTargeting.Key(new WristTargeting.State(),Vector2.Zero).Enabled,"No-target wrist action is enabled");
-            var ringKey=WristTargeting.Key(target,new Vector2(.5f,.5f));
-            Require(ringKey.Invisible && ringKey.DirectOnly && ringKey.Contains(new Vector2(.5f,.5f)) && !ringKey.Contains(ringKey.Bounds.Position),"Ring hit region is not a direct circular contact");
-            var atCorner=WristTargeting.Key(target,WristKnob.Bounds.Center);
-            Require(!atCorner.Contains(WristKnob.Bounds.Center),"Ring touch steals the physical knob");
-            Require(typeof(Sandbox.Game.EntityComponents.MyTargetFocusComponent).GetMethod("OnLockRequest",Type.EmptyTypes)!=null &&
-                typeof(Sandbox.Game.EntityComponents.MyTargetLockingComponent).GetMethod("ReleaseTargetLockRequest",Type.EmptyTypes)!=null,"Native lock/release request API changed");
+            Require(typeof(Sandbox.Game.EntityComponents.MyTargetFocusComponent).GetMethod("OnLockRequest",Type.EmptyTypes)!=null,"Native lock request API changed");
             var now=DateTime.UtcNow;
             var head=MatrixD.Identity; head.Translation=new Vector3D(1e12,-2e12,3e12);
             var options=new SignalLayout.Options();
@@ -329,12 +318,6 @@ namespace SpaceEngineersVR.Diagnostics
                     WristSignals.Reset();
                     panel=WristSignals.Apply(panel,source,head,new SignalLayout.Options(),now);
                     WristPanel.Show(3); panel.Keys=WristPanel.Keys(null,false,false,false,true,null); WristPanel.Show(0);
-                    if(scenario.StartsWith("wrist-lock"))
-                    {
-                        var keys=panel.Keys.ToList();
-                        keys.Add(WristTargeting.Key(new WristTargeting.State {Owner=1,Target=2,Kind=scenario=="wrist-lock" ? WristTargeting.Request.Lock:scenario=="wrist-locking" ? WristTargeting.Request.Cancel:WristTargeting.Request.Unlock},panel.Signals.Candidates[0].UV));
-                        panel.Keys=keys.ToArray();
-                    }
                     var entries=SignalLayout.Build(source,head,new SignalLayout.Options(),now);
                     var projection=VrMath.Projection(-.43f,.43f,-.242f,.242f,.05);
                     var eyeView=MatrixD.CreateTranslation(scenario=="wrist-left-eye" ? .032:scenario=="wrist-right-eye" ? -.032:0,0,0);
