@@ -140,7 +140,7 @@ namespace SpaceEngineersVR.Player
             GpuTiming.Begin(sceneArea);
             long sceneStart=FeatureTiming.Start();
             var targetSize=((SharpDX.Direct3D11.Texture2D)target.GetResource()).Description;
-            bool handLayer=RenderFrameBridge.Remote!=null || rig?.ThirdPerson!=true && (Main.MenuOpen || Main.ShowDesktopPanel);
+            bool handLayer=RenderFrameBridge.Remote!=null || (RenderFrameBridge.Surfaces!=null && System.Linq.Enumerable.Any(RenderFrameBridge.Surfaces,s=>s.WindowPose.HasValue)) || rig?.ThirdPerson!=true && (Main.MenuOpen || Main.ShowDesktopPanel);
             NativeHandLayer.Begin(targetSize.Width,targetSize.Height,handLayer);
             try { MyRender11.DrawGameScene(target, out ambientOcclusion); }
             finally { NativeHandLayer.End(); }
@@ -154,6 +154,7 @@ namespace SpaceEngineersVR.Player
             SpatialUi.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,RenderFrameBridge.Surfaces);
             if(rig?.ThirdPerson==true && NativeGloves.Visible)
                 SpatialUi.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,RenderFrameBridge.Surfaces,tracking:true,trackingToWorld:rig.TrackingToWorld);
+            SpatialUi.DrawFloating((SharpDX.Direct3D11.Texture2D)target.GetResource(),trackingView,VrMath.Projection(l,r,t,b,.03),RenderFrameBridge.Surfaces);
             FloatingKeyboard.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),eye);
             ToolbarWheel.DrawWorld((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,
                 rig?.TrackingToWorld ?? (MatrixD)originInverse*MatrixD.Invert(gameView));

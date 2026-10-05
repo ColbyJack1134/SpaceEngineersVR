@@ -19,6 +19,7 @@ namespace SpaceEngineersVR.Multiplayer
         {
             internal long Revision;
             internal string Toolbar="";
+            internal FlightTuning Flight;
             internal bool[] Covers=new bool[0];
         }
         private static VRage.Game.ModAPI.IMyUtilities Utilities => MyAPIUtilities.Static;
@@ -27,8 +28,9 @@ namespace SpaceEngineersVR.Multiplayer
             using(var stream=new MemoryStream())
             using(var writer=new BinaryWriter(stream))
             {
-                writer.Write(1); writer.Write(record.Revision); writer.Write(record.Toolbar ?? "");
+                writer.Write(2); writer.Write(record.Revision); writer.Write(record.Toolbar ?? "");
                 writer.Write(record.Covers.Length); foreach(bool value in record.Covers) writer.Write(value);
+                writer.Write(record.Flight!=null); record.Flight?.Write(writer);
                 if(stream.Length>Limit) throw new InvalidDataException("Cockpit assignments exceed the storage limit.");
                 return Convert.ToBase64String(stream.ToArray());
             }
@@ -40,11 +42,13 @@ namespace SpaceEngineersVR.Multiplayer
             using(var stream=new MemoryStream(Convert.FromBase64String(value),false))
             using(var reader=new BinaryReader(stream))
             {
-                if(stream.Length>Limit || reader.ReadInt32()!=1) throw new InvalidDataException("Unsupported cockpit storage.");
+                int version=reader.ReadInt32();
+                if(stream.Length>Limit || version<1 || version>2) throw new InvalidDataException("Unsupported cockpit storage.");
                 var result=new Record {Revision=reader.ReadInt64(),Toolbar=reader.ReadString()};
                 int count=reader.ReadInt32();
                 if(count<0 || count>MaximumControls || result.Revision<0) throw new InvalidDataException("Invalid cockpit storage.");
                 result.Covers=new bool[count]; for(int i=0;i<count;i++) result.Covers[i]=reader.ReadBoolean();
+                if(version>=2 && reader.ReadBoolean()) result.Flight=FlightTuning.Read(reader);
                 if(stream.Position!=stream.Length) throw new InvalidDataException("Invalid cockpit storage length.");
                 return result;
             }

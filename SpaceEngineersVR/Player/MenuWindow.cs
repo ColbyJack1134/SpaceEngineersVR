@@ -8,7 +8,8 @@ namespace SpaceEngineersVR.Player
     {
         public const float DefaultWidth=2.4f, MinWidth=.7f, MaxWidth=3.2f;
         public Matrix Pose=Matrix.Identity;
-        public float Width=DefaultWidth,Aspect=9f/16,BarOffset=.085f;
+        public float Width=DefaultWidth,Aspect=9f/16,BarOffset=.035f;
+        public float MinimumWidth=MinWidth,MaximumWidth=MaxWidth,PointerRange=4;
         public float Height => Width*Aspect;
         public int Drag { get; private set; }
         private Matrix startPose,relative;
@@ -16,9 +17,14 @@ namespace SpaceEngineersVR.Player
         private float startWidth,startAspect;
         private readonly InputGate navigation=new InputGate();
         public void Place(Matrix head)
-        { Stop(); Width=DefaultWidth; Pose=Matrix.CreateTranslation(0,0,-2.2f)*VrMath.TrackingOrigin(head); }
-        public int Handle(Vector3 point)
+        { Place(head,DefaultWidth,new Vector3(0,0,-2.2f)); }
+        internal void Place(Matrix head,float width,Vector3 offset,float pitch=0)
+        { Stop(); Width=width; Pose=Matrix.CreateRotationX(pitch)*Matrix.CreateTranslation(offset)*VrMath.TrackingOrigin(head); }
+        internal Vector3 Local(Vector3 point,bool captured=false) => Vector3.Transform(point,Matrix.Invert(captured ? startPose:Pose));
+        internal Vector2 UV(Vector3 point) => new Vector2(.5f+point.X/Width,.5f-point.Y/Height);
+        public int Handle(Vector3 point,bool outside=false)
         {
+            if(outside && point.Y>=-Height/2) return 0;
             float y=point.Y+Height/2+BarOffset;
             if(Math.Abs(y)<.045f)
             {
@@ -32,7 +38,7 @@ namespace SpaceEngineersVR.Player
             var local=aim*Matrix.Invert(captured ? startPose : Pose); point=Vector3.Zero;
             if(!local.IsValid() || local.Translation.Z<=0 || local.Forward.Z>=-.0001f) return false;
             float distance=-local.Translation.Z/local.Forward.Z;
-            if(distance>4) return false;
+            if(distance>PointerRange) return false;
             point=local.Translation+local.Forward*distance; return point.IsValid();
         }
         public void Begin(int kind,Matrix aim,Vector3 point)
@@ -62,7 +68,7 @@ namespace SpaceEngineersVR.Player
             else if(Drag==2)
             {
                 var delta=point-startPoint;
-                Width=MathHelper.Clamp(startWidth+(delta.X-delta.Y*startAspect)/(1+startAspect*startAspect),MinWidth,MaxWidth);
+                Width=MathHelper.Clamp(startWidth+(delta.X-delta.Y*startAspect)/(1+startAspect*startAspect),MinimumWidth,MaximumWidth);
                 Pose=startPose;
                 Pose.Translation+=Pose.Right*((Width-startWidth)/2)-Pose.Up*((Width-startWidth)*startAspect/2);
             }

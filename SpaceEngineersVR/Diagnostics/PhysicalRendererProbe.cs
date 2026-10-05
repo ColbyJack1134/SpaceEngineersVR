@@ -481,6 +481,17 @@ namespace SpaceEngineersVR.Diagnostics
                         texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
                         SignalTests.NativeOverlay(physicalTarget,camera.ViewMatrix,camera.ProjectionMatrix,output,phase==24 ? "cockpit":"character-observer");
                     }
+                    if(phase==24)
+                    {
+                        texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
+                        var window=new MenuWindow {MinimumWidth=.42f,MaximumWidth=1.2f,Aspect=.31f/.55f,BarOffset=.035f};
+                        window.Place(Matrix.Identity,.55f,new Vector3(0,-.08f,-.60f));
+                        var settings=FlightSettings.View("flight-native",window.Pose,.55f,.31f,
+                            FlightSettings.Layout(new Multiplayer.FlightTuning(),false,false,false,"Fighter Cockpit Flight Settings"),"Fighter Cockpit Flight Settings");
+                        settings.WindowPose=window.Pose;
+                        SpatialUi.DrawFloating(physicalTarget,MatrixD.Identity,camera.ProjectionMatrix,new[] {settings});
+                        UiTests.Save(physicalTarget,Path.Combine(output,"flight-settings-native-cockpit.png"));
+                    }
                     if(phase==45 || phase==46)
                     {
                         var glove=GloveGeometry.Load(VRage.FileSystem.MyFileSystem.ContentPath,GloveGeometry.DefaultModel,true);
@@ -490,6 +501,14 @@ namespace SpaceEngineersVR.Diagnostics
                         texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
                         PhysicalSurface.Draw(physicalTarget,new[] {tablet},camera.ViewMatrix,camera.ProjectionMatrix,PhysicalSurface.SceneDepth());
                         UiTests.Save(physicalTarget,Path.Combine(output,"native-tablet-depth-"+phase+".png"));
+                        if(phase==46)
+                        {
+                            texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
+                            var settings=FlightSettings.View("flight-native-wrist",tablet.Pose,tablet.Width,tablet.Height,
+                                FlightSettings.Layout(new Multiplayer.FlightTuning(),false,false,false,"Fighter Cockpit Flight Settings"),"Fighter Cockpit Flight Settings");
+                            PhysicalSurface.Draw(physicalTarget,new[] {settings},camera.ViewMatrix,camera.ProjectionMatrix,PhysicalSurface.SceneDepth());
+                            UiTests.Save(physicalTarget,Path.Combine(output,"flight-settings-native-wrist.png"));
+                        }
                         if(phase==46)
                         {
                             SignalTests.InspectPanel(new[] {tablet},MatrixD.Invert(camera.ViewMatrix),DateTime.UtcNow);

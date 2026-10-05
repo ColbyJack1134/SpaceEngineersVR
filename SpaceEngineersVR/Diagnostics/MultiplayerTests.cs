@@ -78,7 +78,7 @@ namespace SpaceEngineersVR.Diagnostics
             var toolbar=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=new List<MyObjectBuilder_Toolbar.Slot> {
                 new MyObjectBuilder_Toolbar.Slot {Index=0,Data=new MyObjectBuilder_ToolbarItemTerminalBlock {BlockEntityId=21,_Action="OnOff"}},
                 new MyObjectBuilder_Toolbar.Slot {Index=40,Data=new MyObjectBuilder_ToolbarItemTerminalGroup {BlockEntityId=22,GroupName="Ship lights",_Action="OnOff"}} }};
-            var record=new CockpitMemory.Record {Revision=9,Toolbar=CockpitMemory.Toolbar(toolbar),Covers=new[] {true,false,true}};
+            var record=new CockpitMemory.Record {Revision=9,Toolbar=CockpitMemory.Toolbar(toolbar),Covers=new[] {true,false,true},Flight=new FlightTuning {Rotation=1.3f,Translation=.6f,TwistDeadzone=.12f}};
             Require(CockpitMemory.ValidToolbar(record.Toolbar,42) && !CockpitMemory.ValidToolbar(record.Toolbar,9),"Toolbar bounds validation failed");
             var component=new MyModStorageComponent(); component.SetValue(CockpitMemory.Key,CockpitMemory.Encode(record));
             var serialized=(MyObjectBuilder_ModStorageComponent)component.Serialize(true);
@@ -92,12 +92,12 @@ namespace SpaceEngineersVR.Diagnostics
             var copiedToolbar=CockpitMemory.Toolbar(copied.Toolbar);
             Require(block.EntityId==1020 && ((MyObjectBuilder_ToolbarItemTerminalBlock)copiedToolbar.Slots[0].Data).BlockEntityId==1021 &&
                 ((MyObjectBuilder_ToolbarItemTerminalGroup)copiedToolbar.Slots[1].Data).BlockEntityId==1022,"Native copy remapping lost switch target references");
-            Require(copied.Covers.SequenceEqual(record.Covers),"Native copy lost cover states");
+            Require(copied.Covers.SequenceEqual(record.Covers) && copied.Flight.Encode()==record.Flight.Encode(),"Native copy lost cover or flight settings");
             var untouched=CockpitMemory.Decode(((MyObjectBuilder_ModStorageComponent)original.ComponentContainer.Components[0].Component).Storage.Dictionary[CockpitMemory.Key]);
             Require(untouched.Toolbar==record.Toolbar && untouched.Revision==9,"Copy mutated original cockpit assignments");
             block.SetupForProjector(); var built=(MyObjectBuilder_Cockpit)block.Clone();
             var projected=CockpitMemory.Decode(((MyObjectBuilder_ModStorageComponent)built.ComponentContainer.Components[0].Component).Storage.Dictionary[CockpitMemory.Key]);
-            Require(projected.Toolbar==copied.Toolbar && projected.Covers.SequenceEqual(record.Covers),"Projector setup/build clone discarded cockpit state");
+            Require(projected.Toolbar==copied.Toolbar && projected.Covers.SequenceEqual(record.Covers) && projected.Flight.Encode()==record.Flight.Encode(),"Projector setup/build clone discarded cockpit state");
             var restored=new MyModStorageComponent(); restored.Deserialize(serialized);
             Require(restored.GetValue(CockpitMemory.Key)==CockpitMemory.Encode(copied),"Storage deserialization changed data");
             log("PASS native cockpit persistence: registered-key serialization, typed toolbar bounds, block/group target remapping, original isolation, projector setup/build clone, cover states and deserialization. No world was loaded.");

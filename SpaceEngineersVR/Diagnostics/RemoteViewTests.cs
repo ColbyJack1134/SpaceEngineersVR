@@ -24,11 +24,8 @@ namespace SpaceEngineersVR.Diagnostics
             Require(Vector3D.Distance(actual.Translation,expected.Translation)<.00001 &&
                 Vector3D.Distance(actual.Right,expected.Right)<.00001 && Vector3D.Distance(actual.Up,expected.Up)<.00001,message);
         }
-        internal static void Preview(Device device,string output)
+        internal static void PaintSource(OverlayCanvas source)
         {
-            using(var source=new OverlayCanvas("Camera fixture",1920,1080,1,false,device))
-            using(var target=new OverlayCanvas("Play-space screen",1200,800,1,false,device))
-            {
                 source.Clear(System.Drawing.Color.FromArgb(20,45,62));
                 using(var pen=new System.Drawing.Pen(System.Drawing.Color.FromArgb(70,120,135),3))
                 {
@@ -38,6 +35,13 @@ namespace SpaceEngineersVR.Diagnostics
                     source.Graphics.DrawLine(System.Drawing.Pens.White,920,540,1000,540);
                     source.Graphics.DrawLine(System.Drawing.Pens.White,960,500,960,580);
                 }
+        }
+        internal static void Preview(Device device,string output)
+        {
+            using(var source=new OverlayCanvas("Camera fixture",1920,1080,1,false,device))
+            using(var target=new OverlayCanvas("Play-space screen",1200,800,1,false,device))
+            {
+                PaintSource(source);
                 source.Upload();
                 using(var image=new ShaderResourceView(device,source.Texture))
                 {

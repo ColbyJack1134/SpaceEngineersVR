@@ -279,7 +279,7 @@ namespace SpaceEngineersVR.Diagnostics
             var front=Matrix.CreateTranslation(0,0,.4f)*window.Pose;
             Require(window.Pointer(front,out var point) && point.Length()<1e-5,"Keyboard pointer plane mismatch");
             Require(!window.Pointer(Matrix.CreateTranslation(0,0,-.1f)*window.Pose,out _),"Backside ray manipulates keyboard");
-            Require(KeyboardWindow.Handle(new Vector2(.5f,.955f))==1 && KeyboardWindow.Handle(new Vector2(.97f,.97f))==2,"Window handles unreachable");
+            Require(window.Window.Handle(new Vector3(0,-window.Height/2-.035f,0),true)==1 && window.Window.Handle(new Vector3(window.Width/2,-window.Height/2-.035f,0),true)==2,"Window handles unreachable");
             Require(window.Reachable(headPose),"Placed keyboard is not reachable");
             var turned=Matrix.CreateRotationY(1.6f)*headPose; turned.Translation=headPose.Translation;
             Require(!window.Reachable(turned),"Keyboard behind a turned player counts as reachable");
@@ -312,7 +312,7 @@ namespace SpaceEngineersVR.Diagnostics
             }
             var keys=MenuKeyboard.MakeKeys(false);
             Require(keys.Length==46 && keys.Any(k=>k.Label=="DONE") && keys.Any(k=>k.Label=="BKSP"),"Keyboard layout incomplete");
-            foreach(var key in keys) Require(KeyboardWindow.Handle(key.Bounds.Center)==0,"A key overlaps a window handle");
+            foreach(var key in keys) Require(window.Window.Handle(new Vector3((key.Bounds.Center.X-.5f)*window.Width,(.5f-key.Bounds.Center.Y)*window.Height,0),true)==0,"A key overlaps a window handle");
             var surface=new SurfaceView { Keys=keys,Width=.5f,Height=.3f,Pose=MatrixD.CreateTranslation(1e9,2e9,-3e9) };
             foreach(var key in keys)
             {

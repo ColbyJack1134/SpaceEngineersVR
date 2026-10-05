@@ -182,6 +182,9 @@ namespace SpaceEngineersVR.Config
         private static float Bound(float value,float min,float max,float fallback) => float.IsNaN(value) || float.IsInfinity(value)
             ? fallback : Math.Max(min,Math.Min(max,value));
         public bool TrackedArms { get => trackedArms; set => SetValue(ref trackedArms,value); }
+        private bool tapHoldSticks,tapHoldLevers;
+        public bool TapHoldSticks { get => tapHoldSticks; set => SetValue(ref tapHoldSticks,value); }
+        public bool TapHoldLevers { get => tapHoldLevers; set => SetValue(ref tapHoldLevers,value); }
         private bool controllerRelativeMovement;
         private bool controllerMenuPointer = true;
 

@@ -113,7 +113,7 @@ namespace SpaceEngineersVR.Player.Components
             float l=0,r=0,t=0,b=0; OpenVR.System.GetProjectionRaw(eye,ref l,ref r,ref t,ref b);
             var projection=VrMath.Projection(l,r,t,b,.03);
             if(!MenuHands.Available) return;
-            FloatingMenu.DrawPanel(target,desktopView,new FloatingMenu.Snapshot {Pose=panel,Width=width,Height=height,Hover=current?.Hover ?? 0},view,projection,handDepth);
+            FloatingMenu.DrawPanel(target,desktopView,new WindowFrame.Snapshot {Pose=panel,Width=width,Height=height,Hover=current?.Hover ?? 0},view,projection,handDepth);
         }
         public static void SubmitMenuBackground()
         {

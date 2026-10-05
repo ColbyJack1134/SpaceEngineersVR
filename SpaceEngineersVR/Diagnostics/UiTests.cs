@@ -241,6 +241,7 @@ namespace SpaceEngineersVR.Diagnostics
                 GameplayFeatureTests.Run(log,output);
                 BlockPreviews(device,output);
                 RemoteViewTests.Preview(device,output);
+                WindowGallery.Render(device,output);
                 using(var feed=new OverlayCanvas("remote feed frame",1600,1100,1,false,device))
                     foreach(float width in new[] {.7f,1.2f,3.2f})
                     {
@@ -249,7 +250,7 @@ namespace SpaceEngineersVR.Diagnostics
                     }
                 using(var menu=new OverlayCanvas("menu frame preview",1600,1100,1,false,device))
                 {
-                    FloatingMenu.Paint(menu,new FloatingMenu.Snapshot { Width=1.5f,Height=.84375f,Hover=1 });
+                    FloatingMenu.Paint(menu,new WindowFrame.Snapshot { Width=1.5f,Height=.84375f,Hover=1 });
                     menu.Upload(); Save(menu.Texture,Path.Combine(output,"floating-menu-frame.png"));
                 }
                 using(var source=new OverlayCanvas("rounded source",64,64,1,false,device))
@@ -315,7 +316,7 @@ namespace SpaceEngineersVR.Diagnostics
                         description.Width=description.Height=256; description.Format=format;
                         using(var target=new Texture2D(device,description))
                         {
-                            FloatingMenu.DrawPanel(target,view,new FloatingMenu.Snapshot {Pose=Matrix.CreateTranslation(0,0,-1),Width=1,Height=1},
+                            FloatingMenu.DrawPanel(target,view,new WindowFrame.Snapshot {Pose=Matrix.CreateTranslation(0,0,-1),Width=1,Height=1},
                                 MatrixD.Identity,VrMath.Projection(-1,1,-1,1,.03));
                             string path=Path.Combine(output,"menu-colour-"+format+".png"); Save(target,path);
                             using(var image=new Bitmap(path))
@@ -414,6 +415,29 @@ namespace SpaceEngineersVR.Diagnostics
                         Save(face.Texture,Path.Combine(output,"seat-face-"+subtype+".png"));
                     }
                 }
+                foreach(bool personal in new[] {false,true})
+                {
+                    var settings=FlightSettings.View("flight-preview",MatrixD.Identity,.40f,.225f,
+                        FlightSettings.Layout(new Multiplayer.FlightTuning(),personal,false,false,"Fighter Cockpit Flight Settings"),"Fighter Cockpit Flight Settings");
+                    WristPreview(device,canvas,settings,output,personal ? "flight-grip":"flight-tuning");
+                }
+                var foreground=FlightSettings.View("flight-foreground",MatrixD.CreateTranslation(0,0,-.6),.55f,.31f,
+                    FlightSettings.Layout(new Multiplayer.FlightTuning(),false,false,false,"Fighter Cockpit Flight Settings"),"Fighter Cockpit Flight Settings");
+                scene.Clear(System.Drawing.Color.FromArgb(255,7,12,18)); scene.Upload();
+                device.ImmediateContext.ClearDepthStencilView(dsv,DepthStencilClearFlags.Depth,1,0);
+                PhysicalSurface.Draw(scene.Texture,new[] {foreground},MatrixD.Identity,projection,srv);
+                Save(scene.Texture,Path.Combine(output,"flight-occluded-reference.png"));
+                FloatingSurface.Draw(scene.Texture,new[] {foreground},MatrixD.Identity,projection);
+                Save(scene.Texture,Path.Combine(output,"flight-foreground-preview.png"));
+                using(var blocked=new Bitmap(Path.Combine(output,"flight-occluded-reference.png")))
+                using(var floating=new Bitmap(Path.Combine(output,"flight-foreground-preview.png")))
+                {
+                    int changes=0;
+                    for(int y=180;y<450;y+=10) for(int x=240;x<780;x+=10)
+                        if(blocked.GetPixel(x,y)!=floating.GetPixel(x,y)) changes++;
+                    if(changes<100) throw new Exception("Floating flight settings did not draw above opaque scene depth");
+                }
+                device.ImmediateContext.ClearDepthStencilView(dsv,DepthStencilClearFlags.Depth,0,0);
                 using(var badge=new OverlayCanvas("switch action preview",PhysicalSurface.TextureSize(SurfaceStyle.Label).X,PhysicalSurface.TextureSize(SurfaceStyle.Label).Y,1,false,device))
                 {
                     foreach(bool assigned in new[] {false,true})

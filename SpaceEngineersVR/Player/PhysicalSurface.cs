@@ -18,7 +18,9 @@ namespace SpaceEngineersVR.Player
         public string[] Icons=new string[0];
         public string SubIcon,Text,Value;
         public ActionChoice Action;
-        public float? Knob;
+        public float? Knob,Slider;
+        public Action<float> Change;
+        public bool Caption;
         public bool Invisible,DirectOnly,Round;
         public VRageMath.RectangleF Bounds;
         internal bool Contains(Vector2 uv)
@@ -34,7 +36,7 @@ namespace SpaceEngineersVR.Player
         public string Id,Title,Text,Action,Argument;
         public EssentialHud.View Status;
         public BlockInspection.Data Block;
-        public bool SignalWindow,SeatSettings;
+        public bool SignalWindow,SeatSettings,FlightPage;
         public WristSignals.View Signals;
         public WristHud.View HudSettings;
         public string[] Icons=new string[0];
@@ -42,6 +44,8 @@ namespace SpaceEngineersVR.Player
         public bool Enabled=true;
         public MatrixD Pose;
         public MatrixD? HandLocal;
+        internal MatrixD? WindowPose;
+        internal int WindowHover;
         internal SurfaceView At(MatrixD pose) { var copy=(SurfaceView)MemberwiseClone(); copy.Pose=pose; return copy; }
         public float Width,Height;
         public SurfaceKey[] Keys=new SurfaceKey[0];
@@ -54,8 +58,8 @@ namespace SpaceEngineersVR.Player
         public float[] Levels;
         public int Handle;
         public Vector3? TouchPoint;
-        public string ContentKey => SeatSettings+"|"+SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+HoverAlt+"|"+PressedAlt+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
-            "|"+HudSettings?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
+        public string ContentKey => FlightPage+"|"+SeatSettings+"|"+SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+HoverAlt+"|"+PressedAlt+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
+            "|"+HudSettings?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob+":"+k.Slider))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
         public int KeyAt(Vector2 uv)
         {
@@ -138,13 +142,6 @@ namespace SpaceEngineersVR.Player
                     s.Hovered(i) ? leftOnly ? Color.FromArgb(96,70,40) : Color.FromArgb(55,83,100) : Color.FromArgb(31,47,60))) g.FillRectangle(brush,r);
                 using(var pen=new Pen(s.Hovered(i) ? leftOnly ? Color.Orange : Color.Cyan : Color.FromArgb(86,117,133),2)) g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);
                 g.DrawString(k.Label,text,Brushes.White,r,centered);
-            }
-            if(s.Style==SurfaceStyle.Keyboard)
-            {
-                using(var pen=new Pen(s.Handle==1 ? Color.Cyan : Color.LightSteelBlue,5) { StartCap=System.Drawing.Drawing2D.LineCap.Round,EndCap=System.Drawing.Drawing2D.LineCap.Round })
-                    g.DrawLine(pen,464,611,560,611);
-                using(var pen=new Pen(s.Handle==2 ? Color.Cyan : Color.LightSteelBlue,4) { StartCap=System.Drawing.Drawing2D.LineCap.Round,EndCap=System.Drawing.Drawing2D.LineCap.Round })
-                    g.DrawArc(pen,970,588,26,26,0,90);
             }
             g.FillRectangle(Brushes.White,1020,636,4,4);
         }
@@ -244,7 +241,8 @@ namespace SpaceEngineersVR.Player
                         using(var brush=new SolidBrush(s.IsPressed(i) ? Color.FromArgb(38,124,139) : s.Hovered(i) ? Color.FromArgb(61,85,94) : Color.FromArgb(44,51,56)))
                         { g.FillPath(brush,path); g.DrawPath(border,path); }
                         if(key==7) DrawLock(g,r,s.Handle==1,s.Keys[i].Enabled);
-                        else if(key<9) DrawSeatSymbol(g,key,r,s.Keys[i].Enabled ? Color.LightCyan : Color.SlateGray);
+                        else if(key==4) DrawSettings(g,r);
+                        else if(key<9) DrawSeatSymbol(g,key==8 && s.Handle!=1 ? 4:key,r,s.Keys[i].Enabled ? Color.LightCyan : Color.SlateGray);
                         else
                         {
                             bool on=s.Levels!=null && key-9<s.Levels.Length && s.Levels[key-9]>.5f;
@@ -268,6 +266,18 @@ namespace SpaceEngineersVR.Player
                     size/s.Width*1024,size/s.Height*640,new Vector4(0,0,1,1),Color.LightCyan);
             }
             g.FillRectangle(Brushes.White,1020,636,4,4);
+        }
+        private static void DrawSettings(Graphics g,System.Drawing.RectangleF r)
+        {
+            float size=Math.Min(r.Width,r.Height)*.68f;
+            var points=new List<PointF>();
+            for(int i=0;i<8;i++) foreach(var part in new[] {new Vector2(-.5f,26),new Vector2(-.26f,26),new Vector2(-.20f,34),new Vector2(.20f,34),new Vector2(.26f,26),new Vector2(.5f,26)})
+            {
+                double a=(i+part.X)*Math.PI/4; float radius=part.Y/68*size;
+                points.Add(new PointF(r.X+r.Width/2+(float)Math.Cos(a)*radius,r.Y+r.Height/2+(float)Math.Sin(a)*radius));
+            }
+            using(var pen=new Pen(Color.LightCyan,size*.055f) {LineJoin=System.Drawing.Drawing2D.LineJoin.Round})
+            { g.DrawPolygon(pen,points.ToArray()); float inner=size*11/68; g.DrawEllipse(pen,r.X+r.Width/2-inner,r.Y+r.Height/2-inner,inner*2,inner*2); }
         }
         private static void DrawSeatSymbol(Graphics g,int key,System.Drawing.RectangleF r,Color color)
         {
@@ -307,6 +317,9 @@ namespace SpaceEngineersVR.Player
         {
             target.Clear(Color.FromArgb(255,12,20,28));
             PaintWristKeys(target,s);
+            if(s.FlightPage) using(var font=new Font("Segoe UI",27,FontStyle.Regular,GraphicsUnit.Pixel))
+                using(var format=new StringFormat {FormatFlags=StringFormatFlags.NoWrap,Trimming=StringTrimming.EllipsisCharacter})
+                target.Graphics.DrawString(s.Title,font,Brushes.White,new System.Drawing.RectangleF(26,17,970,50),format);
             if(s.SeatSettings) PaintSeatKeys(target,s);
             target.Graphics.FillRectangle(Brushes.White,1020,636,4,4);
         }
@@ -319,6 +332,20 @@ namespace SpaceEngineersVR.Player
             {
                 var key=s.Keys[i]; if(key.Invisible || key.SeatControl>=0) continue; var b=key.Bounds;
                 var r=new System.Drawing.RectangleF(b.X*1024,b.Y*640,b.Width*1024,b.Height*640);
+                if(key.Slider.HasValue)
+                {
+                    using(var left=new StringFormat {Alignment=StringAlignment.Near})
+                    using(var right=new StringFormat {Alignment=StringAlignment.Far})
+                    {
+                        g.DrawString(key.Label,labelFont,Brushes.White,r,left); g.DrawString(key.Value,labelFont,Brushes.LightCyan,r,right);
+                    }
+                    float railY=r.Y+r.Height*.76f,railX=r.X+10,railWidth=r.Width-20;
+                    using(var rail=new Pen(Color.FromArgb(91,112,123),6)) g.DrawLine(rail,railX,railY,railX+railWidth,railY);
+                    using(var fill=new Pen(Color.FromArgb(111,214,232),6)) g.DrawLine(fill,railX,railY,railX+railWidth*key.Slider.Value,railY);
+                    g.FillEllipse(Brushes.LightCyan,railX+railWidth*key.Slider.Value-9,railY-9,18,18);
+                    continue;
+                }
+                if(key.Caption) { g.DrawString(key.Label,labelFont,Brushes.LightCyan,r); continue; }
                 using(var path=Rounded(r,10))
                 using(var brush=new SolidBrush(s.IsPressed(i) ? Color.FromArgb(40,133,151) : s.Hovered(i) ? Color.FromArgb(55,83,100) : Color.FromArgb(31,47,60))) g.FillPath(brush,path);
                 var label=key.Icons.Length>0 ? new System.Drawing.RectangleF(r.X+4,r.Bottom-40,r.Width-8,36):r;
@@ -412,7 +439,7 @@ namespace SpaceEngineersVR.Player
                 foreach(var k in s.Keys)
                 {
                     if(k.Knob.HasValue) {WristKnob.Add(sprites,c.Texture,s,k.Knob.Value,view,projection); continue;}
-                    if(k.Invisible) continue;
+                    if(k.Invisible || k.Caption) continue;
                     var b=k.Bounds;
                     int index=Array.IndexOf(s.Keys,k);
                     float raised=s.IsPressed(index) ? .001f : KeyHeight(s);

@@ -9,20 +9,22 @@ namespace SpaceEngineersVR.Player
 {
     internal static class FloatingKeyboard
     {
-        private static readonly KeyboardWindow window=new KeyboardWindow();
+        private static readonly KeyboardWindow keyboard=new KeyboardWindow();
+        private static MenuWindow window=>keyboard.Window;
+        private static readonly WindowInteraction interaction=new WindowInteraction(keyboard.Window);
+        private static DateTime lastUpdate;
         private sealed class HandState
         {
             public readonly KeyboardContact Touch=new KeyboardContact();
             public readonly KeyboardRepeat Repeat=new KeyboardRepeat();
-            public readonly InteractionPress HandlePress=new InteractionPress();
             public readonly CockpitTouch.SurfaceHold Contact=new CockpitTouch.SurfaceHold();
             public bool DirectHeld;
             public int Hover=-1,Pressed=-1;
-            public void Reset() { Touch.Reset(); Repeat.Reset(); Contact.Input.Reset(); HandlePress.Block(); DirectHeld=false; Hover=Pressed=-1; }
+            public void Reset() { Touch.Reset(); Repeat.Reset(); Contact.Input.Reset(); DirectHeld=false; Hover=Pressed=-1; }
         }
         private static readonly HandState[] hands={ new HandState(),new HandState() };
         private static volatile SurfaceView current;
-        private static bool placed,directDrag;
+        private static bool placed;
         private static int dragHand;
         private static readonly RenderRecovery recovery=new RenderRecovery("Floating keyboard");
         private static bool failed => recovery.Failed;
@@ -34,16 +36,16 @@ namespace SpaceEngineersVR.Player
         public static void Show(bool reposition,Vector3? screen=null)
         {
             var head=Player.Headset.pose.deviceToAbsolute.matrix;
-            if(reposition || !placed || !window.Reachable(head,screen)) window.Place(head,screen);
+            if(reposition || !placed || !keyboard.Reachable(head,screen)) keyboard.Place(head,screen);
             placed=true; ReleaseInput(); Publish();
         }
-        public static void ReleaseInput() { foreach(var state in hands) state.Reset(); window.Stop(); hover=pressed=-1; }
+        public static void ReleaseInput() { foreach(var state in hands) state.Reset(); interaction.Reset(); hover=pressed=-1; lastUpdate=DateTime.UtcNow; }
         public static void Close() { ReleaseInput(); current=null; }
         internal static bool Hits(Matrix aim)
         {
             if(!window.Pointer(aim,out var point)) return false;
             var uv=window.UV(point);
-            return uv.X>=0 && uv.X<=1 && uv.Y>=0 && uv.Y<=1;
+            return uv.X>=0 && uv.X<=1 && uv.Y>=0 && uv.Y<=1 || window.Handle(point,true)!=0;
         }
         private static Matrix Aim(Controller hand)
         {
@@ -57,31 +59,23 @@ namespace SpaceEngineersVR.Player
             if(!Available) { MenuKeyboard.Close(); return; }
             if(InputRouter.Mode!=InputMode.Menu || !MenuPointer.GameFocused || !Player.Headset.pose.isTracked)
             { ReleaseInput(); current=null; return; }
-            if(window.Drag!=0)
+            var now=DateTime.UtcNow; float seconds=(float)(now-lastUpdate).TotalSeconds; lastUpdate=now;
+            if(interaction.Active)
             {
-                var hand=Hand(dragHand); var state=hands[dragHand];
-                foreach(var other in hands) { other.Touch.Reset(); other.Repeat.Reset(); other.Contact.Input.Reset(); }
-                var dragInput=state.HandlePress.Read(hand,directDrag);
-                if(!hand.pose.isTracked || !dragInput.Down) window.Stop();
-                else
-                {
-                    var aim=Aim(hand);
-                    Vector3 point=window.Local(aim.Translation,true);
-                    if(directDrag || window.Drag==1 || window.Pointer(aim,out point,true)) window.Move(aim,point);
-                    dragInput.Consume();
-                }
+                foreach(var state in hands) { state.Touch.Reset(); state.Repeat.Reset(); state.Contact.Input.Reset(); }
+                interaction.Update(Hand(dragHand),Aim(Hand(dragHand)),seconds);
                 Publish(); return;
             }
-            for(int i=0;i<2 && window.Drag==0;i++) UpdateHand(i);
+            for(int i=0;i<2 && !interaction.Active;i++) if(UpdateHand(i,seconds)) break;
             hover=hands[0].Hover; pressed=hands[0].Pressed;
             if(MenuKeyboard.IsOpen) Publish();
         }
-        private static void UpdateHand(int index)
+        private static bool UpdateHand(int index,float seconds)
         {
             var hand=Hand(index); var state=hands[index];
             int previousHover=state.Hover;
             state.Hover=state.Pressed=-1;
-            if(!hand.pose.isTracked) { state.Reset(); return; }
+            if(!hand.pose.isTracked) { state.Reset(); return false; }
             Matrix aim=Aim(hand);
             Vector3 tip=aim.Translation;
             var local=window.Local(tip);
@@ -90,15 +84,15 @@ namespace SpaceEngineersVR.Player
             Vector3 rayPoint=Vector3.Zero;
             bool ray=window.Pointer(aim,out rayPoint);
             Vector2 rayUv=window.UV(rayPoint);
-            int handle=near ? KeyboardWindow.Handle(uv) : ray ? KeyboardWindow.Handle(rayUv) : 0;
-            var handleInput=state.HandlePress.Read(hand,near);
-            bool handlePressed=state.HandlePress.Update(true,handleInput);
-            if(handle!=0 && handlePressed)
+            if(state.Contact.Input.Surface==null && interaction.Update(hand,aim,seconds))
             {
-                dragHand=index; directDrag=near; window.Begin(handle,aim,near ? local : rayPoint);
-                foreach(var other in hands) { other.Touch.Reset(); other.Repeat.Reset(); other.Contact.Input.Reset(); }
-                handleInput.Consume(); CockpitFeedback.Engage(hand);
-                return;
+                if(interaction.Captured)
+                {
+                    dragHand=index;
+                    foreach(var other in hands) { other.Touch.Reset(); other.Repeat.Reset(); other.Contact.Input.Reset(); }
+                }
+                state.Touch.Reset(); state.Repeat.Reset(); state.Contact.Input.Reset();
+                return true;
             }
             var s=MakeView();
             int key=s.KeyAt(uv);
@@ -131,11 +125,12 @@ namespace SpaceEngineersVR.Player
             }
             else if(state.Hover>=0 && state.Hover!=previousHover && DateTime.UtcNow>=feedbackUntil) CockpitFeedback.Hover(hand);
             if(input.Consumed) action.Consume();
+            return false;
         }
         private static SurfaceView MakeView() => new SurfaceView {
             Id="Keyboard",Style=SurfaceStyle.Keyboard,Pose=window.Pose,Width=window.Width,Height=window.Height,
             TrackingSpace=true,Text=MenuKeyboard.Preview,Keys=MenuKeyboard.Keys,
-            Hover=hover>=0 || hands[1].Hover>=0 ? hover : MenuKeyboard.Selected,Pressed=pressed,HoverAlt=hands[1].Hover,PressedAlt=hands[1].Pressed,Handle=window.Drag };
+            Hover=hover>=0 || hands[1].Hover>=0 ? hover : MenuKeyboard.Selected,Pressed=pressed,HoverAlt=hands[1].Hover,PressedAlt=hands[1].Pressed,Handle=window.Drag,WindowHover=interaction.Hover };
         private static void Publish() { current=MakeView(); }
         internal static bool TryAttachment(Controller hand,out MatrixD pose,out Vector3D point,out float blend,bool tracking=false)
         {
@@ -169,7 +164,8 @@ namespace SpaceEngineersVR.Player
                 Matrix view=Matrix.Invert(OpenVR.System.GetEyeToHeadTransform(eye).ToMatrix()*Player.Headset.renderPose.deviceToAbsolute.matrix);
                 float l=0,r=0,t=0,b=0; OpenVR.System.GetProjectionRaw(eye,ref l,ref r,ref t,ref b);
                 // Match the menu controllers' projection/depth, independent of cockpit walls.
-                PhysicalSurface.Draw(target,new[] { s },view,VrMath.Projection(l,r,t,b,.03),MenuHands.Depth,ThirdPersonView.Active ? null:NativeHandLayer.Depth);
+                FloatingSurface.Draw(target,new[] { s },view,VrMath.Projection(l,r,t,b,.03),MenuHands.Depth);
+                WindowFrame.Draw(target,"Keyboard",new WindowFrame.Snapshot {Pose=(Matrix)s.Pose,Width=s.Width,Height=s.Height,Hover=s.WindowHover},view,VrMath.Projection(l,r,t,b,.03),ThirdPersonView.Active ? null:NativeHandLayer.Depth,MenuHands.Depth);
             }
             catch(Exception ex) { current=null; recovery.Fail(ex,"Floating keyboard renderer disabled"); }
         }

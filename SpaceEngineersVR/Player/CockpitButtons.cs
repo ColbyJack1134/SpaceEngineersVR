@@ -177,7 +177,10 @@ namespace SpaceEngineersVR.Player
                     bool stateful=numeric || CockpitActions.ReadState(i,out actual);
                     float state=stateful ? actual : now<pulses[i] ? 1 : 0;
                     var input=CockpitTouch.Read("CockpitControl"+i);
-                    positions[i]=input.Position ?? (numeric ? state:positions[i]+MathHelper.Clamp(state-positions[i],-step,step));
+                    float target=input.Position ?? state;
+                    if(input.Position.HasValue && CockpitRig.Find(subtype)?.LeverAt(i)!=null)
+                        target=MathHelper.Lerp(state,target,.65f);
+                    positions[i]=numeric ? target:positions[i]+MathHelper.Clamp(target-positions[i],-step,step);
                 }
             }
             catch(Exception ex) { Fail(ex); }

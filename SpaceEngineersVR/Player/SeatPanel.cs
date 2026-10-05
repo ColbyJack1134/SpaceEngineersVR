@@ -6,10 +6,10 @@ namespace SpaceEngineersVR.Player
     internal static class SeatPanel
     {
         internal static readonly string[] IconNames={ "GridPowerOn","Dampeners","Handbrake","Light","GridBroadcastingOnCenter" };
-        private static readonly string[] labels= { "Seat up","Seat forward","Seat down","Seat left","Center seat","Seat right","Seat back",
-            "Lock stick position","Reset sticks","Power","Dampeners","Park","Ship lights","Broadcast" };
+        private static readonly string[] labels= { "Seat up","Seat forward","Seat down","Seat left","Flight Settings","Seat right","Seat back",
+            "Lock stick position","Reset seat","Power","Dampeners","Park","Ship lights","Broadcast" };
         private static readonly SurfaceKey[] lockedKeys=MakeKeys(true,false),unlockedKeys=MakeKeys(true,true),fixedKeys=MakeKeys(false,false);
-        internal static string Label(int key) => labels[key];
+        internal static string Label(int key) => key==8 && CockpitControls.Adjusting ? "Reset joysticks":labels[key];
         internal static SurfaceView View()
         {
             var seat=SeatFit.Seat;
@@ -32,7 +32,7 @@ namespace SpaceEngineersVR.Player
                 int row=i<2 ? 0 : 1+(i-2)/3,col=i<2 ? i : (i-2)%3;
                 float y=.035f+row*.185f+(row>=2 ? .02f : 0);
                 keys[key]=new SurfaceKey(key<9 ? symbols[key] : labels[key],(row==0 ? .215f : .065f)+col*.30f,y,.27f,.17f) {
-                    SeatControl=key,Enabled=key==7 ? sticks : key!=8 || sticks && unlocked };
+                    SeatControl=key,Enabled=key==7 ? sticks : true };
             }
             return keys;
         }
@@ -46,14 +46,15 @@ namespace SpaceEngineersVR.Player
                     SeatControl=source.SeatControl,Enabled=available && source.Enabled });
             }
         }
-        internal static void UpdateInput(int clicked,int held)
+        internal static void UpdateInput(int clicked,int held,bool wrist=false)
         {
             if(!SeatFit.Eligible(SeatFit.Seat) || Plugin.Main.MenuOpen || !InputRouter.Gameplay) return;
+            if(clicked==4) { FlightSettings.Open(wrist); return; }
             if(clicked==7) CockpitControls.ToggleAdjustment();
-            else if(clicked==8 && CockpitControls.Adjusting) CockpitControls.ResetPlacement();
+            else if(clicked==8) { if(CockpitControls.Adjusting) CockpitControls.ResetPlacement(); else SeatFit.Move(Vector3.Zero,true); }
             else if(clicked>=9 && clicked<14) Activate(clicked);
-            if(held>=0 && held<directions.Length && !CockpitControls.Held(Player.HandR) && !CockpitControls.Held(Player.HandL))
-                SeatFit.Move(directions[held],held==4);
+            if(held>=0 && held<directions.Length && held!=4 && !CockpitControls.Held(Player.HandR) && !CockpitControls.Held(Player.HandL))
+                SeatFit.Move(directions[held],false);
         }
         internal static float[] States()
         {

@@ -19,7 +19,7 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 var w=new MenuWindow { Aspect=aspect }; w.Place(Matrix.Identity);
                 Require(w.Handle(Vector3.Zero)==0,"Native menu centre became a window handle");
-                Require(w.Handle(new Vector3(0,-w.Height/2-.085f,0))==1,"Menu drag bar cannot be reached");
+                Require(w.Handle(new Vector3(0,-w.Height/2-w.BarOffset,0))==1,"Menu drag bar cannot be reached");
                 var aim=Matrix.CreateTranslation(0,0,-.3f);
                 Require(w.Pointer(aim,out var point),"Front-facing menu pointer failed");
                 var original=w.Pose; w.Begin(1,aim,point);
@@ -115,7 +115,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(seatView.KeyAt(new Vector2(b.X+b.Width/2,b.Y+b.Height/2))==i,"Seat controls overlap the new lock");
             }
             seatView.Keys=SeatPanel.Keys(true,false);
-            Require(seatView.KeyAt(seatView.Keys[8].Bounds.Center)==-1,"Locked stick reset remained active");
+            Require(seatView.KeyAt(seatView.Keys[8].Bounds.Center)==8,"Locked cockpit cannot reset the seat");
             Require(seatView.Keys[8].Bounds==seatKeys[8].Bounds && seatView.Keys[12].Bounds==seatKeys[12].Bounds,"Locking sticks moved Reset or Lights");
             var config=new PluginConfig { ShipRollSensitivity=.77f,SeatFits=new[] { new SeatFitSetting { Subtype=CockpitLayout.Fighter,Y=.1f } },
                 MenuWindows=new[] { new MenuWindowSetting { Screen="Inventory",Width=1.2f,Z=-1.4f,QW=1 },

@@ -122,7 +122,7 @@ namespace SpaceEngineersVR.Diagnostics
                 for(int i=0;i<hz;i++) result=f.Update(true,new Vector3(.5f),1f/hz,.025f);
                 return result;
             }
-            Near(FilterAt(72),FilterAt(144),"Smoothing depends on refresh rate");
+            Near(FilterAt(72),FilterAt(144),"Smoothing did not settle at both refresh rates");
             var filter=new CockpitStickMath.Filter();
             var smooth=filter.Update(true,new Vector3(.5f),.01f,.025f);
             Require(smooth.X>0 && smooth.X<.5f,"Smoothing bypassed");
@@ -140,7 +140,7 @@ namespace SpaceEngineersVR.Diagnostics
             pulse.Sample(true,Vector3.Right*.95f,now.AddSeconds(1.1));
             Require(pulse.Sample(true,Vector3.Right,now.AddSeconds(1.3))==0,"Limit jitter repeats pulses");
             Require(pulse.Sample(false,Vector3.Zero,now.AddSeconds(1.4))==0 && pulse.Sample(true,Vector3.Zero,now.AddSeconds(1.5))==0,"Release or regrab emits a detent");
-            log("PASS stick comfort: squared response, full authority, refresh-independent smoothing, immediate release/neutral, radial and twist deadzone boundaries, coalesced ticks and limit hysteresis.");
+            log("PASS stick comfort: squared response, full authority, time-scaled smoothing, immediate release/neutral, radial and twist deadzone boundaries, coalesced ticks and limit hysteresis.");
             var convert=AccessTools.Method(AccessTools.TypeByName("VRageRender.MyProxiesFactory"),"GetRenderableProxyFlags");
             long Flags(RenderFlags f) => Convert.ToInt64(convert.Invoke(null,new object[] { f }));
             long hide=Flags(RenderFlags.Visible|CockpitRender.Hidden),none=Flags(RenderFlags.Visible);

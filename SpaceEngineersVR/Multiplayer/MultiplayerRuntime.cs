@@ -184,7 +184,7 @@ namespace SpaceEngineersVR.Multiplayer
                 }
                 if(kind==5 && message.Server)
                 { Notify("Cockpit settings could not be shared. See the plugin log."); Log(value); return; }
-                if(network.IsServer && player!=null && (kind>=1 && kind<=3 || kind==6)) HostRequest(player,kind,seat,value);
+                if(network.IsServer && player!=null && (kind>=1 && kind<=3 || kind==6 || kind==8)) HostRequest(player,kind,seat,value);
             }
         }
         internal static byte[] Packet(byte kind,long seat,string value)
@@ -215,6 +215,7 @@ namespace SpaceEngineersVR.Multiplayer
                         if(!CockpitMemory.ValidToolbar(value,count)) throw new InvalidDataException("Invalid cockpit toolbar.");
                         record.Toolbar=value;
                     }
+                    else if(kind==8) record.Flight=FlightTuning.Decode(value);
                     else
                     {
                         var covers=Convert.FromBase64String(value);
@@ -283,6 +284,7 @@ namespace SpaceEngineersVR.Multiplayer
             { requested[seat.EntityId]=Now; Request(1,seat,""); }
             return states.TryGetValue(seat.EntityId,out record);
         }
+        internal static void SaveFlight(MyCockpit seat,FlightTuning value) => Request(8,seat,value.Encode());
         internal static void SaveToolbar(MyCockpit seat,string xml) => Request(2,seat,xml);
         internal static void SaveCover(MyCockpit seat,int index,bool open) => Request(3,seat,Convert.ToBase64String(new[] {(byte)index,(byte)(open ? 1:0)}));
         private static void Forget(RemoteArms arms)

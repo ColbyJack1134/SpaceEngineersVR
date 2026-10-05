@@ -18,6 +18,8 @@ namespace SpaceEngineersVR.Player
         private static CockpitRig Rig => seat==null ? null : CockpitRig.Find(seat.BlockDefinition.Id.SubtypeName);
         private static readonly GripCapture left=new GripCapture(),right=new GripCapture();
         private static Matrix leftNeutral,rightNeutral,origin;
+        private static Vector3 leftAngles,rightAngles;
+        private static Multiplayer.FlightTuning tuning=new Multiplayer.FlightTuning();
         private static Matrix leftVisual=Matrix.Identity,rightVisual=Matrix.Identity;
         private static readonly CockpitFeedback.StickPulse leftDetent=new CockpitFeedback.StickPulse(),rightDetent=new CockpitFeedback.StickPulse();
         private static readonly CockpitStickMath.Filter leftFilter=new CockpitStickMath.Filter(),rightFilter=new CockpitStickMath.Filter();
@@ -54,7 +56,7 @@ namespace SpaceEngineersVR.Player
 
         public static void Reset()
         {
-            Release(); seat=null; leftWas=rightWas=false; CockpitRender.Reset();
+            Release(); leftAngles=rightAngles=Vector3.Zero; seat=null; leftWas=rightWas=false; CockpitRender.Reset();
         }
         public static void Release()
         {
@@ -74,8 +76,8 @@ namespace SpaceEngineersVR.Player
         private static void SetVisuals()
         {
             var rig=Rig;
-            leftVisual=StickPlacement.Visual(rig?.Left!=null ? rig.Left.Visual(rig.Right==null ? rotation : new Vector3(-translation.Z,translation.Y,translation.X)) : Matrix.Identity,placement.Left);
-            rightVisual=StickPlacement.Visual(rig?.Right!=null ? rig.Right.Visual(rotation) : Matrix.Identity,placement.Right);
+            leftVisual=StickPlacement.Visual(rig?.Left!=null ? rig.Left.Visual(leftAngles) : Matrix.Identity,placement.Left);
+            rightVisual=StickPlacement.Visual(rig?.Right!=null ? rig.Right.Visual(rightAngles) : Matrix.Identity,placement.Right);
         }
         public static void ToggleAdjustment()
         {
@@ -166,7 +168,7 @@ namespace SpaceEngineersVR.Player
             }
             if (origin!=Player.PlayerToAbsolute.matrix || fit!=SeatFit.Offset) { Release(); origin=Player.PlayerToAbsolute.matrix; fit=SeatFit.Offset; }
             RefreshVisuals();
-            bool available=Available;
+            bool available=Available && !FlightSettings.IsOpen;
             if (!available && Adjusting) Release();
             var c=Controls.Static;
             bool leftDown=left.AnalogDown(c.ThrustDown.Position.X,c.ThrustDown.RawPosition.X);
@@ -182,13 +184,13 @@ namespace SpaceEngineersVR.Player
                 CockpitFeedback.Hover(Player.HandL);
             if(rightHover.Sample(available,rightDistance,CaptureRadius,rightDown || right.Consumed || CockpitTouch.OwnsRight))
                 CockpitFeedback.Hover(Player.HandR);
-            if (left.Update(available && !CockpitTouch.Owns(Player.HandL),leftDown,leftNear,!left.Held || Vector3.Distance(lp,WeaponPose.Palm(leftNeutral))<0.45f))
+            if (left.Update(available && !CockpitTouch.Owns(Player.HandL),leftDown,leftNear,true,Common.Config.TapHoldSticks && !Adjusting,Multiplayer.MultiplayerRuntime.Now))
             {
                 grabLeft=DateTime.UtcNow; leftDetent.Sample(false,Vector3.Zero,grabLeft);
                 leftStartOffset=placement.Left;
                 leftNeutral=l; BlockTranslation(); if(Rig!=null && Rig.Right==null) BlockRotation(); Player.HandL.Vibrate(0,0.055f,110,0.5f);
             }
-            if (right.Update(available && !CockpitTouch.OwnsRight,rightDown,rightNear,!right.Held || Vector3.Distance(rp,WeaponPose.Palm(rightNeutral))<0.45f))
+            if (right.Update(available && !CockpitTouch.OwnsRight,rightDown,rightNear,true,Common.Config.TapHoldSticks && !Adjusting,Multiplayer.MultiplayerRuntime.Now))
             {
                 grabRight=DateTime.UtcNow; rightDetent.Sample(false,Vector3.Zero,grabRight);
                 rightStartOffset=placement.Right;
@@ -196,9 +198,10 @@ namespace SpaceEngineersVR.Player
             }
             if (leftWas && !left.Held) { BlockTranslation(); if(Rig!=null && Rig.Right==null) BlockRotation(); }
             if (rightWas && !right.Held) BlockRotation();
-            float deadzone=Common.Config.PhysicalStickDeadzone;
+            tuning=FlightSettings.For(seat);
+            float deadzone=tuning.TiltDeadzone;
             bool twist=Common.Config.StickTwist;
-            float sensitivity=Common.Config.PhysicalStickSensitivity;
+            float sensitivity=tuning.Rotation;
             var now=DateTime.UtcNow;
             float dt=(float)Math.Min(.05,Math.Max(0,(now-lastInput).TotalSeconds)); lastInput=now;
             if (Adjusting)
@@ -209,11 +212,13 @@ namespace SpaceEngineersVR.Player
                 if(c.Primary.RawPressed) c.Primary.BlockUntilRelease();
                 c.Secondary.BlockUntilRelease();
             }
-            translation=left.Held && !Adjusting && !(Rig!=null && Rig.Right==null) ? CockpitStickMath.Translation(leftNeutral,l,deadzone,twist,sensitivity,Rig.Left.Frame) : Vector3.Zero;
-            rotation=Adjusting ? Vector3.Zero : Rig!=null && Rig.Right==null && left.Held ? CockpitStickMath.Rotation(leftNeutral,l,deadzone,twist,sensitivity,Rig.Left.Frame) : right.Held ? CockpitStickMath.Rotation(rightNeutral,r,deadzone,twist,sensitivity,Rig.Right.Frame) : Vector3.Zero;
+            translation=left.Held && !Adjusting && !(Rig!=null && Rig.Right==null) ? CockpitStickMath.Translation(leftNeutral,l,deadzone,twist,tuning.Translation,Rig.Left.Frame,tuning.TwistDeadzone) : Vector3.Zero;
+            rotation=Adjusting ? Vector3.Zero : Rig!=null && Rig.Right==null && left.Held ? CockpitStickMath.Rotation(leftNeutral,l,deadzone,twist,sensitivity,Rig.Left.Frame,tuning.TwistDeadzone) : right.Held ? CockpitStickMath.Rotation(rightNeutral,r,deadzone,twist,sensitivity,Rig.Right.Frame,tuning.TwistDeadzone) : Vector3.Zero;
             Vector3 feedbackTranslation=translation,feedbackRotation=rotation;
-            translation=leftFilter.Update(left.Held && !Adjusting,translation,dt,Common.Config.PhysicalStickSmoothing);
-            rotation=rightFilter.Update((right.Held || SingleLeft && left.Held) && !Adjusting,rotation,dt,Common.Config.PhysicalStickSmoothing);
+            translation=leftFilter.Update(left.Held && !Adjusting,translation,dt,tuning.Smoothing);
+            rotation=rightFilter.Update((right.Held || SingleLeft && left.Held) && !Adjusting,rotation,dt,tuning.Smoothing);
+            leftAngles=left.Held && !Adjusting ? CockpitStickMath.Rotation(leftNeutral,l,0,twist,1,Rig.Left.Frame):CockpitStickMath.ReturnVisual(leftAngles,dt);
+            rightAngles=right.Held && !Adjusting ? CockpitStickMath.Rotation(rightNeutral,r,0,twist,1,Rig.Right.Frame):CockpitStickMath.ReturnVisual(rightAngles,dt);
             SetVisuals();
             Feedback(Player.HandL,left.Held && !Adjusting,Rig!=null && Rig.Right==null ? feedbackRotation:feedbackTranslation,leftDetent,ref leftPulse);
             Feedback(Player.HandR,right.Held && !Adjusting,feedbackRotation,rightDetent,ref rightPulse);
@@ -243,7 +248,7 @@ namespace SpaceEngineersVR.Player
             if(seat==null || !Eligible(seat) || !CockpitRender.Ready) return;
             bool singleLeft=Rig!=null && Rig.Right==null;
             if(right.Consumed || singleLeft && left.Consumed)
-                aim=new Vector2(CockpitStickMath.Response(rotation.X,Common.Config.PhysicalStickExponent),CockpitStickMath.Response(rotation.Z,Common.Config.PhysicalStickExponent))*speed;
+                aim=new Vector2(CockpitStickMath.Response(rotation.X,tuning.RotationCurve),CockpitStickMath.Response(rotation.Z,tuning.RotationCurve))*speed;
             if(left.Consumed && !singleLeft) zoom=translation.Z;
         }
         public static void ApplyFlight(float speed,ref Vector3 move,ref Vector2 rotate,ref float roll)
@@ -253,7 +258,7 @@ namespace SpaceEngineersVR.Player
             bool singleLeft=Rig!=null && Rig.Right==null;
             var c=Controls.Static;
             CockpitStickMath.ApplyFlight(left.Consumed && !singleLeft,right.Consumed || singleLeft && left.Consumed,left.Held ? translation : Vector3.Zero,right.Held || singleLeft && left.Held ? rotation : Vector3.Zero,
-                left.Held && !singleLeft ? c.ThrustLRFB.Position.Y : 0,OwnsRightThumb ? c.ThrustRotate.Position.X : 0,speed,Common.Config.ShipRollSensitivity,ref move,ref rotate,ref roll,Common.Config.PhysicalStickExponent);
+                left.Held && !singleLeft ? c.ThrustLRFB.Position.Y : 0,OwnsRightThumb ? c.ThrustRotate.Position.X : 0,speed,Common.Config.ShipRollSensitivity,ref move,ref rotate,ref roll,tuning.RotationCurve,tuning.TranslationCurve);
         }
         public static void Draw()
         {

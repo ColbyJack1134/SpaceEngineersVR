@@ -28,7 +28,7 @@ namespace SpaceEngineersVR.Player
             public bool LeftHand;
         }
         private static readonly MenuWindow window=new MenuWindow { BarOffset=.035f };
-        private static readonly InteractionPress press=new InteractionPress();
+        private static readonly WindowInteraction interaction=new WindowInteraction(window);
         private static readonly Action<MyLargeTurretBase,float> turretZoom=AccessTools.MethodDelegate<Action<MyLargeTurretBase,float>>(AccessTools.Method(typeof(MyLargeTurretBase),"ChangeZoomPrecise"));
         private static object owner,source;
         private static MyCockpit seat;
@@ -38,7 +38,6 @@ namespace SpaceEngineersVR.Player
         private static string world;
         private static bool placementDirty;
         private static bool recenter,directHeld;
-        private static int zoomHeld;
         private static Matrix heldWrist;
         private static Vector3 heldPoint;
         private static DateTime grabbed;
@@ -65,7 +64,7 @@ namespace SpaceEngineersVR.Player
         // A held press keeps its hand; otherwise a fingertip at the screen beats a laser, and the right laser wins ties.
         private static void PickHand()
         {
-            if(press.Held || window.Drag!=0 || zoomHeld!=0) return;
+            if(interaction.Active) return;
             int Score(Controller hand,bool isLeft)
             {
                 if(!Free(hand)) return 0;
@@ -108,13 +107,13 @@ namespace SpaceEngineersVR.Player
         {
             if(placementDirty) Save();
             owner=source=null; seat=null; Current=null; SeatedRig=null; OwnsInput=false;
-            window.Cancel(); press.Block(); recenter=directHeld=false; rayStart=rayEnd=null; lastHover=zoomHeld=0; epoch++;
+            interaction.Reset(true); recenter=directHeld=false; rayStart=rayEnd=null; lastHover=0; epoch++;
         }
         public static void Recenter() { recenter=true; }
         public static void ReleaseInput()
         {
             if(placementDirty) Save();
-            window.Stop(); press.Block(); directHeld=false; OwnsInput=false; lastHover=zoomHeld=0;
+            interaction.Reset(); directHeld=false; OwnsInput=false; lastHover=0;
             Controls.Static.BlockUntilRelease(); Components.VRMovementComponent.StopActive();
         }
         public static void Exit()
@@ -167,16 +166,14 @@ namespace SpaceEngineersVR.Player
         }
         private static void Place()
         {
-            window.Place(Player.Headset.pose.deviceToAbsolute.matrix);
-            window.Width=1.2f;
-            window.Aspect=9f/16;
-            window.Pose.Translation+=(window.Pose.Backward*.7f);
+            window.Place(Player.Headset.pose.deviceToAbsolute.matrix,1.2f,new Vector3(0,0,-1.5f));
+            window.Aspect=9f/16; interaction.Reset();
             recenter=false;
         }
         public static void Update()
         {
             OwnsInput=false; rayStart=rayEnd=null;
-            if(Current==null) { press.Block(); return; }
+            if(Current==null) { interaction.Reset(); return; }
             if(recenter) { Place(); Save(); }
             var now=DateTime.UtcNow; float seconds=(float)Math.Min(.05,Math.Max(0,(now-last).TotalSeconds)); last=now;
             var controls=Controls.Static;
@@ -185,62 +182,48 @@ namespace SpaceEngineersVR.Player
             if(InputRouter.Gameplay && !Main.MenuOpen) PickHand();
             var hand=Hand;
             bool available=InputRouter.Gameplay && !Main.MenuOpen && MenuPointer.GameFocused && !ThirdPersonView.Manipulating && Free(hand);
-            if(!available) { press.Block(); if(placementDirty) Save(); window.Stop(); directHeld=false; lastHover=zoomHeld=0; Publish(); return; }
+            if(!available) { interaction.Reset(); if(placementDirty) Save(); window.Stop(); directHeld=false; lastHover=0; Publish(); return; }
             MatrixD aim=Aim(hand);
-            Matrix local=(Matrix)aim;
-            int hover=0;
-            var onPanel=local*Matrix.Invert(window.Pose);
-            bool near=onPanel.Translation.Z>=-.025f && onPanel.Translation.Z<=.05f;
-            var input=press.Read(hand,window.Drag!=0 || zoomHeld!=0 ? directHeld:near);
-            press.Update(true,input);
-            Vector3 point=onPanel.Translation; point.Z=0;
-            bool hitPanel=near || window.Pointer(local,out point);
-            if(!input.Down && window.Drag==0) { directHeld=false; zoomHeld=0; }
-            if(window.Drag!=0)
+            bool Reachable(Vector3 point)
             {
-                OwnsInput=true;
-                if(!input.Down) { window.Stop(); directHeld=false; Save(); }
-                else if(window.Pointer(local,out point,true) || window.Drag==1)
-                { window.Move(local,point,controls.ThrustRotate.RawPosition,seconds); placementDirty=true; }
-                input.Consume(); controls.ThrustRotate.BlockUntilRelease(); controls.WalkRotate.BlockUntilRelease();
-            }
-            else if(hitPanel)
-            {
-                hover=window.Handle(point);
-                if(hover==0 && Math.Abs(point.Y+window.Height/2+window.BarOffset)<.035f)
-                {
-                    if(Math.Abs(point.X-ZoomX(window.Width,false))<.027f) hover=3;
-                    else if(Math.Abs(point.X-ZoomX(window.Width,true))<.027f) hover=4;
-                }
                 var hit=Vector3D.Transform(point,(MatrixD)window.Pose);
-                if(ObstacleDistance(aim,(float)Vector3D.Distance(aim.Translation,hit)+.01f)<Vector3D.Distance(aim.Translation,hit)-.02) hover=0;
-                if(!near && Math.Abs(point.X)<window.Width/2+.065f && point.Y<window.Height/2+.03f && point.Y> -window.Height/2-.10f &&
-                    ObstacleDistance(aim,(float)Vector3D.Distance(aim.Translation,hit)+.01f)>=Vector3D.Distance(aim.Translation,hit)-.02)
-                { rayStart=aim.Translation; rayEnd=Vector3D.Transform(point,(MatrixD)window.Pose); }
-                if(near && hover==0 && Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2) hover=1;
-                if(hover!=0)
-                {
-                    if(hover!=lastHover) CockpitFeedback.Hover(hand);
-                }
-                if(press.Pressed && hover!=0)
-                {
-                    input.Consume(); OwnsInput=true;
-                    if(near)
-                    {
-                        directHeld=true; grabbed=now; heldPoint=point;
-                        MatrixD wrist=ThirdPersonView.Active ? Alignment.Apply(Alignment.HandKey(hand),CockpitHandPose.GripWrist(hand.GripTracking)) :
-                            TrackedArms.FreeWristWorld(hand)*MatrixD.Invert(PhysicalTrackingToWorld);
-                        heldWrist=(Matrix)(wrist*MatrixD.Invert((MatrixD)window.Pose));
-                    }
-                    if(hover<=2) { window.Begin(hover,local,point); }
-                    else { zoomHeld=hover; Zoom(hover==3 ? .12f : -.12f); }
-                    CockpitFeedback.Click(hand);
-                }
-                else if(press.Held && hover>=3 && zoomHeld==hover) { OwnsInput=true; input.Consume(); Zoom((hover==3 ? 1:-1)*seconds*.6f); }
+                float distance=(float)Vector3D.Distance(aim.Translation,hit);
+                return ObstacleDistance(aim,distance+.01f)>=distance-.02f;
             }
+            int ExtraHit(Vector3 point,bool near)
+            {
+                if(Math.Abs(point.Y+window.Height/2+window.BarOffset)<.035f)
+                {
+                    if(Math.Abs(point.X-ZoomX(window.Width,false))<.027f) return 3;
+                    if(Math.Abs(point.X-ZoomX(window.Width,true))<.027f) return 4;
+                }
+                return near && Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2 ? 1:0;
+            }
+            interaction.Update(hand,(Matrix)aim,seconds,ExtraHit,Reachable);
+            int hover=interaction.Hover;
+            OwnsInput=interaction.Active || interaction.Released;
+            if(interaction.Changed) placementDirty=true;
+            if(interaction.Released) {directHeld=false; Save();}
+            var contactPoint=interaction.Point;
+            if(interaction.Hit && !interaction.Direct && Math.Abs(contactPoint.X)<window.Width/2+.065f &&
+                contactPoint.Y<window.Height/2+.03f && contactPoint.Y> -window.Height/2-.10f && Reachable(contactPoint))
+            {rayStart=aim.Translation; rayEnd=Vector3D.Transform(contactPoint,(MatrixD)window.Pose);}
+            if(interaction.Captured)
+            {
+                directHeld=interaction.Direct;
+                if(directHeld)
+                {
+                    grabbed=now; heldPoint=contactPoint;
+                    MatrixD wrist=ThirdPersonView.Active ? Alignment.Apply(Alignment.HandKey(hand),CockpitHandPose.GripWrist(hand.GripTracking)) :
+                        TrackedArms.FreeWristWorld(hand)*MatrixD.Invert(PhysicalTrackingToWorld);
+                    heldWrist=(Matrix)(wrist*MatrixD.Invert((MatrixD)window.Pose));
+                }
+                if(interaction.HeldAction>=3) Zoom(interaction.HeldAction==3 ? .12f:-.12f);
+            }
+            else if(interaction.Active && hover>=3 && interaction.HeldAction==hover) Zoom((hover==3 ? 1:-1)*seconds*.6f);
             // Aiming at the screen claims the trigger and grip until release, like the wrist screen, so near misses never fire.
             // Turret and remote-grid feeds keep firing through the image; only their buttons and handles claim input.
-            if(hover!=0 || window.Drag!=0 || zoomHeld!=0 || rayStart.HasValue && !Turret && !RemoteGrid)
+            if(hover!=0 || interaction.Active || rayStart.HasValue && !Turret && !RemoteGrid)
             {
                 if(hand==Player.HandL) { controls.LeftClick.BlockUntilRelease(); controls.LeftTriggerPressure.BlockUntilRelease(false); controls.LeftGripPressure.BlockUntilRelease(false); controls.CrouchOrClimbDown.BlockUntilRelease(); controls.ThrustUp.BlockUntilRelease(); controls.ThrustDown.BlockUntilRelease(); }
                 else { controls.Primary.BlockUntilRelease(); controls.Secondary.BlockUntilRelease(); }
@@ -250,7 +233,7 @@ namespace SpaceEngineersVR.Player
         }
         private static float ObstacleDistance(MatrixD tracking,float distance) => ThirdPersonView.Active ? distance :
             HandInteraction.ObstacleDistance(tracking*PhysicalTrackingToWorld,distance);
-        internal static float ZoomX(float width,bool plus) => -width/2+(plus ? .115f:.05f);
+        internal static float ZoomX(float width,bool plus) => WindowFrame.ZoomX(width,plus);
         private static void Publish(int hover=-1)
         {
             if(!Active || source==null) { Current=null; return; }

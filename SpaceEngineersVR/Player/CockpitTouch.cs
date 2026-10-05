@@ -27,6 +27,7 @@ namespace SpaceEngineersVR.Player
             private readonly InputGate squeeze=new InputGate();
             private readonly PointerIntent pointer=new PointerIntent();
             private bool guardedSqueeze;
+            private readonly HoldGesture holdGesture=new HoldGesture();
             private bool? gripSource,heldGrip;
             public string Surface { get; private set; }
             public int Held { get; private set; }=-1;
@@ -36,13 +37,16 @@ namespace SpaceEngineersVR.Player
             public bool Consumed { get; private set; }
             public void Reset()
             {
-                press.Block(); squeeze.Block(); pointer.Reset(); heldGrip=null; guardedSqueeze=false; Surface=null; Held=-1; Captured=Committed=Pressed=false;
+                holdGesture.Reset(); press.Block(); squeeze.Block(); pointer.Reset(); heldGrip=null; guardedSqueeze=false; Surface=null; Held=-1; Captured=Committed=Pressed=false;
             }
-            internal void Sample(bool available,InteractionInput input,string target,int key,bool reachable=true,bool guarded=false,bool softCapture=true,bool retainSqueeze=false)
+            internal void Sample(bool available,InteractionInput input,string target,int key,bool reachable=true,bool guarded=false,bool softCapture=true,bool retainSqueeze=false,bool tapHold=false)
             {
                 if(gripSource!=input.Near) { Reset(); gripSource=input.Near; }
                 if(input.Near && Surface!=null && heldGrip.HasValue) input=input.Select(heldGrip.Value);
-                Sample(available,input.Pressure,input.Down,target,key,input.CanAcquire,reachable,guarded,softCapture && !input.Near,retainSqueeze,input.Near || !softCapture);
+                bool down=holdGesture.Update(input.Down,Surface!=null && Committed,tapHold && input.Near && input.Grip && available && reachable,Multiplayer.MultiplayerRuntime.Now);
+                float pressure=down && !input.Down ? 1 : !down && input.Down ? 0:input.Pressure;
+                Sample(available,pressure,down,target,key,input.CanAcquire,reachable,guarded,softCapture && !input.Near,retainSqueeze,input.Near || !softCapture);
+                if(input.Down && !down) Consumed=true;
                 if(Captured) heldGrip=input.Near ? input.Grip:(bool?)null;
             }
             public void Sample(bool available,float pressure,bool down,string target,int key,bool canAcquire=true,bool reachable=true,bool guarded=false,bool softCapture=true,bool retainSqueeze=false,bool clickOnly=false)
@@ -199,7 +203,7 @@ namespace SpaceEngineersVR.Player
             }
             bool changed=!ReferenceEquals(owner,seat) || origin!=Player.PlayerToAbsolute.matrix;
             owner=seat; origin=Player.PlayerToAbsolute.matrix;
-            bool available=eligible && !ThirdPersonView.Active && !changed && InputRouter.CockpitInteraction && !Main.MenuOpen &&
+            bool available=eligible && !FlightSettings.IsOpen && !ThirdPersonView.Active && !changed && InputRouter.CockpitInteraction && !Main.MenuOpen &&
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked && MenuPointer.GameFocused;
             var targets=new List<Target>(CockpitButtons.Targets);
             var panel=available && !WeaponHandling.ConsumesLeftGrip ? SeatPanel.View() : null;
@@ -266,8 +270,8 @@ namespace SpaceEngineersVR.Player
                 h.Hover=chosen; h.HoverKey=key;
                 var held=targets.FirstOrDefault(t=>t.Surface.Id==h.Input.Surface);
                 Vector3 motion=Compensate(raw,SeatFit.Offset,h.FitAtGrab);
-                bool reachable=held!=null && h.Reachable(motion);
-                h.Input.Sample(true,input,chosen?.Surface.Id,key,reachable,guarded,retainSqueeze:held?.Draggable==true);
+                bool reachable=h.Input.Surface==null || held!=null;
+                h.Input.Sample(true,input,chosen?.Surface.Id,key,reachable,guarded,retainSqueeze:held?.Draggable==true,tapHold:Plugin.Common.Config.TapHoldLevers && (held ?? chosen)?.Analog==true);
                 if(h.Input.Captured)
                 {
                     held=chosen; h.StartHand=raw; h.FitAtGrab=SeatFit.Offset; h.Wrist=localWrist; h.Grabbed=DateTime.UtcNow;

@@ -91,7 +91,7 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 panel.Graphics.DrawImage(menu,0,0,1920,1080); panel.Upload();
                 using(var texture=new ShaderResourceView(target.Device,panel.Texture))
-                    FloatingMenu.DrawPanel(target,texture,new FloatingMenu.Snapshot {
+                    FloatingMenu.DrawPanel(target,texture,new WindowFrame.Snapshot {
                         Pose=(Matrix)(MatrixD.CreateTranslation(0,0,-.5)*MatrixD.Invert(view)),Width=1.2f,Height=.675f
                     },view,projection,NativeHandLayer.Depth);
                 UiTests.Save(target,Path.Combine(output,"native-menu-hand-layer.png"));

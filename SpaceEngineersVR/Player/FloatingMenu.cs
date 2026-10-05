@@ -1,30 +1,20 @@
 using System;
-using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Linq;
 using Sandbox.Game.Gui;
 using Sandbox.Graphics.GUI;
 using SharpDX.Direct3D11;
 using SpaceEngineersVR.Config;
-using SpaceEngineersVR.Player.Control;
 using SpaceEngineersVR.Plugin;
 using VRageMath;
-using Color=System.Drawing.Color;
 using Matrix=VRageMath.Matrix;
+using Snapshot=SpaceEngineersVR.Player.WindowFrame.Snapshot;
 
 namespace SpaceEngineersVR.Player
 {
     internal static class FloatingMenu
     {
-        internal sealed class Snapshot
-        {
-            public Matrix Pose;
-            public float Width,Height,BarOffset=.085f;
-            public int Hover;
-        }
         private static readonly MenuWindow window=new MenuWindow();
-        private static readonly InteractionPress press=new InteractionPress();
-        private static bool directDrag;
+        private static readonly WindowInteraction interaction=new WindowInteraction(window);
         private static volatile Snapshot current;
         private static volatile bool recenter=true;
         private static volatile float aspect=9f/16;
@@ -33,9 +23,6 @@ namespace SpaceEngineersVR.Player
         private static readonly RenderRecovery recovery=new RenderRecovery("Floating menu");
         private static bool failed => recovery.Failed;
         private static int hover;
-        private static OverlayCanvas frame;
-        private static ShaderResourceView frameView;
-        private static string painted;
         private static long lastUpdate;
         public static bool Available => !failed && MenuHands.Available;
         public static bool OwnsInput { get; private set; }
@@ -55,47 +42,25 @@ namespace SpaceEngineersVR.Player
             string key=MyScreenManager.Screens.FirstOrDefault(s=>!(s is MyGuiScreenGamePlay) && !(s is MyGuiScreenHudSpace))?.GetType().Name ?? "Desktop";
             bool available=shown && Available && InputRouter.Mode==InputMode.Menu && MenuPointer.GameFocused &&
                 Player.Headset.pose.isTracked && MenuPointer.Hand.pose.isTracked && !MenuKeyboard.IsOpen;
-            if(!shown) { opened=false; current=null; window.Cancel(); press.Block(); return; }
+            if(!shown) { opened=false; current=null; window.Cancel(); interaction.Reset(); return; }
             if(!opened || screen!=key || recenter)
             {
                 bool reset=recenter; recenter=false; screen=key; opened=true;
                 window.Place(Player.Headset.pose.deviceToAbsolute.matrix);
                 if(!reset) Restore(key);
-                press.Block();
+                interaction.Reset();
             }
-            if(Math.Abs(window.Aspect-aspect)>.0001f) { window.Cancel(); window.Aspect=aspect; press.Block(); }
+            if(Math.Abs(window.Aspect-aspect)>.0001f) { window.Cancel(); window.Aspect=aspect; interaction.Reset(); }
             hover=0;
-            if(!available) { window.Cancel(); press.Block(); }
+            if(!available) { window.Cancel(); interaction.Reset(); }
             else
             {
                 var hand=MenuPointer.Hand;
                 Matrix aim=MenuHands.PointerTracking(false,hand);
-                var local=aim*Matrix.Invert(window.Pose);
-                bool near=local.Translation.Z>=-.025f && local.Translation.Z<=.05f;
-                var input=press.Read(hand,window.Drag!=0 ? directDrag:near);
-                press.Update(true,input);
-                if(window.Drag!=0)
-                {
-                    OwnsInput=true;
-                    if(!input.Down) { window.Stop(); Save(); }
-                    else
-                    {
-                        if(window.Pointer(aim,out var point,true) || window.Drag==1)
-                            window.Move(aim,point,Controls.Static.MenuNavigate.RawPosition,seconds);
-                        input.Consume();
-                    }
-                }
-                else if(window.Pointer(aim,out var point))
-                {
-                    hover=window.Handle(point); OwnsInput=hover!=0;
-                    if(hover!=0 && press.Pressed)
-                    {
-                        input.Consume(); MenuPointer.Release(); directDrag=near;
-                        window.Begin(hover,aim,point);
-                        Controls.Static.MenuNavigate.BlockUntilRelease();
-                        hand.Vibrate(0,.022f,100,.28f);
-                    }
-                }
+                OwnsInput=interaction.Update(hand,aim,seconds);
+                hover=interaction.Hover;
+                if(interaction.Captured) MenuPointer.Release();
+                if(interaction.Released) Save();
             }
             current=new Snapshot { Pose=window.Pose,Width=window.Width,Height=window.Height,Hover=window.Drag!=0 ? window.Drag : hover };
         }
@@ -116,26 +81,7 @@ namespace SpaceEngineersVR.Player
             var entry=new MenuWindowSetting { Screen=screen,Width=window.Width,X=p.X,Y=p.Y,Z=p.Z,QX=q.X,QY=q.Y,QZ=q.Z,QW=q.W };
             Common.Config.MenuWindows=(Common.Config.MenuWindows ?? new MenuWindowSetting[0]).Where(s=>s.Screen!=screen).Take(31).Concat(new[] { entry }).ToArray();
         }
-        internal static void Paint(OverlayCanvas canvas,Snapshot s)
-        {
-            canvas.Clear(Color.Transparent);
-            var g=canvas.Graphics; var state=g.Save();
-            try
-            {
-                float w=s.Width+.06f,h=s.Height+.20f+s.BarOffset-.085f;
-                g.ScaleTransform(1600/w,1100/h); g.TranslateTransform(w/2,.03f+s.Height/2);
-                // Native menu contents retain their own texture, without a tint.
-                float bottom=s.Height/2+s.BarOffset;
-                using(var pen=new Pen(s.Hover==1 ? Color.Cyan : Color.White,.010f) { StartCap=LineCap.Round,EndCap=LineCap.Round })
-                    g.DrawLine(pen,-.15f,bottom,.15f,bottom);
-                using(var pen=new Pen(s.Hover==2 ? Color.Cyan : Color.White,.006f) { StartCap=LineCap.Round,EndCap=LineCap.Round })
-                {
-                    g.DrawLine(pen,s.Width/2-.025f,bottom+.024f,s.Width/2+.024f,bottom+.024f);
-                    g.DrawLine(pen,s.Width/2+.024f,bottom+.024f,s.Width/2+.024f,bottom-.025f);
-                }
-            }
-            finally { g.Restore(state); }
-        }
+        internal static void Paint(OverlayCanvas canvas,Snapshot s) => WindowFrame.Paint(canvas,s);
         internal static void DrawPanel(Texture2D target,ShaderResourceView contents,Snapshot s,MatrixD view,MatrixD projection,ShaderResourceView handDepth=null)
         {
             DrawFrame(target,s,view,projection,handDepth);
@@ -153,12 +99,7 @@ namespace SpaceEngineersVR.Player
             if(!Available) return;
             try
             {
-                if(frame==null) { frame=new OverlayCanvas("Menu frame",1600,1100,1,false,target.Device,true); frameView=new ShaderResourceView(target.Device,frame.Texture); }
-                string key=s.Width+"|"+s.Height+"|"+s.Hover;
-                if(key!=painted) { Paint(frame,s); frame.Upload(); target.Device.ImmediateContext.GenerateMips(frameView); painted=key; }
-                NativeSprites.Draw(target,new[] { PhysicalSurface.Quad(frameView,s.Pose,
-                    new VRageMath.RectangleF(-s.Width/2-.03f,s.Height/2+.03f,s.Width+.06f,s.Height+.20f),
-                    new Vector4(0,0,1,1),Vector4.One,view,projection) },handDepth:handDepth);
+                WindowFrame.Draw(target,"Menu",s,view,projection,handDepth);
             }
             catch(Exception ex) { recovery.Fail(ex,"Floating menu frame disabled; native menu retained"); }
         }
