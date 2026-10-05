@@ -13,15 +13,19 @@ namespace SpaceEngineersVR.Player
     {
         private static readonly ActionFrame frame = new ActionFrame();
         private static IMyControllableEntity owner;
+        private static bool wheelJumpHeld;
         public static void Pulse(MyStringId action) => frame.Queue(action);
         public static void Update()
         {
             bool enabled = InputRouter.Gameplay && !Main.MenuOpen;
+            // X is shared with menus and the quick wheel, so an interrupted hold must not resume a rover jump.
+            var jump=Controls.Static.Jetpack;
+            wheelJumpHeld=enabled && WheelJumpAllowed && (jump.HasPressed || wheelJumpHeld && jump.IsPressed);
             if (enabled)
             {
                 owner = MySession.Static?.ControlledEntity;
                 if(HelmetHud.Reveal) frame.Queue(MyControlsSpace.SIGNALS_FULLY_VISIBLE);
-                if(WheelJumpAllowed && Controls.Static.Jetpack.IsPressed) frame.Queue(MyControlsSpace.WHEEL_JUMP);
+                if(wheelJumpHeld) frame.Queue(MyControlsSpace.WHEEL_JUMP);
                 if(SprintAllowed && Controls.Static.CrouchOrClimbDown.IsPressed) frame.Queue(MyControlsSpace.SPRINT);
                 PlacementControls.Queue(frame, PlacementControls.Mode, Controls.Static.Primary.IsPressed,
                     Controls.Static.Secondary.IsPressed, GameActions.AlternateTrigger);
@@ -47,7 +51,7 @@ namespace SpaceEngineersVR.Player
             if (WasHeld(MyControlsSpace.PRIMARY_TOOL_ACTION)) owner?.EndShoot(MyShootActionEnum.PrimaryAction);
             if (WasHeld(MyControlsSpace.SECONDARY_TOOL_ACTION)) owner?.EndShoot(MyShootActionEnum.SecondaryAction);
             if(WasHeld(MyControlsSpace.WHEEL_JUMP)) (owner as MyShipController)?.WheelJump(false);
-            frame.Reset(); owner = null;
+            frame.Reset(); owner = null; wheelJumpHeld = false;
         }
     }
 }

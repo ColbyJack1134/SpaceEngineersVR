@@ -57,7 +57,7 @@ namespace SpaceEngineersVR.Player.Components
                 if (!ReferenceEquals(inputOwner, MySession.Static.ControlledEntity)) StopInput();
                 inputOwner = MySession.Static.ControlledEntity;
                 if(jumpOwner!=null && !NativeActions.WheelJumpAllowed)
-                { jumpOwner.WheelJump(false); jumpOwner=null; Controls.Static.Jetpack.BlockUntilRelease(); }
+                { jumpOwner.WheelJump(false); jumpOwner=null; }
                 if(!RemoteView.Active) BodyLocomotion.Update(Character);
                 else if(RemoteView.CharacterAnchor) { CameraRig.Begin(Character); CameraRig.End(Character); }
 
@@ -134,7 +134,6 @@ namespace SpaceEngineersVR.Player.Components
         private void StopInput()
         {
             jumpOwner?.WheelJump(false); jumpOwner=null; stickSecondary.Block();
-            if(ReferenceEquals(active,this) || inputOwner!=null) Controls.Static.Jetpack.BlockUntilRelease();
             var controlled = inputOwner;
             if (hadControllerMovement) { RemoteView.Stop(controlled); controlled?.MoveAndRotateStopped(); }
             StopTools(controlled);

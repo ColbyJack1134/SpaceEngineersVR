@@ -159,7 +159,7 @@ namespace SpaceEngineersVR.Diagnostics
                 }
                 if(scenario.StartsWith("look"))
                 {
-                    var head=new ArmSkeleton.SavedBone {Bone=bones.Single(b=>b.Name=="SE_RigHead")};
+                    var head=new ArmSkeleton.SavedBone {Bone=ArmSkeleton.Head(name=>bones.FirstOrDefault(b=>b.Name==name),"HeadDummy")};
                     var look=scenario=="look-left" ? Matrix.CreateRotationY(.8f):Matrix.CreateRotationX(-.6f);
                     Require(ArmSkeleton.Look(head,look,1.4f),"Received head pose failed");
                     var turned=Matrix.Invert(head.Bone.GetAbsoluteRigTransform().GetOrientation())*head.Bone.AbsoluteTransform.GetOrientation();

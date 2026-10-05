@@ -49,7 +49,7 @@ namespace SpaceEngineersVR.Multiplayer
                     var d=character.Definition;
                     pair=new Pair {Left=ArmSkeleton.Find(character,d.LeftHandIKStartBone,d.LeftForearmBone,d.LeftHandIKEndBone,-1),
                         Right=ArmSkeleton.Find(character,d.RightHandIKStartBone,d.RightForearmBone,d.RightHandIKEndBone,1)};
-                    var head=character.AnimationController.FindBone(d.HeadBone,out _);
+                    var head=ArmSkeleton.Head(name=>character.AnimationController.FindBone(name,out _),d.HeadBone);
                     if(head!=null) pair.Head=new ArmSkeleton.SavedBone {Bone=head};
                     buffers.Add(bones,pair);
                 }

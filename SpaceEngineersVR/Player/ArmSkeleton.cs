@@ -68,6 +68,8 @@ namespace SpaceEngineersVR.Player
                 PalmOffset=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),side),
                 Hint=new Vector3(side*0.55f,-1,0.3f) };
         }
+        // Character definitions name HeadDummy, an unskinned camera bone; the astronaut head mesh follows SE_RigHead.
+        internal static MyCharacterBone Head(Func<string,MyCharacterBone> find,string definitionHead) => find("SE_RigHead") ?? find(definitionHead);
         private static bool Descends(MyCharacterBone child,MyCharacterBone parent)
         {
             for(var node=child.Parent;node!=null;node=node.Parent) if(node==parent) return true;

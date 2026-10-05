@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using System.IO;
 using System.Linq;
+using System.Xml.Linq;
 using HarmonyLib;
 using SpaceEngineersVR.Player;
 using VRageMath;
@@ -67,6 +69,7 @@ namespace SpaceEngineersVR.Diagnostics
             log("PASS tracked arms: 1,000 mirrored engine-bone poses in fixed and adaptive modes, accurate controller reach, bounded shoulders, twist chains, wrist orientation, singular/invalid targets");
             RigidLeftWrist(log);
             RecordedWatchPose(log);
+            SkinnedHeads(log);
             CockpitHandTests.Run(log);
         }
         private static void RigidLeftWrist(Action<string> log)
@@ -104,11 +107,11 @@ namespace SpaceEngineersVR.Diagnostics
             if(independent<100) throw new Exception("Sleeve remains locked to tablet roll");
             log("PASS rigid left cuff: 120 installed-bone wrist rotations, tracked palm retained, sleeve roll independent and cuff/display fixed relative to palm; articulated right arm covered separately.");
         }
-        internal static MyCharacterBone[] InstalledBones()
+        private static string Content => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(MyCharacterBone).Assembly.Location),"..","Content"));
+        internal static MyCharacterBone[] InstalledBones(string model="Models/Characters/Astronaut/SE_astronaut.mwm")
         {
-            string content=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(MyCharacterBone).Assembly.Location),"..","Content"));
             var importer=new MyModelImporter();
-            using(var reader=new BinaryReader(File.OpenRead(Path.Combine(content,"Models/Characters/Astronaut/SE_astronaut.mwm"))))
+            using(var reader=new BinaryReader(File.OpenRead(Path.Combine(Content,model))))
                 AccessTools.Method(typeof(MyModelImporter),"LoadTagData").Invoke(importer,new object[] {reader,new[] {"Bones"}});
             var native=(Array)importer.GetTagData()["Bones"];
             var relative=new Matrix[native.Length]; var absolute=new Matrix[native.Length]; var bones=new MyCharacterBone[native.Length];
@@ -119,6 +122,29 @@ namespace SpaceEngineersVR.Diagnostics
                     (Matrix)CockpitRender.Member(n,"Transform"),i,relative,absolute);
             }
             return bones;
+        }
+        // Remote head tracking must turn a bone that the installed astronaut meshes are weighted to.
+        private static void SkinnedHeads(Action<string> log)
+        {
+            var astronauts=XDocument.Load(Path.Combine(Content,"Data","Characters.sbc")).Descendants("Character")
+                .Where(c=>((string)c.Element("Model"))?.StartsWith(@"Models\Characters\Astronaut\")==true).ToArray();
+            if(astronauts.Length<2) throw new Exception("Installed astronaut definitions not found");
+            foreach(var astronaut in astronauts)
+            {
+                string model=((string)astronaut.Element("Model")).Replace('\\','/');
+                var bones=InstalledBones(model);
+                var head=ArmSkeleton.Head(name=>bones.FirstOrDefault(b=>b.Name==name),(string)astronaut.Element("HeadBone"));
+                if(head==null) throw new Exception("No remote head bone in "+model);
+                var tags=ModelInspection.ReadModel(Content,Path.Combine(Content,model),out _);
+                var indices=ModelInspection.ReadVectors(tags["BlendIndices"] as IEnumerable);
+                var weights=ModelInspection.ReadVectors(tags["BlendWeights"] as IEnumerable);
+                int skinned=0;
+                for(int v=0;v<indices.Length;v++)
+                    for(int i=0;i<4;i++)
+                        if((int)indices[v][i]==head.Index && weights[v][i]>0) { skinned++; break; }
+                if(skinned<1000) throw new Exception("Remote head bone "+head.Name+" moves "+skinned+" vertices in "+model);
+            }
+            log("PASS remote head bone: "+astronauts.Length+" installed astronaut definitions resolve to a bone weighted to the head mesh.");
         }
         private static void RecordedWatchPose(Action<string> log)
         {

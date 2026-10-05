@@ -43,18 +43,7 @@ namespace SpaceEngineersVR.Diagnostics
             string path=Path.GetFullPath(Path.Combine(content,model.Replace('\\',Path.DirectorySeparatorChar).Replace('/',Path.DirectorySeparatorChar)));
             if(!path.StartsWith(content+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase) || !File.Exists(path))
                 throw new FileNotFoundException("Choose an installed model under Content",model);
-            var tags=ReadTags(path);
-            string geometryPath=path;
-            if(!tags.ContainsKey("Vertices") && tags.TryGetValue("GeometryDataAsset",out var asset) && asset is string geometry)
-            {
-                geometry=geometry.Replace('\\',Path.DirectorySeparatorChar).Replace('/',Path.DirectorySeparatorChar);
-                if(!geometry.EndsWith(".mwm",StringComparison.OrdinalIgnoreCase)) geometry+=".mwm";
-                geometryPath=Path.GetFullPath(Path.Combine(content,geometry));
-                if(!geometryPath.StartsWith(content+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException("Geometry reference leaves Content");
-                foreach(var tag in ReadTags(geometryPath))
-                    if(!tags.ContainsKey(tag.Key) || tags[tag.Key] is ICollection collection && collection.Count==0) tags[tag.Key]=tag.Value;
-            }
+            var tags=ReadModel(content,path,out string geometryPath);
             if(!tags.ContainsKey("Vertices")) throw new InvalidDataException("Model has no geometry: "+model);
             var vertices=(HalfVector4[])tags["Vertices"];
             var parts=(List<MyMeshPartInfo>)tags["MeshParts"];
@@ -91,6 +80,22 @@ namespace SpaceEngineersVR.Diagnostics
             }
             Console.WriteLine($"Exported {name}: {report.Vertices.Length} vertices, {report.Parts.Length} materials, {report.Bones.Length} bones, {report.Dummies.Length} dummies");
         }
+        internal static Dictionary<string,object> ReadModel(string content,string path,out string geometryPath)
+        {
+            var tags=ReadTags(path);
+            geometryPath=path;
+            if(!tags.ContainsKey("Vertices") && tags.TryGetValue("GeometryDataAsset",out var asset) && asset is string geometry)
+            {
+                geometry=geometry.Replace('\\',Path.DirectorySeparatorChar).Replace('/',Path.DirectorySeparatorChar);
+                if(!geometry.EndsWith(".mwm",StringComparison.OrdinalIgnoreCase)) geometry+=".mwm";
+                geometryPath=Path.GetFullPath(Path.Combine(content,geometry));
+                if(!geometryPath.StartsWith(content+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("Geometry reference leaves Content");
+                foreach(var tag in ReadTags(geometryPath))
+                    if(!tags.ContainsKey(tag.Key) || tags[tag.Key] is ICollection collection && collection.Count==0) tags[tag.Key]=tag.Value;
+            }
+            return tags;
+        }
         private static Dictionary<string,object> ReadTags(string path)
         {
             var importer=new MyModelImporter();
@@ -122,7 +127,7 @@ namespace SpaceEngineersVR.Diagnostics
             foreach(DictionaryEntry pair in dummies) result.Add(new Node {Name=(string)pair.Key,Transform=MatrixValues(Member(pair.Value,"Matrix"))});
             return result.ToArray();
         }
-        private static float[][] ReadVectors(IEnumerable vectors) => vectors==null ? new float[0][] : vectors.Cast<object>()
+        internal static float[][] ReadVectors(IEnumerable vectors) => vectors==null ? new float[0][] : vectors.Cast<object>()
             .Select(v=>new[] {"X","Y","Z","W"}.Select(n=>Convert.ToSingle(Member(v,n))).ToArray()).ToArray();
     }
 }
