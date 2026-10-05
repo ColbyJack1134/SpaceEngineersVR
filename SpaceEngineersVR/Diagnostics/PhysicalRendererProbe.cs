@@ -247,8 +247,8 @@ namespace SpaceEngineersVR.Diagnostics
                 if (phase>=2 && phase<45 && phase!=7 && phase!=15)
                 {
                     bool moved=phase==5 || phase==6 || phase==12 || phase==13;
-                    Matrix l=moved ? CockpitStickMath.LeftVisual(new Vector3(0.5f,0.4f,-0.5f)) : Matrix.Identity;
-                    Matrix r=moved ? CockpitStickMath.RightVisual(new Vector3(0.5f,0.4f,0.6f)) : Matrix.Identity;
+                    Matrix l=moved ? CockpitRig.Fighter.Left.Visual(new Vector3(0.5f,0.4f,0.5f)) : Matrix.Identity;
+                    Matrix r=moved ? CockpitRig.Fighter.Right.Visual(new Vector3(0.5f,0.4f,0.6f)) : Matrix.Identity;
                     Vector3 lo=phase>=10 && phase<14 ? new Vector3(.07f,.10f,.10f) : Vector3.Zero;
                     Vector3 ro=phase>=10 && phase<14 ? new Vector3(-.07f,.12f,.08f) : Vector3.Zero;
                     CockpitRender.UpdateScene(native,modelWorld,StickPlacement.Visual(l,lo),StickPlacement.Visual(r,ro),moved,moved,lo,ro,moved || phase==30 || phase==32 || phase==34 ? 1f : 0f,phase>=31 ? phase==32 ? 1f : 0f : moved || phase>=16 && phase<=19 ? 1f : (float?)null,colorMask:phase>=14 ? new Vector3(.58f,0,.02f) : neutralPaint,
@@ -385,8 +385,8 @@ namespace SpaceEngineersVR.Diagnostics
             if(rigStep==1 || rigStep==2)
             {
                 bool moved=rigStep==2;
-                Matrix left=moved && rig.Left!=null ? CockpitStickMath.Visual(rig.Left.Pivot,new Vector3(.5f,.4f,.6f)) : Matrix.Identity;
-                Matrix right=moved && rig.Right!=null ? CockpitStickMath.Visual(rig.Right.Pivot,new Vector3(-.5f,.4f,-.6f)) : Matrix.Identity;
+                Matrix left=moved && rig.Left!=null ? rig.Left.Visual(new Vector3(.5f,.4f,.6f)) : Matrix.Identity;
+                Matrix right=moved && rig.Right!=null ? rig.Right.Visual(new Vector3(-.5f,.4f,-.6f)) : Matrix.Identity;
                 CockpitRender.UpdateScene(native,MatrixD.Identity,left,right,moved,moved,switchPreview:moved ? 1f:0f,coverPreview:moved ? 1f:0f,
                     colorMask:neutralPaint,nativeRest:!moved,rig:rig);
             }

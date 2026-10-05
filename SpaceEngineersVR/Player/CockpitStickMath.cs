@@ -40,22 +40,24 @@ namespace SpaceEngineersVR.Player
             rotate=new Vector2(command.X,command.Y)*speed;
             roll=FlightAxes.Roll(command.Z,true,speed,rollSensitivity);
         }
-        public static Vector3 Translation(Matrix neutral,Matrix current,float deadzone,bool twist,float sensitivity=1)
+        public static Vector3 Translation(Matrix neutral,Matrix current,float deadzone,bool twist,float sensitivity=1,Matrix? frame=null)
         {
-            Vector3 tilt=Rotation(neutral,current,deadzone,twist,sensitivity);
+            Vector3 tilt=Rotation(neutral,current,deadzone,twist,sensitivity,frame);
             // Forward tilt drives -Z; clockwise twist (viewed from above) drives +Y.
             return new Vector3(tilt.Z,tilt.Y,-tilt.X);
         }
-        public static Vector3 Rotation(Matrix neutral,Matrix current,float deadzone,bool twist,float sensitivity=1)
+        public static Vector3 Rotation(Matrix neutral,Matrix current,float deadzone,bool twist,float sensitivity=1,Matrix? frame=null)
         {
             if (!neutral.IsValid() || !current.IsValid()) return Vector3.Zero;
-            Quaternion q=Quaternion.CreateFromRotationMatrix(Matrix.Transpose(neutral.GetOrientation())*current.GetOrientation());
-            if (q.W<0) q=new Quaternion(-q.X,-q.Y,-q.Z,-q.W);
-            Vector3 xyz=new Vector3(q.X,q.Y,q.Z);
-            float length=xyz.Length();
-            Vector3 angle=length<1e-6f ? Vector3.Zero : xyz*((float)(2*Math.Atan2(length,q.W))/length);
-            Vector2 tilt=Tilt(new Vector2(-angle.X,-angle.Z)*sensitivity/FighterProfile.Tilt,deadzone);
-            return new Vector3(tilt.X,twist ? Axis(-angle.Y*sensitivity/FighterProfile.Twist,deadzone) : 0,tilt.Y);
+            Matrix turn=Matrix.Transpose(neutral.GetOrientation())*current.GetOrientation();
+            // Express the hand delta in the authored shaft frame (row-vector convention).
+            if(frame.HasValue) turn=frame.Value*turn*Matrix.Transpose(frame.Value);
+            // Carry the grabbed shaft through the hand rotation; axial twist must not change its lean.
+            Vector3 shaft=turn.Up,heading=turn.Backward;
+            Vector2 lean=new Vector2(-(float)Math.Atan2(shaft.Z,shaft.Y),(float)Math.Atan2(shaft.X,shaft.Y));
+            Vector2 tilt=Tilt(lean*sensitivity/FighterProfile.Tilt,deadzone);
+            float yaw=-(float)Math.Atan2(heading.X,heading.Z);
+            return new Vector3(tilt.X,twist ? Axis(yaw*sensitivity/FighterProfile.Twist,deadzone) : 0,tilt.Y);
         }
         internal static Vector2 Tilt(Vector2 value,float deadzone)
         {
@@ -63,19 +65,14 @@ namespace SpaceEngineersVR.Player
             if (!(length>deadzone) || float.IsInfinity(length)) return Vector2.Zero;
             return Vector2.Clamp(value*((length-deadzone)/(1-deadzone)/length),-Vector2.One,Vector2.One);
         }
+        internal static Matrix ShaftFrame(Vector3 shaft) => Matrix.CreateWorld(Vector3.Zero,
+            -Vector3.Normalize(Vector3.Backward-shaft*Vector3.Dot(Vector3.Backward,shaft)),shaft);
         public static Matrix Around(Vector3 pivot,Matrix rotation) => Matrix.CreateTranslation(-pivot)*rotation*Matrix.CreateTranslation(pivot);
-        internal static Matrix Visual(Vector3 pivot,Vector3 axes)
+        internal static Matrix Visual(Vector3 pivot,Vector3 axes,Matrix? frame=null)
         {
             Matrix turn=Matrix.CreateFromYawPitchRoll(-axes.Y*FighterProfile.Twist,-axes.X*FighterProfile.Tilt,-axes.Z*FighterProfile.Tilt);
+            if(frame.HasValue) turn=Matrix.Transpose(frame.Value)*turn*frame.Value;
             return Around(pivot,turn);
-        }
-        public static Matrix RightVisual(Vector3 axes) => Visual(FighterProfile.RightPivot,axes);
-        public static Matrix LeftVisual(Vector3 translation) => Visual(FighterProfile.LeftPivot,new Vector3(-translation.Z,translation.Y,translation.X));
-        internal static Matrix GripPalm(bool left)
-        {
-            float side=left ? -1 : 1;
-            Vector3 shaft=Vector3.Normalize(new Vector3(-side*.30f,.9539f,-.015f));
-            return RaiseGrip(GripPalm(left,left ? FighterProfile.LeftContact : FighterProfile.RightContact,shaft),shaft,.035f,.015f);
         }
         internal static Matrix GripPalm(bool left,Vector3 contact,Vector3 shaft)
         {

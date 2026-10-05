@@ -48,7 +48,7 @@ namespace SpaceEngineersVR.Player
         internal static float GripDistance(Matrix controller,Matrix attachedWrist) =>
             Vector3.Distance(CockpitHandPose.GripWrist(controller).Translation,attachedWrist.Translation);
         private static Matrix StickPalm(bool isLeft) =>
-            (Rig==null ? CockpitStickMath.GripPalm(isLeft):(isLeft ? Rig.Left:Rig.Right).Palm(isLeft))*(isLeft ? leftVisual:rightVisual);
+            (isLeft ? Rig.Left:Rig.Right).Palm(isLeft)*(isLeft ? leftVisual:rightVisual);
         public static string Status => seat==null ? null : Adjusting ? "STICKS UNLOCKED: grip to move; padlock saves" : CockpitRender.Status+(left.Held ? Rig!=null && Rig.Right==null ? " | LEFT: rotation" : " | LEFT: translation" : "")+(right.Held ? " | RIGHT: rotation" : "");
 
         public static void Reset()
@@ -73,8 +73,8 @@ namespace SpaceEngineersVR.Player
         private static void SetVisuals()
         {
             var rig=Rig;
-            leftVisual=StickPlacement.Visual(rig?.Left!=null ? CockpitStickMath.Visual(rig.Left.Pivot,rig.Right==null ? rotation : new Vector3(-translation.Z,translation.Y,translation.X)) : CockpitStickMath.LeftVisual(translation),placement.Left);
-            rightVisual=StickPlacement.Visual(rig?.Right!=null ? CockpitStickMath.Visual(rig.Right.Pivot,rotation) : CockpitStickMath.RightVisual(rotation),placement.Right);
+            leftVisual=StickPlacement.Visual(rig?.Left!=null ? rig.Left.Visual(rig.Right==null ? rotation : new Vector3(-translation.Z,translation.Y,translation.X)) : Matrix.Identity,placement.Left);
+            rightVisual=StickPlacement.Visual(rig?.Right!=null ? rig.Right.Visual(rotation) : Matrix.Identity,placement.Right);
         }
         public static void ToggleAdjustment()
         {
@@ -117,7 +117,6 @@ namespace SpaceEngineersVR.Player
         private static bool ModelSupported(MyCockpit cockpit)
         {
             string subtype=cockpit.BlockDefinition.Id.SubtypeName,model=cockpit.BlockDefinition.InteriorModel ?? cockpit.BlockDefinition.Model;
-            if(subtype==FighterProfile.Subtype) return model!=null && model.Replace('\\','/').EndsWith(FighterProfile.Model,StringComparison.OrdinalIgnoreCase);
             var rig=CockpitRig.Find(subtype);
             return rig!=null && (rig.HasSticks || rig.Handles.Length>0) && rig.Matches(model);
         }
@@ -209,13 +208,14 @@ namespace SpaceEngineersVR.Player
                 if(c.Primary.RawPressed) c.Primary.BlockUntilRelease();
                 c.Secondary.BlockUntilRelease();
             }
-            translation=left.Held && !Adjusting && !(Rig!=null && Rig.Right==null) ? CockpitStickMath.Translation(leftNeutral,l,deadzone,twist,sensitivity) : Vector3.Zero;
-            rotation=Adjusting ? Vector3.Zero : Rig!=null && Rig.Right==null && left.Held ? CockpitStickMath.Rotation(leftNeutral,l,deadzone,twist,sensitivity) : right.Held ? CockpitStickMath.Rotation(rightNeutral,r,deadzone,twist,sensitivity) : Vector3.Zero;
+            translation=left.Held && !Adjusting && !(Rig!=null && Rig.Right==null) ? CockpitStickMath.Translation(leftNeutral,l,deadzone,twist,sensitivity,Rig.Left.Frame) : Vector3.Zero;
+            rotation=Adjusting ? Vector3.Zero : Rig!=null && Rig.Right==null && left.Held ? CockpitStickMath.Rotation(leftNeutral,l,deadzone,twist,sensitivity,Rig.Left.Frame) : right.Held ? CockpitStickMath.Rotation(rightNeutral,r,deadzone,twist,sensitivity,Rig.Right.Frame) : Vector3.Zero;
+            Vector3 feedbackTranslation=translation,feedbackRotation=rotation;
             translation=leftFilter.Update(left.Held && !Adjusting,translation,dt,Common.Config.PhysicalStickSmoothing);
             rotation=rightFilter.Update((right.Held || SingleLeft && left.Held) && !Adjusting,rotation,dt,Common.Config.PhysicalStickSmoothing);
             SetVisuals();
-            Feedback(Player.HandL,left.Held && !Adjusting,Rig!=null && Rig.Right==null ? rotation:translation,leftDetent,ref leftPulse);
-            Feedback(Player.HandR,right.Held && !Adjusting,rotation,rightDetent,ref rightPulse);
+            Feedback(Player.HandL,left.Held && !Adjusting,Rig!=null && Rig.Right==null ? feedbackRotation:feedbackTranslation,leftDetent,ref leftPulse);
+            Feedback(Player.HandR,right.Held && !Adjusting,feedbackRotation,rightDetent,ref rightPulse);
             CockpitFeedback.Motion(Player.HandL,left.Held && !Adjusting,Rig!=null && Rig.Right==null ? rotation:translation,DateTime.UtcNow<leftPulse || (DateTime.UtcNow-grabLeft).TotalSeconds<.08);
             CockpitFeedback.Motion(Player.HandR,right.Held && !Adjusting,rotation,DateTime.UtcNow<rightPulse || (DateTime.UtcNow-grabRight).TotalSeconds<.08);
             if (leftWas && !left.Held) Player.HandL.Vibrate(0,0.025f,75,0.2f);
@@ -229,7 +229,7 @@ namespace SpaceEngineersVR.Player
             int pulse=detent.Sample(held,axes,now);
             if(pulse==0) return;
             bool center=pulse==1;
-            hand.Vibrate(0,center ? .032f : .045f,center ? 150 : 75,center ? .32f : .38f);
+            hand.Vibrate(0,center ? .018f : .045f,center ? 150 : 75,center ? .32f : .38f);
             next=now.AddMilliseconds(130);
         }
         public static void RefreshVisuals()

@@ -14,11 +14,17 @@ namespace SpaceEngineersVR.Player
         internal sealed class Stick
         {
             public readonly Vector3 Contact,Pivot,Shaft;
-            public readonly int Actor,BaseActor;
+            public readonly int Actor,BaseActor,StemActor;
             private readonly float gripPitch;
+            internal readonly Matrix Frame;
             public readonly float GripLift,GripInset;
-            public Stick(Vector3 contact,Vector3 pivot,Vector3 shaft,int actor,int baseActor,float gripPitch=0,float gripLift=0,float gripInset=0)
-            { Contact=contact; Pivot=pivot; Shaft=Vector3.Normalize(shaft); Actor=actor; BaseActor=baseActor; this.gripPitch=gripPitch; GripLift=gripLift; GripInset=gripInset; }
+            public Stick(Vector3 contact,Vector3 pivot,Vector3 shaft,int actor,int baseActor,float gripPitch=0,float gripLift=0,float gripInset=0,int stemActor=-1)
+            {
+                Contact=contact; Pivot=pivot; Shaft=Vector3.Normalize(shaft); Actor=actor; BaseActor=baseActor; StemActor=stemActor; this.gripPitch=gripPitch; GripLift=gripLift; GripInset=gripInset;
+                Frame=CockpitStickMath.ShaftFrame(Shaft);
+            }
+            internal bool Moves(int actor) => Actor==actor || StemActor==actor;
+            internal Matrix Visual(Vector3 axes) => CockpitStickMath.Visual(Pivot,axes,Frame);
             public Matrix Palm(bool left) => CockpitStickMath.RaiseGrip(
                 CockpitStickMath.GripPalm(left,Contact,Shaft)*CockpitStickMath.Around(Contact,Matrix.CreateRotationX(gripPitch)),Shaft,GripLift,GripInset);
         }
@@ -135,7 +141,19 @@ namespace SpaceEngineersVR.Player
             ActorCount=pieces.Length==0 ? 0 : pieces.Max(p=>Math.Max(p.Actor,p.StaticActor))+1;
             StaticActors=pieces.Select(p=>p.StaticActor).Distinct().ToArray();
         }
-        private static readonly Dictionary<string,CockpitRig> rigs=Create().ToDictionary(p=>p.Subtype,StringComparer.Ordinal);
+        private CockpitRig()
+        {
+            Subtype=FighterProfile.Subtype; Model=geometryModel=FighterProfile.Model;
+            Left=new Stick(FighterProfile.LeftContact,FighterProfile.LeftPivot,new Vector3(.30f,.9539f,-.015f),1,0,gripLift:.035f,gripInset:.015f,stemActor:2);
+            Right=new Stick(FighterProfile.RightContact,FighterProfile.RightPivot,new Vector3(-.30f,.9539f,-.015f),3,5,gripLift:.035f,gripInset:.015f,stemActor:4);
+            SeatMount=MatrixD.CreateWorld(new Vector3D(0,-.605,.29),new Vector3D(0,-.9007,-.4344),new Vector3D(0,.4344,-.9007));
+            Pieces=new Piece[0]; Levers=new Lever[0]; Handles=new Handle[0];
+            ActorCount=9+CockpitSwitchGeometry.Count+CockpitCoverGeometry.Count;
+            StaticActors=new[] {6,7+CockpitSwitchGeometry.Count};
+        }
+        internal static readonly CockpitRig Fighter=new CockpitRig();
+        internal bool IsFighter => Subtype==FighterProfile.Subtype;
+        private static readonly Dictionary<string,CockpitRig> rigs=Create().Concat(new[] {Fighter}).ToDictionary(p=>p.Subtype,StringComparer.Ordinal);
         internal static IEnumerable<CockpitRig> All => rigs.Values;
         internal static CockpitRig Find(string subtype) => subtype!=null && rigs.TryGetValue(subtype,out var value) ? value:null;
         internal bool HasSticks => Left!=null || Right!=null;
@@ -143,6 +161,7 @@ namespace SpaceEngineersVR.Player
         internal CockpitGeometry Geometry(string content)
         {
             if(geometry!=null) return geometry;
+            if(IsFighter) return geometry=CockpitGeometry.Load(content);
             var importer=new MyModelImporter();
             using(var reader=new BinaryReader(File.OpenRead(Path.Combine(content,geometryModel.Replace('/',Path.DirectorySeparatorChar)))))
                 AccessTools.Method(typeof(MyModelImporter),"LoadTagData").Invoke(importer,new object[] {reader,new[] {"Vertices","TexCoords0","MeshParts","Normals","Tangents"}});

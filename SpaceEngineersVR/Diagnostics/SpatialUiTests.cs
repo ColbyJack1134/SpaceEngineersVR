@@ -292,8 +292,8 @@ namespace SpaceEngineersVR.Diagnostics
             for(int i=0;i<100;i++)
             {
                 Matrix neutral=Matrix.CreateFromYawPitchRoll(i*.02f,.2f,-.1f);
-                Matrix captured=CockpitStickMath.GripPalm(false);
-                Matrix turn=CockpitStickMath.RightVisual(new Vector3(.6f,-.4f,.3f));
+                Matrix captured=CockpitRig.Fighter.Right.Palm(false);
+                Matrix turn=CockpitRig.Fighter.Right.Visual(new Vector3(.6f,-.4f,.3f));
                 Matrix wrist=captured*turn;
                 Vector3 palm=Vector3.Transform(new Vector3(-.105f,-.035f,0),wrist);
                 Require(Vector3.Distance(palm,Vector3.Transform(FighterProfile.RightContact+captured.Backward*.035f+captured.Up*.015f,turn))<1e-5,"Raised grasp separated from stick");

@@ -12,6 +12,16 @@ namespace SpaceEngineersVR.Diagnostics
 {
     internal static class CockpitHandTests
     {
+        internal static void ExportGrip(string output,string name,bool left,Matrix pose,float trigger,string suffix)
+        {
+            var arm=ArmTests.InstalledBones(); string side=left ? "L":"R";
+            arm.Single(b=>b.Name=="SE_Rig"+side+"Palm").SetCompleteTransformFromAbsoluteMatrix(ref pose,false);
+            Curl(arm,side,false,true,trigger);
+            var export=new PoseExport(); foreach(var bone in arm) export.absolute[bone.Name]=Elements(bone.AbsoluteTransform);
+            using(var file=File.Create(Path.Combine(output,"stick-grip-"+name+"-"+side+suffix+".json")))
+                new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
+        }
+
         [DataContract]
         public sealed class PoseExport
         {
@@ -41,8 +51,7 @@ namespace SpaceEngineersVR.Diagnostics
                 var arm=ArmTests.InstalledBones(); var side=left ? "L":"R";
                 var palm=arm.Single(b=>b.Name=="SE_Rig"+side+"Palm"); var lower=arm.Single(b=>b.Name=="SE_Rig"+side+"Forearm1");
                 var correction=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),left ? -1:1);
-                var grips=CockpitRig.All.Select(r=>left ? r.Left:r.Right).Where(x=>x!=null).Select(x=>x.Palm(left))
-                    .Concat(new[] {CockpitStickMath.GripPalm(left)});
+                var grips=CockpitRig.All.Select(r=>left ? r.Left:r.Right).Where(x=>x!=null).Select(x=>x.Palm(left));
                 foreach(var grip in grips) foreach(float angle in new[] {0f,.3f,-.3f})
                 {
                     var attached=Matrix.Invert(correction)*grip*Matrix.CreateRotationX(angle)*Matrix.CreateTranslation(.04f,.12f,-.05f);
@@ -204,7 +213,7 @@ namespace SpaceEngineersVR.Diagnostics
                 var palm=arm.Single(b=>b.Name=="SE_RigLPalm");
                 var lower=arm.Single(b=>b.Name=="SE_RigLForearm1"); var upper=lower.Parent;
                 var correction=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),-1);
-                var desired=CockpitStickMath.GripPalm(true)*Matrix.CreateRotationX(reach*.3f);
+                var desired=CockpitRig.Fighter.Left.Palm(true)*Matrix.CreateRotationX(reach*.3f);
                 desired.Translation=new Vector3(-.28f,1.05f+reach*.1f,-.3f-reach*.08f);
                 if(!ArmMath.ApplyPose(upper,lower,palm,Matrix.Invert(correction)*desired,correction,new Vector3(-.55f,-1,.3f),rigidWrist:rigid))
                     throw new Exception("Joystick arm inspection solve failed");
@@ -214,15 +223,6 @@ namespace SpaceEngineersVR.Diagnostics
                 Curl(arm,"L",false,true);
                 var export=new PoseExport(); foreach(var bone in arm) export.absolute[bone.Name]=Elements(bone.AbsoluteTransform);
                 using(var file=File.Create(Path.Combine(output,"joystick-arm-"+reach+"-"+(rigid ? "rigid":"flexible")+".json")))
-                    new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
-            }
-            void ExportGrip(string name,bool left,Matrix pose,float trigger,string suffix)
-            {
-                var arm=ArmTests.InstalledBones(); string side=left ? "L":"R";
-                arm.Single(b=>b.Name=="SE_Rig"+side+"Palm").SetCompleteTransformFromAbsoluteMatrix(ref pose,false);
-                Curl(arm,side,false,true,trigger);
-                var export=new PoseExport(); foreach(var bone in arm) export.absolute[bone.Name]=Elements(bone.AbsoluteTransform);
-                using(var file=File.Create(Path.Combine(output,"stick-grip-"+name+"-"+side+suffix+".json")))
                     new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
             }
             foreach(bool left in new[] {true,false}) foreach(string state in new[] {"open","touch","trigger","grip","closed"})
@@ -244,19 +244,18 @@ namespace SpaceEngineersVR.Diagnostics
             foreach(bool left in new[] {true,false}) foreach(float trigger in new[] {0f,.5f,1f})
             {
                 string suffix=trigger==0 ? "":trigger==1 ? "-pressed":"-half";
-                ExportGrip(FighterProfile.Subtype,left,CockpitStickMath.GripPalm(left),trigger,suffix);
                 foreach(var rig in CockpitRig.All)
                 {
                     var stick=left ? rig.Left:rig.Right;
-                    if(stick!=null) ExportGrip(rig.Subtype,left,stick.Palm(left),trigger,suffix);
+                    if(stick!=null) ExportGrip(output,rig.Subtype,left,stick.Palm(left)*stick.Visual(Vector3.Zero),trigger,suffix);
                 }
             }
             foreach(bool left in new[] {true,false}) foreach(float position in new[] {0f,.5f,1f})
-                ExportGrip("Bar",left,CockpitRig.Find(CockpitLayout.ControlSeat).Handles[left ? 0:1].Palm(left,position),1,"-"+(int)(position*100));
+                ExportGrip(output,"Bar",left,CockpitRig.Find(CockpitLayout.ControlSeat).Handles[left ? 0:1].Palm(left,position),1,"-"+(int)(position*100));
             foreach(var rig in CockpitRig.All) for(int i=0;i<rig.Handles.Length;i++) foreach(float position in new[] {0f,.25f,.5f,.75f,1f})
             {
                 var handle=rig.Handles[i]; string name="Handle-"+rig.Subtype+"-"+i;
-                foreach(bool left in new[] {true,false}) ExportGrip(name,left,handle.Palm(left,position),1,"-"+(int)(position*100));
+                foreach(bool left in new[] {true,false}) ExportGrip(output,name,left,handle.Palm(left,position),1,"-"+(int)(position*100));
                 var export=new PoseExport(); export.absolute["visual"]=Elements(handle.Visual(position));
                 export.absolute["touch"]=Elements((Matrix)handle.TouchPose*handle.Visual(position));
                 using(var file=File.Create(Path.Combine(output,name+"-"+(int)(position*100)+".json")))

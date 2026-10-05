@@ -15,7 +15,7 @@ namespace SpaceEngineersVR.Diagnostics
         private static void Near(Vector3 a,Vector3 b,string message) => Require(Vector3.Distance(a,b)<0.0002f,message+": "+a+" != "+b);
         public static void Run(Action<string> log)
         {
-            const float deadzone=0.12f;
+            const float deadzone=0.08f;
             Matrix neutral=Matrix.CreateFromYawPitchRoll(0.7f,-0.45f,0.18f);
             neutral.Translation=new Vector3(0.31f,-0.23f,0.37f);
             Near(CockpitStickMath.Rotation(neutral,neutral,deadzone,true),Vector3.Zero,"Neutral rotation kicks");
@@ -29,6 +29,41 @@ namespace SpaceEngineersVR.Diagnostics
                 Near(CockpitStickMath.Rotation(neutral,neutral*Matrix.CreateRotationY(sign*FighterProfile.Twist),deadzone,true),-sign*Vector3.Up,"Yaw twist sign/axis");
                 Near(CockpitStickMath.Rotation(neutral,neutral*Matrix.CreateRotationZ(sign*FighterProfile.Tilt),deadzone,true),-sign*Vector3.Backward,"Roll tilt sign/axis");
             }
+            foreach (Matrix grip in new[] {Matrix.Identity,neutral,Matrix.CreateFromYawPitchRoll(-1.1f,.8f,-.6f)})
+            foreach (Matrix lean in new[] {Matrix.CreateRotationX(.3f),Matrix.CreateRotationZ(-.3f),Matrix.CreateRotationX(-.2f)*Matrix.CreateRotationZ(.25f)})
+            foreach (float twistAngle in new[] {-.4f,0f,.4f})
+            {
+                // Row-vector order applies twist about the shaft before carrying it through the lean.
+                Matrix current=grip*Matrix.CreateRotationY(twistAngle)*lean;
+                Vector3 baseline=CockpitStickMath.Rotation(grip,grip*lean,deadzone,true);
+                Vector3 combined=CockpitStickMath.Rotation(grip,current,deadzone,true);
+                Near(new Vector3(combined.X,0,combined.Z),new Vector3(baseline.X,0,baseline.Z),"Shaft twist changes pitch or roll");
+                Vector3 translation=CockpitStickMath.Translation(grip,current,deadzone,true);
+                Near(new Vector3(translation.X,0,translation.Z),new Vector3(baseline.Z,0,-baseline.X),"Shaft twist changes lateral or forward thrust");
+                Near(CockpitStickMath.Rotation(grip,current,deadzone,false),new Vector3(combined.X,0,combined.Z),"Disabling twist changes lean");
+            }
+            {
+                float pitch=.3f,twistAngle=.4f;
+                Matrix current=neutral*Matrix.CreateRotationY(twistAngle)*Matrix.CreateRotationX(pitch);
+                float heading=(float)Math.Atan2(Math.Sin(twistAngle),Math.Cos(twistAngle)*Math.Cos(pitch));
+                Vector3 expected=new Vector3(CockpitStickMath.Axis(-pitch/FighterProfile.Tilt,deadzone),
+                    CockpitStickMath.Axis(-heading/FighterProfile.Twist,deadzone),0);
+                Near(CockpitStickMath.Rotation(neutral,current,deadzone,true),expected,"Tilted yaw must follow projected heading");
+            }
+            foreach(bool left in new[] {true,false})
+            {
+                var frame=left ? CockpitRig.Fighter.Left.Frame:CockpitRig.Fighter.Right.Frame;
+                var shaft=left ? CockpitRig.Fighter.Left.Shaft:CockpitRig.Fighter.Right.Shaft;
+                foreach(var axis in new[] {Vector3.Right,Vector3.Up,Vector3.Backward})
+                foreach(float sign in new[] {-1f,1f})
+                {
+                    var turn=Matrix.CreateFromAxisAngle(Vector3.TransformNormal(axis,frame),-sign*FighterProfile.Tilt);
+                    Near(CockpitStickMath.Rotation(neutral,neutral*turn,deadzone,true,1,frame),axis*sign,"Fighter shaft input axis");
+                }
+                var twist=left ? CockpitRig.Fighter.Left.Visual(Vector3.Up):CockpitRig.Fighter.Right.Visual(Vector3.Up);
+                Near(Vector3.TransformNormal(shaft,twist),shaft,"Fighter twist leans shaft");
+            }
+            log("PASS stick axes: grabbed shaft lean, compound tilt/twist isolation, translation mapping and projected yaw.");
             Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationY(-1.1f),deadzone,true),Vector3.Up,"Twist not clamped");
             Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationX(0.01f),deadzone,true),Vector3.Zero,"Translation deadzone");
             Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateTranslation(0.1f,-0.2f,0.15f),deadzone,true),Vector3.Zero,"Arm displacement drives thrust");
@@ -66,8 +101,8 @@ namespace SpaceEngineersVR.Diagnostics
                 Near(CockpitStickMath.Rotation(neutral,recovered,deadzone,true),CockpitStickMath.Rotation(neutral,local,deadzone,true),"Moving ship drives rotation");
                 Near(CockpitStickMath.Translation(neutral,recovered,deadzone,true),CockpitStickMath.Translation(neutral,local,deadzone,true),"Moving ship drives translation");
                 Vector3 axes=new Vector3((float)Math.Sin(i),(float)Math.Sin(i*0.3),(float)Math.Cos(i));
-                Matrix left=CockpitStickMath.LeftVisual(axes);
-                Matrix right=CockpitStickMath.RightVisual(axes);
+                Matrix left=CockpitRig.Fighter.Left.Visual(new Vector3(-axes.Z,axes.Y,axes.X));
+                Matrix right=CockpitRig.Fighter.Right.Visual(axes);
                 Require(left.IsValid() && right.IsValid() && Math.Abs(left.Determinant()-1)<0.0001f,"Invalid/elongated control articulation");
                 Near(Vector3.Transform(FighterProfile.LeftPivot,left),FighterProfile.LeftPivot,"Left pivot moved");
                 Near(Vector3.Transform(FighterProfile.RightPivot,right),FighterProfile.RightPivot,"Right pivot moved");
@@ -108,15 +143,17 @@ namespace SpaceEngineersVR.Diagnostics
             Near(filter.Update(false,Vector3.One,.01f,.025f),Vector3.Zero,"Smoothing leaks after release");
             var pulse=new CockpitFeedback.StickPulse(); var now=DateTime.UtcNow;
             Require(pulse.Sample(true,Vector3.Zero,now)==0,"Grab emitted a center pulse");
-            pulse.Sample(true,new Vector3(.4f,.4f,0),now.AddMilliseconds(100));
-            Require(pulse.Sample(true,new Vector3(0,.4f,0),now.AddMilliseconds(110))==0,"One centered axis reported full neutral");
-            Require(pulse.Sample(true,Vector3.Zero,now.AddMilliseconds(120))==1,"Full neutral has no pulse");
-            for(int i=0;i<20;i++) Require(pulse.Sample(true,new Vector3(i%2==0 ? .02f:0),now.AddMilliseconds(140+i*10))==0,"Neutral jitter repeats pulses");
+            Require(pulse.Sample(true,new Vector3(.4f,.4f,0),now.AddMilliseconds(100))==1,"Leaving neutral has no light tick");
+            Require(pulse.Sample(true,new Vector3(0,.4f,0),now.AddMilliseconds(250))==1,"Tilt deadzone entry is hidden by held twist");
+            Require(pulse.Sample(true,Vector3.Zero,now.AddMilliseconds(400))==1,"Twist deadzone entry has no tick");
+            for(int i=0;i<20;i++) Require(pulse.Sample(true,new Vector3(i%2==0 ? .01f:0,0,i%2==0 ? .01f:0),now.AddMilliseconds(420+i*10))==0,"Neutral jitter repeats pulses");
+            Require(pulse.Sample(true,new Vector3(.03f,0,.03f),now.AddMilliseconds(700))==1,"Diagonal deadzone exit has no tick");
+            Require(pulse.Sample(true,new Vector3(-.03f,0,.03f),now.AddMilliseconds(850))==0,"Crossing an axis outside the neutral circle ticks");
             Require(pulse.Sample(true,Vector3.Right,now.AddSeconds(1))==2,"End stop has no pulse");
             pulse.Sample(true,Vector3.Right*.95f,now.AddSeconds(1.1));
             Require(pulse.Sample(true,Vector3.Right,now.AddSeconds(1.3))==0,"Limit jitter repeats pulses");
             Require(pulse.Sample(false,Vector3.Zero,now.AddSeconds(1.4))==0 && pulse.Sample(true,Vector3.Zero,now.AddSeconds(1.5))==0,"Release or regrab emits a detent");
-            log("PASS stick comfort: squared response, full authority, refresh-independent smoothing, immediate release/neutral, multi-axis center and limit hysteresis.");
+            log("PASS stick comfort: squared response, full authority, refresh-independent smoothing, immediate release/neutral, radial and twist deadzone boundaries, coalesced ticks and limit hysteresis.");
             string content=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(MyRenderProxy).Assembly.Location),"..","Content"));
             var geometry=CockpitGeometry.Load(content);
             Require(geometry.Parts.Take(6).Sum(p=>p.Indices.Count)==568*3,"Native stick triangles lost or duplicated");

@@ -42,12 +42,12 @@ namespace SpaceEngineersVR.Diagnostics
                 var pivot=left ? FighterProfile.LeftPivot : FighterProfile.RightPivot;
                 var contact=left ? FighterProfile.LeftContact : FighterProfile.RightContact;
                 var axes=new Vector3(.4f,-.3f,.6f);
-                Matrix articulation=left ? CockpitStickMath.LeftVisual(axes) : CockpitStickMath.RightVisual(axes);
+                Matrix articulation=left ? CockpitRig.Fighter.Left.Visual(new Vector3(-axes.Z,axes.Y,axes.X)) : CockpitRig.Fighter.Right.Visual(axes);
                 Matrix visual=StickPlacement.Visual(articulation,shift);
                 Near(Vector3.Transform(pivot,visual),pivot+shift,"Adjusted articulated pivot separated from base");
                 Near(Vector3.Transform(contact,visual),Vector3.Transform(contact,articulation)+shift,"Grab target separated from moved mesh");
                 Matrix grip=Matrix.CreateFromYawPitchRoll(.3f,.1f,-.2f);
-                Matrix attached=CockpitStickMath.GripPalm(left);
+                Matrix attached=(left ? CockpitRig.Fighter.Left:CockpitRig.Fighter.Right).Palm(left);
                 Matrix wrist=attached*visual;
                 Near(Vector3.Transform(new Vector3(-.105f,-.035f,0),wrist),Vector3.Transform(contact+attached.Backward*(left ? -.035f:.035f)+attached.Up*.015f,visual),"Raised palm left moved handle");
                 MatrixD ship=MatrixD.CreateFromYawPitchRoll(i*.02,i*.03,i*.01); ship.Translation=new Vector3D(2e6+i*40,-3e6,4e6);

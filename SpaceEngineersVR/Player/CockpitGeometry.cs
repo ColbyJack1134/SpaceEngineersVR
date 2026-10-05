@@ -19,7 +19,7 @@ namespace SpaceEngineersVR.Player
         public static readonly Vector3 RightContact=new Vector3(0.305f,-0.235f,0.365f);
         public static readonly Vector3 LeftPivot=new Vector3(-0.352f,-0.355f,0.368f);
         public static readonly Vector3 RightPivot=new Vector3(0.349f,-0.355f,0.369f);
-        public const float Tilt=0.38f, Twist=0.50f, CaptureRadius=0.14f;
+        public const float Tilt=MathHelper.Pi/6, Twist=MathHelper.Pi/6, CaptureRadius=0.14f;
     }
 
     // Only installed assets are read. No game mesh or texture is shipped with the plugin.

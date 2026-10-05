@@ -33,10 +33,9 @@ namespace SpaceEngineersVR.Player
         }
         private const int CoverBase=7+CockpitSwitchGeometry.Count;
         private const int BarActor=CoverBase+1+CockpitCoverGeometry.Count;
-        private const int ActorCount=BarActor+1;
         private static readonly string[] fighterMaterials={FighterProfile.Material,CockpitSwitchGeometry.Material,CockpitCoverGeometry.Material};
         private static Verification verification;
-        private static CockpitGeometry geometry,fighterGeometry;
+        private static CockpitGeometry geometry;
         private static CockpitRig activeRig;
         private static MyCockpit owner;
         private static readonly RenderRecovery recovery=new RenderRecovery("Cockpit controls");
@@ -45,9 +44,7 @@ namespace SpaceEngineersVR.Player
         private static DateTime deadline;
         public static bool Ready => verification!=null && verification.NativeHidden && Volatile.Read(ref verification.ReadyCount)==verification.Verified.Length && verification.Error==null;
         public static string Status => failed ? "Sticks unavailable: button flight" : Ready ? "Cockpit controls ready" : "Checking cockpit control renderer";
-        private static readonly string[] names={"SEVR_Fighter_LeftBase","SEVR_Fighter_LeftHandle","SEVR_Fighter_LeftStem","SEVR_Fighter_RightHandle","SEVR_Fighter_RightStem","SEVR_Fighter_RightBase"};
-
-        private static string Name(int i) => activeRig!=null ? "SEVR_Cockpit_"+activeRig.Subtype+"_"+i : i<6 ? names[i] : i==6 ? "SEVR_Fighter_Chrome" : i<CoverBase ? "SEVR_Fighter_Switch"+(i-7) : i==CoverBase ? "SEVR_Fighter_Interior" : i==BarActor ? "SEVR_Fighter_PullBar" : "SEVR_Fighter_Cover"+(i-CoverBase-1);
+        private static string Name(int i) => "SEVR_Cockpit_"+activeRig.Subtype+"_"+i;
 
         public static void Reset()
         {
@@ -83,9 +80,9 @@ namespace SpaceEngineersVR.Player
                 }
                 if (verification==null)
                 {
-                    activeRig=rig;
-                    geometry=rig!=null ? rig.Geometry(MyFileSystem.ContentPath) : fighterGeometry ?? (fighterGeometry=CockpitGeometry.Load(MyFileSystem.ContentPath));
-                    var hidden=rig==null ? fighterMaterials : rig.Pieces.Select(p=>p.Material).Distinct().ToArray();
+                    activeRig=rig ?? CockpitRig.Fighter;
+                    geometry=activeRig.Geometry(MyFileSystem.ContentPath);
+                    var hidden=activeRig.IsFighter ? fighterMaterials : activeRig.Pieces.Select(p=>p.Material).Distinct().ToArray();
                     verification=new Verification(interior,geometry.Parts.Length,hidden);
                     deadline=DateTime.UtcNow.AddSeconds(8);
                     // This also converts the instance to the engine's supported per-material pipeline.
@@ -131,11 +128,11 @@ namespace SpaceEngineersVR.Player
                     foreach(uint actor in check.Actors) if(actor!=uint.MaxValue) MyRenderProxy.UpdateRenderEntity(actor,null,paint);
                     appliedColor=paint;
                 }
-                if(activeRig!=null)
+                foreach(int actor in activeRig.StaticActors) UpdatePose(check,actor,world);
+                UpdateRigStick(check,activeRig.Left,left,leftOffset,leftHeld,world);
+                UpdateRigStick(check,activeRig.Right,right,rightOffset,rightHeld,world);
+                if(!activeRig.IsFighter)
                 {
-                    foreach(int actor in activeRig.StaticActors) UpdatePose(check,actor,world);
-                    UpdateRigStick(check,activeRig.Left,left,leftOffset,leftHeld,world);
-                    UpdateRigStick(check,activeRig.Right,right,rightOffset,rightHeld,world);
                     for(int i=0;i<activeRig.Levers.Length;i++)
                     {
                         var lever=activeRig.Levers[i]; if(lever==null) continue;
@@ -156,19 +153,13 @@ namespace SpaceEngineersVR.Player
                     }
                     return;
                 }
-                var matrices=new[] { Matrix.CreateTranslation(leftOffset),left,left,right,right,Matrix.CreateTranslation(rightOffset) };
-                for (int i=0;i<6;i++) UpdatePose(check,i,(MatrixD)matrices[i]*world);
-                UpdatePose(check,6,world);
                 for(int i=0;i<CockpitSwitchGeometry.Count;i++) UpdatePose(check,7+i,(MatrixD)(nativeRest ? Matrix.Identity : CockpitSwitchGeometry.Visual(i,switchPreview ?? CockpitButtons.SwitchPosition(i)))*world);
-                UpdatePose(check,CoverBase,world);
                 for(int i=0;i<CockpitCoverGeometry.Count;i++) UpdatePose(check,CoverBase+1+i,
                     (MatrixD)CockpitCoverGeometry.Visual(i,nativeRest ? CockpitCoverGeometry.Initial(i) : coverPreview ?? CockpitButtons.CoverPosition(CockpitCoverGeometry.Slot(i),FighterProfile.Subtype))*world);
                 UpdatePose(check,BarActor,(MatrixD)CockpitBarGeometry.Visual(nativeRest ? 0 : barPreview ?? CockpitButtons.SwitchPosition(CockpitBarGeometry.Slot))*world);
                 var bar=CockpitTouch.Read("CockpitControl"+CockpitBarGeometry.Slot);
                 SetFeedback(check.Actors[BarActor],CockpitCoverGeometry.Material,
                     previewHeld==CockpitBarGeometry.Slot || bar.Held>=0 ? 2 : previewHover==CockpitBarGeometry.Slot || bar.Hover>=0 ? 1 : 0);
-                SetFeedback(check.Actors[1],FighterProfile.Material,leftHeld ? 2 : 0);
-                SetFeedback(check.Actors[3],FighterProfile.Material,rightHeld ? 2 : 0);
                 for(int i=0;i<CockpitSwitchGeometry.Count;i++)
                 {
                     var lever=CockpitTouch.Read("CockpitControl"+i);
@@ -189,6 +180,7 @@ namespace SpaceEngineersVR.Player
         {
             if(stick==null) return;
             UpdatePose(check,stick.Actor,(MatrixD)visual*world);
+            if(stick.StemActor>=0) UpdatePose(check,stick.StemActor,(MatrixD)visual*world);
             SetRigFeedback(check,stick.Actor,held ? 2:0);
             if(stick.BaseActor>=0) UpdatePose(check,stick.BaseActor,MatrixD.CreateTranslation(offset)*world);
         }

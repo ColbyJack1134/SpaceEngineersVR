@@ -93,19 +93,9 @@ namespace SpaceEngineersVR.Player
         internal static bool TryMount(string subtype,out MatrixD local,out float width,out float height)
         {
             local=MatrixD.Identity; width=height=0;
-            if(subtype==FighterProfile.Subtype)
-            {
-                // Between the knees, below CockpitScreen_05, leaving the LCD clear.
-                local=MatrixD.CreateWorld(new Vector3D(0,-.605,.29),
-                    new Vector3D(0,-.9007,-.4344),new Vector3D(0,.4344,-.9007));
-                width=.108f; height=.120f;
-            }
-            else
-            {
-                var rig=CockpitRig.Find(subtype);
-                if(rig==null) return false;
-                local=rig.SeatMount; width=.108f; height=.120f;
-            }
+            var rig=CockpitRig.Find(subtype);
+            if(rig==null) return false;
+            local=rig.SeatMount; width=.108f; height=.120f;
             local.Translation+=local.Backward*.009;
             return true;
         }

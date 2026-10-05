@@ -52,16 +52,28 @@ namespace SpaceEngineersVR.Player
         }
         internal sealed class StickPulse
         {
-            private bool held,departed;
+            private bool held,tiltOutside,twistOutside;
             private int limits;
             private DateTime next;
+            private static bool Crossed(ref bool outside,float amount)
+            {
+                bool was=outside;
+                // Inputs already passed through the deadzone. A small exit margin prevents boundary chatter.
+                if(amount>.025f) outside=true;
+                else if(amount==0) outside=false;
+                return was!=outside;
+            }
             internal int Sample(bool captured,Vector3 axes,DateTime now)
             {
-                if(!captured || !axes.IsValid()) { held=departed=false; limits=0; return 0; }
-                if(!held) { held=true; departed=false; limits=0; next=now.AddMilliseconds(80); return 0; }
-                float maximum=Math.Max(Math.Abs(axes.X),Math.Max(Math.Abs(axes.Y),Math.Abs(axes.Z)));
-                if(maximum>.08f) departed=true;
-                bool centered=departed && maximum==0;
+                if(!captured || !axes.IsValid()) { held=tiltOutside=twistOutside=false; limits=0; return 0; }
+                float tilt=new Vector2(axes.X,axes.Z).Length(),twist=Math.Abs(axes.Y);
+                if(!held)
+                {
+                    held=true; tiltOutside=tilt>.025f; twistOutside=twist>.025f;
+                    limits=0; next=now.AddMilliseconds(80); return 0;
+                }
+                bool boundary=Crossed(ref tiltOutside,tilt);
+                boundary=Crossed(ref twistOutside,twist) || boundary;
                 int current=limits;
                 for(int i=0;i<3;i++)
                 {
@@ -71,9 +83,8 @@ namespace SpaceEngineersVR.Player
                 }
                 bool limit=(current & ~limits)!=0;
                 limits=current;
-                if(centered) { departed=false; next=now.AddMilliseconds(130); return 1; }
-                if(!limit || now<next) return 0;
-                next=now.AddMilliseconds(130); return 2;
+                if(now<next || !limit && !boundary) return 0;
+                next=now.AddMilliseconds(130); return limit ? 2:1;
             }
         }
         private static bool soundFailed;

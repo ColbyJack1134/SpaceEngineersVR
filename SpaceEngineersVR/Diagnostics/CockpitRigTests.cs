@@ -21,8 +21,10 @@ namespace SpaceEngineersVR.Diagnostics
                     throw new Exception("Cockpit seat panel differs from the common module: "+rig.Subtype);
                 if(rig.ActorCount==0) continue;
                 var mesh=rig.Geometry(content);
+                if(mesh.Parts.Length!=rig.ActorCount || !rig.Matches(rig.Model))
+                    throw new Exception("Cockpit rig model or actor count mismatch: "+rig.Subtype);
                 int copied=rig.Levers.Where(l=>l!=null && l.TemplateActor>=0).Sum(l=>mesh.Parts[l.Actor].Indices.Count+(l.TemplateBase?.Triangles ?? 0)*3);
-                if(mesh.Parts.Sum(p=>p.Indices.Count)-copied!=mesh.NativeTriangles*3)
+                if((rig.IsFighter ? mesh.Parts.Take(6).Sum(p=>p.Indices.Count):mesh.Parts.Sum(p=>p.Indices.Count)-copied)!=mesh.NativeTriangles*3)
                     throw new Exception("Cockpit partition lost native triangles: "+rig.Subtype);
                 foreach(var hand in new[] {true,false})
                 {
@@ -32,7 +34,29 @@ namespace SpaceEngineersVR.Diagnostics
                     var cavity=Vector3.Transform(new Vector3(-.105f,-.035f,0),grip);
                     if(Vector3.Distance(cavity,stick.Contact+stick.Shaft*stick.GripLift+grip.Up*stick.GripInset)>.00001f || !grip.IsValid())
                         throw new Exception("Cockpit grip cavity missed handle: "+rig.Subtype);
-                    var visual=CockpitStickMath.Visual(stick.Pivot,new Vector3(.6f,-.3f,.5f));
+                    var rest=stick.Visual(Vector3.Zero);
+                    Vector3 expectedShaft=stick.Shaft;
+                    if(Vector3.Distance(Vector3.TransformNormal(stick.Shaft,rest),expectedShaft)>.00001f)
+                        throw new Exception("Cockpit stick neutral shaft changed unexpectedly: "+rig.Subtype);
+                    if(Vector3.Distance(stick.Frame.Up,stick.Shaft)>.00001f)
+                        throw new Exception("Cockpit stick input frame changed unexpectedly: "+rig.Subtype);
+                    {
+                        if(Vector3.Distance(Vector3.TransformNormal(stick.Shaft,stick.Visual(Vector3.Up)),stick.Shaft)>.00001f)
+                            throw new Exception("Cockpit twist leans the shaft");
+                        foreach(var grab in new[] {Matrix.Identity,Matrix.CreateFromYawPitchRoll(.7f,-.4f,.2f)})
+                        foreach(var axis in new[] {Vector3.Right,Vector3.Up,Vector3.Backward})
+                        foreach(float sign in new[] {-1f,1f})
+                        {
+                            var turn=Matrix.CreateFromAxisAngle(Vector3.TransformNormal(axis,stick.Frame),-sign*FighterProfile.Tilt);
+                            var actual=CockpitStickMath.Rotation(grab,grab*turn,.08f,true,1,stick.Frame);
+                            if(Vector3.Distance(actual,axis*sign)>.0002f)
+                                throw new Exception("Cockpit shaft input axis or sign mismatch");
+                            var thrust=CockpitStickMath.Translation(grab,grab*turn,.08f,true,1,stick.Frame);
+                            if(Vector3.Distance(thrust,new Vector3(actual.Z,actual.Y,-actual.X))>.0002f)
+                                throw new Exception("Cockpit shaft translation mismatch");
+                        }
+                    }
+                    var visual=stick.Visual(new Vector3(.6f,-.3f,.5f));
                     if(Vector3.Distance(Vector3.Transform(stick.Pivot,visual),stick.Pivot)>.00001f)
                         throw new Exception("Cockpit stick pivot moves: "+rig.Subtype);
                 }

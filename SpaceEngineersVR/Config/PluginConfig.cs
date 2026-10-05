@@ -155,7 +155,7 @@ namespace SpaceEngineersVR.Config
         public StickPlacementSetting[] StickPlacements { get => stickPlacements; set => SetValue(ref stickPlacements,value ?? new StickPlacementSetting[0]); }
         public int HelmetHudMode { get => helmetHudMode; set => SetValue(ref helmetHudMode,Math.Max(0,Math.Min(3,value))); }
         public SeatFitSetting[] SeatFits { get => seatFits; set => SetValue(ref seatFits,value ?? new SeatFitSetting[0]); }
-        private float physicalStickSensitivity=1f, physicalStickDeadzone=0.12f;
+        private float physicalStickSensitivity=1f, physicalStickDeadzone=0.08f;
         public bool FighterCockpitSticks { get => fighterCockpitSticks; set => SetValue(ref fighterCockpitSticks,value); }
         public bool StickTwist { get => stickTwist; set => SetValue(ref stickTwist,value); }
         public float PhysicalStickSensitivity
@@ -166,7 +166,7 @@ namespace SpaceEngineersVR.Config
         public float PhysicalStickDeadzone
         {
             get => physicalStickDeadzone;
-            set => SetValue(ref physicalStickDeadzone,Bound(value,0.02f,0.35f,0.12f));
+            set => SetValue(ref physicalStickDeadzone,Bound(value,0.02f,0.35f,0.08f));
         }
         private float physicalStickExponent=2f,physicalStickSmoothing=.025f;
         public float PhysicalStickExponent
