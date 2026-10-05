@@ -69,7 +69,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(EssentialHud.SpeedSegments("0,00",.00001f)==0,"Localized zero speed lights a segment");
             }
             finally { System.Globalization.CultureInfo.CurrentCulture=culture; }
-            foreach(string subtype in new[] { FighterProfile.Subtype,CockpitLayout.ControlSeat })
+            foreach(string subtype in new[] { CockpitLayout.Fighter,CockpitLayout.ControlSeat })
                 for(int i=0;i<CockpitLayout.Count(subtype);i++)
                 {
                     var panel=CockpitButtons.Preview(subtype,i);
@@ -117,7 +117,7 @@ namespace SpaceEngineersVR.Diagnostics
             seatView.Keys=SeatPanel.Keys(true,false);
             Require(seatView.KeyAt(seatView.Keys[8].Bounds.Center)==-1,"Locked stick reset remained active");
             Require(seatView.Keys[8].Bounds==seatKeys[8].Bounds && seatView.Keys[12].Bounds==seatKeys[12].Bounds,"Locking sticks moved Reset or Lights");
-            var config=new PluginConfig { ShipRollSensitivity=.77f,SeatFits=new[] { new SeatFitSetting { Subtype=FighterProfile.Subtype,Y=.1f } },
+            var config=new PluginConfig { ShipRollSensitivity=.77f,SeatFits=new[] { new SeatFitSetting { Subtype=CockpitLayout.Fighter,Y=.1f } },
                 MenuWindows=new[] { new MenuWindowSetting { Screen="Inventory",Width=1.2f,Z=-1.4f,QW=1 },
                     new MenuWindowSetting { Screen="Remote/FighterCockpit",World="world-a",Cockpit=123,Width=.9f,Z=-.8f,QW=1 } },
                 CockpitStates=new[] { new CockpitStateSetting { World="world-a",Cockpit=123,Covers=new[] {true,false,true} },

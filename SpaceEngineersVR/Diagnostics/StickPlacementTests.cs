@@ -29,7 +29,7 @@ namespace SpaceEngineersVR.Diagnostics
             Near(StickPlacement.Limit(new Vector3(-999),false),new Vector3(-.40f,-.15f,-.25f),"Right placement lower bounds");
             foreach(bool left in new[] {false,true})
             {
-                var contact=left ? FighterProfile.LeftContact : FighterProfile.RightContact;
+                var contact=left ? CockpitRig.Find(CockpitLayout.Fighter).Left.Contact : CockpitRig.Find(CockpitLayout.Fighter).Right.Contact;
                 var center=new Vector3(-contact.X,.03f,-.04f);
                 Near(StickPlacement.Limit(center,left),center,"Joystick cannot reach center console");
                 var parked=new Vector3(left ? -.18f : .18f,.03f,0);
@@ -39,15 +39,15 @@ namespace SpaceEngineersVR.Diagnostics
             foreach(bool left in new[] {false,true})
             {
                 Vector3 shift=StickPlacement.Limit(new Vector3((float)Math.Sin(i)*.2f,(float)Math.Cos(i)*.2f,(float)Math.Sin(i*.3f)*.3f),left);
-                var pivot=left ? FighterProfile.LeftPivot : FighterProfile.RightPivot;
-                var contact=left ? FighterProfile.LeftContact : FighterProfile.RightContact;
+                var pivot=left ? CockpitRig.Find(CockpitLayout.Fighter).Left.Pivot : CockpitRig.Find(CockpitLayout.Fighter).Right.Pivot;
+                var contact=left ? CockpitRig.Find(CockpitLayout.Fighter).Left.Contact : CockpitRig.Find(CockpitLayout.Fighter).Right.Contact;
                 var axes=new Vector3(.4f,-.3f,.6f);
-                Matrix articulation=left ? CockpitRig.Fighter.Left.Visual(new Vector3(-axes.Z,axes.Y,axes.X)) : CockpitRig.Fighter.Right.Visual(axes);
+                Matrix articulation=left ? CockpitRig.Find(CockpitLayout.Fighter).Left.Visual(new Vector3(-axes.Z,axes.Y,axes.X)) : CockpitRig.Find(CockpitLayout.Fighter).Right.Visual(axes);
                 Matrix visual=StickPlacement.Visual(articulation,shift);
                 Near(Vector3.Transform(pivot,visual),pivot+shift,"Adjusted articulated pivot separated from base");
                 Near(Vector3.Transform(contact,visual),Vector3.Transform(contact,articulation)+shift,"Grab target separated from moved mesh");
                 Matrix grip=Matrix.CreateFromYawPitchRoll(.3f,.1f,-.2f);
-                Matrix attached=(left ? CockpitRig.Fighter.Left:CockpitRig.Fighter.Right).Palm(left);
+                Matrix attached=(left ? CockpitRig.Find(CockpitLayout.Fighter).Left:CockpitRig.Find(CockpitLayout.Fighter).Right).Palm(left);
                 Matrix wrist=attached*visual;
                 Near(Vector3.Transform(new Vector3(-.105f,-.035f,0),wrist),Vector3.Transform(contact+attached.Backward*(left ? -.035f:.035f)+attached.Up*.015f,visual),"Raised palm left moved handle");
                 MatrixD ship=MatrixD.CreateFromYawPitchRoll(i*.02,i*.03,i*.01); ship.Translation=new Vector3D(2e6+i*40,-3e6,4e6);
@@ -57,8 +57,8 @@ namespace SpaceEngineersVR.Diagnostics
             Require(!gripGate.Update(true,true,true,true) && !gripGate.Held && gripGate.Consumed,"Lock/interrupt turned adjustment grab into flight");
             gripGate.Update(true,false,true,true); Require(gripGate.Update(true,true,true,true),"Lock prevented fresh flight grab");
             var config=new PluginConfig { JetpackRoll=.33f,ShipRollSensitivity=.77f,
-                SeatFits=new[] { new SeatFitSetting { Subtype=FighterProfile.Subtype,Y=.1f } },
-                StickPlacements=new[] { new StickPlacementSetting { Subtype=FighterProfile.Subtype,LeftX=.12f,RightZ=.24f } } };
+                SeatFits=new[] { new SeatFitSetting { Subtype=CockpitLayout.Fighter,Y=.1f } },
+                StickPlacements=new[] { new StickPlacementSetting { Subtype=CockpitLayout.Fighter,LeftX=.12f,RightZ=.24f } } };
             var serializer=new XmlSerializer(typeof(PluginConfig));
             using(var writer=new StringWriter())
             {

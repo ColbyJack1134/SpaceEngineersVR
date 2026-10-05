@@ -240,24 +240,25 @@ namespace SpaceEngineersVR.Diagnostics
                 float prior=drag.Value;
                 Require(drag.Move(new Vector3(float.NaN,0,0))==-1 && drag.Value==prior,"Invalid tracking altered hinge state");
             }
+            var bar=CockpitRig.Find(CockpitLayout.Fighter).Bars[0];
             foreach(float start in new[] {0f,1f})
             {
                 var drag=new ControlDrag();
-                var axis=CockpitBarGeometry.Normal;
-                var origin=CockpitBarGeometry.Front;
-                drag.BeginLinear(origin,axis,start,CockpitBarGeometry.Travel);
+                var axis=bar.Normal;
+                var origin=bar.Front;
+                drag.BeginLinear(origin,axis,start,bar.Travel);
                 Require(drag.Move(origin)==-1 && drag.Value==start,"Pull bar activates on capture");
                 foreach(float value in new[] {.5f,.8f,.55f,.45f,.2f,1f,0f})
                 {
                     bool before=drag.State;
-                    var hand=origin+axis*((value-start)*CockpitBarGeometry.Travel);
+                    var hand=origin+axis*((value-start)*bar.Travel);
                     int changed=drag.Move(hand);
                     Require(Math.Abs(drag.Value-value)<.0001f,"Pull bar lost linear hand travel");
                     bool expected=before ? value>.35f : value>=.65f;
                     Require(changed==(expected==before ? -1 : expected ? 1 : 0),"Pull bar repeats or misses a detent");
                     Require(drag.Move(hand)==-1,"Held pull bar repeats its action/haptic");
                 }
-                drag.BeginLinear(origin,axis,start,CockpitBarGeometry.Travel);
+                drag.BeginLinear(origin,axis,start,bar.Travel);
                 var lateral=Vector3.Normalize(Vector3.Cross(axis,Vector3.Up))*.1f;
                 Require(drag.Move(origin+lateral)==-1 && Math.Abs(drag.Value-start)<.0001f,"Sideways motion switches pull bar");
                 Require(drag.Move(new Vector3(float.NaN,0,0))==-1,"Lost tracking switches pull bar");

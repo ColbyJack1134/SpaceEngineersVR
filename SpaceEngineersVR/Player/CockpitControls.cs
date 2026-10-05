@@ -37,7 +37,8 @@ namespace SpaceEngineersVR.Player
         public static bool Held(Controller hand) => hand==Player.HandL ? left.Held : right.Held;
         private static bool Available => !ThirdPersonView.Active && seat!=null && Eligible(seat) && CockpitRender.Ready && (InputRouter.Mode==InputMode.Piloting || InputRouter.Mode==InputMode.Turret) && !RemoteView.OwnsInput && !Main.MenuOpen && !TouchScreenBridge.OwnsInput &&
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;
-        internal static bool NearGrip(Controller hand) => Available && GripDistance(hand)<FighterProfile.CaptureRadius;
+        internal const float CaptureRadius=.14f;
+        internal static bool NearGrip(Controller hand) => Available && GripDistance(hand)<CaptureRadius;
         private static float GripDistance(Controller hand)
         {
             bool isLeft=hand==Player.HandL;
@@ -175,11 +176,11 @@ namespace SpaceEngineersVR.Player
             Vector3 lp=WeaponPose.Palm(l),rp=WeaponPose.Palm(r);
             float leftDistance=available ? GripDistance(Player.HandL):float.MaxValue;
             float rightDistance=available ? GripDistance(Player.HandR):float.MaxValue;
-            leftNear=available && leftDistance<FighterProfile.CaptureRadius;
-            rightNear=available && rightDistance<FighterProfile.CaptureRadius;
-            if(leftHover.Sample(available,leftDistance,FighterProfile.CaptureRadius,leftDown || left.Consumed || CockpitTouch.Owns(Player.HandL)))
+            leftNear=available && leftDistance<CaptureRadius;
+            rightNear=available && rightDistance<CaptureRadius;
+            if(leftHover.Sample(available,leftDistance,CaptureRadius,leftDown || left.Consumed || CockpitTouch.Owns(Player.HandL)))
                 CockpitFeedback.Hover(Player.HandL);
-            if(rightHover.Sample(available,rightDistance,FighterProfile.CaptureRadius,rightDown || right.Consumed || CockpitTouch.OwnsRight))
+            if(rightHover.Sample(available,rightDistance,CaptureRadius,rightDown || right.Consumed || CockpitTouch.OwnsRight))
                 CockpitFeedback.Hover(Player.HandR);
             if (left.Update(available && !CockpitTouch.Owns(Player.HandL),leftDown,leftNear,!left.Held || Vector3.Distance(lp,WeaponPose.Palm(leftNeutral))<0.45f))
             {
@@ -257,8 +258,8 @@ namespace SpaceEngineersVR.Player
         public static void Draw()
         {
             if (!Common.Config.DeveloperTools || seat==null || !CockpitRender.Ready || InputRouter.Mode!=InputMode.Piloting) return;
-            DrawContact(Vector3.Transform(Rig?.Left?.Contact ?? FighterProfile.LeftContact,leftVisual),left.Held,leftNear);
-            DrawContact(Vector3.Transform(Rig?.Right?.Contact ?? FighterProfile.RightContact,rightVisual),right.Held,rightNear);
+            if(Rig?.Left!=null) DrawContact(Vector3.Transform(Rig.Left.Contact,leftVisual),left.Held,leftNear);
+            if(Rig?.Right!=null) DrawContact(Vector3.Transform(Rig.Right.Contact,rightVisual),right.Held,rightNear);
         }
         private static void DrawContact(Vector3 local,bool held,bool near)
         {

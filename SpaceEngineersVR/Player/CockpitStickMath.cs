@@ -5,6 +5,7 @@ namespace SpaceEngineersVR.Player
 {
     internal static class CockpitStickMath
     {
+        public const float TiltRange=MathHelper.Pi/6,TwistRange=MathHelper.Pi/6;
         public static float Axis(float value,float deadzone)
         {
             if (float.IsNaN(value) || float.IsInfinity(value)) return 0;
@@ -55,9 +56,9 @@ namespace SpaceEngineersVR.Player
             // Carry the grabbed shaft through the hand rotation; axial twist must not change its lean.
             Vector3 shaft=turn.Up,heading=turn.Backward;
             Vector2 lean=new Vector2(-(float)Math.Atan2(shaft.Z,shaft.Y),(float)Math.Atan2(shaft.X,shaft.Y));
-            Vector2 tilt=Tilt(lean*sensitivity/FighterProfile.Tilt,deadzone);
+            Vector2 tilt=Tilt(lean*sensitivity/TiltRange,deadzone);
             float yaw=-(float)Math.Atan2(heading.X,heading.Z);
-            return new Vector3(tilt.X,twist ? Axis(yaw*sensitivity/FighterProfile.Twist,deadzone) : 0,tilt.Y);
+            return new Vector3(tilt.X,twist ? Axis(yaw*sensitivity/TwistRange,deadzone) : 0,tilt.Y);
         }
         internal static Vector2 Tilt(Vector2 value,float deadzone)
         {
@@ -70,7 +71,7 @@ namespace SpaceEngineersVR.Player
         public static Matrix Around(Vector3 pivot,Matrix rotation) => Matrix.CreateTranslation(-pivot)*rotation*Matrix.CreateTranslation(pivot);
         internal static Matrix Visual(Vector3 pivot,Vector3 axes,Matrix? frame=null)
         {
-            Matrix turn=Matrix.CreateFromYawPitchRoll(-axes.Y*FighterProfile.Twist,-axes.X*FighterProfile.Tilt,-axes.Z*FighterProfile.Tilt);
+            Matrix turn=Matrix.CreateFromYawPitchRoll(-axes.Y*TwistRange,-axes.X*TiltRange,-axes.Z*TiltRange);
             if(frame.HasValue) turn=Matrix.Transpose(frame.Value)*turn*frame.Value;
             return Around(pivot,turn);
         }

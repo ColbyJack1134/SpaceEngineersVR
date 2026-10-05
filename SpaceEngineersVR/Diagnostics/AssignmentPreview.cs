@@ -35,7 +35,7 @@ namespace SpaceEngineersVR.Diagnostics
         private readonly CockpitAssignment assignment;
         private readonly MyGuiScreenToolbarConfigBase owner;
         private readonly bool ordinary;
-        private static int Count => Player.CockpitLayout.Count(Player.FighterProfile.Subtype);
+        private static int Count => Player.CockpitLayout.Count(Player.CockpitLayout.Fighter);
         public override string GetFriendlyName() => "SEVR assignment preview";
         private static void Set(object instance,string field,object value) => AccessTools.Field(instance.GetType(),field).SetValue(instance,value);
         internal AssignmentPreview(bool ordinary=false) : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.95f,.70f))

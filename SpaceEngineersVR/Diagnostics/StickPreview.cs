@@ -32,7 +32,7 @@ namespace SpaceEngineersVR.Diagnostics
                 for(int actor=0;actor<mesh.Parts.Length;actor++)
                 {
                     var source=mesh.Parts[actor];
-                    var stick=rig.Left?.Moves(actor)==true ? rig.Left : rig.Right?.Moves(actor)==true ? rig.Right:null;
+                    var stick=rig.Left?.Actor==actor ? rig.Left : rig.Right?.Actor==actor ? rig.Right:null;
                     Matrix visual=stick?.Visual(pose.Value) ?? Matrix.Identity;
                     int first=vertices.Count;
                     foreach(var position in source.Positions)
@@ -51,7 +51,7 @@ namespace SpaceEngineersVR.Diagnostics
                 {
                     var stick=left ? rig.Left:rig.Right;
                     if(stick==null) continue;
-                    report.Parts=byActor.Where(a=>stick.Moves(a.Key) || stick.BaseActor==a.Key).SelectMany(a=>a.Value).ToArray();
+                    report.Parts=byActor.Where(a=>stick.Actor==a.Key || stick.BaseActor==a.Key).SelectMany(a=>a.Value).ToArray();
                     using(var file=File.Create(Path.Combine(output,(left ? "L-":"R-")+pose.Key+".json")))
                         new DataContractJsonSerializer(typeof(ModelInspection.Report)).WriteObject(file,report);
                     Matrix visual=stick.Visual(pose.Value);

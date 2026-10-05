@@ -60,10 +60,11 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Run(string game, string output, Action<string> log)
         {
             Directory.CreateDirectory(output);
+            var fighterGuards=CockpitPanelGuard.Regions(CockpitRig.Find(CockpitLayout.Fighter));
             using(var guards=new StreamWriter(Path.Combine(output,"cockpit-panel-guards.csv")))
-                for(int i=0;i<CockpitPanelGuard.Fighter.Length;i++)
+                for(int i=0;i<fighterGuards.Length;i++)
                 {
-                    var region=CockpitPanelGuard.Fighter[i];
+                    var region=fighterGuards[i];
                     foreach(var corner in region.Bounds.GetCorners())
                     {
                         var point=Vector3.Transform(corner,region.Frame);
@@ -399,10 +400,10 @@ namespace SpaceEngineersVR.Diagnostics
                     if(bitmap.GetPixel(512,320).R==7) throw new Exception("Keyboard hidden with clear controller depth");
                 keyboard.Keys=MenuKeyboard.MakeKeys(true);
                 PhysicalSurface.Paint(canvas,keyboard); canvas.Upload(); Save(canvas.Texture,Path.Combine(output,"keyboard-symbols-preview.png"));
-                foreach(string subtype in new[] { FighterProfile.Subtype,"OpenCockpitLarge" })
+                foreach(string subtype in new[] { CockpitLayout.Fighter,"OpenCockpitLarge" })
                 {
                     SeatPanel.TryMount(subtype,out _,out float width,out float height);
-                    var panel=new SurfaceView { Id="Seat",Title="SEAT",Keys=SeatPanel.Keys(subtype==FighterProfile.Subtype),Levels=new[] {1f,1f,0f,0f,1f},Width=width,Height=height };
+                    var panel=new SurfaceView { Id="Seat",Title="SEAT",Keys=SeatPanel.Keys(subtype==CockpitLayout.Fighter),Levels=new[] {1f,1f,0f,0f,1f},Width=width,Height=height };
                     Render(canvas,()=>PhysicalSurface.Paint(canvas,panel));
                     Save(canvas.Texture,Path.Combine(output,"seat-"+subtype+".png"));
                     using(var face=new OverlayCanvas("seat face",600,(int)(600*height/width),1,false,device))
@@ -434,11 +435,11 @@ namespace SpaceEngineersVR.Diagnostics
                 var wrist=new SurfaceView { Id="Wrist preview",Style=SurfaceStyle.WristStatus,Width=.133f,Height=.07f,Levels=new[] { .8f,.7f,.6f,.5f },Status=WristFixture() };
                 foreach(bool unlocked in new[] {false,true})
                 {
-                    SeatPanel.TryMount(FighterProfile.Subtype,out _,out float width,out float height);
+                    SeatPanel.TryMount(CockpitLayout.Fighter,out _,out float width,out float height);
                     PhysicalSurface.Paint(canvas,new SurfaceView { Id="Seat",Width=width,Height=height,Keys=SeatPanel.Keys(true,unlocked),Handle=unlocked ? 1 : 0 }); canvas.Upload();
                     Save(canvas.Texture,Path.Combine(output,"stick-placement-"+(unlocked ? "unlocked" : "locked")+".png"));
                 }
-                foreach(string subtype in new[] { FighterProfile.Subtype,"OpenCockpitLarge" })
+                foreach(string subtype in new[] { CockpitLayout.Fighter,"OpenCockpitLarge" })
                 {
                     foreach(int index in new[] {0,CockpitLayout.Count(subtype)-1})
                     {

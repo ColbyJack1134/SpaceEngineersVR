@@ -1,4 +1,3 @@
-using System;
 using System.Linq;
 using VRageMath;
 
@@ -6,35 +5,22 @@ namespace SpaceEngineersVR.Player
 {
     internal static class CockpitLayout
     {
-        public const string ControlSeat="OpenCockpitLarge";
-        public static bool Supported(string subtype) => subtype==FighterProfile.Subtype || Count(subtype)>0;
+        public const string ControlSeat="OpenCockpitLarge",Fighter="DBSmallBlockFighterCockpit";
+        public static bool Supported(string subtype) => Count(subtype)>0;
 
-        public static int Count(string subtype) => subtype==FighterProfile.Subtype ? CockpitSwitchGeometry.Count+1 : (CockpitRig.Find(subtype) is CockpitRig rig ? rig.Levers.Length+rig.Handles.Length:0);
-        internal static int MaximumCount => Math.Max(CockpitSwitchGeometry.Count+1,CockpitRig.All.Max(r=>r.Levers.Length+r.Handles.Length));
+        public static int Count(string subtype) => CockpitRig.Find(subtype)?.Count ?? 0;
+        internal static int MaximumCount => CockpitRig.All.Max(r=>r.Count);
 
-        // Centers measured from connected lever/key meshes in the installed MWM.
-        // The fighter cap is about 7 mm above its mesh center.
+        // Lever centers are measured from connected meshes in the installed MWM; caps sit about 7 mm above.
         public static MatrixD Control(string subtype,int index,out float size)
         {
-            Vector3D p,normal,up;
-            if(subtype==FighterProfile.Subtype)
-            {
-                if(index==CockpitBarGeometry.Slot) { size=.020f; return CockpitBarGeometry.TouchPose; }
-                p=CockpitSwitchGeometry.Centers[index]; normal=CockpitSwitchGeometry.NormalFor(index); up=CockpitSwitchGeometry.UpFor(index);
-                size=.018f; p+=normal*.007;
-            }
-            else if(CockpitRig.Find(subtype)?.HandleAt(index) is CockpitRig.Handle handle)
-            { size=handle.HalfWidth*2; return handle.TouchPose; }
-            else if(CockpitRig.Find(subtype)?.Levers[index] is CockpitRig.Lever lever)
-            {
-                p=lever.Center+lever.Normal*.007f; normal=lever.Normal; up=lever.Up; size=.018f;
-            }
-            else
-            {
-                p=new Vector3D(new[] {.6736,.6992,.7249,.7505}[index],-.5302,-.3159);
-                normal=Vector3D.Up; up=Vector3D.Forward; size=.022f;
-            }
-            return MatrixD.CreateWorld(p,-normal,up);
+            var rig=CockpitRig.Find(subtype);
+            if(rig?.HandleAt(index) is CockpitRig.Handle handle) { size=handle.HalfWidth*2; return handle.TouchPose; }
+            if(rig?.BarAt(index) is CockpitRig.Bar bar) { size=bar.Width; return bar.TouchPose; }
+            if(rig?.ButtonAt(index) is CockpitRig.Button button) { size=button.Size; return button.TouchPose; }
+            var lever=rig.LeverAt(index);
+            size=.018f;
+            return MatrixD.CreateWorld(lever.Center+lever.Normal*.007f,-lever.Normal,lever.Up);
         }
     }
 }

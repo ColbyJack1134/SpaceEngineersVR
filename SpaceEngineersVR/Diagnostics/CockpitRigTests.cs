@@ -23,9 +23,32 @@ namespace SpaceEngineersVR.Diagnostics
                 var mesh=rig.Geometry(content);
                 if(mesh.Parts.Length!=rig.ActorCount || !rig.Matches(rig.Model))
                     throw new Exception("Cockpit rig model or actor count mismatch: "+rig.Subtype);
-                int copied=rig.Levers.Where(l=>l!=null && l.TemplateActor>=0).Sum(l=>mesh.Parts[l.Actor].Indices.Count+(l.TemplateBase?.Triangles ?? 0)*3);
-                if((rig.IsFighter ? mesh.Parts.Take(6).Sum(p=>p.Indices.Count):mesh.Parts.Sum(p=>p.Indices.Count)-copied)!=mesh.NativeTriangles*3)
+                int copied=rig.Levers.Where(l=>l.TemplateActor>=0).Sum(l=>mesh.Parts[l.Actor].Indices.Count+(l.TemplateBase?.Triangles ?? 0)*3);
+                if(mesh.Parts.Sum(p=>p.Indices.Count)-copied!=mesh.NativeTriangles*3)
                     throw new Exception("Cockpit partition lost native triangles: "+rig.Subtype);
+                for(int actor=0;actor<mesh.Parts.Length;actor++)
+                {
+                    var part=mesh.Parts[actor];
+                    if(part.Indices.Count!=part.Positions.Count || part.Normals.Count!=part.Positions.Count || part.Tangents.Count!=part.Positions.Count || part.TexCoords.Count!=part.Positions.Count)
+                        throw new Exception("Cockpit runtime mesh channel counts differ: "+rig.Subtype+"/"+actor);
+                    if(!part.Normals.All(v=>v.IsValid() && Math.Abs(v.Length()-1)<.001f))
+                        throw new Exception("Cockpit runtime normal is not unit: "+rig.Subtype+"/"+actor);
+                }
+                // Installed tangents are passed through unchanged; only the extended bar stem is recomputed.
+                if(rig.Bars.Any(b=>!mesh.Parts[b.Actor].Tangents.All(v=>v.IsValid() && Math.Abs(v.Length()-1)<.001f)))
+                    throw new Exception("Extended bar stem has an invalid tangent: "+rig.Subtype);
+                Levers(rig,mesh);
+                foreach(var bar in rig.Bars)
+                {
+                    var stem=mesh.Parts[bar.Actor].Positions.Select(p=>Vector3.Dot(p,bar.Normal)).ToArray();
+                    if(!stem.Any(d=>d<bar.StemDepth-bar.Travel*.5f))
+                        throw new Exception("Pull bar stem was not extended into its housing: "+rig.Subtype);
+                    if(!(stem.Min()+bar.Travel<bar.StemDepth))
+                        throw new Exception("Pulled bar stem leaves its housing: "+rig.Subtype);
+                    var pulled=Vector3.Transform(bar.Front,bar.Visual(1))-bar.Front;
+                    if(Math.Abs(Vector3.Dot(pulled,bar.Normal)-bar.Travel)>.00001f || !bar.TouchPose.IsValid())
+                        throw new Exception("Pull bar travel or contact differs from its rig data: "+rig.Subtype);
+                }
                 foreach(var hand in new[] {true,false})
                 {
                     var stick=hand ? rig.Left : rig.Right;
@@ -47,7 +70,7 @@ namespace SpaceEngineersVR.Diagnostics
                         foreach(var axis in new[] {Vector3.Right,Vector3.Up,Vector3.Backward})
                         foreach(float sign in new[] {-1f,1f})
                         {
-                            var turn=Matrix.CreateFromAxisAngle(Vector3.TransformNormal(axis,stick.Frame),-sign*FighterProfile.Tilt);
+                            var turn=Matrix.CreateFromAxisAngle(Vector3.TransformNormal(axis,stick.Frame),-sign*CockpitStickMath.TiltRange);
                             var actual=CockpitStickMath.Rotation(grab,grab*turn,.08f,true,1,stick.Frame);
                             if(Vector3.Distance(actual,axis*sign)>.0002f)
                                 throw new Exception("Cockpit shaft input axis or sign mismatch");
@@ -99,6 +122,70 @@ namespace SpaceEngineersVR.Diagnostics
                 }
                 log("PASS installed cockpit rig: "+rig.Subtype+"; "+mesh.Parts.Length+" actors, "+mesh.NativeTriangles+" conserved triangles");
             }
+            Layout(log);
+        }
+        private static void Levers(CockpitRig rig,CockpitGeometry mesh)
+        {
+            foreach(var lever in rig.Levers)
+            {
+                if(Vector3.Distance(Vector3.Transform(lever.Pivot,lever.Visual(1)),lever.Pivot)>.00001f)
+                    throw new Exception("Lever pivot moves: "+rig.Subtype);
+                var off=Vector3.Transform(lever.Center,lever.Visual(0));
+                if(!(Vector3.Dot(Vector3.Transform(lever.Center,lever.Visual(1))-off,lever.Up)>0))
+                    throw new Exception("Lever flips away from up: "+rig.Subtype);
+                if(lever.CoverActor<0) continue;
+                for(int step=0;step<=10;step++)
+                {
+                    var visual=lever.CoverVisual(step/10f);
+                    if(Vector3.Distance(Vector3.Transform(lever.Hinge,visual),lever.Hinge)>.00001f || Math.Abs(visual.Determinant()-1)>.00001f || !lever.CoverPose(step/10f).IsValid())
+                        throw new Exception("Cover hinge, rigidity or hit plane is invalid: "+rig.Subtype);
+                }
+            }
+            // Open and closed cover models on the same panel must agree at both endpoints once their initial pose is applied.
+            // A wrong initial pose is off by the full 65 degree travel; measured covers on one panel vary by a few degrees.
+            Vector3 Face(CockpitRig.Lever lever)
+            {
+                var part=mesh.Parts[lever.CoverActor];
+                Vector3 face=Vector3.Zero; float largest=0;
+                for(int t=0;t<part.Indices.Count;t+=3)
+                {
+                    var a=part.Positions[part.Indices[t]];
+                    var cross=Vector3.Cross(part.Positions[part.Indices[t+1]]-a,part.Positions[part.Indices[t+2]]-a);
+                    float area=cross.Length();
+                    if(area>largest && Math.Abs(Vector3.Dot(cross/area,lever.Axis))<.2f) { largest=area; face=cross/area; }
+                }
+                if(largest==0) throw new Exception("Cover leaf face missing: "+rig.Subtype);
+                return face;
+            }
+            var faces=rig.Levers.Where(l=>l.CoverActor>=0).ToDictionary(l=>l,Face);
+            foreach(var lever in faces.Keys)
+            foreach(var reference in faces.Keys.Where(l=>l.CoverInitial!=lever.CoverInitial && Vector3.Dot(l.Axis,lever.Axis)>Math.Cos(Math.PI/180) && Vector3.Dot(l.Normal,lever.Normal)>Math.Cos(Math.PI/180)))
+            foreach(float endpoint in new[] {0f,1f})
+            {
+                var face=Vector3.TransformNormal(faces[lever],lever.CoverVisual(endpoint));
+                var expected=Vector3.TransformNormal(faces[reference],reference.CoverVisual(endpoint));
+                if(Math.Abs(Vector3.Dot(face,expected))<Math.Cos(MathHelper.ToRadians(10)))
+                    throw new Exception("Open and closed cover models disagree at the same endpoint: "+rig.Subtype+" levers "+Array.IndexOf(rig.Levers,lever)+"/"+Array.IndexOf(rig.Levers,reference)+
+                        " at "+endpoint+", "+MathHelper.ToDegrees((float)Math.Acos(Math.Min(1,Math.Abs(Vector3.Dot(face,expected)))))+" degrees");
+            }
+        }
+        // Slot numbers and cover indices are persisted in toolbars, saves and multiplayer state.
+        private static void Layout(Action<string> log)
+        {
+            var fighter=CockpitRig.Find(CockpitLayout.Fighter);
+            if(fighter.Count!=42 || fighter.Levers.Length!=41 || fighter.BarAt(41)==null || fighter.Levers.Count(l=>l.CoverActor>=0)!=25)
+                throw new Exception("Fighter slot layout changed");
+            for(int slot=0;slot<fighter.Count;slot++)
+                if(fighter.CoverIndex(slot)!=(slot<13 ? slot : slot>=21 && slot<33 ? slot-8 : -1))
+                    throw new Exception("Fighter cover storage index changed: "+slot);
+            var seat=CockpitRig.Find(CockpitLayout.ControlSeat);
+            if(seat.Buttons.Length!=4 || seat.Count!=61 || seat.HandleAt(59)==null || seat.HandleAt(60)==null)
+                throw new Exception("Control Seat slot layout changed");
+            foreach(var rig in CockpitRig.All.Where(r=>r!=fighter))
+                for(int slot=0;slot<rig.Count;slot++)
+                    if(rig.CoverIndex(slot)!=(rig.LeverAt(slot)?.CoverActor>=0 ? slot : -1))
+                        throw new Exception("Cover storage index is not the slot: "+rig.Subtype);
+            log("PASS persisted cockpit slot layout and cover storage indices");
         }
     }
 }

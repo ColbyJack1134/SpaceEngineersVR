@@ -11,13 +11,13 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Run(string game,Action<string> log,string subtype=null)
         {
             string content=Path.GetFullPath(Path.Combine(game,"..","Content"));
-            var rig=subtype==null ? null : CockpitRig.Find(subtype) ?? throw new ArgumentException("Unknown cockpit: "+subtype);
+            var rig=CockpitRig.Find(subtype ?? CockpitLayout.Fighter) ?? throw new ArgumentException("Unknown cockpit: "+subtype);
             for(int i=0;i<6;i++)
             {
                 int collections=GC.CollectionCount(0);
-                if(rig!=null) HarmonyLib.AccessTools.Field(typeof(CockpitRig),"geometry").SetValue(rig,null);
+                HarmonyLib.AccessTools.Field(typeof(CockpitRig),"geometry").SetValue(rig,null);
                 var clock=Stopwatch.StartNew();
-                var geometry=rig==null ? CockpitGeometry.Load(content) : rig.Geometry(content);
+                var geometry=rig.Geometry(content);
                 clock.Stop();
                 log($"Geometry load {i}: {clock.Elapsed.TotalMilliseconds:F3} ms; gen0 {GC.CollectionCount(0)-collections}");
                 if(i!=0) continue;

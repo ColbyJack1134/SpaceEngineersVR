@@ -140,7 +140,7 @@ namespace SpaceEngineersVR.Diagnostics
                     if (DateTime.UtcNow<next) return;
                     if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_CAMERA_HUD_ONLY")=="1")
                     {
-                        native=MyRenderProxy.CreateRenderEntity("SEVR camera probe",FighterProfile.Model,MatrixD.Identity,MyMeshDrawTechnique.MESH,
+                        native=MyRenderProxy.CreateRenderEntity("SEVR camera probe",CockpitRig.Find(CockpitLayout.Fighter).Model,MatrixD.Identity,MyMeshDrawTechnique.MESH,
                             RenderFlags.Visible|RenderFlags.CastShadows,(CullingOptions)0,Color.White,neutralPaint);
                         phase=24; BeginCameraHud(); next=DateTime.UtcNow.AddSeconds(6); return;
                     }
@@ -155,7 +155,7 @@ namespace SpaceEngineersVR.Diagnostics
                     AnalogControlTests.RunNative(line=>Logger.Info(line));
                     BuildOrientationTests.RunNative(line=>Logger.Info(line));
                     CockpitHandTests.NativeContacts(line=>Logger.Info(line));
-                    native=MyRenderProxy.CreateRenderEntity("SEVR probe interior",FighterProfile.Model,MatrixD.Identity,MyMeshDrawTechnique.MESH,
+                    native=MyRenderProxy.CreateRenderEntity("SEVR probe interior",CockpitRig.Find(CockpitLayout.Fighter).Model,MatrixD.Identity,MyMeshDrawTechnique.MESH,
                         RenderFlags.Visible|RenderFlags.CastShadows,(CullingOptions)0,Color.White,neutralPaint);
                     assignment=new AssignmentPreview(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(assignment);
                     phase=1; next=DateTime.UtcNow.AddSeconds(6);
@@ -175,7 +175,7 @@ namespace SpaceEngineersVR.Diagnostics
                 MatrixD modelWorld=MatrixD.Identity;
                 if(phase>=20 && phase<29)
                 {
-                    var model=VRage.Game.Models.MyModels.GetModelOnlyData(FighterProfile.Model);
+                    var model=VRage.Game.Models.MyModels.GetModelOnlyData(CockpitRig.Find(CockpitLayout.Fighter).Model);
                     var miniature=new Player.Control.Diorama();
                     miniature.Fit(model.BoundingBox.Size.Length(),MatrixD.CreateRotationY(.3),new Vector3D(0,-.15,-1.15));
                     if(phase>=22)
@@ -216,7 +216,7 @@ namespace SpaceEngineersVR.Diagnostics
                 if(phase>=35)
                 {
                     eye=new Vector3D(.16,-.07,.16);
-                    view=MatrixD.CreateLookAt(eye,CockpitBarGeometry.Front,Vector3D.Up); fov=.25f;
+                    view=MatrixD.CreateLookAt(eye,CockpitRig.Find(CockpitLayout.Fighter).Bars[0].Front,Vector3D.Up); fov=.25f;
                 }
                 if(phase>=45 && phase<=46)
                 {
@@ -247,11 +247,11 @@ namespace SpaceEngineersVR.Diagnostics
                 if (phase>=2 && phase<45 && phase!=7 && phase!=15)
                 {
                     bool moved=phase==5 || phase==6 || phase==12 || phase==13;
-                    Matrix l=moved ? CockpitRig.Fighter.Left.Visual(new Vector3(0.5f,0.4f,0.5f)) : Matrix.Identity;
-                    Matrix r=moved ? CockpitRig.Fighter.Right.Visual(new Vector3(0.5f,0.4f,0.6f)) : Matrix.Identity;
+                    Matrix l=moved ? CockpitRig.Find(CockpitLayout.Fighter).Left.Visual(new Vector3(0.5f,0.4f,0.5f)) : Matrix.Identity;
+                    Matrix r=moved ? CockpitRig.Find(CockpitLayout.Fighter).Right.Visual(new Vector3(0.5f,0.4f,0.6f)) : Matrix.Identity;
                     Vector3 lo=phase>=10 && phase<14 ? new Vector3(.07f,.10f,.10f) : Vector3.Zero;
                     Vector3 ro=phase>=10 && phase<14 ? new Vector3(-.07f,.12f,.08f) : Vector3.Zero;
-                    CockpitRender.UpdateScene(native,modelWorld,StickPlacement.Visual(l,lo),StickPlacement.Visual(r,ro),moved,moved,lo,ro,moved || phase==30 || phase==32 || phase==34 ? 1f : 0f,phase>=31 ? phase==32 ? 1f : 0f : moved || phase>=16 && phase<=19 ? 1f : (float?)null,colorMask:phase>=14 ? new Vector3(.58f,0,.02f) : neutralPaint,
+                    CockpitRender.UpdateScene(CockpitRig.Find(CockpitLayout.Fighter),native,modelWorld,StickPlacement.Visual(l,lo),StickPlacement.Visual(r,ro),moved,moved,lo,ro,moved || phase==30 || phase==32 || phase==34 ? 1f : 0f,phase>=31 ? phase==32 ? 1f : 0f : moved || phase>=16 && phase<=19 ? 1f : (float?)null,colorMask:phase>=14 ? new Vector3(.58f,0,.02f) : neutralPaint,
                         previewHover:phase==17 ? 0 : phase==18 ? 9 : -1,previewHeld:phase==17 ? 1 : phase==18 ? 10 : phase==30 ? 19 : -1,previewCover:phase==18,nativeRest:phase<16 && !moved,barPreview:phase==36 ? 1f : 0f);
                 }
                 if(phase>=14 && native!=uint.MaxValue) MyRenderProxy.UpdateRenderEntity(native,null,new Vector3(.58f,0,.02f));
@@ -387,8 +387,8 @@ namespace SpaceEngineersVR.Diagnostics
                 bool moved=rigStep==2;
                 Matrix left=moved && rig.Left!=null ? rig.Left.Visual(new Vector3(.5f,.4f,.6f)) : Matrix.Identity;
                 Matrix right=moved && rig.Right!=null ? rig.Right.Visual(new Vector3(-.5f,.4f,-.6f)) : Matrix.Identity;
-                CockpitRender.UpdateScene(native,MatrixD.Identity,left,right,moved,moved,switchPreview:moved ? 1f:0f,coverPreview:moved ? 1f:0f,
-                    colorMask:neutralPaint,nativeRest:!moved,rig:rig);
+                CockpitRender.UpdateScene(rig,native,MatrixD.Identity,left,right,moved,moved,switchPreview:moved ? 1f:0f,coverPreview:moved ? 1f:0f,
+                    colorMask:neutralPaint,nativeRest:!moved);
             }
             MyRenderProxy.Draw3DScene();
             if(DateTime.UtcNow<next || (rigStep==1 || rigStep==2) && !CockpitRender.Ready) return;

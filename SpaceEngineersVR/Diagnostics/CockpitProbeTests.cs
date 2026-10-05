@@ -31,18 +31,19 @@ namespace SpaceEngineersVR.Diagnostics
             Require(!new CockpitProbe(MatrixD.CreateTranslation(0,0,.0031)).Intersects(face),"Fingertip approach tolerance reaches too far ahead");
             Require(!new CockpitProbe(MatrixD.CreateTranslation(double.NaN,0,0)).Intersects(face),"Invalid capsule enters control");
 
-            var surface=CockpitButtons.Preview(FighterProfile.Subtype,CockpitBarGeometry.Slot);
-            var stick=FighterProfile.RightContact+new Vector3(-.121576294f,.007814497f,-.120211542f);
+            var fighter=CockpitRig.Find(CockpitLayout.Fighter); var bar=fighter.Bars[0];
+            var surface=CockpitButtons.Preview(CockpitLayout.Fighter,fighter.Count-1);
+            var stick=fighter.Right.Contact+new Vector3(-.121576294f,.007814497f,-.120211542f);
             foreach(float position in new[] {0f,.5f,1f}) foreach(float y in new[] {-.045f,0,.045f})
             {
-                surface.Pose=CockpitBarGeometry.TouchPose;
-                surface.Pose.Translation+=CockpitBarGeometry.Normal*(position*CockpitBarGeometry.Travel);
+                surface.Pose=bar.TouchPose;
+                surface.Pose.Translation+=bar.Normal*(position*bar.Travel);
                 var tip=Vector3D.Transform(new Vector3D(0,y,0),surface.Pose);
                 var direction=Vector3D.Normalize(tip-stick);
                 var probe=new CockpitProbe(MatrixD.CreateWorld(tip,direction,Vector3D.Up));
                 int key=CockpitTouch.NearKey(surface,probe.Transform(MatrixD.Invert(surface.Pose)),out float distance,out var contact,.004f);
                 Require(key==0 && distance<.00001 && Math.Abs(contact.Y-y)<.00001,"Bar end/center contact lost on seated joystick-side approach");
-                Require(CockpitPanelGuard.Contains(FighterProfile.Subtype,probe),"Bar contact is not protected in every native state");
+                Require(CockpitPanelGuard.Contains(CockpitLayout.Fighter,probe),"Bar contact is not protected in every native state");
             }
             var panel=new SurfaceView {Style=SurfaceStyle.ModelControl,Width=.10f,Height=.10f,
                 Keys=new[] {new SurfaceKey("Left",0,0,.45f,1),new SurfaceKey("Right",.55f,0,.45f,1)}};

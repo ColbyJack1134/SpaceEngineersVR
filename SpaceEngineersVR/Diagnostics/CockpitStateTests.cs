@@ -59,21 +59,25 @@ namespace SpaceEngineersVR.Diagnostics
             Require(CockpitSwitchState.ReadValues(group,properties)==1,"Mixed locked/unconnected group falsely reports ready");
             other.Status=MyShipConnectorStatus.Unconnected;
             Require(CockpitSwitchState.ReadValues(group,properties)==0,"Fully disconnected group remains up");
-            foreach(var region in CockpitPanelGuard.Fighter)
+            foreach(var rig in CockpitRig.All)
             {
-                var center=Vector3.Transform(region.Bounds.Center,region.Frame);
-                Require(region.Contains(center),"Panel guard misses its own approach volume");
-                Require(!region.Contains(Vector3.Transform(region.Bounds.Max+Vector3.One*.01f,region.Frame)),"Panel guard leaks outside its bounds");
-                Require(!region.Contains(new Vector3(float.NaN,0,0)),"Invalid tracking enters a guard");
+                foreach(var region in CockpitPanelGuard.Regions(rig))
+                {
+                    var center=Vector3.Transform(region.Bounds.Center,region.Frame);
+                    Require(region.Contains(center),"Panel guard misses its own approach volume");
+                    Require(!region.Contains(Vector3.Transform(region.Bounds.Max+Vector3.One*.01f,region.Frame)),"Panel guard leaks outside its bounds");
+                    Require(!region.Contains(new Vector3(float.NaN,0,0)),"Invalid tracking enters a guard");
+                }
+                Vector3D Tip(int slot) { var pose=CockpitLayout.Control(rig.Subtype,slot,out _); return pose.Translation+pose.Backward*.033; }
+                foreach(var bank in rig.Banks) for(int slot=bank.First;slot<=bank.Last;slot++)
+                {
+                    Require(CockpitPanelGuard.Contains(rig.Subtype,new CockpitProbe(MatrixD.CreateTranslation(Tip(slot)))),"Switch approach is unprotected: "+rig.Subtype+"/"+slot);
+                    if(slot<bank.Last) Require(CockpitPanelGuard.Contains(rig.Subtype,new CockpitProbe(MatrixD.CreateTranslation((Tip(slot)+Tip(slot+1))*.5))),
+                        "Space between neighboring controls is unprotected: "+rig.Subtype+"/"+slot);
+                }
+                Require(!CockpitPanelGuard.Contains(rig.Subtype,new CockpitProbe(MatrixD.Identity)),"Empty cockpit space suppresses firing: "+rig.Subtype);
             }
-            for(int slot=0;slot<CockpitSwitchGeometry.Count;slot++)
-            {
-                Vector3 tip=CockpitSwitchGeometry.Centers[slot]+CockpitSwitchGeometry.NormalFor(slot)*.04f;
-                Require(CockpitPanelGuard.Contains(FighterProfile.Subtype,new CockpitProbe(MatrixD.CreateTranslation(tip))),"Switch approach gap is unprotected: "+slot);
-            }
-            var gap=(CockpitSwitchGeometry.Centers[21]+CockpitSwitchGeometry.Centers[22])*.5f+CockpitSwitchGeometry.NormalFor(21)*.04f;
-            Require(CockpitPanelGuard.Contains(FighterProfile.Subtype,new CockpitProbe(MatrixD.CreateTranslation(gap))),"Space between neighboring controls is unprotected");
-            Require(!CockpitPanelGuard.Contains(FighterProfile.Subtype,new CockpitProbe(MatrixD.Identity)),"Empty cockpit space suppresses firing");
+            Require(CockpitPanelGuard.Regions(CockpitRig.Find(CockpitLayout.Fighter)).Length==14,"Fighter switch banks, pull bar or screens lost their guards");
             var surface=new SurfaceView {Pose=MatrixD.CreateRotationX(.4)*MatrixD.CreateTranslation(2e6,-3e6,4e6),Width=.108f,Height=.120f};
             Require(CockpitPanelGuard.NearSurface(surface,new CockpitProbe(MatrixD.CreateTranslation(.065,0,.04)*surface.Pose)),"Moved seat-panel margin is lost at large world coordinates");
             Require(!CockpitPanelGuard.NearSurface(surface,new CockpitProbe(MatrixD.CreateTranslation(.20,0,.04)*surface.Pose)),"Seat-panel protection consumes distant firing");

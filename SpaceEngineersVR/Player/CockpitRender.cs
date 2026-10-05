@@ -31,9 +31,6 @@ namespace SpaceEngineersVR.Player
             public Verification(uint interior,int count,string[] materials)
             { Interior=interior; Verified=new bool[count]; Poses=new MatrixD?[count]; Materials=materials; }
         }
-        private const int CoverBase=7+CockpitSwitchGeometry.Count;
-        private const int BarActor=CoverBase+1+CockpitCoverGeometry.Count;
-        private static readonly string[] fighterMaterials={FighterProfile.Material,CockpitSwitchGeometry.Material,CockpitCoverGeometry.Material};
         private static Verification verification;
         private static CockpitGeometry geometry;
         private static CockpitRig activeRig;
@@ -67,9 +64,9 @@ namespace SpaceEngineersVR.Player
             if (render==null || render.RenderObjectIDs.Length<(interior ? 2:1)) return;
             uint model=interior ? render.InteriorRenderId:render.ExteriorRenderId;
             if(model==uint.MaxValue) return;
-            UpdateScene(model,cockpit.WorldMatrix,left,right,leftHeld,rightHeld,leftOffset,rightOffset,colorMask:cockpit.SlimBlock.ColorMaskHSV,rig:CockpitRig.Find(cockpit.BlockDefinition.Id.SubtypeName));
+            UpdateScene(CockpitRig.Find(cockpit.BlockDefinition.Id.SubtypeName),model,cockpit.WorldMatrix,left,right,leftHeld,rightHeld,leftOffset,rightOffset,colorMask:cockpit.SlimBlock.ColorMaskHSV);
         }
-        internal static void UpdateScene(uint interior,MatrixD world,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3),float? switchPreview=null,float? coverPreview=null,Vector3? colorMask=null,int previewHover=-1,int previewHeld=-1,bool previewCover=false,bool nativeRest=false,float? barPreview=null,CockpitRig rig=null)
+        internal static void UpdateScene(CockpitRig rig,uint interior,MatrixD world,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3),float? switchPreview=null,float? coverPreview=null,Vector3? colorMask=null,int previewHover=-1,int previewHeld=-1,bool previewCover=false,bool nativeRest=false,float? barPreview=null)
         {
             if (failed) return;
             try
@@ -80,10 +77,9 @@ namespace SpaceEngineersVR.Player
                 }
                 if (verification==null)
                 {
-                    activeRig=rig ?? CockpitRig.Fighter;
+                    activeRig=rig;
                     geometry=activeRig.Geometry(MyFileSystem.ContentPath);
-                    var hidden=activeRig.IsFighter ? fighterMaterials : activeRig.Pieces.Select(p=>p.Material).Distinct().ToArray();
-                    verification=new Verification(interior,geometry.Parts.Length,hidden);
+                    verification=new Verification(interior,geometry.Parts.Length,activeRig.Pieces.Select(p=>p.Material).Distinct().ToArray());
                     deadline=DateTime.UtcNow.AddSeconds(8);
                     // This also converts the instance to the engine's supported per-material pipeline.
                     foreach(string material in verification.Materials)
@@ -131,43 +127,33 @@ namespace SpaceEngineersVR.Player
                 foreach(int actor in activeRig.StaticActors) UpdatePose(check,actor,world);
                 UpdateRigStick(check,activeRig.Left,left,leftOffset,leftHeld,world);
                 UpdateRigStick(check,activeRig.Right,right,rightOffset,rightHeld,world);
-                if(!activeRig.IsFighter)
+                string subtype=activeRig.Subtype;
+                int State(int slot,bool cover)
                 {
-                    for(int i=0;i<activeRig.Levers.Length;i++)
-                    {
-                        var lever=activeRig.Levers[i]; if(lever==null) continue;
-                        var touch=CockpitTouch.Read("CockpitControl"+i);
-                        UpdatePose(check,lever.Actor,(MatrixD)(nativeRest ? Matrix.Identity : lever.Visual(switchPreview ?? CockpitButtons.SwitchPosition(i,activeRig.Subtype)))*world);
-                        SetRigFeedback(check,lever.Actor,touch.Held>=0 ? 2 : touch.Hover>=0 ? 1 : 0);
-                        if(lever.CoverActor<0) continue;
-                        touch=CockpitTouch.Read("CockpitCover"+i);
-                        UpdatePose(check,lever.CoverActor,(MatrixD)(nativeRest ? Matrix.Identity : lever.CoverVisual(coverPreview ?? CockpitButtons.CoverPosition(i,activeRig.Subtype)))*world);
-                        SetRigFeedback(check,lever.CoverActor,touch.Held>=0 ? 2 : touch.Hover>=0 ? 1 : 0);
-                    }
-                    for(int i=0;i<activeRig.Handles.Length;i++)
-                    {
-                        int slot=activeRig.Levers.Length+i;
-                        var handle=activeRig.Handles[i]; var touch=CockpitTouch.Read("CockpitControl"+slot);
-                        UpdatePose(check,handle.Actor,(MatrixD)(nativeRest ? Matrix.Identity : handle.Visual(switchPreview ?? CockpitButtons.SwitchPosition(slot,activeRig.Subtype)))*world);
-                        SetRigFeedback(check,handle.Actor,touch.Held>=0 ? 2 : touch.Hover>=0 ? 1 : 0);
-                    }
-                    return;
+                    var touch=CockpitTouch.Read((cover ? "CockpitCover":"CockpitControl")+slot);
+                    bool preview=previewCover==cover;
+                    return preview && slot==previewHeld || touch.Held>=0 ? 2 : preview && slot==previewHover || touch.Hover>=0 ? 1 : 0;
                 }
-                for(int i=0;i<CockpitSwitchGeometry.Count;i++) UpdatePose(check,7+i,(MatrixD)(nativeRest ? Matrix.Identity : CockpitSwitchGeometry.Visual(i,switchPreview ?? CockpitButtons.SwitchPosition(i)))*world);
-                for(int i=0;i<CockpitCoverGeometry.Count;i++) UpdatePose(check,CoverBase+1+i,
-                    (MatrixD)CockpitCoverGeometry.Visual(i,nativeRest ? CockpitCoverGeometry.Initial(i) : coverPreview ?? CockpitButtons.CoverPosition(CockpitCoverGeometry.Slot(i),FighterProfile.Subtype))*world);
-                UpdatePose(check,BarActor,(MatrixD)CockpitBarGeometry.Visual(nativeRest ? 0 : barPreview ?? CockpitButtons.SwitchPosition(CockpitBarGeometry.Slot))*world);
-                var bar=CockpitTouch.Read("CockpitControl"+CockpitBarGeometry.Slot);
-                SetFeedback(check.Actors[BarActor],CockpitCoverGeometry.Material,
-                    previewHeld==CockpitBarGeometry.Slot || bar.Held>=0 ? 2 : previewHover==CockpitBarGeometry.Slot || bar.Hover>=0 ? 1 : 0);
-                for(int i=0;i<CockpitSwitchGeometry.Count;i++)
+                for(int slot=0;slot<activeRig.Count;slot++)
                 {
-                    var lever=CockpitTouch.Read("CockpitControl"+i);
-                    var cover=CockpitTouch.Read("CockpitCover"+i);
-                    SetFeedback(check.Actors[7+i],CockpitSwitchGeometry.Material,
-                        !previewCover && i==previewHeld || lever.Held>=0 ? 2 : !previewCover && i==previewHover || lever.Hover>=0 ? 1 : 0);
-                    if(CockpitSwitchGeometry.Covered(i)) SetFeedback(check.Actors[CoverBase+1+CockpitSwitchGeometry.CoverIndex(i)],CockpitCoverGeometry.Material,
-                        previewCover && i==previewHeld || cover.Held>=0 ? 2 : previewCover && i==previewHover || cover.Hover>=0 ? 1 : 0);
+                    if(activeRig.LeverAt(slot) is CockpitRig.Lever lever)
+                    {
+                        UpdatePose(check,lever.Actor,(MatrixD)(nativeRest ? Matrix.Identity : lever.Visual(switchPreview ?? CockpitButtons.SwitchPosition(slot,subtype)))*world);
+                        SetRigFeedback(check,lever.Actor,State(slot,false));
+                        if(lever.CoverActor<0) continue;
+                        UpdatePose(check,lever.CoverActor,(MatrixD)(nativeRest ? Matrix.Identity : lever.CoverVisual(coverPreview ?? CockpitButtons.CoverPosition(slot,subtype)))*world);
+                        SetRigFeedback(check,lever.CoverActor,State(slot,true));
+                    }
+                    else if(activeRig.HandleAt(slot) is CockpitRig.Handle handle)
+                    {
+                        UpdatePose(check,handle.Actor,(MatrixD)(nativeRest ? Matrix.Identity : handle.Visual(switchPreview ?? CockpitButtons.SwitchPosition(slot,subtype)))*world);
+                        SetRigFeedback(check,handle.Actor,State(slot,false));
+                    }
+                    else if(activeRig.BarAt(slot) is CockpitRig.Bar bar)
+                    {
+                        UpdatePose(check,bar.Actor,(MatrixD)(nativeRest ? Matrix.Identity : bar.Visual(barPreview ?? CockpitButtons.SwitchPosition(slot,subtype)))*world);
+                        SetRigFeedback(check,bar.Actor,State(slot,false));
+                    }
                 }
             }
             catch(Exception ex)
@@ -180,7 +166,6 @@ namespace SpaceEngineersVR.Player
         {
             if(stick==null) return;
             UpdatePose(check,stick.Actor,(MatrixD)visual*world);
-            if(stick.StemActor>=0) UpdatePose(check,stick.StemActor,(MatrixD)visual*world);
             SetRigFeedback(check,stick.Actor,held ? 2:0);
             if(stick.BaseActor>=0) UpdatePose(check,stick.BaseActor,MatrixD.CreateTranslation(offset)*world);
         }
@@ -199,12 +184,6 @@ namespace SpaceEngineersVR.Player
             MyRenderProxy.UpdateRenderObject(check.Actors[index],pose);
         }
         private static readonly System.Collections.Generic.Dictionary<uint,int> feedback=new System.Collections.Generic.Dictionary<uint,int>();
-        private static void SetFeedback(uint id,string material,int state)
-        {
-            if (feedback.TryGetValue(id,out int prior) && prior==state) return;
-            feedback[id]=state;
-            ApplyFeedback(id,material,state);
-        }
         private static void ApplyFeedback(uint id,string material,int state)
         {
             MyRenderProxy.UpdateModelProperties(id,material,RenderFlags.Visible,RenderFlags.Visible,
@@ -243,7 +222,10 @@ namespace SpaceEngineersVR.Player
                 foreach (object lod in lods)
                 foreach (object proxy in (IEnumerable)Member(lod,"RenderableProxies"))
                 {
-                    string material=Member(Member(Member(proxy,"Material"),"Info"),"Name").ToString();
+                    // Proxies can carry MyMeshMaterialId.NULL, whose Info getter indexes the table with -1.
+                    object materialId=Member(proxy,"Material");
+                    if(Convert.ToInt32(Member(materialId,"Index"))<0) continue;
+                    string material=Member(Member(materialId,"Info"),"Name").ToString();
                     object flags=Member(proxy,"Flags");
                     long mask=Convert.ToInt64(Enum.Parse(flags.GetType(),"SkipInMainView, SkipInDepth, SkipInForward"));
                     long value=Convert.ToInt64(flags);

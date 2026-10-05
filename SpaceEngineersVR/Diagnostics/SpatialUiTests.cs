@@ -218,7 +218,7 @@ namespace SpaceEngineersVR.Diagnostics
                     Require(Vector3D.Dot(opened.Backward,-mount.Right*side)>.9999,"Wrist opens away from chosen viewer side");
                 }
             }
-            foreach(string subtype in new[] { FighterProfile.Subtype,"OpenCockpitLarge" })
+            foreach(string subtype in new[] { CockpitLayout.Fighter,"OpenCockpitLarge" })
             {
                 Require(SeatPanel.TryMount(subtype,out var mount,out float w,out float h) && mount.IsValid(),"Missing measured console mount");
                 var panel=new SurfaceView { Width=w,Height=h,Keys=SeatPanel.Keys(true,true) };
@@ -292,11 +292,11 @@ namespace SpaceEngineersVR.Diagnostics
             for(int i=0;i<100;i++)
             {
                 Matrix neutral=Matrix.CreateFromYawPitchRoll(i*.02f,.2f,-.1f);
-                Matrix captured=CockpitRig.Fighter.Right.Palm(false);
-                Matrix turn=CockpitRig.Fighter.Right.Visual(new Vector3(.6f,-.4f,.3f));
+                Matrix captured=CockpitRig.Find(CockpitLayout.Fighter).Right.Palm(false);
+                Matrix turn=CockpitRig.Find(CockpitLayout.Fighter).Right.Visual(new Vector3(.6f,-.4f,.3f));
                 Matrix wrist=captured*turn;
                 Vector3 palm=Vector3.Transform(new Vector3(-.105f,-.035f,0),wrist);
-                Require(Vector3.Distance(palm,Vector3.Transform(FighterProfile.RightContact+captured.Backward*.035f+captured.Up*.015f,turn))<1e-5,"Raised grasp separated from stick");
+                Require(Vector3.Distance(palm,Vector3.Transform(CockpitRig.Find(CockpitLayout.Fighter).Right.Contact+captured.Backward*.035f+captured.Up*.015f,turn))<1e-5,"Raised grasp separated from stick");
                 Matrix head=Matrix.CreateRotationY(i*.07f); head.Translation=new Vector3(1,1.4f,-2);
                 Matrix hand=Matrix.CreateTranslation(.3f,1.1f,-2.4f);
                 var wheel=ToolbarWheel.HandPose(hand,head);

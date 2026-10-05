@@ -14,16 +14,15 @@ namespace SpaceEngineersVR.Player
         internal sealed class Stick
         {
             public readonly Vector3 Contact,Pivot,Shaft;
-            public readonly int Actor,BaseActor,StemActor;
+            public readonly int Actor,BaseActor;
             private readonly float gripPitch;
             internal readonly Matrix Frame;
             public readonly float GripLift,GripInset;
-            public Stick(Vector3 contact,Vector3 pivot,Vector3 shaft,int actor,int baseActor,float gripPitch=0,float gripLift=0,float gripInset=0,int stemActor=-1)
+            public Stick(Vector3 contact,Vector3 pivot,Vector3 shaft,int actor,int baseActor,float gripPitch=0,float gripLift=0,float gripInset=0)
             {
-                Contact=contact; Pivot=pivot; Shaft=Vector3.Normalize(shaft); Actor=actor; BaseActor=baseActor; StemActor=stemActor; this.gripPitch=gripPitch; GripLift=gripLift; GripInset=gripInset;
+                Contact=contact; Pivot=pivot; Shaft=Vector3.Normalize(shaft); Actor=actor; BaseActor=baseActor; this.gripPitch=gripPitch; GripLift=gripLift; GripInset=gripInset;
                 Frame=CockpitStickMath.ShaftFrame(Shaft);
             }
-            internal bool Moves(int actor) => Actor==actor || StemActor==actor;
             internal Matrix Visual(Vector3 axes) => CockpitStickMath.Visual(Pivot,axes,Frame);
             public Matrix Palm(bool left) => CockpitStickMath.RaiseGrip(
                 CockpitStickMath.GripPalm(left,Contact,Shaft)*CockpitStickMath.Around(Contact,Matrix.CreateRotationX(gripPitch)),Shaft,GripLift,GripInset);
@@ -98,70 +97,135 @@ namespace SpaceEngineersVR.Player
         }
         internal sealed class Lever
         {
-            public readonly Vector3 Center,Pivot,Normal,Axis;
+            internal const float Travel=1.05f;
+            // 65 degrees between the installed open and closed cover leaf faces.
+            internal const float CoverTravel=1.134464f;
+            public readonly Vector3 Center,Pivot,Normal,Axis,Up;
             public readonly int Actor,CoverActor;
             public readonly Vector3 CoverCenter,Hinge;
             public readonly float CoverInitial;
             public readonly int TemplateActor;
             public readonly Matrix TemplateTransform;
             public readonly Piece TemplateBase;
-            public Lever(Vector3 center,Vector3 pivot,Vector3 normal,Vector3 axis,int actor,Vector3 coverCenter,Vector3 hinge,int coverActor,float initial,int templateActor=-1,Matrix? templateTransform=null,Piece templateBase=null)
-            { Center=center; Pivot=pivot; Normal=Vector3.Normalize(normal); Axis=Vector3.Normalize(axis); Actor=actor; CoverCenter=coverCenter; Hinge=hinge; CoverActor=coverActor; CoverInitial=initial; TemplateActor=templateActor; TemplateTransform=templateTransform ?? Matrix.Identity; TemplateBase=templateBase; }
-            public Vector3 Up => Vector3.Normalize(Vector3.Cross(Axis,Normal));
-            public Matrix Visual(float value)
+            private readonly float rest;
+            public Lever(Vector3 center,Vector3 pivot,Vector3 normal,Vector3 axis,int actor,Vector3 coverCenter,Vector3 hinge,int coverActor,float initial,int templateActor=-1,Matrix? templateTransform=null,Piece templateBase=null,bool offAtRest=false)
             {
+                Center=center; Pivot=pivot; Normal=Vector3.Normalize(normal); Axis=Vector3.Normalize(axis); Up=Vector3.Normalize(Vector3.Cross(Axis,Normal));
+                Actor=actor; CoverCenter=coverCenter; Hinge=hinge; CoverActor=coverActor; CoverInitial=initial; TemplateActor=templateActor; TemplateTransform=templateTransform ?? Matrix.Identity; TemplateBase=templateBase;
+                // Some installed banks model the off detent; others sit between the detents.
                 var stem=Center-Pivot;
-                float rest=(float)Math.Atan2(Vector3.Dot(stem,Up),Vector3.Dot(stem,Normal));
-                return CockpitStickMath.Around(Pivot,Matrix.CreateFromAxisAngle(Axis,(MathHelper.Clamp(value,0,1)-.5f)*CockpitSwitchGeometry.Travel-rest));
+                rest=offAtRest ? -Travel*.5f : (float)Math.Atan2(Vector3.Dot(stem,Up),Vector3.Dot(stem,Normal));
             }
-            public Matrix CoverVisual(float value) => CockpitStickMath.Around(Hinge,Matrix.CreateFromAxisAngle(Axis,(value-CoverInitial)*CockpitCoverGeometry.Travel));
+            public Matrix Visual(float value) => CockpitStickMath.Around(Pivot,Matrix.CreateFromAxisAngle(Axis,(MathHelper.Clamp(value,0,1)-.5f)*Travel-rest));
+            public Matrix CoverVisual(float value) => CockpitStickMath.Around(Hinge,Matrix.CreateFromAxisAngle(Axis,(MathHelper.Clamp(value,0,1)-CoverInitial)*CoverTravel));
             public MatrixD CoverPose(float value)
             {
                 Vector3 center=Vector3.Transform(CoverCenter,CoverVisual(value)),leaf=center-Hinge;
-                var normal=Vector3.TransformNormal(Normal,Matrix.CreateFromAxisAngle(Axis,value*CockpitCoverGeometry.Travel));
+                var normal=Vector3.TransformNormal(Normal,Matrix.CreateFromAxisAngle(Axis,value*CoverTravel));
                 return MatrixD.CreateWorld(center+leaf*.45f+normal*.002f,-normal,Vector3.Normalize(leaf));
             }
+        }
+        internal sealed class Button
+        {
+            public readonly Vector3 Center,Normal,Up;
+            public readonly float Size;
+            public Button(Vector3 center,Vector3 normal,Vector3 up,float size) { Center=center; Normal=normal; Up=up; Size=size; }
+            internal MatrixD TouchPose => MatrixD.CreateWorld(Center,-Normal,Up);
+        }
+        internal sealed class Bar
+        {
+            public readonly Vector3 Front,Normal,Up;
+            public readonly float Travel,Width,Height;
+            public readonly int Actor;
+            public readonly float StemDepth;
+            public Bar(Vector3 front,Vector3 normal,Vector3 up,float travel,float width,float height,int actor,float stemDepth)
+            { Front=front; Normal=normal; Up=up; Travel=travel; Width=width; Height=height; Actor=actor; StemDepth=stemDepth; }
+            internal MatrixD TouchPose => MatrixD.CreateWorld(Front,-Normal,Up);
+            internal Matrix Visual(float position) => Matrix.CreateTranslation(Normal*(Travel*MathHelper.Clamp(position,0,1)));
+            internal void ExtendStem(MyModelData mesh)
+            {
+                // Extra stem slides inside the opaque housing; no per-frame mesh uploads or new actor.
+                var moved=new bool[mesh.Positions.Count];
+                mesh.AABB=BoundingBox.CreateInvalid();
+                for(int i=0;i<mesh.Positions.Count;i++)
+                {
+                    moved[i]=Vector3.Dot(mesh.Positions[i],Normal)<StemDepth;
+                    if(moved[i]) mesh.Positions[i]-=Normal*Travel;
+                    mesh.AABB.Include(mesh.Positions[i]);
+                }
+                for(int i=0;i<mesh.Indices.Count;i+=3)
+                {
+                    int a=mesh.Indices[i],b=mesh.Indices[i+1],c=mesh.Indices[i+2];
+                    if(!moved[a] && !moved[b] && !moved[c]) continue;
+                    Vector3 ab=mesh.Positions[b]-mesh.Positions[a],ac=mesh.Positions[c]-mesh.Positions[a];
+                    Vector3 normal=Vector3.Normalize(Vector3.Cross(ab,ac));
+                    if(Vector3.Dot(normal,mesh.Normals[a])<0) normal=-normal;
+                    Vector2 du=mesh.TexCoords[b]-mesh.TexCoords[a],dv=mesh.TexCoords[c]-mesh.TexCoords[a];
+                    float determinant=du.X*dv.Y-du.Y*dv.X;
+                    Vector3 tangent=Math.Abs(determinant)>1e-8f ? (ab*dv.Y-ac*du.Y)/determinant : mesh.Tangents[a];
+                    tangent=Vector3.Normalize(tangent-normal*Vector3.Dot(normal,tangent));
+                    for(int j=0;j<3;j++) { int v=mesh.Indices[i+j]; mesh.Normals[v]=normal; mesh.Tangents[v]=tangent; }
+                }
+            }
+        }
+        internal sealed class Screen
+        {
+            public readonly Vector3 Center,Normal,Up;
+            public readonly float Width,Height;
+            public Screen(Vector3 center,Vector3 normal,Vector3 up,float width,float height) { Center=center; Normal=normal; Up=up; Width=width; Height=height; }
         }
         public readonly string Subtype,Model;
         private readonly string geometryModel;
         public readonly MatrixD SeatMount;
         public readonly Stick Left,Right;
         public readonly Piece[] Pieces;
+        // Assignment slots, in persisted order: buttons, levers, handles, then bars.
+        public readonly Button[] Buttons;
         public readonly Lever[] Levers;
         public readonly Handle[] Handles;
-        internal Handle HandleAt(int slot) => slot>=Levers.Length && slot<Levers.Length+Handles.Length ? Handles[slot-Levers.Length]:null;
+        public readonly Bar[] Bars;
+        public readonly (int First,int Last)[] Banks;
+        public readonly Screen[] Screens;
+        private readonly int[] coverIndices;
         public readonly int ActorCount;
         public readonly int[] StaticActors;
         private CockpitGeometry geometry;
-        private CockpitRig(string subtype,string model,string geometryModel,Vector3 panel,Vector3 normal,Stick left,Stick right,Piece[] pieces,Lever[] levers,Handle[] handles=null)
+        private CockpitRig(string subtype,string model,string geometryModel,Vector3 panel,Vector3 normal,Stick left,Stick right,Piece[] pieces,Lever[] levers,Handle[] handles=null,
+            Button[] buttons=null,Bar[] bars=null,(int,int)[] banks=null,Screen[] screens=null,bool packedCovers=false)
         {
-            Subtype=subtype; Model=model; this.geometryModel=geometryModel; Left=left; Right=right; Pieces=pieces; Levers=levers; Handles=handles ?? new Handle[0];
+            Subtype=subtype; Model=model; this.geometryModel=geometryModel; Left=left; Right=right; Pieces=pieces;
+            Buttons=buttons ?? new Button[0]; Levers=levers; Handles=handles ?? new Handle[0]; Bars=bars ?? new Bar[0];
+            Banks=banks ?? new (int,int)[0]; Screens=screens ?? new Screen[0];
             var up=Vector3.Normalize(Vector3.Cross(normal,Vector3.Right));
             SeatMount=MatrixD.CreateWorld(panel,-normal,up);
             ActorCount=pieces.Length==0 ? 0 : pieces.Max(p=>Math.Max(p.Actor,p.StaticActor))+1;
             StaticActors=pieces.Select(p=>p.StaticActor).Distinct().ToArray();
+            // Saved Fighter cover states predate slot-indexed storage and number covers consecutively.
+            coverIndices=new int[Count];
+            for(int slot=0,packed=0;slot<Count;slot++)
+                coverIndices[slot]=LeverAt(slot)?.CoverActor>=0 ? packedCovers ? packed++ : slot : -1;
         }
-        private CockpitRig()
-        {
-            Subtype=FighterProfile.Subtype; Model=geometryModel=FighterProfile.Model;
-            Left=new Stick(FighterProfile.LeftContact,FighterProfile.LeftPivot,new Vector3(.30f,.9539f,-.015f),1,0,gripLift:.035f,gripInset:.015f,stemActor:2);
-            Right=new Stick(FighterProfile.RightContact,FighterProfile.RightPivot,new Vector3(-.30f,.9539f,-.015f),3,5,gripLift:.035f,gripInset:.015f,stemActor:4);
-            SeatMount=MatrixD.CreateWorld(new Vector3D(0,-.605,.29),new Vector3D(0,-.9007,-.4344),new Vector3D(0,.4344,-.9007));
-            Pieces=new Piece[0]; Levers=new Lever[0]; Handles=new Handle[0];
-            ActorCount=9+CockpitSwitchGeometry.Count+CockpitCoverGeometry.Count;
-            StaticActors=new[] {6,7+CockpitSwitchGeometry.Count};
-        }
-        internal static readonly CockpitRig Fighter=new CockpitRig();
-        internal bool IsFighter => Subtype==FighterProfile.Subtype;
-        private static readonly Dictionary<string,CockpitRig> rigs=Create().Concat(new[] {Fighter}).ToDictionary(p=>p.Subtype,StringComparer.Ordinal);
+        private static readonly Dictionary<string,CockpitRig> rigs=Create().ToDictionary(p=>p.Subtype,StringComparer.Ordinal);
         internal static IEnumerable<CockpitRig> All => rigs.Values;
         internal static CockpitRig Find(string subtype) => subtype!=null && rigs.TryGetValue(subtype,out var value) ? value:null;
         internal bool HasSticks => Left!=null || Right!=null;
         internal bool Matches(string model) => model!=null && model.Replace('\\','/').EndsWith(Model,StringComparison.OrdinalIgnoreCase);
+        internal int Count => Buttons.Length+Levers.Length+Handles.Length+Bars.Length;
+        internal Button ButtonAt(int slot) => At(Buttons,slot);
+        internal Lever LeverAt(int slot) => At(Levers,slot-Buttons.Length);
+        internal Handle HandleAt(int slot) => At(Handles,slot-Buttons.Length-Levers.Length);
+        internal Bar BarAt(int slot) => At(Bars,slot-Buttons.Length-Levers.Length-Handles.Length);
+        private static T At<T>(T[] items,int index) where T:class => index>=0 && index<items.Length ? items[index]:null;
+        internal int CoverIndex(int slot) => slot>=0 && slot<coverIndices.Length ? coverIndices[slot]:-1;
         internal CockpitGeometry Geometry(string content)
         {
             if(geometry!=null) return geometry;
-            if(IsFighter) return geometry=CockpitGeometry.Load(content);
+            long started=FeatureTiming.Start();
+            try { return geometry=Load(content); }
+            finally { FeatureTiming.End(FeatureTiming.Area.CockpitGeometry,started); }
+        }
+        private CockpitGeometry Load(string content)
+        {
             var importer=new MyModelImporter();
             using(var reader=new BinaryReader(File.OpenRead(Path.Combine(content,geometryModel.Replace('/',Path.DirectorySeparatorChar)))))
                 AccessTools.Method(typeof(MyModelImporter),"LoadTagData").Invoke(importer,new object[] {reader,new[] {"Vertices","TexCoords0","MeshParts","Normals","Tangents"}});
@@ -172,31 +236,32 @@ namespace SpaceEngineersVR.Player
             foreach(var material in Pieces.GroupBy(p=>p.Material))
             {
                 var pieces=material.ToArray();
-                var parts=CockpitSwitchGeometry.Partition(tags,material.Key,pieces[0].MaterialTriangles,pieces.Select(p=>p.Center).ToArray(),pieces.Select(p=>p.Triangles).ToArray());
+                var parts=CockpitGeometry.Partition(tags,material.Key,pieces[0].MaterialTriangles,pieces.Select(p=>p.Center).ToArray(),pieces.Select(p=>p.Triangles).ToArray());
                 Append(actors[pieces[0].StaticActor],parts[0]);
                 for(int i=0;i<pieces.Length;i++) Append(actors[pieces[i].Actor],parts[i+1]);
                 triangles+=pieces[0].MaterialTriangles;
             }
             var templateBases=new Dictionary<Piece,MyModelData>();
-            foreach(var material in Levers.Where(l=>l?.TemplateBase!=null).Select(l=>l.TemplateBase).Distinct().GroupBy(p=>p.Material))
+            foreach(var material in Levers.Where(l=>l.TemplateBase!=null).Select(l=>l.TemplateBase).Distinct().GroupBy(p=>p.Material))
             {
                 var pieces=material.GroupBy(p=>p.Center).Select(g=>g.First()).ToArray();
-                var parts=CockpitSwitchGeometry.Partition(tags,material.Key,pieces[0].MaterialTriangles,pieces.Select(p=>p.Center).ToArray(),pieces.Select(p=>p.Triangles).ToArray());
+                var parts=CockpitGeometry.Partition(tags,material.Key,pieces[0].MaterialTriangles,pieces.Select(p=>p.Center).ToArray(),pieces.Select(p=>p.Triangles).ToArray());
                 foreach(var piece in material) templateBases[piece]=parts[Array.FindIndex(pieces,p=>p.Center==piece.Center)+1];
             }
             // Some native closed housings omit the hidden lever. Reuse a measured
             // lever from the same installed model instead of shipping a game mesh.
-            foreach(var lever in Levers.Where(l=>l!=null && l.TemplateActor>=0))
+            foreach(var lever in Levers.Where(l=>l.TemplateActor>=0))
             {
                 AppendTransformed(actors[lever.Actor],actors[lever.TemplateActor],lever.TemplateTransform);
                 var part=lever.TemplateBase;
                 if(part!=null)
                     AppendTransformed(actors[0],templateBases[part],lever.TemplateTransform);
             }
+            foreach(var bar in Bars) bar.ExtendStem(actors[bar.Actor]);
             if(actors.Skip(1).Any(a=>a.Indices.Count==0)) throw new InvalidDataException("Cockpit rig has an empty actor: "+Subtype);
             // Native runtime meshes use 16-bit indices.
             if(actors.Any(a=>a.Positions.Count>ushort.MaxValue+1)) throw new InvalidDataException("Cockpit actor exceeds native index range: "+Subtype);
-            return geometry=new CockpitGeometry(actors,triangles);
+            return new CockpitGeometry(actors,triangles);
         }
         private static void Append(MyModelData target,MyModelData source)
         {

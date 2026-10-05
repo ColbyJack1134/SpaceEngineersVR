@@ -59,7 +59,7 @@ namespace SpaceEngineersVR.Diagnostics
                     if(CockpitControls.GripDistance(controller,attached)>.00001f)
                         throw new Exception("Joystick capture does not match the displayed grip");
                     controller.Translation+=Vector3.Right*.16f;
-                    if(CockpitControls.GripDistance(controller,attached)<FighterProfile.CaptureRadius)
+                    if(CockpitControls.GripDistance(controller,attached)<CockpitControls.CaptureRadius)
                         throw new Exception("Joystick capture accepts a controller outside its reach");
                 }
             }
@@ -213,7 +213,7 @@ namespace SpaceEngineersVR.Diagnostics
                 var palm=arm.Single(b=>b.Name=="SE_RigLPalm");
                 var lower=arm.Single(b=>b.Name=="SE_RigLForearm1"); var upper=lower.Parent;
                 var correction=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),-1);
-                var desired=CockpitRig.Fighter.Left.Palm(true)*Matrix.CreateRotationX(reach*.3f);
+                var desired=CockpitRig.Find(CockpitLayout.Fighter).Left.Palm(true)*Matrix.CreateRotationX(reach*.3f);
                 desired.Translation=new Vector3(-.28f,1.05f+reach*.1f,-.3f-reach*.08f);
                 if(!ArmMath.ApplyPose(upper,lower,palm,Matrix.Invert(correction)*desired,correction,new Vector3(-.55f,-1,.3f),rigidWrist:rigid))
                     throw new Exception("Joystick arm inspection solve failed");
@@ -309,12 +309,12 @@ namespace SpaceEngineersVR.Diagnostics
                 var export=new PoseExport();
                 if(control=="button")
                 {
-                    SeatPanel.TryMount(FighterProfile.Subtype,out surface,out float w,out float h);
+                    SeatPanel.TryMount(CockpitLayout.Fighter,out surface,out float w,out float h);
                     export.seat=Elements((Matrix)surface);
                     var b=SeatPanel.Keys(true)[5].Bounds;
                     surface.Translation=Vector3D.Transform(new Vector3D((b.Center.X-.5)*w,(.5-b.Center.Y)*h,0),surface);
                 }
-                else surface=control=="cover" ? CockpitCoverGeometry.TouchPose(9,0) : CockpitLayout.Control(FighterProfile.Subtype,0,out _);
+                else surface=control=="cover" ? CockpitRig.Find(CockpitLayout.Fighter).Levers[9].CoverPose(0) : CockpitLayout.Control(CockpitLayout.Fighter,0,out _);
                 if(control=="hover")
                 {
                     surface.Translation+=surface.Backward*.025;
