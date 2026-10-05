@@ -40,6 +40,10 @@ namespace SpaceEngineersVR.Multiplayer
             }
         }
         internal enum Kind { Slider, Piston, Rotor, Thrust }
+        // The last 2% of travel at each end holds the exact limit, so the rear stop reaches 0 (thrust override disabled).
+        internal const float EndZone=.02f;
+        internal static float FromLever(float position) => MathHelper.Clamp((position-EndZone)/(1-2*EndZone),0,1);
+        internal static float ToLever(float fraction) => fraction<=0 ? 0 : fraction>=1 ? 1 : EndZone+fraction*(1-2*EndZone);
         internal sealed class Channel
         {
             internal Block Block;
@@ -66,6 +70,7 @@ namespace SpaceEngineersVR.Multiplayer
             internal float Value(float position)
             {
                 if(!Range(out float min,out float max)) return Actual;
+                position=FromLever(position);
                 return Type==Kind.Slider && Denormalize!=null ? (float)Denormalize.DynamicInvoke(Block,position) : MathHelper.Lerp(min,max,position);
             }
             internal float Position()
@@ -73,7 +78,7 @@ namespace SpaceEngineersVR.Multiplayer
                 if(!Range(out float min,out float max)) return 0;
                 float actual=Actual;
                 if(Type==Kind.Rotor) actual=AngleInRange(actual,min,max);
-                return MathHelper.Clamp(Type==Kind.Slider && Normalize!=null ? (float)Normalize.DynamicInvoke(Block,actual) : (actual-min)/(max-min),0,1);
+                return ToLever(MathHelper.Clamp(Type==Kind.Slider && Normalize!=null ? (float)Normalize.DynamicInvoke(Block,actual) : (actual-min)/(max-min),0,1));
             }
             internal string Label(float? position=null)
             {
@@ -84,7 +89,7 @@ namespace SpaceEngineersVR.Multiplayer
                     if(Range(out float min,out float max)) value=AngleInRange(value,min,max);
                     return MathHelper.ToDegrees(value).ToString("0.0",CultureInfo.CurrentCulture)+"°";
                 }
-                if(Type==Kind.Thrust) return (value*100).ToString("0.0",CultureInfo.CurrentCulture)+"%";
+                if(Type==Kind.Thrust) return value<=0 ? VRage.MyTexts.GetString(MyCommonTexts.Disabled) : (value*100).ToString("0.0",CultureInfo.CurrentCulture)+"%";
                 var writer=(Property as IMyTerminalControlSlider)?.Writer;
                 if(writer!=null && !position.HasValue) { var text=new StringBuilder(); writer((Sandbox.ModAPI.IMyTerminalBlock)Block,text); return text.ToString(); }
                 return value.ToString("0.##",CultureInfo.CurrentCulture);

@@ -11,7 +11,7 @@ namespace SpaceEngineersVR.Diagnostics
     {
         private sealed class Actuator : RealProxy
         {
-            internal float Min,Max,Position,Velocity;
+            internal float Min,Max,Position,Velocity,Override;
             internal Sandbox.ModAPI.Interfaces.ITerminalProperty<float> Property;
             internal Actuator(Type type) : base(type) { }
             public override IMessage Invoke(IMessage message)
@@ -25,6 +25,8 @@ namespace SpaceEngineersVR.Diagnostics
                     case "get_CurrentPosition": case "get_Angle": result=Position; break;
                     case "get_Velocity": case "get_TargetVelocityRad": result=Velocity; break;
                     case "set_Velocity": case "set_TargetVelocityRad": Velocity=(float)call.Args[0]; break;
+                    case "get_ThrustOverridePercentage": result=Override; break;
+                    case "set_ThrustOverridePercentage": Override=(float)call.Args[0]; break;
                     default: throw new Exception("Unexpected actuator call: "+call.MethodName);
                 }
                 return new ReturnMessage(result,null,0,call.LogicalCallContext,call);
@@ -39,10 +41,13 @@ namespace SpaceEngineersVR.Diagnostics
                 var block=(IMyTerminalBlock)state.GetTransparentProxy();
                 var channel=AnalogControl.Resolve(block,rotor ? "RotateToAngle":"SetAndMove",rotor ? 10:2);
                 Require(channel!=null && Math.Abs(channel.Value(.5f)-(rotor ? 0:5))<.0001f,"Lever midpoint ignored configured limits");
+                Require(channel.Value(AnalogControl.EndZone*.5f)==state.Min && channel.Value(1-AnalogControl.EndZone*.5f)==state.Max,"Lever end zone missed the exact limit");
+                Require(channel.Value(AnalogControl.EndZone+.01f)>state.Min,"Lever end zone extends past its detent");
                 foreach(float observed in new[] {0f,.3f,.6f,1f})
                 {
                     state.Position=state.Min+(state.Max-state.Min)*observed;
-                    Require(Math.Abs(channel.Position()-observed)<.0001f,"External actuator movement did not update lever feedback");
+                    float lever=channel.Position();
+                    Require(Math.Abs(channel.Value(lever)-state.Position)<.0001f && (observed%1!=0 || lever==observed),"External actuator movement did not update lever feedback");
                 }
                 foreach(float position in new[] {.75f,.25f,1f,0f})
                 {
@@ -79,7 +84,13 @@ namespace SpaceEngineersVR.Diagnostics
                 }
                 Require(Math.Abs(MathHelper.WrapAngle(unlimited.Position-target))<.002f && unlimited.Velocity==0,"Unlimited rotor failed to stop across its angle wrap");
             }
-            log("PASS analog actuators: piston/rotor range mapping, external movement feedback, intermediate targets, reversal, stop, changing limits, wrapped angles, zero speed and invalid targets; limit setters never called.");
+            var thruster=new Actuator(typeof(IMyThrust)) {Override=.4f};
+            var thrust=new System.Collections.Generic.List<AnalogControl.Channel> {AnalogControl.Resolve((IMyTerminalBlock)thruster.GetTransparentProxy(),"SetOverride")};
+            AnalogControl.Set(null,0,thrust,.5f);
+            Require(Math.Abs(thruster.Override-.5f)<.0001f,"Thrust override handle missed its midpoint");
+            AnalogControl.Set(null,0,thrust,AnalogControl.EndZone*.5f);
+            Require(thruster.Override==0 && !thrust[0].Label().Contains("%"),"Thrust override handle near its rear stop left the override enabled");
+            log("PASS analog actuators: piston/rotor range mapping, end zones reaching exact limits, thrust override disabled at the rear stop, external movement feedback, intermediate targets, reversal, stop, changing limits, wrapped angles, zero speed and invalid targets; limit setters never called.");
         }
         internal static void RunNative(Action<string> log)
         {
@@ -90,8 +101,9 @@ namespace SpaceEngineersVR.Diagnostics
             var numeric=AnalogControl.Resolve((IMyTerminalBlock)sliderOwner.GetTransparentProxy(),"IncreaseRange");
             Require(numeric!=null,"Native increase action did not resolve its slider");
             numeric.Block=(IMyTerminalBlock)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.Blocks.MyPistonBase));
-            Require(Math.Abs(numeric.Position()-1f/3)<.0001f && Math.Abs(numeric.Value(2f/3)-100)<.01f,"Native logarithmic slider mapping was replaced with linear interpolation");
-            numeric.Property.SetValue(numeric.Block,numeric.Value(2f/3));
+            float lever=AnalogControl.ToLever(2f/3);
+            Require(Math.Abs(numeric.Position()-AnalogControl.ToLever(1f/3))<.0001f && Math.Abs(numeric.Value(lever)-100)<.01f,"Native logarithmic slider mapping was replaced with linear interpolation");
+            numeric.Property.SetValue(numeric.Block,numeric.Value(lever));
             Require(Math.Abs(scalar-100)<.01f,"Native slider setter did not receive the lever value");
             Require(AnalogControl.Resolve((IMyTerminalBlock)sliderOwner.GetTransparentProxy(),"OnOff")==null,"Boolean switch became analog");
             log("PASS native analog slider: logarithmic range mapping, setter and nonnumeric fallback.");
