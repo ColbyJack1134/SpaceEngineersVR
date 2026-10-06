@@ -251,6 +251,7 @@ namespace SpaceEngineersVR.Plugin
             Player.Player.MainUpdate();
             Player.RemoteView.UpdateContext();
             Player.InputRouter.Update();
+            Player.SeatRecenter.Update();
             Player.Controls.Static.Poll(Player.InputRouter.Mode);
             Player.HelmetHud.Update();
             Player.NativeGloves.Update();
@@ -326,6 +327,7 @@ namespace SpaceEngineersVR.Plugin
             Player.CockpitButtons.Reset();
             Player.CameraRig.Reset(forgetHeight:true);
             Player.ThirdPersonView.Reset();
+            Player.SeatRecenter.Reset();
         }
 
         public void AfterLoadedWorld()
