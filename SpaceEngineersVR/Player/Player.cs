@@ -275,6 +275,7 @@ namespace SpaceEngineersVR.Player
         public static void ResetPlayerFloor()
         {
             if (!Headset.pose.isTracked) return;
+            DetectPosture();
             Matrix floor = VrMath.TrackingOrigin(Headset.pose.deviceToAbsolute.matrix);
             if(BodyFit.Enabled && Sandbox.Game.World.MySession.Static?.LocalCharacter?.IsSitting!=true) floor.Translation=new Vector3(floor.Translation.X,CalibrationReference(),floor.Translation.Z);
             CameraRig.Recenter(PlayerToAbsolute.matrix,floor);
@@ -289,6 +290,15 @@ namespace SpaceEngineersVR.Player
             }
         }
 
+        private static void DetectPosture()
+        {
+            var config=Common.Config;
+            float head=Headset.pose.deviceToAbsolute.matrix.Translation.Y,standing=BodyFit.StandingReference();
+            if(!config.BodyCalibrated || standing<1 || !(head>.3f)) return;
+            bool seated=config.SeatedPlay ? head<standing*.88f : head<standing*.75f;
+            if(seated) config.SeatedReference=head;
+            config.SeatedPlay=seated;
+        }
         private static float CalibrationReference()
         {
             return Common.Config.SeatedPlay ? Common.Config.SeatedReference : BodyFit.StandingReference();
