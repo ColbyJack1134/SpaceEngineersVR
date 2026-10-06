@@ -35,10 +35,16 @@ namespace SpaceEngineersVR.Patches
             if(frame==null) return true;
             currentCamera.SetViewMatrix(VrMath.EyeView(MatrixD.Invert(frame.Anchor),Player.Player.Headset.pose.deviceToAbsolute.matrix,
                 frame.OriginInverse,Matrix.Identity,frame.UnitsPerMeter),smooth:false);
-            currentCamera.CameraSpring.Enabled=false;
             var character=__instance is MyCockpit cockpit ? cockpit.Pilot : __instance as MyCharacter;
             character?.EnableHead(true);
             return false;
+        }
+        // Cockpits re-enable the spring every update.
+        private static void Postfix(MyCamera currentCamera)
+        {
+            if(!Main.VrActive) return;
+            currentCamera.CameraSpring.Enabled=false;
+            currentCamera.CameraShake.ShakeEnabled=false;
         }
     }
     [HarmonyPatch]
