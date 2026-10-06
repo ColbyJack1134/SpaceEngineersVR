@@ -172,7 +172,7 @@ namespace SpaceEngineersVR.Player
                 bool grabbingStick=Controls.Static.RightGripPressure.RawPosition.X>.025f && CockpitControls.NearGrip(Player.HandR) ||
                     Controls.Static.LeftGripPressure.RawPosition.X>.025f && CockpitControls.NearGrip(Player.HandL);
                 bool allowed=(bool)enabledProperty.GetValue(session) && Main.VrActive && !ThirdPersonView.Active && InputRouter.Gameplay && !Main.MenuOpen &&
-                    !firing && !grabbingStick && !RemoteView.OwnsInput &&
+                    !firing && !grabbingStick && !FloatingWindows.OwnsInput &&
                     MySession.Static?.LocalCharacter?.IsDead==false && MySession.Static.LocalCharacter.CurrentWeapon==null &&
                     Player.Headset.pose.isTracked && Player.HandR.pose.isTracked && Player.HandL.pose.isTracked &&
                     !CockpitControls.Adjusting && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandL) && !CockpitControls.Held(Player.HandR) &&

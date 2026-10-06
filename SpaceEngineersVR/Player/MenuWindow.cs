@@ -12,6 +12,9 @@ namespace SpaceEngineersVR.Player
         public float MinimumWidth=MinWidth,MaximumWidth=MaxWidth,PointerRange=4;
         public float Height => Width*Aspect;
         public int Drag { get; private set; }
+        // Window-local point that stays under the grabbing hand while the stick scales.
+        public Vector3 GrabPoint { get; private set; }
+        private bool direct;
         private Matrix startPose,relative;
         private Vector3 startPoint;
         private float startWidth,startAspect;
@@ -41,10 +44,10 @@ namespace SpaceEngineersVR.Player
             if(distance>PointerRange) return false;
             point=local.Translation+local.Forward*distance; return point.IsValid();
         }
-        public void Begin(int kind,Matrix aim,Vector3 point)
+        public void Begin(int kind,Matrix aim,Vector3 point,bool direct=false)
         {
             if(kind<1 || kind>2 || !aim.IsValid() || !point.IsValid()) return;
-            startPose=Pose; startWidth=Width; startAspect=Aspect; startPoint=point;
+            startPose=Pose; startWidth=Width; startAspect=Aspect; startPoint=GrabPoint=point; this.direct=direct;
             relative=Pose*Matrix.Invert(aim); Drag=kind; navigation.Block();
         }
         public void Move(Matrix aim,Vector3 point,Vector2 stick=default(Vector2),float seconds=0)
@@ -57,15 +60,17 @@ namespace SpaceEngineersVR.Player
                 if(navigation.Held && seconds>0 && seconds.IsValid())
                 {
                     if(axis.LengthSquared()>1) axis.Normalize();
-                    float step=.8f*Math.Min(seconds,.05f);
+                    float step=Math.Min(seconds,.05f);
                     var p=relative.Translation;
                     if(axis.X!=0)
                     {
-                        float oldWidth=Width;
-                        Width=MathHelper.Clamp(Width+axis.X*step,MinimumWidth,MaximumWidth);
-                        p+=relative.Up*((Width-oldWidth)*Aspect/2);
+                        float width=MathHelper.Clamp(Width*(float)Math.Exp(axis.X*.6f*step),MinimumWidth,MaximumWidth);
+                        var after=Scaled(GrabPoint,Width,width);
+                        p+=relative.Right*(GrabPoint.X-after.X)+relative.Up*(GrabPoint.Y-after.Y);
+                        Width=width; GrabPoint=after;
                     }
-                    if(axis.Y!=0) p.Z=MathHelper.Clamp(p.Z-axis.Y*step,-3.5f,-.35f);
+                    // A hand grab only scales; pushing it away would carry the attached hand with it.
+                    if(axis.Y!=0 && !direct) p.Z=MathHelper.Clamp(p.Z-axis.Y*.8f*step,-3.5f,-.35f);
                     relative.Translation=p;
                 }
                 Pose=VrMath.Affine(relative*aim);
@@ -76,8 +81,12 @@ namespace SpaceEngineersVR.Player
                 Width=MathHelper.Clamp(startWidth+(delta.X-delta.Y*startAspect)/(1+startAspect*startAspect),MinimumWidth,MaximumWidth);
                 Pose=startPose;
                 Pose.Translation+=Pose.Right*((Width-startWidth)/2)-Pose.Up*((Width-startWidth)*startAspect/2);
+                GrabPoint=startPoint+new Vector3((Width-startWidth)/2,-(Width-startWidth)*startAspect/2,0);
             }
         }
+        // The bar keeps its size and offset below the picture; points on the picture scale with it.
+        private Vector3 Scaled(Vector3 point,float from,float to) => point.Y< -from*Aspect/2 ?
+            new Vector3(point.X,point.Y-(to-from)*Aspect/2,point.Z) : point*(to/from);
         public void Cancel() { if(Drag!=0) { Pose=startPose; Width=startWidth; } Stop(); }
         public void Stop() { Drag=0; navigation.Block(); }
     }

@@ -271,7 +271,7 @@ namespace SpaceEngineersVR.Player
             bool allowed=!disabled && (InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Building) && !InputRouter.Flying &&
                 MySession.Static?.ControlledEntity==character && character!=null && !character.IsDead && !character.IsSitting &&
                 !ThirdPersonView.Active && Player.HandL.pose.isTracked && !PlacementControls.OwnsTools && !HelmetHud.Consumes(Player.HandL) &&
-                !Owns(Player.HandL) && !CockpitTouch.Owns(Player.HandL) && !TouchScreenBridge.PointingFor(Player.HandL) && !RemoteView.PointingFor(Player.HandL) &&
+                !Owns(Player.HandL) && !CockpitTouch.Owns(Player.HandL) && !TouchScreenBridge.PointingFor(Player.HandL) && !FloatingWindows.PointingFor(Player.HandL) &&
                 !WeaponHandling.ConsumesLeftGrip && c.LeftTriggerPressure.Active;
             // Raw pressure keeps the laser up through a full pull, like the right ray; the gate uses once per pull.
             float pressure=allowed ? c.LeftTriggerPressure.RawPosition.X : 0;

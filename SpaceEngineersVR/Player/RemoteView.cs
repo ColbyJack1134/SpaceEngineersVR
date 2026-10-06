@@ -37,46 +37,19 @@ namespace SpaceEngineersVR.Player
         private static string key;
         private static string world;
         private static bool placementDirty;
-        private static bool recenter,directHeld;
-        private static Matrix heldWrist;
-        private static Vector3 heldPoint;
-        private static DateTime grabbed;
+        private static bool recenter;
         private static Vector3D? rayStart,rayEnd;
         private static int lastHover;
-        public static bool Pointing => Current?.Hover>0 || directHeld;
+        public static bool Pointing => Current?.Hover>0 || interaction.DirectHeld;
         internal static bool PointingFor(Controller hand) => hand==Hand && Pointing;
         private static bool left;
         private static Controller Hand => left ? Player.HandL:Player.HandR;
-        internal static bool TryAttachment(Controller hand,out MatrixD wrist,out Vector3D point,out float blend,bool tracking=false)
-        {
-            MatrixD parent=(MatrixD)window.Pose*(tracking ? MatrixD.Identity:PhysicalTrackingToWorld);
-            wrist=(MatrixD)heldWrist*parent; point=Vector3D.Transform(heldPoint,parent);
-            blend=MathHelper.Clamp((float)(DateTime.UtcNow-grabbed).TotalSeconds/.09f,0,1);
-            return Current!=null && directHeld && hand==Hand;
-        }
-        private static MatrixD Aim(Controller hand)
-        {
-            if(ThirdPersonView.Active) return MenuHands.TryPointPose(hand.GripTracking,out var tracked,hand) ? tracked:(MatrixD)hand.AimTracking;
-            return TrackedArms.TryFreePointPose(hand,out var finger) ? finger*MatrixD.Invert(PhysicalTrackingToWorld):(MatrixD)hand.AimTracking;
-        }
-        private static bool Free(Controller hand) => hand.pose.isTracked && !CockpitControls.Held(hand) &&
+        internal static bool TryAttachment(Controller hand,out MatrixD wrist,out Vector3D point,out float blend,bool tracking=false) =>
+            interaction.TryAttachment(hand,PhysicalTrackingToWorld,tracking,out wrist,out point,out blend) & Current!=null;
+        private static MatrixD Aim(Controller hand) => WindowInteraction.Aim(hand,PhysicalTrackingToWorld);
+        private static bool Free(Controller hand) => hand.pose.isTracked && !CockpitControls.Held(hand) && !DesktopWindow.OwnsInput &&
             (hand==Player.HandL ? !CockpitTouch.Owns(hand) : !SpatialUi.OwnsRight && !CockpitTouch.OwnsRight);
-        // A held press keeps its hand; otherwise a fingertip at the screen beats a laser, and the right laser wins ties.
-        private static void PickHand()
-        {
-            if(interaction.Active) return;
-            int Score(Controller hand,bool isLeft)
-            {
-                if(!Free(hand)) return 0;
-                var onPanel=(Matrix)Aim(hand)*Matrix.Invert(window.Pose);
-                var p=onPanel.Translation;
-                if(p.Z>=-.025f && p.Z<=.05f && Math.Abs(p.X)<window.Width/2+.065f && p.Y<window.Height/2+.03f && p.Y> -window.Height/2-.10f) return 2;
-                return (!isLeft || PointerHand.LeftRayAllowed) && window.Pointer((Matrix)Aim(hand),out _) ? 1:0;
-            }
-            int right=Score(Player.HandR,false),leftScore=Score(Player.HandL,true);
-            if(leftScore>right) left=true;
-            else if(right>leftScore || right==0) left=false;
-        }
+
         public static View Current { get; private set; }
         public static CameraRig.Frame SeatedRig { get; private set; }
         public static bool Active => owner!=null;
@@ -107,13 +80,13 @@ namespace SpaceEngineersVR.Player
         {
             if(placementDirty) Save();
             owner=source=null; seat=null; Current=null; SeatedRig=null; OwnsInput=false;
-            interaction.Reset(true); recenter=directHeld=false; rayStart=rayEnd=null; lastHover=0; epoch++;
+            interaction.Reset(true); recenter=false; rayStart=rayEnd=null; lastHover=0; epoch++;
         }
         public static void Recenter() { recenter=true; }
         public static void ReleaseInput()
         {
             if(placementDirty) Save();
-            interaction.Reset(); directHeld=false; OwnsInput=false; lastHover=0;
+            interaction.Reset(); OwnsInput=false; lastHover=0;
             Controls.Static.BlockUntilRelease(); Components.VRMovementComponent.StopActive();
         }
         public static void Exit()
@@ -179,60 +152,35 @@ namespace SpaceEngineersVR.Player
             var controls=Controls.Static;
             if(!Turret && !RemoteGrid && InputRouter.Gameplay && !Main.MenuOpen && CockpitControls.OwnsRightThumb)
                 Zoom(-controls.ThrustRotate.Position.Y*seconds*.6f);
-            if(InputRouter.Gameplay && !Main.MenuOpen) PickHand();
+            if(InputRouter.Gameplay && !Main.MenuOpen) left=interaction.PickHand(Hand,Free,Aim)==Player.HandL;
             var hand=Hand;
             bool available=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && Free(hand);
-            if(!available) { interaction.Reset(); if(placementDirty) Save(); window.Stop(); directHeld=false; lastHover=0; Publish(); return; }
+            if(!available) { interaction.Reset(); if(placementDirty) Save(); window.Stop(); lastHover=0; Publish(); return; }
             MatrixD aim=Aim(hand);
-            bool Reachable(Vector3 point)
-            {
-                var hit=Vector3D.Transform(point,(MatrixD)window.Pose);
-                float distance=(float)Vector3D.Distance(aim.Translation,hit);
-                return ObstacleDistance(aim,distance+.01f)>=distance-.02f;
-            }
+            var Reachable=WindowInteraction.Reachable(window,aim,PhysicalTrackingToWorld);
             int ExtraHit(Vector3 point,bool near)
             {
-                if(Math.Abs(point.Y+window.Height/2+window.BarOffset)<.035f)
-                {
-                    if(Math.Abs(point.X-ZoomX(window.Width,false))<.027f) return 3;
-                    if(Math.Abs(point.X-ZoomX(window.Width,true))<.027f) return 4;
-                }
+                int control=WindowFrame.Control(point,window.Width,window.Height,window.BarOffset,true,false,false);
+                if(control!=0) return control;
                 return near && Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2 ? 1:0;
             }
             interaction.Update(hand,(Matrix)aim,seconds,ExtraHit,Reachable);
             int hover=interaction.Hover;
             OwnsInput=interaction.Active || interaction.Released;
             if(interaction.Changed) placementDirty=true;
-            if(interaction.Released) {directHeld=false; Save();}
-            var contactPoint=interaction.Point;
-            if(interaction.Hit && !interaction.Direct && Math.Abs(contactPoint.X)<window.Width/2+.065f &&
-                contactPoint.Y<window.Height/2+.03f && contactPoint.Y> -window.Height/2-.10f && Reachable(contactPoint))
-            {rayStart=aim.Translation; rayEnd=Vector3D.Transform(contactPoint,(MatrixD)window.Pose);}
+            if(interaction.Released) Save();
+            if(interaction.Ray(aim,Reachable,out var start,out var end)) {rayStart=start; rayEnd=end;}
             if(interaction.Captured)
             {
-                directHeld=interaction.Direct;
-                if(directHeld)
-                {
-                    grabbed=now; heldPoint=contactPoint;
-                    MatrixD wrist=ThirdPersonView.Active ? Alignment.Apply(Alignment.HandKey(hand),CockpitHandPose.GripWrist(hand.GripTracking)) :
-                        TrackedArms.FreeWristWorld(hand)*MatrixD.Invert(PhysicalTrackingToWorld);
-                    heldWrist=(Matrix)(wrist*MatrixD.Invert((MatrixD)window.Pose));
-                }
+                interaction.Grab(hand,PhysicalTrackingToWorld);
                 if(interaction.HeldAction>=3) Zoom(interaction.HeldAction==3 ? .12f:-.12f);
             }
             else if(interaction.Active && hover>=3 && interaction.HeldAction==hover) Zoom((hover==3 ? 1:-1)*seconds*.6f);
-            // Aiming at the screen claims the trigger and grip until release, like the wrist screen, so near misses never fire.
             // Turret and remote-grid feeds keep firing through the image; only their buttons and handles claim input.
-            if(hover!=0 || interaction.Active || rayStart.HasValue && !Turret && !RemoteGrid)
-            {
-                if(hand==Player.HandL) { controls.LeftClick.BlockUntilRelease(); controls.LeftTriggerPressure.BlockUntilRelease(false); controls.LeftGripPressure.BlockUntilRelease(false); controls.CrouchOrClimbDown.BlockUntilRelease(); controls.ThrustUp.BlockUntilRelease(); controls.ThrustDown.BlockUntilRelease(); }
-                else { controls.Primary.BlockUntilRelease(); controls.Secondary.BlockUntilRelease(); }
-            }
+            if(hover!=0 || interaction.Active || rayStart.HasValue && !Turret && !RemoteGrid) WindowInteraction.Claim(hand);
             lastHover=hover;
             Publish(window.Drag!=0 ? window.Drag:hover);
         }
-        private static float ObstacleDistance(MatrixD tracking,float distance) => ThirdPersonView.Active ? distance :
-            HandInteraction.ObstacleDistance(tracking*PhysicalTrackingToWorld,distance);
         internal static float ZoomX(float width,bool plus) => WindowFrame.ZoomX(width,plus);
         private static void Publish(int hover=-1)
         {

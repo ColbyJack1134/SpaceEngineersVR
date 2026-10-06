@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -15,7 +16,8 @@ namespace SpaceEngineersVR.Player
             public Matrix Pose;
             public float Width,Height,BarOffset=.035f;
             public int Hover;
-            public bool Zoom;
+            public bool Zoom,Close;
+            public int Monitor;
         }
         private sealed class Cache
         {
@@ -25,6 +27,14 @@ namespace SpaceEngineersVR.Player
         }
         private static readonly Dictionary<string,Cache> frames=new Dictionary<string,Cache>();
         internal static float ZoomX(float width,bool plus) => -width/2+(plus ? .115f:.05f);
+        internal const int CloseHover=5,MonitorHover=6;
+        internal static int Control(Vector3 point,float width,float height,float barOffset,bool zoom,bool close,bool monitor)
+        {
+            if(Math.Abs(point.Y+height/2+barOffset)>=.035f) return 0;
+            if(Math.Abs(point.X-ZoomX(width,false))<.027f) return zoom ? 3 : close ? CloseHover : 0;
+            if(Math.Abs(point.X-ZoomX(width,true))<.027f) return zoom ? 4 : monitor ? MonitorHover : 0;
+            return 0;
+        }
         internal static void Reset(string id)
         {
             if(!frames.TryGetValue(id,out var frame)) return;
@@ -56,6 +66,28 @@ namespace SpaceEngineersVR.Player
                         g.DrawString("+",font,s.Hover==4 ? Brushes.Cyan:Brushes.White,ZoomX(s.Width,true),bottom,centered);
                     }
                 }
+                if(s.Close)
+                    using(var pen=new Pen(s.Hover==CloseHover ? Color.Cyan : Color.White,.006f) { StartCap=LineCap.Round,EndCap=LineCap.Round })
+                    {
+                        float x=ZoomX(s.Width,false);
+                        g.DrawLine(pen,x-.014f,bottom-.014f,x+.014f,bottom+.014f);
+                        g.DrawLine(pen,x-.014f,bottom+.014f,x+.014f,bottom-.014f);
+                    }
+                if(s.Monitor>0)
+                {
+                    var color=s.Hover==MonitorHover ? Color.Cyan : Color.White;
+                    float x=ZoomX(s.Width,true);
+                    using(var pen=new Pen(color,.004f) { StartCap=LineCap.Round,EndCap=LineCap.Round })
+                    {
+                        g.DrawRectangle(pen,x-.019f,bottom-.016f,.038f,.024f);
+                        g.DrawLine(pen,x,bottom+.008f,x,bottom+.014f);
+                        g.DrawLine(pen,x-.009f,bottom+.016f,x+.009f,bottom+.016f);
+                    }
+                    using(var font=new Font("Segoe UI",.017f,FontStyle.Bold,GraphicsUnit.Pixel))
+                    using(var brush=new SolidBrush(color))
+                    using(var centered=new StringFormat {Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center})
+                        g.DrawString(s.Monitor.ToString(),font,brush,x,bottom-.0035f,centered);
+                }
             }
             finally { g.Restore(state); }
         }
@@ -66,7 +98,7 @@ namespace SpaceEngineersVR.Player
                 var canvas=new OverlayCanvas("Window frame "+id,1600,1100,1,false,target.Device,true);
                 frames[id]=frame=new Cache {Canvas=canvas,Texture=new ShaderResourceView(target.Device,canvas.Texture)};
             }
-            string key=s.Width+"|"+s.Height+"|"+s.Hover+"|"+s.BarOffset+"|"+s.Zoom;
+            string key=s.Width+"|"+s.Height+"|"+s.Hover+"|"+s.BarOffset+"|"+s.Zoom+"|"+s.Close+"|"+s.Monitor;
             if(frame.Key!=key)
             {
                 Paint(frame.Canvas,s); frame.Canvas.Upload(); target.Device.ImmediateContext.GenerateMips(frame.Texture); frame.Key=key;

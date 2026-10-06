@@ -15,10 +15,12 @@ namespace SpaceEngineersVR.Player
         internal static void OpenSeat() { Show(0); SeatOpen=true; }
         internal static bool HudOpen { get; private set; }
         internal static void OpenHud() { Show(0); HudOpen=true; WristHud.Open(); }
-        public static void Reset() { StopEditing(); tab=page=0; HudOpen=SeatOpen=false; query=""; WristSignals.Reset(); }
+        internal static bool DesktopOpen { get; private set; }
+        internal static void OpenDesktop() { StopEditing(); HudOpen=SeatOpen=false; DesktopOpen=true; SpatialUi.Expand(); }
+        public static void Reset() { StopEditing(); tab=page=0; HudOpen=SeatOpen=DesktopOpen=false; query=""; WristSignals.Reset(); }
         internal static bool Inspecting => tab==3;
         public static void StopEditing() { if(editing) MenuKeyboard.Close(); editing=false; }
-        internal static void Show(int selected) { StopEditing(); HudOpen=SeatOpen=false; tab=selected; }
+        internal static void Show(int selected) { StopEditing(); HudOpen=SeatOpen=DesktopOpen=false; tab=selected; }
         internal static void SetQuery(string text) { query=text; page=0; }
         internal static void Edit()
         {
@@ -29,6 +31,7 @@ namespace SpaceEngineersVR.Player
         public static SurfaceKey[] Keys(MyToolbar toolbar,bool building,bool seated,bool thirdPerson,bool jetpack,EssentialHud.View status,bool? previewToolbar=null)
         {
             int selected=previewToolbar.HasValue ? (previewToolbar.Value ? 1 : 0) : tab;
+            if(DesktopOpen && !previewToolbar.HasValue) return DesktopKeys(SpatialUi.DesktopRevealed,DesktopCapture.DisplayedNumber);
             bool showToolbar=selected==1;
             var keys=new List<SurfaceKey>();
             var tabs=new[] {
@@ -73,6 +76,15 @@ namespace SpaceEngineersVR.Player
                         Action=actions[i]==GameActions.HudOptions ? new ActionChoice("HUD",OpenHud):actions[i],Icons=new[] {actions[i].Icon},
                         Enabled=actions[i].Enabled,Active=Active(actions[i],status) });
             }
+            return keys.ToArray();
+        }
+        internal static SurfaceKey[] DesktopKeys(bool revealed,int monitor)
+        {
+            var keys=new List<SurfaceKey> {new SurfaceKey("Back",.025f,.044f,.075f,.133f) {Action=new ActionChoice("Back",()=>DesktopOpen=false),Invisible=!revealed}};
+            if(monitor>0)
+                keys.Add(new SurfaceKey("Monitor",.90f,.044f,.075f,.133f) {Text=monitor.ToString(),
+                    Action=new ActionChoice("Next monitor",DesktopCapture.NextMonitor),Invisible=!revealed});
+            keys.Add(new SurfaceKey("Play/pause",0,0,1,1) {Action=new ActionChoice("Play/pause",DesktopCapture.PlayPause),Invisible=true});
             return keys.ToArray();
         }
         private static void SearchKeys(List<SurfaceKey> keys)

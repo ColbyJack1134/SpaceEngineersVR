@@ -91,7 +91,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(Math.Abs(shared.Pose.Translation.Z+1.04f)<.0001f,"Shared ray drag ignored thumbstick depth");
                 float priorWidth=shared.Width; var bar=shared.Pose.Translation-shared.Pose.Up*shared.Height/2;
                 handles.Sample(aim,false,false,true,Vector2.UnitX,.05f);
-                Require(Math.Abs(shared.Width-priorWidth-.04f)<.0001f && Vector3.Distance(shared.Pose.Translation-shared.Pose.Up*shared.Height/2,bar)<.0001f,"Shared bar resize moved its anchor or ignored horizontal input");
+                Require(Math.Abs(shared.Width-priorWidth*(float)Math.Exp(.6*.05))<.0001f && Vector3.Distance(shared.Pose.Translation-shared.Pose.Up*shared.Height/2,bar)<.0001f,"Shared bar resize moved its anchor or ignored horizontal input");
                 handles.Sample(aim,false,false,false,Vector2.UnitX,.05f);
                 var stopped=shared.Pose;
                 handles.Sample(aim,false,false,false,Vector2.UnitX,.05f);

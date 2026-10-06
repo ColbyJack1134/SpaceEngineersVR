@@ -42,7 +42,7 @@ namespace SpaceEngineersVR.Patches
         }
         private static bool BeforeScene()
         {
-            if (!Main.VrActive) { Player.RemoteFeed.Reset(); Player.GpuTiming.Reset(); Player.EyeResolution.Scene.RestoreNative(); return true; }
+            if (!Main.VrActive) { Player.RemoteFeed.Reset(); Player.DesktopCapture.Release(); Player.GpuTiming.Reset(); Player.EyeResolution.Scene.RestoreNative(); return true; }
             try
             {
                 GetPoses();

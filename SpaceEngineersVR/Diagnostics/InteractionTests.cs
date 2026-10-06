@@ -37,7 +37,7 @@ namespace SpaceEngineersVR.Diagnostics
             var dragged=new MenuWindow(); dragged.Place(Matrix.Identity);
             var hand=Matrix.CreateRotationY(.3f)*Matrix.CreateTranslation(.2f,.1f,-.3f);
             var before=dragged.Pose;
-            dragged.Begin(1,hand,Vector3.Zero);
+            dragged.Begin(1,hand,new Vector3(.05f,-dragged.Height/2-dragged.BarOffset,0));
             dragged.Move(hand,Vector3.Zero,Vector2.One,1f/60);
             Near(dragged.Pose.Translation,before.Translation,"Held scroll moved newly grabbed menu");
             dragged.Move(hand,Vector3.Zero,Vector2.Zero,1f/60);
@@ -58,6 +58,20 @@ namespace SpaceEngineersVR.Diagnostics
             for(int i=0;i<1000;i++) dragged.Move(hand,Vector3.Zero,new Vector2(-1,0),1f/60);
             Require(dragged.Width==dragged.MinimumWidth,"Horizontal stick did not shrink to minimum");
             dragged.Cancel(); Require(dragged.Width==MenuWindow.DefaultWidth,"Cancelled stick resize retained changed width"); Near(dragged.Pose.Translation,before.Translation,"Interrupted stick nudge did not restore menu");
+            foreach(var grip in new[] {new Vector3(.2f,-MenuWindow.DefaultWidth*9f/32-.035f,0),new Vector3(.4f,.2f,0)})
+            {
+                var held=new MenuWindow(); held.Place(Matrix.Identity);
+                var palm=Matrix.CreateTranslation(Vector3.Transform(grip,held.Pose)+new Vector3(0,0,.01f));
+                held.Begin(1,palm,grip,true);
+                var anchor=Vector3.Transform(grip,held.Pose);
+                held.Move(palm,Vector3.Zero,Vector2.Zero,1f/60);
+                for(int i=0;i<30;i++) held.Move(palm,Vector3.Zero,new Vector2(0,1),1f/60);
+                Near(Vector3.Transform(held.GrabPoint,held.Pose),anchor,"Hand-grab stick pushed the window");
+                for(int i=0;i<30;i++) held.Move(palm,Vector3.Zero,new Vector2(1,0),1f/60);
+                Require(held.Width>MenuWindow.DefaultWidth,"Hand-grab stick did not scale");
+                Near(Vector3.Transform(held.GrabPoint,held.Pose),anchor,"Scaling moved the held point away from the hand");
+                if(grip.Y<0) Near(held.GrabPoint,new Vector3(grip.X,-held.Height/2-held.BarOffset,0),"Held bar point left the bar while scaling");
+            }
             dragged.Begin(2,hand,Vector3.Zero);
             dragged.Move(hand,Vector3.Zero,Vector2.Zero,1f/60);
             dragged.Move(hand,Vector3.Zero,Vector2.One,1f/60);

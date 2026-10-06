@@ -260,6 +260,7 @@ namespace SpaceEngineersVR.Plugin
             Player.FloatingKeyboard.Update();
             Player.FloatingMenu.Update();
             Player.RemoteView.Update();
+            Player.DesktopWindow.Update();
             Player.CockpitTouch.BeginFrame();
             Player.CockpitButtons.Update();
             Player.SpatialUi.Update();
@@ -307,6 +308,7 @@ namespace SpaceEngineersVR.Plugin
             Multiplayer.MultiplayerRuntime.Reset();
             Player.GameActions.Reset();
             Player.RemoteView.Reset();
+            Player.DesktopWindow.Reset();
             Player.BlockInspection.Reset();
             Player.InputRouter.RadialOpen = false;
             Player.ToolbarWheel.Close(resume:false);

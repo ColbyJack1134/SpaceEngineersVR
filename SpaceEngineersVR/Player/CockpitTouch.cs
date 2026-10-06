@@ -131,6 +131,7 @@ namespace SpaceEngineersVR.Player
         public static bool RightPointing { get; private set; }
         public static bool OwnsRight => hands[0].Input.Consumed;
         public static bool Owns(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Input.Consumed;
+        internal static bool Hovering(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Hover!=null;
         public static bool Attached(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Input.Surface!=null;
         internal static bool HoldingBar(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Target?.Analog==true && Attached(hand);
         public static bool Pinching(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Target?.Draggable==true && Attached(hand);
@@ -216,7 +217,7 @@ namespace SpaceEngineersVR.Player
                 bool flying=i==0 ? c.ThrustRotate.RawPosition.LengthSquared()>.04f :
                     c.ThrustLRUD.RawPosition.LengthSquared()>.04f || c.ThrustLRFB.RawPosition.LengthSquared()>.04f;
                 bool free=available && !CockpitControls.Held(hand) && !HelmetHud.Consumes(hand) &&
-                    (i!=0 || !RemoteView.OwnsInput && !SpatialUi.OwnsRight && !TouchScreenBridge.OwnsInput);
+                    (i!=0 || !FloatingWindows.OwnsInput && !SpatialUi.OwnsRight && !TouchScreenBridge.OwnsInput);
                 h.Change=-1;
                 if(!free)
                 {

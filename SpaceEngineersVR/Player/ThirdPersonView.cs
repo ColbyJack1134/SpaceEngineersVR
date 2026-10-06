@@ -184,7 +184,7 @@ namespace SpaceEngineersVR.Player
             if(left<=.025f && right<=.025f) consumed=false;
             bool previouslyConsumed=consumed;
             bool allowed=InputRouter.Gameplay && !Main.MenuOpen && !HelmetHud.ViewGestureHeld && transition==null &&
-                !CockpitTouch.OwnsRight && !CockpitTouch.Owns(Player.HandL) && !SpatialUi.OwnsRight && !RemoteView.OwnsInput &&
+                !CockpitTouch.OwnsRight && !CockpitTouch.Owns(Player.HandL) && !SpatialUi.OwnsRight && !FloatingWindows.OwnsInput &&
                 !CockpitControls.Held(Player.HandL) && !CockpitControls.Held(Player.HandR) &&
                 !CockpitControls.NearGrip(Player.HandL) && !CockpitControls.NearGrip(Player.HandR) &&
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;

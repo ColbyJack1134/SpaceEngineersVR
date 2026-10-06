@@ -303,6 +303,7 @@ namespace SpaceEngineersVR.Diagnostics
             ArmTests.Run(log);
             PhysicalControlTests.Run(log);
             SpatialUiTests.Run(log);
+            DesktopTests.Run(log);
             CockpitTests.Run(log);
             FlightControlTests.Run(log);
             CockpitRigTests.Run(log);

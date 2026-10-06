@@ -36,7 +36,7 @@ namespace SpaceEngineersVR.Player
         public string Id,Title,Text,Action,Argument;
         public EssentialHud.View Status;
         public BlockInspection.Data Block;
-        public bool SignalWindow,SeatSettings,FlightPage;
+        public bool SignalWindow,SeatSettings,FlightPage,Desktop;
         public WristSignals.View Signals;
         public WristHud.View HudSettings;
         public string[] Icons=new string[0];
@@ -60,7 +60,7 @@ namespace SpaceEngineersVR.Player
         public float[] Levels;
         public int Handle;
         public Vector3? TouchPoint;
-        public string ContentKey => FlightPage+"|"+SeatSettings+"|"+SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+HoverAlt+"|"+PressedAlt+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
+        public string ContentKey => Desktop+"|"+FlightPage+"|"+SeatSettings+"|"+SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+HoverAlt+"|"+PressedAlt+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
             "|"+HudSettings?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob+":"+k.Slider))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
         public int KeyAt(Vector2 uv)
@@ -129,7 +129,7 @@ namespace SpaceEngineersVR.Player
             }
             if(s.Id=="Seat") { PaintSeat(target,s); return; }
             if(s.Style==SurfaceStyle.WristStatus) { PaintWrist(target,s); return; }
-            if(s.Style==SurfaceStyle.WristMenu) { if(s.SignalWindow) WristSignals.Paint(target,s); else if(s.HudSettings!=null) WristHud.Paint(target,s); else PaintWristMenu(target,s); return; }
+            if(s.Style==SurfaceStyle.WristMenu) { if(s.Desktop) PaintDesktopKeys(target,s); else if(s.SignalWindow) WristSignals.Paint(target,s); else if(s.HudSettings!=null) WristHud.Paint(target,s); else PaintWristMenu(target,s); return; }
             target.Clear(Color.FromArgb(255,12,20,28));
             var g=target.Graphics;
             using (var pen=new Pen(Color.FromArgb(255,84,125,143),6)) g.DrawRectangle(pen,5,5,1014,630);
@@ -326,6 +326,35 @@ namespace SpaceEngineersVR.Player
             if(s.SeatSettings) PaintSeatKeys(target,s);
             target.Graphics.FillRectangle(Brushes.White,1020,636,4,4);
         }
+        private static void PaintDesktopKeys(OverlayCanvas target,SurfaceView s)
+        {
+            target.Clear(Color.FromArgb(255,12,20,28));
+            var g=target.Graphics;
+            g.SmoothingMode=System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            for(int i=0;i<s.Keys.Length;i++)
+            {
+                var key=s.Keys[i]; var b=key.Bounds;
+                if(b.Width>=1) continue;
+                var r=new System.Drawing.RectangleF(b.X*1024,b.Y*640,b.Width*1024,b.Height*640);
+                using(var path=Rounded(r,10))
+                using(var brush=new SolidBrush(s.IsPressed(i) ? Color.FromArgb(40,133,151) : s.Hovered(i) ? Color.FromArgb(55,83,100) : Color.FromArgb(31,47,60))) g.FillPath(brush,path);
+                float cx=r.X+r.Width/2,cy=r.Y+r.Height/2,u=Math.Min(r.Width,r.Height)/10;
+                using(var pen=new Pen(Color.White,u*.9f) {StartCap=System.Drawing.Drawing2D.LineCap.Round,EndCap=System.Drawing.Drawing2D.LineCap.Round})
+                {
+                    if(key.Label=="Back")
+                    {
+                        g.DrawLine(pen,cx+2.6f*u,cy,cx-2.6f*u,cy);
+                        g.DrawLine(pen,cx-2.6f*u,cy,cx-.4f*u,cy-2.2f*u); g.DrawLine(pen,cx-2.6f*u,cy,cx-.4f*u,cy+2.2f*u);
+                        continue;
+                    }
+                    pen.Width=u*.7f;
+                    g.DrawRectangle(pen,cx-3.2f*u,cy-2.6f*u,6.4f*u,4f*u);
+                    g.DrawLine(pen,cx,cy+1.4f*u,cx,cy+2.6f*u); g.DrawLine(pen,cx-1.6f*u,cy+2.8f*u,cx+1.6f*u,cy+2.8f*u);
+                }
+                using(var font=new Font("Segoe UI",2.8f*u,FontStyle.Bold,GraphicsUnit.Pixel))
+                    g.DrawString(key.Text ?? "",font,Brushes.White,new System.Drawing.RectangleF(cx-3.2f*u,cy-2.6f*u,6.4f*u,4f*u),centered);
+            }
+        }
         internal static void PaintWristKeys(OverlayCanvas target,SurfaceView s)
         {
             var g=target.Graphics;
@@ -446,6 +475,11 @@ namespace SpaceEngineersVR.Player
                 if(Vector3D.Dot(s.Pose.Backward,MatrixD.Invert(view).Translation-s.Pose.Translation)<=0) continue;
                 sprites.Add(Quad(c.Texture,s.Pose,full,new Vector4(0,0,1,1),Vector4.One,view,projection));
                 if(s.SignalWindow) WristSignals.AddSprites(sprites,target.Device,s,view,projection);
+                if(s.Desktop && DesktopCapture.View!=null)
+                {
+                    sprites.Add(DesktopCapture.Picture(DesktopCapture.View,s.Pose,s.Width,s.Height,view,projection,target.Description.Format,.0008f));
+                    if(DesktopCapture.Badge(target.Device,s.Pose,.045f,view,projection,.0016f,DesktopCapture.BadgeAlpha(DateTime.UtcNow),out var badge)) sprites.Add(badge);
+                }
                 foreach(var k in s.Keys)
                 {
                     if(k.Knob.HasValue) {WristKnob.Add(sprites,c.Texture,s,k.Knob.Value,view,projection); continue;}

@@ -87,6 +87,8 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice Inspect=new ActionChoice(()=>Common.Config?.InspectWithoutGrip==true ? "Block info: automatic" : "Block info: hold grip",()=>Common.Config.InspectWithoutGrip=!Common.Config.InspectWithoutGrip);
         public static readonly ActionChoice PlayPosture=new ActionChoice(()=>Common.Config?.SeatedPlay==true ? "Switch to standing play":"Switch to seated play",()=>BodyFit.SetSeated(!Common.Config.SeatedPlay));
         public static readonly ActionChoice Tablet=new ActionChoice("Tablet",SpatialUi.Expand);
+        public static readonly ActionChoice DesktopFloating=new ActionChoice("Desktop floating",DesktopWindow.Open,searchTerms:"monitor screen mirror video window");
+        public static readonly ActionChoice DesktopWrist=new ActionChoice("Desktop wrist",WristPanel.OpenDesktop,searchTerms:"monitor screen mirror video tablet");
         public static readonly ActionChoice Options=new ActionChoice("VR options",()=>Common.Plugin.OpenConfigDialog(),true);
         public static void Schedule(ActionChoice action)
         {

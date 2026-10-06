@@ -185,6 +185,8 @@ namespace SpaceEngineersVR.Config
         private bool tapHoldSticks,tapHoldLevers;
         public bool TapHoldSticks { get => tapHoldSticks; set => SetValue(ref tapHoldSticks,value); }
         public bool TapHoldLevers { get => tapHoldLevers; set => SetValue(ref tapHoldLevers,value); }
+        private string desktopMonitor;
+        public string DesktopMonitor { get => desktopMonitor; set => SetValue(ref desktopMonitor,value); }
         private bool controllerRelativeMovement;
         private bool controllerMenuPointer = true;
 

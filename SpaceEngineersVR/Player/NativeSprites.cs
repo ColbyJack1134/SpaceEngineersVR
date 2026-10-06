@@ -29,12 +29,13 @@ namespace SpaceEngineersVR.Player
         public bool EncodeSrgb;
         public bool Opaque;
         public bool Premultiplied;
+        public bool Sharpen;
         public Vector4 TopLeft, TopRight, BottomLeft, BottomRight;
         public Vector4 Clip0,Clip1,Clip2,Clip3;
         public NativeSprite(string path, RectangleF bounds, Vector4 tint)
         {
             Path=path; Bounds=bounds; Tint=tint; Texture=null; UV=new Vector4(0,0,1,1);
-            EncodeSrgb=false; Opaque=false; Premultiplied=false; Projected=IgnoreSceneDepth=false; TopLeft=TopRight=BottomLeft=BottomRight=Vector4.Zero;
+            EncodeSrgb=false; Opaque=false; Premultiplied=false; Sharpen=false; Projected=IgnoreSceneDepth=false; TopLeft=TopRight=BottomLeft=BottomRight=Vector4.Zero;
             Clip0=Clip1=Clip2=Clip3=Vector4.Zero; Rounded=Vector2.Zero;
         }
     }
@@ -87,8 +88,8 @@ float4 PS(P p):SV_TARGET {
         float2 corner=max(abs(uv-.5)-(.5-DepthTest.yz),0)/DepthTest.yz;
         if (dot(corner,corner)>1) discard;
     }
-    float4 color=Icon.Sample(Linear,p.uv);
-    if (DepthTest.w >= 8) color.rgb/=max(color.a,0.00001);
+    float4 color=fmod(floor(DepthTest.w/16),2) > 0 ? Icon.SampleBias(Linear,p.uv,-.75) : Icon.Sample(Linear,p.uv);
+    if (fmod(floor(DepthTest.w/8),2) > 0) color.rgb/=max(color.a,0.00001);
     color*=Tint;
     if (fmod(DepthTest.w,2) > 0)
         color.rgb=lerp(color.rgb*12.92,1.055*pow(max(color.rgb,0),1.0/2.4)-.055,step(.0031308,color.rgb));
@@ -203,7 +204,7 @@ float4 PS(P p):SV_TARGET {
                 {
                     var texture=sprite.Texture ?? Get(sprite.Path);
                     if (texture==null) continue;
-                    var data=new Parameters { Clip0=sprite.Clip0,Clip1=sprite.Clip1,Clip2=sprite.Clip2,Clip3=sprite.Clip3,Tint=sprite.Tint,UV=sprite.UV,DepthTest=new Vector4(sceneDepth==null || sprite.IgnoreSceneDepth ? 0 : 1,sprite.Rounded.X,sprite.Rounded.Y,(sprite.EncodeSrgb ? 1 : 0)+(sprite.Opaque ? 2 : 0)+(handDepth!=null ? 4:0)+(sprite.Premultiplied ? 8:0)) };
+                    var data=new Parameters { Clip0=sprite.Clip0,Clip1=sprite.Clip1,Clip2=sprite.Clip2,Clip3=sprite.Clip3,Tint=sprite.Tint,UV=sprite.UV,DepthTest=new Vector4(sceneDepth==null || sprite.IgnoreSceneDepth ? 0 : 1,sprite.Rounded.X,sprite.Rounded.Y,(sprite.EncodeSrgb ? 1 : 0)+(sprite.Opaque ? 2 : 0)+(handDepth!=null ? 4:0)+(sprite.Premultiplied ? 8:0)+(sprite.Sharpen ? 16:0)) };
                     if (sprite.Projected)
                     {
                         data.TopLeft=sprite.TopLeft; data.TopRight=sprite.TopRight;

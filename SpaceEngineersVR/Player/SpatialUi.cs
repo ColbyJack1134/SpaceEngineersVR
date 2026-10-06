@@ -45,7 +45,10 @@ namespace SpaceEngineersVR.Player
         private static MatrixD SurfacePose(Matrix tracking) => ThirdPersonView.Active || !Main.WorldAvailable ? (MatrixD)tracking:DeviceWorld(tracking);
         public static void Expand() { expanded=true; }
         public static void Collapse() { if(FlightSettings.IsOpen && FlightSettings.OnWrist) FlightSettings.Close(); expanded=false; wristTouch.Reset(); heldKey=null; wristHover=wristPressed=-1; WristPanel.StopEditing(); }
-        public static bool CollapseIfOpen() { if(!expanded) return false; Collapse(); return true; }
+        public static bool CollapseIfOpen() { if(!expanded || WristPanel.DesktopOpen && !DesktopPointed) return false; Collapse(); return true; }
+        private static DateTime desktopSeen;
+        internal static bool DesktopRevealed => WristPanel.DesktopOpen && (DateTime.UtcNow-desktopSeen).TotalSeconds<1;
+        private static bool DesktopPointed => (DateTime.UtcNow-desktopSeen).TotalSeconds<.15;
         internal static SurfaceKey[] WristKeys() => FlightSettings.IsOpen && FlightSettings.OnWrist ? FlightSettings.Keys():WristPanel.Keys(Sandbox.Game.Screens.Helpers.MyToolbarComponent.CurrentToolbar,
             PlacementControls.OwnsTools,MySession.Static?.ControlledEntity is Sandbox.Game.Entities.MyShipController,ThirdPersonView.Active,
             MySession.Static?.LocalCharacter?.JetpackComp?.TurnedOn==true,EssentialHud.Current);
@@ -94,6 +97,11 @@ namespace SpaceEngineersVR.Player
                 var rayTarget=WristRayTarget(flightView!=null ? new[] {flightView}:new[] {wrist,wristMenu},world,3,out _,out float rayDistance);
                 if(rayTarget!=null && !rayTarget.WindowPose.HasValue && !wrist.TrackingSpace && HandInteraction.ObstacleDistance(world,rayDistance)+.005f<rayDistance) rayTarget=null;
                 RayTargeted=rayTarget!=null;
+                if(wristMenu?.Desktop==true)
+                {
+                    var local=PhysicalSurface.Point(wristMenu,tip);
+                    if(rayTarget==wristMenu || Math.Abs(local.X)<wristMenu.Width/2+.02f && Math.Abs(local.Y)<wristMenu.Height/2+.02f && local.Z>-.01f && local.Z<.08f) desktopSeen=now;
+                }
                 bool direct=DirectKey(target,world,head,out _)>=0;
                 if(wristTouch.Surface==null && !direct && rayTarget!=null) target=rayTarget;
                 wristHoverSurface=target.Id;
@@ -138,7 +146,7 @@ namespace SpaceEngineersVR.Player
         {
             var c=Controls.Static;
             if(wristTouch.Surface!=null && wristTouch.Surface!=s.Id) wristTouch.Reset();
-            bool free=!CockpitControls.Held(Player.HandR) && !CockpitTouch.OwnsRight && !RemoteView.OwnsInput && !WeaponHandling.ConsumesLeftGrip;
+            bool free=!CockpitControls.Held(Player.HandR) && !CockpitTouch.OwnsRight && !FloatingWindows.OwnsInput && !WeaponHandling.ConsumesLeftGrip;
             Matrix headTracking=Player.Headset.pose.deviceToAbsolute.matrix;
             Vector3D head=s.TrackingSpace ? (Vector3D)headTracking.Translation : DeviceWorld(headTracking).Translation;
             bool front=Vector3D.Dot(s.Pose.Backward,head-s.Pose.Translation)>.015;
@@ -272,7 +280,8 @@ namespace SpaceEngineersVR.Player
                 SeatSettings=fold>=.99f && WristPanel.SeatOpen && !FlightSettings.IsOpen,
                 FlightPage=fold>=.99f && FlightSettings.IsOpen && FlightSettings.OnWrist,Title=FlightSettings.IsOpen ? FlightSettings.Title:null,
                 Levels=WristPanel.SeatOpen ? SeatPanel.States():null,Handle=CockpitControls.Adjusting ? 1:0,
-                HudSettings=fold>=.99f && WristPanel.HudOpen ? WristHud.Current:null };
+                HudSettings=fold>=.99f && WristPanel.HudOpen ? WristHud.Current:null,Desktop=fold>=.99f && WristPanel.DesktopOpen };
+            if(menu.Desktop) DesktopCapture.Request();
             return new[] {compact,menu};
         }
         private static int DirectKey(SurfaceView panel,MatrixD pointer,Vector3D head,out float distance)

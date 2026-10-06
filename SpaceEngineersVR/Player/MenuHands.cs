@@ -331,7 +331,7 @@ float4 PS(P p):SV_TARGET {
             var tip=(hand==Player.HandL ? state.LeftPoint:state.RightPoint).Translation;
             if(FloatingKeyboard.TryAttachment(hand,out var keyboardWrist,out var keyboardPoint,out float keyboardBlend,tracking:true))
                 return CockpitHandPose.Blend(pose,CockpitHandPose.Attach(keyboardWrist,Matrix.Identity,tip,keyboardPoint),keyboardBlend);
-            if(ThirdPersonView.Active && RemoteView.TryAttachment(hand,out var remoteWrist,out var remotePoint,out float remoteBlend,tracking:true))
+            if(ThirdPersonView.Active && FloatingWindows.TryAttachment(hand,out var remoteWrist,out var remotePoint,out float remoteBlend,tracking:true))
                 return CockpitHandPose.Blend(pose,CockpitHandPose.Attach(remoteWrist,Matrix.Identity,tip,remotePoint),remoteBlend);
             if(hand==Player.HandL) return pose;
             if(!ThirdPersonView.Active || !SpatialUi.TryWristAttachment(out var captured,out var contact,out float blend,render:true)) return pose;

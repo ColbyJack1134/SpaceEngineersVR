@@ -123,7 +123,7 @@ namespace SpaceEngineersVR.Player
         }
         internal static float Trigger(Controller hand) => CockpitTouch.HoldingBar(hand) ? 1 : (hand==Player.HandL ? Controls.Static.LeftTriggerPressure:Controls.Static.PointerPressure).RawPosition.X;
         private static bool RequiresPointing(Controller hand) => Main.MenuOpen || MenuKeyboard.IsOpen || CockpitTouch.Attached(hand) ||
-            TouchScreenBridge.PointingFor(hand) || RemoteView.PointingFor(hand) || HandInteraction.PointingFor(hand) ||
+            TouchScreenBridge.PointingFor(hand) || FloatingWindows.PointingFor(hand) || HandInteraction.PointingFor(hand) ||
             (hand==Player.HandL ? CockpitTouch.LeftPointing:CockpitTouch.RightPointing || SpatialUi.Pointing || BlockInspection.Current!=null);
         private static bool FreeFingers(MyCharacter character,Controller hand) => !ThirdPersonView.Active && character.CurrentWeapon==null &&
             !CockpitControls.Held(hand) && !RequiresPointing(hand);
@@ -149,7 +149,7 @@ namespace SpaceEngineersVR.Player
                 var point=CockpitHandPose.Contact(arm.Palm.Bone,arm.IndexTip,arm.ThumbTip,false,CockpitHandPose.Tip);
                 return CockpitHandPose.Blend(world,CockpitHandPose.Attach(keyboardWrist,arm.PalmOffset,point,keyboardPoint),keyboardBlend);
             }
-            if(arm?.IndexTip!=null && RemoteView.TryAttachment(hand,out var remoteWrist,out var remotePoint,out float remoteBlend))
+            if(arm?.IndexTip!=null && FloatingWindows.TryAttachment(hand,out var remoteWrist,out var remotePoint,out float remoteBlend))
             {
                 var point=CockpitHandPose.Contact(arm.Palm.Bone,arm.IndexTip,arm.ThumbTip,false,CockpitHandPose.Tip);
                 return CockpitHandPose.Blend(world,CockpitHandPose.Attach(remoteWrist,arm.PalmOffset,point,remotePoint),remoteBlend);

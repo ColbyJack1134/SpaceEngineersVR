@@ -47,7 +47,7 @@ namespace SpaceEngineersVR.Player
             var c=Controls.Static;
             bool grip=c.Secondary.IsPressed && !CockpitControls.RotationOwned && !CockpitTouch.OwnsRight &&
                 !SpatialUi.OwnsRight && !TouchScreenBridge.OwnsInput && !HandInteraction.OwnsRight &&
-                !RemoteView.OwnsInput && !HelmetHud.Consumes(Player.HandR);
+                !FloatingWindows.OwnsInput && !HelmetHud.Consumes(Player.HandR);
             bool wasPainting=Painting;
             Painting=PaintChord(Mode,grip,c.Interact.IsPressed,ThirdPersonView.Manipulating || Main.MenuOpen);
             if(Painting)
