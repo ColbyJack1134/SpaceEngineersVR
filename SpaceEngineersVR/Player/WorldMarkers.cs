@@ -264,7 +264,7 @@ namespace SpaceEngineersVR.Player
             if (failed || Main.MenuOpen || InputRouter.RadialOpen || !Main.WorldAvailable) return;
             try
             {
-                if(ShipCrosshair.Enabled(Common.Config,HelmetHud.Visible)) ShipCrosshair.Draw(target,renderCrosshair,renderHead,view,projection);
+                if(ShipCrosshair.Enabled(Common.Config,HelmetHud.Visible)) ShipCrosshair.Draw(target,renderCrosshair,renderHead,view,projection,Common.Config.FaceMarkersTowardViewer);
                 if(current!=null && (DateTime.UtcNow-current.Time).TotalSeconds<=1 && markersVisible)
                 {
                     SignalPainter.Draw(target,layout,signalHead,view,projection,Common.Config.FaceMarkersTowardViewer,signalUp);

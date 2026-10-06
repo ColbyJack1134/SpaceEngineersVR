@@ -18,7 +18,7 @@ namespace SpaceEngineersVR.Player
     {
         internal sealed class View
         {
-            public Vector3D Position;
+            public Vector3D Position,Up;
             public MyHudTexturesEnum Icon;
             public Vector4 Color;
             public Vector2 HalfSize;
@@ -43,14 +43,14 @@ namespace SpaceEngineersVR.Player
             if(crosshair==null || !controller.IsValid()) return null;
             foreach(object value in (IEnumerable)sprites.GetValue(crosshair))
                 if((MyStringId)id.GetValue(value)==MyStringId.GetOrCompute("Default") && (bool)visible.GetValue(value))
-                    return new View {Position=Aim(controller),Icon=(MyHudTexturesEnum)icon.GetValue(value),
+                    return new View {Position=Aim(controller),Up=controller.Up,Icon=(MyHudTexturesEnum)icon.GetValue(value),
                         Color=((Color)color.GetValue(value)).ToVector4(),HalfSize=(Vector2)size.GetValue(value)};
             return null;
         }
-        internal static void Draw(Texture2D target,View value,MatrixD head,MatrixD view,MatrixD projection)
+        internal static void Draw(Texture2D target,View value,MatrixD head,MatrixD view,MatrixD projection,bool faceViewer=false)
         {
             if(value==null || !WorldMarkers.Project(value.Position,view,projection,out _) ||
-                !MarkerBillboard.TryCreate(value.Position,head,out var board)) return;
+                !MarkerBillboard.TryCreate(value.Position,head,view,value.Up,faceViewer,out var board)) return;
             var glyph=SignalPainter.Atlas(value.Icon,value.Color);
             var extent=value.HalfSize/.02f;
             if(board.Project(new RectangleF(-extent.X/2,-extent.Y/2,extent.X,extent.Y),view,projection,ref glyph))

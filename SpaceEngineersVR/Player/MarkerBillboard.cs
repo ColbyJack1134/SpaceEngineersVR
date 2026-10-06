@@ -18,6 +18,12 @@ namespace SpaceEngineersVR.Player
             return head;
         }
 
+        internal static bool TryCreate(Vector3D position,MatrixD head,MatrixD view,Vector3D? up,bool faceViewer,out MarkerBillboard billboard)
+        {
+            if(!TryCreate(position,up.HasValue ? WithUp(head,up.Value):head,out billboard)) return false;
+            if(faceViewer) billboard.FaceViewer(MatrixD.Invert(view).Translation,up);
+            return true;
+        }
         public static bool TryCreate(Vector3D position, MatrixD head, out MarkerBillboard billboard)
         {
             billboard=default(MarkerBillboard);

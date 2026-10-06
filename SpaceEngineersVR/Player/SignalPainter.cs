@@ -86,11 +86,9 @@ namespace SpaceEngineersVR.Player
             }
             sprites.Clear();
             int labelIndex=0;
-            var eye=MatrixD.Invert(view).Translation;
             foreach(var e in entries)
             {
-                if(e.Edge || !MarkerBillboard.TryCreate(e.Position,head,out var board)) continue;
-                if(faceViewer) board.FaceViewer(eye,facingUp);
+                if(e.Edge || !MarkerBillboard.TryCreate(e.Position,head,view,facingUp,faceViewer,out var board)) continue;
                 board.Scale*=e.Primary.Kind=="Objective" ? 1.1:.55;
                 if(e.Ring) e.Primary.Ring?.AddNative(sprites,e.Position,view,projection,target.Description.Width,facingUp,faceViewer);
                 board.Scale*=e.IconScale;
