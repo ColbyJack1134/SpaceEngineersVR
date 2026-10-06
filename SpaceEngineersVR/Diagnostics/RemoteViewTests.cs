@@ -24,6 +24,30 @@ namespace SpaceEngineersVR.Diagnostics
             Require(Vector3D.Distance(actual.Translation,expected.Translation)<.00001 &&
                 Vector3D.Distance(actual.Right,expected.Right)<.00001 && Vector3D.Distance(actual.Up,expected.Up)<.00001,message);
         }
+        private static void Ammo(Action<string> log)
+        {
+            foreach(string name in new[] {"MyLargeGatlingBarrel","MyLargeMissileBarrel"})
+            {
+                var type=typeof(MyTurretControlBlock).Assembly.GetType("SpaceEngineers.Game.Entities.Weapons.Barrels."+name,true);
+                var field=RemoteCombat.BurstField(type);
+                Require(field?.FieldType==typeof(int),"Native turret burst field changed: "+name);
+                var barrel=FormatterServices.GetUninitializedObject(type);
+                for(int cycle=0;cycle<3;cycle++)
+                {
+                    for(int shot=0;shot<=140;shot++)
+                    {
+                        field.SetValue(barrel,140-shot);
+                        Require(RemoteCombat.BurstCount((int)field.GetValue(barrel),140,false,int.MaxValue)==140-shot,"Turret burst countdown differs from native barrel");
+                    }
+                    field.SetValue(barrel,140);
+                    Require(RemoteCombat.BurstCount((int)field.GetValue(barrel),140,true,int.MaxValue)==0,"Reload displays refilled barrel count before completion");
+                    Require(RemoteCombat.BurstCount((int)field.GetValue(barrel),140,false,int.MaxValue)==140,"Turret refill retains inventory-box offset");
+                }
+            }
+            Require(RemoteCombat.BurstCount(140,140,false,78)==78 && RemoteCombat.BurstCount(140,140,true,78)==0,"Last inventory rounds or timed reload count incorrect");
+            Require(RemoteCombat.BurstCount(-1,140,false,0)==0,"Empty turret shows negative ammunition");
+            log("PASS turret ammo: installed Gatling/missile barrel counters, three burst/reload cycles, infinite ammo, last partial box and empty supply.");
+        }
         internal static void PaintSource(OverlayCanvas source)
         {
                 source.Clear(System.Drawing.Color.FromArgb(20,45,62));
@@ -59,6 +83,7 @@ namespace SpaceEngineersVR.Diagnostics
         }
         public static void Run(Action<string> log)
         {
+            Ammo(log);
             var home=Entity<MyCockpit>(); var remote=Entity<MyRemoteControl>();
             var camera=Entity<MyCameraBlock>(); var alternate=Entity<MyCameraBlock>();
             var turret=(MyLargeTurretBase)FormatterServices.GetUninitializedObject(typeof(MyTurretControlBlock).Assembly.GetTypes().First(t=>!t.IsAbstract && typeof(MyLargeTurretBase).IsAssignableFrom(t))); var custom=Entity<MyTurretControlBlock>();

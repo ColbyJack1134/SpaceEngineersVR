@@ -22,6 +22,9 @@ namespace SpaceEngineersVR.Diagnostics
         {
             private Sandbox.Game.GUI.MyHudCameraOverlay overlay;
             private Action drawCrosshair;
+            private Sandbox.Game.Gui.MyGuiScreenHudBase markerOwner;
+            private Sandbox.Game.Gui.MyHud previewHud;
+            private readonly Sandbox.Game.Screens.MyHudWeaponHitIndicator hit=new Sandbox.Game.Screens.MyHudWeaponHitIndicator();
             public override bool Draw()
             {
                 bool drawn=base.Draw();
@@ -35,6 +38,24 @@ namespace SpaceEngineersVR.Diagnostics
                 Sandbox.Game.GUI.MyHudCameraOverlay.Enabled=true;
                 Sandbox.Game.GUI.MyHudCameraOverlay.TextureName=@"Textures\GUI\Screens\camera_overlay.dds";
                 overlay.Draw(1,1); drawCrosshair();
+                var hudField=HarmonyLib.AccessTools.Field(typeof(Sandbox.Game.Gui.MyHud),"m_Static");
+                object previousHud=hudField.GetValue(null);
+                var cameraProperty=HarmonyLib.AccessTools.Property(typeof(MySector),nameof(MySector.MainCamera));
+                var previousCamera=MySector.MainCamera;
+                try
+                {
+                    if(previousHud==null) { if(previewHud==null) previewHud=new Sandbox.Game.Gui.MyHud(); hudField.SetValue(null,previewHud); }
+                    var camera=new VRage.Game.Utils.MyCamera(1f,new VRageRender.MyViewport(0,0,1920,1080));
+                    camera.SetViewMatrix(MatrixD.Identity,false); cameraProperty.SetValue(null,camera,null);
+                    hit.Hit(MySession.MyHitIndicatorTarget.Grid); hit.Update(); hit.GuiControlImage.Draw(1,1);
+                    if(markerOwner==null) { markerOwner=new Sandbox.Game.Gui.MyGuiScreenHudBase(); markerOwner.LoadContent(); }
+                    var markers=new Sandbox.Game.GUI.HudViewers.MyHudMarkerRender(markerOwner);
+                    RemoteHud.BeginCollection(out bool collection);
+                    try { markers.AddPOI(new Vector3D(180,0,-1000),new System.Text.StringBuilder("Camera marker"),VRage.Game.MyRelationsBetweenPlayerAndBlock.Owner); }
+                    finally { RemoteHud.EndCollection(collection); }
+                    markers.Draw(); markerOwner.DrawTexts();
+                }
+                finally { hudField.SetValue(null,previousHud); cameraProperty.SetValue(null,previousCamera,null); }
                 return drawn;
             }
         }
@@ -461,8 +482,9 @@ namespace SpaceEngineersVR.Diagnostics
                     }
                     if(phase==24)
                     {
-                        if(RemoteHud.SpriteCount<2) throw new InvalidOperationException("Expected native filter and crosshair: "+RemoteHud.FixtureSprites);
-                        Logger.Info("PASS native camera HUD allowlist: "+RemoteHud.SpriteCount+" camera/crosshair sprites; options screen excluded");
+                        if(RemoteHud.FixtureSprites==null || !RemoteHud.FixtureSprites.Contains("HitIndicator")) throw new InvalidOperationException("Native hit confirmation missing: "+RemoteHud.FixtureSprites);
+                        if(RemoteHud.SpriteCount<3) throw new InvalidOperationException("Expected native filter and crosshair: "+RemoteHud.FixtureSprites);
+                        Logger.Info("PASS native camera HUD allowlist: "+RemoteHud.SpriteCount+" camera/crosshair/hit sprites; options screen excluded");
                         var remote=new RemoteView.View { Source=123,Width=1.2f,Height=.675f,
                             Pose=MatrixD.CreateTranslation(0,0,-1.5)*MatrixD.Invert(camera.ViewMatrix) };
                         RemoteFeed.Render(remote);

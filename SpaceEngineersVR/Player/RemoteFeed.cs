@@ -37,6 +37,7 @@ namespace SpaceEngineersVR.Player
                 using(var isolated=new RemoteScene()) MyRender11.DrawGameScene(feed,out ambient);
                 var rendered=(Texture2D)feed.GetResource();
                 RemoteHud.Composite(rendered,view);
+                RemoteCombat.DrawAmmo(rendered,view);
                 image.Store(rendered);
                 source=view.Source;
             }
@@ -54,7 +55,7 @@ namespace SpaceEngineersVR.Player
             WindowFrame.Reset("Remote"); RemoteExposure.Reset();
         }
         internal static void Paint(OverlayCanvas canvas,RemoteView.View view) => WindowFrame.Paint(canvas,
-            new WindowFrame.Snapshot {Width=view.Width,Height=view.Height,Hover=view.Hover,Zoom=true});
+            new WindowFrame.Snapshot {Width=view.Width,Height=view.Height,Hover=view.Hover,Zoom=true,SignalMode=view.SignalMode});
         public static void Draw(Texture2D target,RemoteView.View remote,MatrixD view,MatrixD projection)
         {
             if(remote==null || image.View==null || source!=remote.Source) return;
@@ -64,7 +65,7 @@ namespace SpaceEngineersVR.Player
         {
             var picture=PhysicalSurface.Quad(image,remote.Pose,new VRageMath.RectangleF(-remote.Width/2,remote.Height/2,remote.Width,remote.Height),new Vector4(0,0,1,1),Vector4.One,view,projection);
             NativeSprites.Draw(target,new[] {picture},handDepth:hands);
-            WindowFrame.Draw(target,"Remote",new WindowFrame.Snapshot {Pose=(Matrix)remote.Pose,Width=remote.Width,Height=remote.Height,Hover=remote.Hover,Zoom=true},view,projection,hands);
+            WindowFrame.Draw(target,"Remote",new WindowFrame.Snapshot {Pose=(Matrix)remote.Pose,Width=remote.Width,Height=remote.Height,Hover=remote.Hover,Zoom=true,SignalMode=remote.SignalMode},view,projection,hands);
             if(remote.RayStart.HasValue && remote.RayEnd.HasValue)
             {
                 var delta=remote.RayEnd.Value-remote.RayStart.Value;

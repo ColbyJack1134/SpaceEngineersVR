@@ -93,7 +93,7 @@ namespace SpaceEngineersVR.Player
             if (failed || !Main.VrActive) return;
             try
             {
-                var mode=MyHudMarkerRender.SignalDisplayMode;
+                var mode=RemoteHud.GlobalSignalMode;
                 if (!Main.WorldAvailable) { RenderFrameBridge.CaptureMarkers(null); return; }
                 var head=CameraRig.Current?.Anchor.Translation ?? Sandbox.Game.World.MySector.MainCamera.Position;
                 var now=DateTime.UtcNow;

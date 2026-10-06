@@ -23,11 +23,13 @@ namespace SpaceEngineersVR.Player
             public MatrixD Pose;
             public float Width,Height;
             public int Hover;
+            public int SignalMode;
+            public int Ammo=-1,Capacity;
             public long Source;
             public Vector3D? RayStart,RayEnd;
             public bool LeftHand;
         }
-        private static readonly MenuWindow window=new MenuWindow { BarOffset=.035f };
+        private static readonly MenuWindow window=new MenuWindow { BarOffset=.035f,TopMargin=.08f };
         private static readonly WindowInteraction interaction=new WindowInteraction(window);
         private static readonly Action<MyLargeTurretBase,float> turretZoom=AccessTools.MethodDelegate<Action<MyLargeTurretBase,float>>(AccessTools.Method(typeof(MyLargeTurretBase),"ChangeZoomPrecise"));
         private static object owner,source;
@@ -160,7 +162,7 @@ namespace SpaceEngineersVR.Player
             var Reachable=WindowInteraction.Reachable(window,aim,PhysicalTrackingToWorld);
             int ExtraHit(Vector3 point,bool near)
             {
-                int control=WindowFrame.Control(point,window.Width,window.Height,window.BarOffset,true,false,false);
+                int control=WindowFrame.Control(point,window.Width,window.Height,window.BarOffset,true,false,false,true);
                 if(control!=0) return control;
                 return near && Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2 ? 1:0;
             }
@@ -173,19 +175,34 @@ namespace SpaceEngineersVR.Player
             if(interaction.Captured)
             {
                 interaction.Grab(hand,PhysicalTrackingToWorld);
-                if(interaction.HeldAction>=3) Zoom(interaction.HeldAction==3 ? .12f:-.12f);
+                if(interaction.HeldAction==WindowFrame.SignalsHover) CycleSignals();
+                if(interaction.HeldAction==3 || interaction.HeldAction==4) Zoom(interaction.HeldAction==3 ? .12f:-.12f);
             }
-            else if(interaction.Active && hover>=3 && interaction.HeldAction==hover) Zoom((hover==3 ? 1:-1)*seconds*.6f);
+            else if(interaction.Active && (hover==3 || hover==4) && interaction.HeldAction==hover) Zoom((hover==3 ? 1:-1)*seconds*.6f);
             // Turret and remote-grid feeds keep firing through the image; only their buttons and handles claim input.
             if(hover!=0 || interaction.Active || rayStart.HasValue && !Turret && !RemoteGrid) WindowInteraction.Claim(hand);
             lastHover=hover;
             Publish(window.Drag!=0 ? window.Drag:hover);
         }
+        internal static int NextSignalMode(int mode) => (mode+1)%4;
         internal static float ZoomX(float width,bool plus) => WindowFrame.ZoomX(width,plus);
+        private static int ReadSignalMode()
+        {
+            long id=(source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0;
+            return Math.Max(0,Math.Min(3,Common.Config?.MenuWindows?.FirstOrDefault(s=>s.Screen=="CameraSignals" && s.World==world && s.Cockpit==id)?.SignalMode ?? 0));
+        }
+        private static void CycleSignals()
+        {
+            long id=(source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0;
+            var saved=new MenuWindowSetting {Screen="CameraSignals",World=world,Cockpit=id,SignalMode=NextSignalMode(ReadSignalMode())};
+            Common.Config.MenuWindows=Common.Config.MenuWindows.Where(s=>s.Screen!=saved.Screen || s.World!=world || s.Cockpit!=id).Concat(new[] {saved}).ToArray();
+        }
         private static void Publish(int hover=-1)
         {
             if(!Active || source==null) { Current=null; return; }
+            RemoteCombat.ReadAmmo(source as MyLargeTurretBase,out int ammo,out int capacity);
             Current=new View { Pose=(MatrixD)window.Pose,Width=window.Width,Height=window.Height,Hover=hover<0 ? window.Drag!=0 ? window.Drag:lastHover : hover,
+                SignalMode=ReadSignalMode(),Ammo=ammo,Capacity=capacity,
                 RayStart=rayStart,RayEnd=rayEnd,LeftHand=left,Source=(source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0 };
         }
         internal static void Axes(Vector2 right,Vector2 left,float speed,out Vector2 aim,out float zoom)

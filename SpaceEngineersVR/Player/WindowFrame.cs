@@ -18,6 +18,7 @@ namespace SpaceEngineersVR.Player
             public int Hover;
             public bool Zoom,Close;
             public int Monitor;
+            public int SignalMode=-1;
         }
         private sealed class Cache
         {
@@ -27,9 +28,13 @@ namespace SpaceEngineersVR.Player
         }
         private static readonly Dictionary<string,Cache> frames=new Dictionary<string,Cache>();
         internal static float ZoomX(float width,bool plus) => -width/2+(plus ? .115f:.05f);
-        internal const int CloseHover=5,MonitorHover=6;
-        internal static int Control(Vector3 point,float width,float height,float barOffset,bool zoom,bool close,bool monitor)
+        internal const int CloseHover=5,MonitorHover=6,SignalsHover=7;
+        internal static float SignalsX(float width) => width/2-.035f;
+        internal static float SignalsY(float height) => height/2+.04f;
+        private static float Top(Snapshot s) => s.SignalMode>=0 ? .08f:.03f;
+        internal static int Control(Vector3 point,float width,float height,float barOffset,bool zoom,bool close,bool monitor,bool signals=false)
         {
+            if(signals && Math.Abs(point.Y-SignalsY(height))<.027f && Math.Abs(point.X-SignalsX(width))<.027f) return SignalsHover;
             if(Math.Abs(point.Y+height/2+barOffset)>=.035f) return 0;
             if(Math.Abs(point.X-ZoomX(width,false))<.027f) return zoom ? 3 : close ? CloseHover : 0;
             if(Math.Abs(point.X-ZoomX(width,true))<.027f) return zoom ? 4 : monitor ? MonitorHover : 0;
@@ -46,8 +51,8 @@ namespace SpaceEngineersVR.Player
             var g=canvas.Graphics; var state=g.Save();
             try
             {
-                float w=s.Width+.06f,h=s.Height+.115f+s.BarOffset;
-                g.ScaleTransform(1600/w,1100/h); g.TranslateTransform(w/2,.03f+s.Height/2);
+                float w=s.Width+.06f,h=s.Height+Top(s)+.085f+s.BarOffset;
+                g.ScaleTransform(1600/w,1100/h); g.TranslateTransform(w/2,Top(s)+s.Height/2);
                 // Native menu contents retain their own texture, without a tint.
                 float bottom=s.Height/2+s.BarOffset;
                 using(var pen=new Pen(s.Hover==1 ? Color.Cyan : Color.White,.010f) { StartCap=LineCap.Round,EndCap=LineCap.Round })
@@ -66,6 +71,16 @@ namespace SpaceEngineersVR.Player
                         g.DrawString("+",font,s.Hover==4 ? Brushes.Cyan:Brushes.White,ZoomX(s.Width,true),bottom,centered);
                     }
                 }
+                if(s.SignalMode>=0)
+                    using(var pen=new Pen(s.Hover==SignalsHover ? Color.Cyan:Color.White,.003f) {StartCap=LineCap.Round,EndCap=LineCap.Round})
+                    {
+                        float x=SignalsX(s.Width),y=-SignalsY(s.Height);
+                        g.DrawPolygon(pen,new[] {new PointF(x,y-.016f),new PointF(x+.016f,y),new PointF(x,y+.016f),new PointF(x-.016f,y)});
+                        if(s.SignalMode!=3) g.DrawEllipse(pen,x-.003f,y-.003f,.006f,.006f);
+                        if(s.SignalMode<=1) g.DrawLine(pen,x-.012f,y+.025f,x+.012f,y+.025f);
+                        if(s.SignalMode==1) g.DrawLine(pen,x-.018f,y+.031f,x+.018f,y+.031f);
+                        if(s.SignalMode==3) g.DrawLine(pen,x-.021f,y+.021f,x+.021f,y-.021f);
+                    }
                 if(s.Close)
                     using(var pen=new Pen(s.Hover==CloseHover ? Color.Cyan : Color.White,.006f) { StartCap=LineCap.Round,EndCap=LineCap.Round })
                     {
@@ -98,13 +113,13 @@ namespace SpaceEngineersVR.Player
                 var canvas=new OverlayCanvas("Window frame "+id,1600,1100,1,false,target.Device,true);
                 frames[id]=frame=new Cache {Canvas=canvas,Texture=new ShaderResourceView(target.Device,canvas.Texture)};
             }
-            string key=s.Width+"|"+s.Height+"|"+s.Hover+"|"+s.BarOffset+"|"+s.Zoom+"|"+s.Close+"|"+s.Monitor;
+            string key=s.Width+"|"+s.Height+"|"+s.Hover+"|"+s.BarOffset+"|"+s.Zoom+"|"+s.Close+"|"+s.Monitor+"|"+s.SignalMode;
             if(frame.Key!=key)
             {
                 Paint(frame.Canvas,s); frame.Canvas.Upload(); target.Device.ImmediateContext.GenerateMips(frame.Texture); frame.Key=key;
             }
             var sprite=PhysicalSurface.Quad(frame.Texture,s.Pose,
-                new VRageMath.RectangleF(-s.Width/2-.03f,s.Height/2+.03f,s.Width+.06f,s.Height+.115f+s.BarOffset),
+                new VRageMath.RectangleF(-s.Width/2-.03f,s.Height/2+Top(s),s.Width+.06f,s.Height+Top(s)+.085f+s.BarOffset),
                 new Vector4(0,0,1,1),Vector4.One,view,projection);
             NativeSprites.Draw(target,new[] {sprite},controllerDepth,handDepth);
         }

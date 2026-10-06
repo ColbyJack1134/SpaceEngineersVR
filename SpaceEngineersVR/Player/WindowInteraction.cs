@@ -70,7 +70,7 @@ namespace SpaceEngineersVR.Player
             if(ThirdPersonView.Active) return MenuHands.TryPointPose(hand.GripTracking,out var tracked,hand) ? tracked:(MatrixD)hand.AimTracking;
             return TrackedArms.TryFreePointPose(hand,out var finger) ? finger*MatrixD.Invert(trackingToWorld):(MatrixD)hand.AimTracking;
         }
-        private bool OnWindow(Vector3 point) => Math.Abs(point.X)<window.Width/2+.065f && point.Y<window.Height/2+.03f && point.Y> -window.Height/2-.10f;
+        private bool OnWindow(Vector3 point) => Math.Abs(point.X)<window.Width/2+.065f && point.Y<window.Height/2+window.TopMargin && point.Y> -window.Height/2-.10f;
         // Fingertip beats laser, a pressing laser beats an idle one; ties keep the current hand.
         internal Controller PickHand(Controller current,Func<Controller,bool> free,Func<Controller,MatrixD> aim)
         {

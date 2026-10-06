@@ -8,7 +8,7 @@ namespace SpaceEngineersVR.Player
     {
         public const float DefaultWidth=2.4f, MinWidth=.7f, MaxWidth=3.2f;
         public Matrix Pose=Matrix.Identity;
-        public float Width=DefaultWidth,Aspect=9f/16,BarOffset=.035f;
+        public float Width=DefaultWidth,Aspect=9f/16,BarOffset=.035f,TopMargin=.03f;
         public float MinimumWidth=MinWidth,MaximumWidth=MaxWidth,PointerRange=4;
         public float Height => Width*Aspect;
         public int Drag { get; private set; }

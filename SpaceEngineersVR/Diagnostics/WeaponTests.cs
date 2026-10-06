@@ -204,6 +204,33 @@ namespace SpaceEngineersVR.Diagnostics
                     UiTests.Save(canvas.Texture,Path.Combine(output,"ammo-"+remaining+".png"));
                     if(remaining==18) UiTests.Save(canvas.Texture,Path.Combine(output,"ammo-label.png"));
                 }
+                using(var feed=new Texture2D(device,new Texture2DDescription {Width=1600,Height=900,MipLevels=1,ArraySize=1,Format=SharpDX.DXGI.Format.R8G8B8A8_UNorm_SRgb,SampleDescription=new SharpDX.DXGI.SampleDescription(1,0),Usage=ResourceUsage.Default,BindFlags=BindFlags.RenderTarget|BindFlags.ShaderResource}))
+                using(var frame=new OverlayCanvas("Camera frame",1600,1100,1,false,device))
+                {
+                    foreach(int mode in new[] {0,1,2,3})
+                    {
+                        using(var rtv=new RenderTargetView(device,feed)) device.ImmediateContext.ClearRenderTargetView(rtv,new SharpDX.Mathematics.Interop.RawColor4(.10f,.14f,.18f,1));
+                        RemoteCombat.DrawAmmo(feed,new RemoteView.View {Ammo=mode==0 ? 90:mode==1 ? 25:mode==2 ? 10:0,Capacity=100});
+                        UiTests.Save(feed,Path.Combine(output,"turret-ammo-"+mode+".png"));
+                        UiTests.Render(frame,()=>WindowFrame.Paint(frame,new WindowFrame.Snapshot {Width=1.2f,Height=.675f,Zoom=true,SignalMode=mode,Hover=WindowFrame.SignalsHover}));
+                        UiTests.Save(frame.Texture,Path.Combine(output,"camera-frame-"+mode+".png"));
+                        UiTests.Render(frame,()=>WindowFrame.Paint(frame,new WindowFrame.Snapshot {Width=.7f,Height=.39375f,Zoom=true,SignalMode=mode}));
+                        UiTests.Save(frame.Texture,Path.Combine(output,"camera-frame-min-"+mode+".png"));
+                    }
+                    using(var rtv=new RenderTargetView(device,feed)) device.ImmediateContext.ClearRenderTargetView(rtv,new SharpDX.Mathematics.Interop.RawColor4(.10f,.14f,.18f,1));
+                    var crosshair=ShipCrosshair.Read(new Sandbox.Game.Gui.MyHudCrosshair(),MatrixD.Identity);
+                    crosshair.Owner=7;
+                    RemoteCombat.Hit=new RemoteCombat.HitView {Owner=7,Path=@"Textures\GUI\Indicators\HitIndicator4.png",Color=new Color(117,201,241).ToVector4(),Size=new Vector2(.0375f,.05f),Time=DateTime.UtcNow};
+                    var projection=MatrixD.CreatePerspectiveFieldOfView(1,1600f/900,.03,10000);
+                    ShipCrosshair.Draw(feed,crosshair,MatrixD.Identity,MatrixD.Identity,projection);
+                    SignalTests.WaitIcons();
+                    ShipCrosshair.Draw(feed,crosshair,MatrixD.Identity,MatrixD.Identity,projection);
+                    UiTests.Save(feed,Path.Combine(output,"ship-hit-confirmation.png"));
+                    using(var rtv=new RenderTargetView(device,feed)) device.ImmediateContext.ClearRenderTargetView(rtv,new SharpDX.Mathematics.Interop.RawColor4(.10f,.14f,.18f,1));
+                    ShipCrosshair.Draw(feed,crosshair,MatrixD.Identity,MatrixD.Identity,projection,false,1);
+                    UiTests.Save(feed,Path.Combine(output,"ship-hit-before.png"));
+                    RemoteCombat.Reset();
+                }
                 UiTests.Render(canvas,()=>PhysicalSurface.Paint(canvas,WeaponAmmo.Label(WeaponProfile.Launcher,MatrixD.Identity,1,1)));
                 UiTests.Save(canvas.Texture,Path.Combine(output,"ammo-single.png"));
             }

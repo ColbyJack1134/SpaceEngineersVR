@@ -17,6 +17,11 @@ namespace SpaceEngineersVR.Player
     {
         private const string queue="SEVR.CameraHud";
         [ThreadStatic] private static int capturing;
+        [ThreadStatic] private static int collecting;
+        [ThreadStatic] private static int markerDrawing;
+        [ThreadStatic] private static int markerMode;
+        private static readonly FieldInfo signalMode=AccessTools.Field(typeof(Sandbox.Game.GUI.HudViewers.MyHudMarkerRender),"<SignalDisplayMode>k__BackingField");
+        internal static Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode GlobalSignalMode => (Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode)signalMode.GetValue(null);
         private static readonly TextureCopy hud=new TextureCopy();
         private static long source;
         internal static RemoteView.View Fixture;
@@ -36,8 +41,36 @@ namespace SpaceEngineersVR.Player
                 harmony.Patch(AccessTools.Method(typeof(MyRenderProxy),method),new HarmonyMethod(typeof(RemoteHud),nameof(Route)));
             foreach(string type in new[] {"Sandbox.Game.GUI.MyHudCameraOverlay","Sandbox.Game.Gui.MyHudCrosshair","Sandbox.Game.Gui.MyHudTargetingMarkers"})
                 harmony.Patch(AccessTools.Method(AccessTools.TypeByName(type),"Draw"),new HarmonyMethod(typeof(RemoteHud),nameof(Begin)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(End)));
+            var marker=typeof(Sandbox.Game.GUI.HudViewers.MyHudMarkerRender);
+            harmony.Patch(AccessTools.Method(typeof(Sandbox.Game.Gui.MyGuiScreenHudBase),"DrawTexts"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginMarkers)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(EndMarkers)));
+            harmony.Patch(AccessTools.PropertyGetter(marker,"SignalDisplayMode"),postfix:new HarmonyMethod(typeof(RemoteHud),nameof(SignalMode)));
+            harmony.Patch(AccessTools.Method(typeof(Sandbox.Game.Gui.MyGuiScreenHudSpace),"AsyncUpdate"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginCollection)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(EndCollection)));
+            harmony.Patch(AccessTools.Method(typeof(Sandbox.Game.Gui.MyGuiScreenHudSpace),"DrawAsync"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginCollection)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(EndCollection)));
+            foreach(string property in new[] {"MinimalHud","IsHudMinimal"})
+                harmony.Patch(AccessTools.PropertyGetter(typeof(Sandbox.Game.Gui.MyHud),property),postfix:new HarmonyMethod(typeof(RemoteHud),nameof(MinimalHud)));
+            harmony.Patch(AccessTools.Method(marker,"Draw"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginMarkers)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(EndMarkers)));
+            harmony.Patch(AccessTools.Method(marker,"DrawTargetIndicatorRender"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(Begin)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(End)));
+            harmony.Patch(AccessTools.Method(typeof(Sandbox.Graphics.GUI.MyGuiControlImage),"Draw"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginHit)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(End)));
             var main=renderer.GetMethods(BindingFlags.Static|BindingFlags.NonPublic).Single(m=>m.Name=="RenderMainSprites" && m.GetParameters().Length==5);
             harmony.Patch(main,new HarmonyMethod(typeof(RemoteHud),nameof(Collect)));
+        }
+        private static bool CameraActive => Fixture!=null || Main.VrActive && !Main.MenuOpen && RemoteView.Current!=null;
+        private static void BeginHit(Sandbox.Graphics.GUI.MyGuiControlImage __instance,out bool __state)
+        {
+            __state=CameraActive && ReferenceEquals(__instance,RemoteCombat.HitControl);
+            if(__state) capturing++;
+        }
+        internal static void BeginCollection(out bool __state)
+        { __state=CameraActive; if(__state) collecting++; }
+        internal static void EndCollection(bool __state) { if(__state) collecting--; }
+        internal static void BeginMarkers(out bool __state)
+        { __state=CameraActive; if(__state) { if(markerDrawing==0) markerMode=(Fixture ?? RemoteView.Current)?.SignalMode ?? 0; capturing++; markerDrawing++; } }
+        internal static void EndMarkers(bool __state) { if(__state) { capturing--; markerDrawing--; } }
+        private static void MinimalHud(ref bool __result) { if(collecting>0) __result=false; }
+        internal static void SignalMode(ref Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode __result)
+        {
+            if(markerDrawing>0) __result=(Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode)markerMode;
+            else if(collecting>0) __result=Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode.FullDisplay;
         }
         private static void HudFrame()
         {
@@ -52,10 +85,12 @@ namespace SpaceEngineersVR.Player
             if(__state) capturing++;
         }
         private static void End(bool __state) { if(__state) capturing--; }
-        private static void Route(ref string targetTexture)
+        private static bool Route(ref string targetTexture)
         {
-            // Only the game's camera filter, crosshair and targeting controls enter this queue.
+            // Capture only the selected native controls and camera marker renderer.
+            if(markerDrawing>0 && markerMode==3) return false;
             if(capturing>0) targetTexture=queue;
+            return true;
         }
         private static void Collect(object[] __args)
         {
@@ -96,6 +131,6 @@ namespace SpaceEngineersVR.Player
             NativeSprites.Draw(target,new[] {new NativeSprite(null,new RectangleF(0,0,target.Description.Width,target.Description.Height),Vector4.One) { Texture=hud.View }});
         }
         private static void Release() { hud.Dispose(); source=0; SpriteCount=0; }
-        public static void Reset() { Release(); collectedFrame=int.MinValue; }
+        public static void Reset() { Release(); RemoteCombat.Reset(); collectedFrame=int.MinValue; }
     }
 }

@@ -9,14 +9,15 @@ namespace SpaceEngineersVR.Player
     internal static class WeaponAmmo
     {
         internal static string Count(MyGunBase gun) => gun?.CurrentAmmo.ToString("N0") ?? "";
+        internal static SurfaceView Counts(int remaining,int capacity) => new SurfaceView {Style=SurfaceStyle.Ammo,Text=remaining+" / "+capacity,Levels=new[] {capacity>0 ? (float)remaining/capacity:0}};
         internal static SurfaceView Label(WeaponProfile profile,MatrixD model,int remaining,int capacity)
         {
             var point=profile.Kind==ItemKind.Pistol ? new Vector3D(profile.Item=="FlareGunItem" ? -.030:-.025,.057,.025):
                 profile.Kind==ItemKind.Launcher ? new Vector3D(-.070,.125,.065):new Vector3D(-.038,.047,-.012);
             var local=MatrixD.CreateWorld(point,Vector3D.Right,Vector3D.Up);
-            return new SurfaceView {Id="WeaponAmmo",Style=SurfaceStyle.Ammo,Text=remaining+" / "+capacity,
-                Levels=new[] {capacity>0 ? (float)remaining/capacity:0},Width=.043f,Height=.016f,
-                ParentLocal=local,Pose=local*model};
+            var view=Counts(remaining,capacity);
+            view.Id="WeaponAmmo"; view.Width=.043f; view.Height=.016f; view.ParentLocal=local; view.Pose=local*model;
+            return view;
         }
         internal static bool Inspecting(MatrixD model,MatrixD head,MatrixD label)
         {

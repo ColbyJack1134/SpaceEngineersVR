@@ -19,6 +19,7 @@ namespace SpaceEngineersVR.Player
         internal sealed class View
         {
             public Vector3D Position,Up;
+            public long Owner;
             public MyHudTexturesEnum Icon;
             public Vector4 Color;
             public Vector2 HalfSize;
@@ -28,6 +29,7 @@ namespace SpaceEngineersVR.Player
         private static readonly FieldInfo id=AccessTools.Field(sprite,"SpriteId"),visible=AccessTools.Field(sprite,"Visible"),
             icon=AccessTools.Field(sprite,"SpriteEnum"),color=AccessTools.Field(sprite,"Color"),size=AccessTools.Field(sprite,"HalfSize");
 
+        internal const float HitScale=.65f;
         internal static Vector3D Aim(MatrixD controller) => controller.Translation+controller.Forward*1000;
         internal static bool Enabled(PluginConfig config,bool visorVisible) => config.ShipCrosshair && visorVisible && (config.ShowVitals || config.WaypointMode>0);
         internal static View Capture()
@@ -36,7 +38,9 @@ namespace SpaceEngineersVR.Player
             if(!(session?.ControlledEntity is MyShipController ship) || ship.Closed || ship.MarkedForClose ||
                 RemoteView.Current!=null || MyHud.MinimalHud || MyHud.IsHudMinimal || MyHud.CutsceneHud ||
                 session.CameraController is MySpectatorCameraController) return null;
-            return Read(MyHud.Crosshair,ship.WorldMatrix);
+            var result=Read(MyHud.Crosshair,ship.WorldMatrix);
+            if(result!=null) result.Owner=ship.EntityId;
+            return result;
         }
         internal static View Read(MyHudCrosshair crosshair,MatrixD controller)
         {
@@ -47,7 +51,7 @@ namespace SpaceEngineersVR.Player
                         Color=((Color)color.GetValue(value)).ToVector4(),HalfSize=(Vector2)size.GetValue(value)};
             return null;
         }
-        internal static void Draw(Texture2D target,View value,MatrixD head,MatrixD view,MatrixD projection,bool faceViewer=false)
+        internal static void Draw(Texture2D target,View value,MatrixD head,MatrixD view,MatrixD projection,bool faceViewer=false,float hitScale=HitScale)
         {
             if(value==null || !WorldMarkers.Project(value.Position,view,projection,out _) ||
                 !MarkerBillboard.TryCreate(value.Position,head,view,value.Up,faceViewer,out var board)) return;
@@ -55,6 +59,12 @@ namespace SpaceEngineersVR.Player
             var extent=value.HalfSize/.02f;
             if(board.Project(new RectangleF(-extent.X/2,-extent.Y/2,extent.X,extent.Y),view,projection,ref glyph))
                 NativeSprites.Draw(target,new[] {glyph});
+            var hit=RemoteCombat.Hit;
+            if(hit==null || hit.Owner!=value.Owner || (System.DateTime.UtcNow-hit.Time).TotalSeconds>.3) return;
+            var marker=new NativeSprite(hit.Path,default(RectangleF),hit.Color);
+            float width=hit.Size.X/.04f*hitScale,height=hit.Size.Y/.04f*hitScale;
+            if(board.Project(new RectangleF(-width/2,-height/2,width,height),view,projection,ref marker))
+                NativeSprites.Draw(target,new[] {marker});
         }
     }
 }
