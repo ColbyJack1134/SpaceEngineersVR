@@ -189,7 +189,9 @@ namespace SpaceEngineersVR.Player
             Tablet,
             Inspect,ResetFeed,ExitFeed,PlayPosture,
             new ActionChoice("Turrets and cameras",()=>MyGuiSandbox.AddScreen(new GUI.SettingsPage("Turrets and cameras")),true),
-            new ActionChoice("Body and seated play",()=>MyGuiSandbox.AddScreen(new GUI.BodyOptions()),true)
+            new ActionChoice("Body and seated play",()=>MyGuiSandbox.AddScreen(new GUI.BodyOptions()),true),
+            new ActionChoice("Chat",VrChat.Open,true),
+            new ActionChoice("Hotkey keyboard",MenuKeyboard.OpenHotkeys)
         };
         public static readonly ActionChoice[] Developer = {
             new ActionChoice("Developer options", () => MyGuiSandbox.AddScreen(new GUI.DeveloperOptions()), true),

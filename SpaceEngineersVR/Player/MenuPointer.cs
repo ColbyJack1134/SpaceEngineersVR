@@ -77,6 +77,7 @@ namespace SpaceEngineersVR.Player
         {
             if (pulseKey != 0 && --pulseTicks <= 0) ReleaseKey();
             MenuKeyboard.Update();
+            VrChat.Update();
             if(checkTextFocus)
             {
                 checkTextFocus=false;

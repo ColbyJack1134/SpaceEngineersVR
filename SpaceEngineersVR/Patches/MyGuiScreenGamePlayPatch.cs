@@ -11,7 +11,7 @@ namespace SpaceEngineersVR.Patches
     {
         [HarmonyPrefix]
         [HarmonyPatch(nameof(MyGuiScreenGamePlay.HandleInput))]
-        private static bool GameplayInput() => !Main.VrActive || InputRouter.Gameplay;
+        private static bool GameplayInput() => !Main.VrActive || InputRouter.Gameplay || MenuKeyboard.Hotkeys;
 
         [HarmonyPrefix]
         [HarmonyPatch(nameof(MyGuiScreenGamePlay.MoveAndRotatePlayerOrCamera))]

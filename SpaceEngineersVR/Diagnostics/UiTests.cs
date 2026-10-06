@@ -401,6 +401,15 @@ namespace SpaceEngineersVR.Diagnostics
                     if(bitmap.GetPixel(512,320).R==7) throw new Exception("Keyboard hidden with clear controller depth");
                 keyboard.Keys=MenuKeyboard.MakeKeys(true);
                 PhysicalSurface.Paint(canvas,keyboard); canvas.Upload(); Save(canvas.Texture,Path.Combine(output,"keyboard-symbols-preview.png"));
+                keyboard.Keys=MenuKeyboard.MakeHotkeys(); keyboard.Text="Ctrl+";
+                foreach(var key in keyboard.Keys) key.Active=key.Label=="CTRL";
+                PhysicalSurface.Paint(canvas,keyboard); canvas.Upload(); Save(canvas.Texture,Path.Combine(output,"keyboard-hotkeys-preview.png"));
+                var hotkeys=new SurfaceView { Id="Hotkeys preview",Style=SurfaceStyle.Keyboard,Text=keyboard.Text,Keys=keyboard.Keys,Hover=27,Pressed=-1,
+                    Width=.62f,Height=.62f*KeyboardWindow.Aspect,Pose=MatrixD.CreateTranslation(0,0,-.6) };
+                scene.Clear(System.Drawing.Color.FromArgb(255,7,12,18)); scene.Upload();
+                device.ImmediateContext.ClearDepthStencilView(dsv,DepthStencilClearFlags.Depth,0,0);
+                PhysicalSurface.Draw(scene.Texture,new[] { hotkeys },MatrixD.Identity,projection,srv);
+                Save(scene.Texture,Path.Combine(output,"keyboard-hotkeys-3d.png"));
                 foreach(string subtype in new[] { CockpitLayout.Fighter,"OpenCockpitLarge" })
                 {
                     SeatPanel.TryMount(subtype,out _,out float width,out float height);

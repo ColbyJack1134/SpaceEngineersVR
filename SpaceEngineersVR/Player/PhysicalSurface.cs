@@ -94,7 +94,7 @@ namespace SpaceEngineersVR.Player
         internal static Vector2I TextureSize(SurfaceStyle style) => style==SurfaceStyle.Ammo ? new Vector2I(512,192) : style==SurfaceStyle.Label ? new Vector2I(1536,236) : style==SurfaceStyle.BlockInfo ? new Vector2I(2048,1280) : new Vector2I(1024,640);
         private sealed class Cache { public OverlayCanvas Canvas; public ShaderResourceView Texture; public string Content; public int Revision; public EssentialHud.View Status; }
         private static readonly Dictionary<string,Cache> cache=new Dictionary<string,Cache>();
-        private static readonly Font title=new Font("Segoe UI",32,FontStyle.Bold,GraphicsUnit.Pixel),text=new Font("Segoe UI",27,FontStyle.Regular,GraphicsUnit.Pixel);
+        private static readonly Font title=new Font("Segoe UI",32,FontStyle.Bold,GraphicsUnit.Pixel),text=new Font("Segoe UI",27,FontStyle.Regular,GraphicsUnit.Pixel),smallText=new Font("Segoe UI",21,FontStyle.Regular,GraphicsUnit.Pixel);
         private static readonly StringFormat centered=new StringFormat { Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center };
         private static readonly List<NativeSprite> sprites=new List<NativeSprite>();
         private static readonly System.Reflection.FieldInfo gbuffer=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Resources.MyGBuffer"),"Main");
@@ -141,10 +141,10 @@ namespace SpaceEngineersVR.Player
                 var k=s.Keys[i]; var b=k.Bounds;
                 var r=new System.Drawing.RectangleF(b.X*1024,b.Y*640,b.Width*1024,b.Height*640);
                 bool leftOnly=i!=s.Pressed && i!=s.Hover && (i==s.PressedAlt || i==s.HoverAlt);
-                using(var brush=new SolidBrush(s.IsPressed(i) ? leftOnly ? Color.FromArgb(150,96,32) : Color.FromArgb(40,133,151) :
+                using(var brush=new SolidBrush(s.IsPressed(i) || k.Active ? leftOnly ? Color.FromArgb(150,96,32) : Color.FromArgb(40,133,151) :
                     s.Hovered(i) ? leftOnly ? Color.FromArgb(96,70,40) : Color.FromArgb(55,83,100) : Color.FromArgb(31,47,60))) g.FillRectangle(brush,r);
                 using(var pen=new Pen(s.Hovered(i) ? leftOnly ? Color.Orange : Color.Cyan : Color.FromArgb(86,117,133),2)) g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);
-                g.DrawString(k.Label,text,Brushes.White,r,centered);
+                g.DrawString(k.Label,g.MeasureString(k.Label,text).Width>r.Width-4 ? smallText:text,Brushes.White,r,centered);
             }
             g.FillRectangle(Brushes.White,1020,636,4,4);
         }
