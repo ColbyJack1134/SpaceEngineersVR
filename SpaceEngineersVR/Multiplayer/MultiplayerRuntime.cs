@@ -44,6 +44,8 @@ namespace SpaceEngineersVR.Multiplayer
         internal static Func<uint,PlayerPose> Capture { get; set; }
         internal static Action<string> Notify=Log;
         internal static Func<MyCockpit,int> ControlCount=seat=>CockpitMemory.MaximumControls;
+        internal static Func<MyCockpit,CockpitMemory.Record> LoadLocal { get; set; }
+        internal static Action<MyCockpit,CockpitMemory.Record> SaveLocal { get; set; }
         internal static double Now => Stopwatch.GetTimestamp()/(double)Stopwatch.Frequency;
         private sealed class Message { internal ushort Channel; internal byte[] Data; internal ulong Sender; internal bool Server; }
         private sealed class Peer { internal double Seen; internal readonly RemoteArms Arms=new RemoteArms(); }
@@ -58,7 +60,10 @@ namespace SpaceEngineersVR.Multiplayer
         private static MySession session;
         private static IMyMultiplayer network;
         private static int queued;
-        private static double nextHello,nextPlayers,nextPose;
+        private static double nextHello,nextPlayers,nextPose,connected;
+        private static bool hostSupport;
+        // Hosts without SEVR never answer the hello.
+        internal static bool LocalOnly => network!=null && !network.IsServer && !hostSupport && LoadLocal!=null && Now-connected>6;
         private static uint sequence;
         internal static void Log(string text) => MyLog.Default.WriteLine("SEVR multiplayer: "+text);
         internal static void Reset()
@@ -74,7 +79,7 @@ namespace SpaceEngineersVR.Multiplayer
             foreach(var peer in peers.Values) peer.Arms.Clear();
             peers.Clear(); characters.Clear(); states.Clear(); requested.Clear(); players.Clear();
             while(incoming.TryDequeue(out _)) Interlocked.Decrement(ref queued);
-            network=null; session=null; nextHello=nextPlayers=nextPose=0; sequence=0;
+            network=null; session=null; nextHello=nextPlayers=nextPose=connected=0; sequence=0; hostSupport=false;
         }
         private static void Receive(ushort channel,byte[] data,ulong sender,bool fromServer)
         {
@@ -101,7 +106,7 @@ namespace SpaceEngineersVR.Multiplayer
             if(MySession.Static==null || MyAPIGateway.Multiplayer==null || MyAPIGateway.Players==null) return;
             if(network==null)
             {
-                session=MySession.Static; network=MyAPIGateway.Multiplayer;
+                session=MySession.Static; network=MyAPIGateway.Multiplayer; connected=Now;
                 network.RegisterSecureMessageHandler(PoseChannel,Receive);
                 network.RegisterSecureMessageHandler(StateChannel,Receive);
                 Log("Session connected; "+(network.IsServer ? "host persistence active":"awaiting host support"));
@@ -120,7 +125,7 @@ namespace SpaceEngineersVR.Multiplayer
                 try { Handle(message,now); }
                 catch(Exception error) { Log("Rejected message: "+error.Message); }
             }
-            if(network.IsServer) AnalogControl.Update();
+            if(network.IsServer || LocalOnly) AnalogControl.Update();
             if(network.MultiplayerActive && now>=nextHello)
             {
                 nextHello=now+5;
@@ -150,6 +155,7 @@ namespace SpaceEngineersVR.Multiplayer
         private static void Handle(Message message,double now)
         {
             if(message.Sender==network.MyId) return;
+            if(message.Server) hostSupport=true;
             var player=players.FirstOrDefault(p=>p.SteamUserId==message.Sender);
             if(player==null && !message.Server) return;
             if(message.Channel==PoseChannel)
@@ -276,7 +282,30 @@ namespace SpaceEngineersVR.Multiplayer
                 var local=players.FirstOrDefault(p=>p.SteamUserId==network.MyId);
                 if(local!=null) HostRequest(local,kind,seat.EntityId,value);
             }
+            else if(LocalOnly) LocalRequest(kind,seat,value);
             else network.SendMessageToServer(StateChannel,Packet(kind,seat.EntityId,value),true);
+        }
+        private static void LocalRequest(byte kind,MyCockpit seat,string value)
+        {
+            if(!states.TryGetValue(seat.EntityId,out var record)) states[seat.EntityId]=record=LoadLocal(seat);
+            if(kind==1 || seat.Pilot==null || seat.Pilot!=session.LocalCharacter) return;
+            try
+            {
+                if(kind==6) { ApplyAnalog(seat,record,session.LocalPlayerId,value); return; }
+                if(kind==2) record.Toolbar=value;
+                else if(kind==8) record.Flight=FlightTuning.Decode(value);
+                else if(kind==3)
+                {
+                    var covers=Convert.FromBase64String(value);
+                    if(covers.Length!=2 || covers[0]>=CockpitMemory.MaximumControls) return;
+                    if(record.Covers.Length<CockpitMemory.MaximumControls) Array.Resize(ref record.Covers,CockpitMemory.MaximumControls);
+                    record.Covers[covers[0]]=covers[1]!=0;
+                }
+                else return;
+                record.Revision++;
+                SaveLocal(seat,record);
+            }
+            catch(Exception error) { Log("Cockpit "+seat.EntityId+": "+error.Message); }
         }
         internal static bool Get(MyCockpit seat,out CockpitMemory.Record record)
         {

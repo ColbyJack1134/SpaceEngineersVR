@@ -234,6 +234,8 @@ namespace SpaceEngineersVR.Plugin
             Multiplayer.MultiplayerRuntime.Capture=seq=>VrActive ? Player.TrackedArms.CapturePose(seq):null;
             Multiplayer.MultiplayerRuntime.Notify=message=> { if(VrActive) Player.EssentialHud.Notify(message); };
             Multiplayer.MultiplayerRuntime.ControlCount=seat=>Player.CockpitLayout.Count(seat.BlockDefinition.Id.SubtypeName);
+            Multiplayer.MultiplayerRuntime.LoadLocal=Player.CockpitActions.LoadLocal;
+            Multiplayer.MultiplayerRuntime.SaveLocal=Player.CockpitActions.SaveLocal;
             Multiplayer.MultiplayerRuntime.Enabled=true;
             Logger.Info("Stereo renderer, motion tools and menu overlay hooks installed.");
 

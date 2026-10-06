@@ -202,6 +202,30 @@ namespace SpaceEngineersVR.Player
             if(ReferenceEquals(MyToolbarComponent.CurrentToolbar,toolbar)) MyToolbarComponent.CurrentToolbar=previous;
             MyToolbarComponent.AutoUpdate=previousAutoUpdate; previous=null;
         }
+        internal static CockpitMemory.Record LoadLocal(MyCockpit seat)
+        {
+            string path=MySession.Static.CurrentPath;
+            var record=new CockpitMemory.Record { Revision=1 };
+            try
+            {
+                string xml=Common.Config.CockpitActions.FirstOrDefault(s=>s.World==path && s.Cockpit==seat.EntityId)?.ToolbarXml;
+                var builder=CockpitMemory.Toolbar(xml);
+                if(builder!=null) record.Toolbar=CockpitMemory.Toolbar(builder);
+            }
+            catch(Exception ex) { Logger.Warning(ex,"Local cockpit switch assignments could not be read"); }
+            var covers=Common.Config.CockpitStates.FirstOrDefault(s=>s.World==path && s.Cockpit==seat.EntityId)?.Covers;
+            if(covers!=null) record.Covers=(bool[])covers.Clone();
+            return record;
+        }
+        internal static void SaveLocal(MyCockpit seat,CockpitMemory.Record record)
+        {
+            string path=MySession.Static.CurrentPath; long id=seat.EntityId;
+            var config=Common.Config;
+            config.CockpitActions=config.CockpitActions.Where(s=>s.World!=path || s.Cockpit!=id)
+                .Append(new CockpitActionSetting { World=path,Cockpit=id,ToolbarXml=record.Toolbar }).ToArray();
+            config.CockpitStates=config.CockpitStates.Where(s=>s.World!=path || s.Cockpit!=id)
+                .Append(new CockpitStateSetting { World=path,Cockpit=id,Covers=(bool[])record.Covers.Clone() }).ToArray();
+        }
         public static void Reset()
         {
             if(editor!=null) editor.CloseScreen();
