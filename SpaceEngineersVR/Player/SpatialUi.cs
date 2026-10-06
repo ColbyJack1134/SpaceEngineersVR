@@ -26,6 +26,7 @@ namespace SpaceEngineersVR.Player
         private static bool failed => recovery.Failed;
         public static bool OwnsRight => wristTouch.Consumed || FlightSettings.WindowCaptured;
         internal static bool ContentCaptured => wristTouch.Committed;
+        internal static bool WristInUse => fold>0 || wristTouch.Surface!=null;
         public static bool RayTargeted { get; private set; }
         public static bool Available => !failed;
         private static int wristHover=-1,wristPressed=-1,seatHover=-1,seatPressed=-1;

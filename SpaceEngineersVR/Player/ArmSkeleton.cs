@@ -75,14 +75,15 @@ namespace SpaceEngineersVR.Player
             for(var node=child.Parent;node!=null;node=node.Parent) if(node==parent) return true;
             return false;
         }
-        internal static bool Apply(Arm arm, Matrix target, bool adaptive, bool rigid, float scale, Fingers fingers, float trigger,float[] curls=null,WeaponProfile item=null,bool support=false)
+        internal static bool Apply(Arm arm, Matrix target, bool adaptive, float rigidity, float scale, Fingers fingers, float trigger,float[] curls=null,WeaponProfile item=null,bool support=false)
         {
             if(arm==null || !target.IsValid()) return false;
             arm.Upper.Save(); arm.Lower.Save(); arm.Palm.Save();
             foreach(var twist in arm.Twists) twist.Save();
             foreach(var finger in arm.Fingers) finger.Save();
             arm.Applied=true;
-            if(!ArmMath.ApplyPose(arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone,target,arm.PalmOffset,arm.Hint,adaptive,rigid,scale))
+            if(!(rigidity>0 && rigidity<1 ? Blend(arm,target,adaptive,rigidity,scale) :
+                ArmMath.ApplyPose(arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone,target,arm.PalmOffset,arm.Hint,adaptive,rigidity>=1,scale)))
             { arm.Restore(true); return false; }
             if(fingers!=Fingers.Native)
                 foreach(var finger in arm.Fingers)
@@ -95,6 +96,28 @@ namespace SpaceEngineersVR.Player
             foreach(var finger in arm.Fingers) Remember(finger);
             foreach(var twist in arm.Twists) Remember(twist);
             return true;
+        }
+        // Mixes the rigid-wrist and articulated solves; the palm keeps the tracked pose shared by both.
+        private static bool Blend(Arm arm,Matrix target,bool adaptive,float rigidity,float scale)
+        {
+            var chain=new SavedBone[arm.Twists.Length+3];
+            chain[0]=arm.Upper; chain[1]=arm.Lower; chain[chain.Length-1]=arm.Palm;
+            for(int i=0;i<arm.Twists.Length;i++) chain[2+i]=arm.Twists[arm.Twists.Length-1-i];
+            if(!ArmMath.ApplyPose(arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone,target,arm.PalmOffset,arm.Hint,adaptive,true,scale)) return false;
+            var rotations=new Quaternion[chain.Length]; var translations=new Vector3[chain.Length];
+            for(int i=0;i<chain.Length;i++) { rotations[i]=chain[i].Bone.Rotation; translations[i]=chain[i].Bone.Translation; }
+            Matrix palm=arm.Palm.Bone.AbsoluteTransform;
+            foreach(var saved in chain) { saved.Bone.Rotation=saved.Original; saved.Bone.Translation=saved.Translation; }
+            arm.Upper.Bone.ComputeAbsoluteTransform(true,true);
+            if(!ArmMath.ApplyPose(arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone,target,arm.PalmOffset,arm.Hint,adaptive,false,scale)) return false;
+            for(int i=0;i<chain.Length-1;i++)
+            {
+                chain[i].Bone.Rotation=Quaternion.Slerp(chain[i].Bone.Rotation,rotations[i],rigidity);
+                chain[i].Bone.Translation=Vector3.Lerp(chain[i].Bone.Translation,translations[i],rigidity);
+            }
+            arm.Upper.Bone.ComputeAbsoluteTransform(true,true);
+            arm.Palm.Bone.SetCompleteTransformFromAbsoluteMatrix(ref palm,false); arm.Palm.Bone.ComputeAbsoluteTransform(true,true);
+            return arm.Palm.Bone.AbsoluteTransform.IsValid();
         }
         // Turns the head to a character-space orientation, limited to a natural range from the animated pose.
         internal static bool Look(SavedBone head,Matrix target,float limit)

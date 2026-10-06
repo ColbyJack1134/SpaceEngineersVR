@@ -68,6 +68,7 @@ namespace SpaceEngineersVR.Diagnostics
             }
             log("PASS tracked arms: 1,000 mirrored engine-bone poses in fixed and adaptive modes, accurate controller reach, bounded shoulders, twist chains, wrist orientation, singular/invalid targets");
             RigidLeftWrist(log);
+            BlendedLeftWrist(log);
             RecordedWatchPose(log);
             SkinnedHeads(log);
             CockpitHandTests.Run(log);
@@ -106,6 +107,35 @@ namespace SpaceEngineersVR.Diagnostics
             }
             if(independent<100) throw new Exception("Sleeve remains locked to tablet roll");
             log("PASS rigid left cuff: 120 installed-bone wrist rotations, tracked palm retained, sleeve roll independent and cuff/display fixed relative to palm; articulated right arm covered separately.");
+        }
+        private static void BlendedLeftWrist(Action<string> log)
+        {
+            Vector3 Elbow(MyCharacterBone[] bones,Matrix target,float rigidity)
+            {
+                foreach(var bone in bones) { bone.Rotation=Quaternion.Identity; bone.Translation=Vector3.Zero; }
+                bones[0].ComputeAbsoluteTransform(true,true);
+                var arm=ArmSkeleton.Find(name=>bones.SingleOrDefault(b=>b.Name==name),"SE_RigLUpperarm","SE_RigLForearm1","SE_RigLPalm",-1);
+                if(!ArmSkeleton.Apply(arm,target,true,rigidity,1,ArmSkeleton.Fingers.Native,0)) throw new Exception("Blended left wrist solve failed");
+                var palm=arm.Palm.Bone.AbsoluteTransform; var desired=arm.PalmOffset*target.GetOrientation();
+                Near(Vector3.Distance(palm.Translation,target.Translation),0,"Wrist blend loses controller");
+                Near(Vector3.Distance(palm.Up,desired.Up)+Vector3.Distance(palm.Right,desired.Right),0,"Wrist blend turns the palm",.001f);
+                return arm.Lower.Bone.AbsoluteTransform.Translation;
+            }
+            var installed=InstalledBones();
+            for(int i=0;i<60;i++)
+            {
+                var target=Matrix.CreateFromYawPitchRoll(i*.04f-1.2f,i*.02f-.6f,i*.05f);
+                target.Translation=new Vector3(-.2f+i*.006f,1.25f,-.4f);
+                Vector3 rigid=Elbow(installed,target,1),free=Elbow(installed,target,0),mixed=Elbow(installed,target,.5f);
+                if(Vector3.Distance(mixed,rigid)>Vector3.Distance(free,rigid)+.005f || Vector3.Distance(mixed,free)>Vector3.Distance(free,rigid)+.005f)
+                    throw new Exception("Wrist blend leaves the range between rigid and articulated elbows");
+            }
+            var head=MatrixD.CreateWorld(new Vector3D(0,1.6,0),Vector3D.Forward,Vector3D.Up);
+            var facing=MatrixD.CreateWorld(new Vector3D(0,1.45,-.5),Vector3D.Normalize(new Vector3D(0,-.15,-.5)),Vector3D.Up);
+            Near(TrackedArms.ScreenAttention(facing,head),1,"Screen facing the eye in view does not lock the wrist");
+            Near(TrackedArms.ScreenAttention(MatrixD.CreateWorld(facing.Translation,-facing.Forward,Vector3D.Up),head),0,"Screen turned away does not release the wrist");
+            Near(TrackedArms.ScreenAttention(facing,MatrixD.CreateWorld(head.Translation,Vector3D.Right,Vector3D.Up)),0,"Screen outside the view does not release the wrist");
+            log("PASS blended left wrist: 60 installed-bone poses keep the tracked palm with the elbow between rigid and articulated solves; screen attention locks only when facing and in view");
         }
         private static string Content => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(MyCharacterBone).Assembly.Location),"..","Content"));
         internal static MyCharacterBone[] InstalledBones(string model="Models/Characters/Astronaut/SE_astronaut.mwm")

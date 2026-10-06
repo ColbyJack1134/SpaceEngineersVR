@@ -78,8 +78,8 @@ namespace SpaceEngineersVR.Multiplayer
                 if(bones==null) return;
                 var pair=PairFor(character,bones);
                 var item=character.IsSitting ? null:HeldItemPose.Profile(character);
-                if((pose.Tracked&1)!=0) ArmSkeleton.Apply(pair.Left,Stream.Hand(true,now),true,false,1,pose.LeftFingers,pose.LeftTrigger,null,item,true);
-                if((pose.Tracked&2)!=0) ArmSkeleton.Apply(pair.Right,Stream.Hand(false,now),true,false,1,pose.RightFingers,pose.RightTrigger,null,item,false);
+                if((pose.Tracked&1)!=0) ArmSkeleton.Apply(pair.Left,Stream.Hand(true,now),true,0,1,pose.LeftFingers,pose.LeftTrigger,null,item,true);
+                if((pose.Tracked&2)!=0) ArmSkeleton.Apply(pair.Right,Stream.Hand(false,now),true,0,1,pose.RightFingers,pose.RightTrigger,null,item,false);
                 if((pose.Tracked&PlayerPose.HeadTracked)!=0) ArmSkeleton.Look(pair.Head,Stream.Head(now),HeadLimit);
                 character.AnimationController.UpdateTransformations();
                 // Native weapon placement ran before this pose; move the held item onto the tracked palm.

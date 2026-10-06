@@ -177,7 +177,7 @@ namespace SpaceEngineersVR.Diagnostics
                     string side=left ? "L":"R";
                     var arm=ArmSkeleton.Find(name=>bones.FirstOrDefault(b=>b.Name==name),"SE_Rig"+side+"Upperarm","SE_Rig"+side+"Forearm1","SE_Rig"+side+"Palm",left ? -1:1);
                     var target=stream.Hand(left,0);
-                    Require(ArmSkeleton.Apply(arm,target,true,left && scenario=="wrist-local",1,left ? received.LeftFingers:received.RightFingers,left ? received.LeftTrigger:received.RightTrigger),"Received arm pose failed");
+                    Require(ArmSkeleton.Apply(arm,target,true,left && scenario=="wrist-local" ? 1:0,1,left ? received.LeftFingers:received.RightFingers,left ? received.LeftTrigger:received.RightTrigger),"Received arm pose failed");
                     Require(Vector3.Distance(arm.Palm.Bone.AbsoluteTransform.Translation,target.Translation)<.001f,"Received palm missed transmitted target");
                 }
                 if(scenario.StartsWith("look"))

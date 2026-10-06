@@ -87,11 +87,43 @@ namespace SpaceEngineersVR.Player
             MatrixD world=WristWorld(character,hand);
             Matrix target=(Matrix)(world*character.PositionComp.WorldMatrixNormalizedInv);
             if(!target.IsValid()) return false;
-            bool posed=ArmSkeleton.Apply(arm,target,Common.Config.AdaptiveArms,hand==Player.HandL && !CockpitControls.Held(hand) && !WeaponHandling.Supported,
+            bool posed=ArmSkeleton.Apply(arm,target,Common.Config.AdaptiveArms,hand==Player.HandL ? WristLock(arm,target,character):0,
                 BodyFit.ScaleFor(character),FingerMode(character,hand),Trigger(hand),FreeFingers(character,hand) ? hand.Fingers.Curls:null, WeaponHandling.Profile, hand==Player.HandL);
             if(posed) Diagnostics.ArmPoseCapture.Record(character,hand,arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone);
             return posed;
         }
+        private static float wristLock=1;
+        private static long lockTime;
+        // The left wrist stays rigid while its screen can be used, so the screen holds still under the right finger.
+        // It bends like the right wrist when the screen is closed and turned away or out of view.
+        private static float WristLock(Arm arm,Matrix target,MyCharacter character)
+        {
+            long now=System.Diagnostics.Stopwatch.GetTimestamp();
+            float seconds=lockTime==0 ? 1 : (float)Math.Min(.1,(now-lockTime)/(double)System.Diagnostics.Stopwatch.Frequency);
+            lockTime=now;
+            if(CockpitControls.Held(Player.HandL) || WeaponHandling.Supported) return wristLock=0;
+            float goal=SpatialUi.WristInUse ? 1 : ScreenAttention(arm,target,character);
+            wristLock=goal>wristLock ? Math.Min(goal,wristLock+seconds/.15f) : Math.Max(goal,wristLock-seconds/.3f);
+            return wristLock;
+        }
+        internal static float ScreenAttention(Arm arm,Matrix target,MyCharacter character)
+        {
+            var cuff=character.AnimationController.FindBone("SE_RigLForearm2",out _);
+            if(cuff==null || !Player.Headset.pose.isTracked) return 1;
+            Matrix palm=arm.PalmOffset*target.GetOrientation(); palm.Translation=target.Translation;
+            MatrixD screen=(MatrixD)(WristScreenLocal*cuff.GetAbsoluteRigTransform()*Matrix.Invert(arm.Palm.Bone.GetAbsoluteRigTransform())*palm)*character.WorldMatrix;
+            return ScreenAttention(screen,SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix));
+        }
+        // Screen face (Backward) toward the eye within 55 degrees, and the screen within 30 degrees of view; released by 80 and 45.
+        internal static float ScreenAttention(MatrixD screen,MatrixD head)
+        {
+            var toHead=head.Translation-screen.Translation;
+            if(toHead.LengthSquared()<1e-6) return 1;
+            toHead.Normalize();
+            float facing=(float)Vector3D.Dot(screen.Backward,toHead),gaze=(float)Vector3D.Dot(head.Forward,-toHead);
+            return Ramp(facing,.174f,.574f)*Ramp(gaze,.707f,.866f);
+        }
+        private static float Ramp(float value,float from,float to) => MathHelper.SmoothStep(0,1,MathHelper.Clamp((value-from)/(to-from),0,1));
         internal static Multiplayer.PlayerPose CapturePose(uint sequence)
         {
             if(latestPose==null || Multiplayer.MultiplayerRuntime.Now-poseTime>.25) return null;

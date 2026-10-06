@@ -184,7 +184,7 @@ namespace SpaceEngineersVR.Diagnostics
             var reference=new PoseExport { pointer=Elements(glove.PointFrame),grip=Elements(CockpitHandPose.GripWrist(Matrix.Identity)) };
             using(var file=File.Create(Path.Combine(output,"menu-glove-reference.json")))
                 new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,reference);
-            foreach(bool extended in new[] {false,true}) foreach(bool rigid in new[] {false,true})
+            foreach(string reach in new[] {"wrist","extended","inward"}) foreach(bool rigid in new[] {false,true})
             {
                 var arm=ArmTests.InstalledBones();
                 var palm=arm.Single(b=>b.Name=="SE_RigLPalm");
@@ -195,16 +195,16 @@ namespace SpaceEngineersVR.Diagnostics
                 desired.Backward=new Vector3(-.0094374f,.4837239f,-.8751677f);
                 desired.Translation=new Vector3(-.0685918f,1.2402833f,-.4206055f);
                 var correction=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),-1);
-                if(extended)
+                if(reach!="wrist")
                 {
-                    desired=correction*CockpitHandPose.GripWrist(Matrix.Identity);
-                    desired.Translation=new Vector3(-.25f,1.35f,-.55f);
+                    desired=correction*CockpitHandPose.GripWrist(Matrix.Identity)*(reach=="inward" ? Matrix.CreateRotationY(-1.1f):Matrix.Identity);
+                    desired.Translation=reach=="inward" ? new Vector3(.02f,1.3f,-.42f):new Vector3(-.25f,1.35f,-.55f);
                 }
                 if(!ArmMath.ApplyPose(upper,lower,palm,Matrix.Invert(correction)*desired,correction,new Vector3(-.55f,-1,.3f),rigidWrist:rigid))
                     throw new Exception("Wrist inspection solve failed");
                 Curl(arm,"L",false);
                 var export=new PoseExport(); foreach(var bone in arm) export.absolute[bone.Name]=Elements(bone.AbsoluteTransform);
-                using(var file=File.Create(Path.Combine(output,(extended ? "left-extended-":"left-wrist-")+(rigid ? "rigid.json":"articulated.json"))))
+                using(var file=File.Create(Path.Combine(output,"left-"+reach+"-"+(rigid ? "rigid.json":"articulated.json"))))
                     new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
             }
             foreach(bool rigid in new[] {true,false}) foreach(int reach in new[] {0,1})

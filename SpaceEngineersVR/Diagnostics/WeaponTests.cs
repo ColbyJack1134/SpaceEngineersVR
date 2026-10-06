@@ -124,7 +124,7 @@ namespace SpaceEngineersVR.Diagnostics
                 var model=Matrix.CreateTranslation(0,1.25f,-.45f);
                 var palm=(Matrix)profile.Palm(Palm(items[item],"Left"),true)*model;
                 var wrist=Matrix.Invert(arm.PalmOffset)*palm;
-                Require(ArmSkeleton.Apply(arm,wrist,true,rigid,1,ArmSkeleton.Fingers.Stick,1,null,profile,true),"Support arm fixture failed");
+                Require(ArmSkeleton.Apply(arm,wrist,true,rigid ? 1:0,1,ArmSkeleton.Fingers.Stick,1,null,profile,true),"Support arm fixture failed");
                 Require(Vector3.Distance(arm.Palm.Bone.AbsoluteTransform.Translation,palm.Translation)<.001f,"Articulated support left its anchor");
                 WritePose(bones,Matrix.Invert(model),Path.Combine(output,item+"-support-"+(rigid ? "rigid":"flex")+".json"));
             }
