@@ -38,7 +38,7 @@ namespace SpaceEngineersVR.Player
             var pose=CockpitLayout.Control(subtype,index,out float size);
             var rig=CockpitRig.Find(subtype);
             return new SurfaceView { Id="CockpitControl"+index,Style=SurfaceStyle.ModelControl,
-                Pose=pose,Width=size,Height=rig.HandleAt(index)!=null ? .032f : rig.BarAt(index)?.Height ?? size,GeometryFeedback=rig.ButtonAt(index)==null,
+                Pose=pose,Width=size,Height=rig.HandleAt(index)!=null ? .032f : rig.BarAt(index)?.Height ?? size,GeometryFeedback=(rig.ButtonAt(index)?.Actor ?? 0)>=0,
                 Keys=new[] {new SurfaceKey("",0,0,1,1)} };
         }
         private static void Release() { HoveredSwitch=-1; Targets=new CockpitTouch.Target[0]; Views=new SurfaceView[0]; }
@@ -46,7 +46,7 @@ namespace SpaceEngineersVR.Player
         private static void ResetCovers()
         {
             Array.Clear(covers,0,covers.Length); Array.Clear(open,0,open.Length); Array.Clear(pendingCovers,0,pendingCovers.Length);
-            var saved=owner==null ? null : Common.Config.CockpitStates.FirstOrDefault(s=>s.World==Sandbox.Game.World.MySession.Static.CurrentPath && s.Cockpit==owner.EntityId)?.Covers;
+            var saved=owner==null ? null : CockpitActions.LoadLocal(owner).Covers;
             if(saved!=null) for(int i=0;i<Math.Min(saved.Length,covers.Length);i++) { open[i]=saved[i]; covers[i]=saved[i] ? 1 : 0; }
             SynchronizeCovers(true);
         }
@@ -105,11 +105,11 @@ namespace SpaceEngineersVR.Player
                         targets.Add(new CockpitTouch.Target { Surface=cover,Slot=i,Cover=true,Position=covers[coverIndex],
                             Pivot=lever.Hinge,Axis=lever.Axis,Travel=CockpitRig.Lever.CoverTravel });
                     }
-                    bool modeled=rig.ButtonAt(i)==null;
+                    bool modeled=(rig.ButtonAt(i)?.Actor ?? 0)>=0;
                     if(modeled && !(CockpitRender.Ready && (!covered || open[coverIndex] && covers[coverIndex]>.98f))) continue;
                     var s=Preview(subtype,i);
                     s.GeometryFeedback=modeled;
-                    if(modeled) s.Pose*=handle?.Visual(positions[i]) ?? bar?.Visual(positions[i]) ?? lever.Visual(positions[i]);
+                    if(modeled) s.Pose*=handle?.Visual(positions[i]) ?? bar?.Visual(positions[i]) ?? lever?.Visual(positions[i]) ?? Matrix.Identity;
                     var native=s.Pose*seat.WorldMatrix;
                     string key=Alignment.SeatKey("control"+i);
                     s.Pose=Alignment.Apply(key,native); s.Width*=Alignment.Scale(key); s.Height*=Alignment.Scale(key);

@@ -48,16 +48,17 @@ namespace SpaceEngineersVR.Player
             public readonly Vector3 Axis=Vector3.Forward,Pivot;
             public readonly float Range=Travel,HalfWidth=.06f,Radius=.0155f;
             public readonly bool Hinged;
+            public readonly bool Pinch;
             private readonly Matrix frame=Matrix.Identity;
             private readonly Vector3 bottom,top;
             private readonly float bottomAngle;
             private readonly bool rotateGrip;
             private readonly bool contour=true;
-            public Handle(Vector3 center,int actor,Vector3 shaft,Vector3 normal,Vector3 bottom,Vector3 top,float halfWidth,float radius)
+            public Handle(Vector3 center,int actor,Vector3 shaft,Vector3 normal,Vector3 bottom,Vector3 top,float halfWidth,float radius,bool pinch=false)
             {
                 Center=center; Actor=actor; HalfWidth=halfWidth; Radius=radius;
                 frame=Frame(shaft,normal); this.bottom=bottom; this.top=top;
-                Axis=Vector3.Normalize(top-bottom); Range=Vector3.Distance(bottom,top); contour=false;
+                Axis=Vector3.Normalize(top-bottom); Range=Vector3.Distance(bottom,top); contour=false; Pinch=pinch;
             }
             public Handle(Vector3 center,int actor,Vector3 shaft,Vector3 normal,Vector3 pivot,Vector3 axis,float bottomAngle,float topAngle,float halfWidth,float radius,bool rotateGrip=false)
             {
@@ -129,8 +130,12 @@ namespace SpaceEngineersVR.Player
         {
             public readonly Vector3 Center,Normal,Up;
             public readonly float Size;
-            public Button(Vector3 center,Vector3 normal,Vector3 up,float size) { Center=center; Normal=normal; Up=up; Size=size; }
+            public readonly int Actor;
+            public readonly float Travel;
+            public Button(Vector3 center,Vector3 normal,Vector3 up,float size,int actor=-1,float travel=0)
+            { Center=center; Normal=normal; Up=up; Size=size; Actor=actor; Travel=travel; }
             internal MatrixD TouchPose => MatrixD.CreateWorld(Center,-Normal,Up);
+            internal Matrix Visual(bool pressed) => Matrix.CreateTranslation(pressed ? -Normal*Travel:Vector3.Zero);
         }
         internal sealed class Bar
         {
@@ -184,18 +189,17 @@ namespace SpaceEngineersVR.Player
         public readonly Lever[] Levers;
         public readonly Handle[] Handles;
         public readonly Bar[] Bars;
-        public readonly (int First,int Last)[] Banks;
         public readonly Screen[] Screens;
         private readonly int[] coverIndices;
         public readonly int ActorCount;
         public readonly int[] StaticActors;
         private CockpitGeometry geometry;
         private CockpitRig(string subtype,string model,string geometryModel,Vector3 panel,Vector3 normal,Stick left,Stick right,Piece[] pieces,Lever[] levers,Handle[] handles=null,
-            Button[] buttons=null,Bar[] bars=null,(int,int)[] banks=null,Screen[] screens=null,bool packedCovers=false)
+            Button[] buttons=null,Bar[] bars=null,Screen[] screens=null,bool packedCovers=false)
         {
             Subtype=subtype; Model=model; this.geometryModel=geometryModel; Left=left; Right=right; Pieces=pieces;
             Buttons=buttons ?? new Button[0]; Levers=levers; Handles=handles ?? new Handle[0]; Bars=bars ?? new Bar[0];
-            Banks=banks ?? new (int,int)[0]; Screens=screens ?? new Screen[0];
+            Screens=screens ?? new Screen[0];
             var up=Vector3.Normalize(Vector3.Cross(normal,Vector3.Right));
             SeatMount=MatrixD.CreateWorld(panel,-normal,up);
             ActorCount=pieces.Length==0 ? 0 : pieces.Max(p=>Math.Max(p.Actor,p.StaticActor))+1;

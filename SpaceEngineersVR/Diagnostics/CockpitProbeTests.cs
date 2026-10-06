@@ -43,7 +43,7 @@ namespace SpaceEngineersVR.Diagnostics
                 var probe=new CockpitProbe(MatrixD.CreateWorld(tip,direction,Vector3D.Up));
                 int key=CockpitTouch.NearKey(surface,probe.Transform(MatrixD.Invert(surface.Pose)),out float distance,out var contact,.004f);
                 Require(key==0 && distance<.00001 && Math.Abs(contact.Y-y)<.00001,"Bar end/center contact lost on seated joystick-side approach");
-                Require(CockpitPanelGuard.Contains(CockpitLayout.Fighter,probe),"Bar contact is not protected in every native state");
+                Require(CockpitPanelGuard.NearSurface(surface,probe),"Bar contact is not protected in every native state");
             }
             var panel=new SurfaceView {Style=SurfaceStyle.ModelControl,Width=.10f,Height=.10f,
                 Keys=new[] {new SurfaceKey("Left",0,0,.45f,1),new SurfaceKey("Right",.55f,0,.45f,1)}};

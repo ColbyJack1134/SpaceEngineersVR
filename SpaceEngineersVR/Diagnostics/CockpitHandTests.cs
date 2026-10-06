@@ -12,6 +12,25 @@ namespace SpaceEngineersVR.Diagnostics
 {
     internal static class CockpitHandTests
     {
+        internal static void ExportContact(string output,string name,bool left,MatrixD surface,bool pinch)
+        {
+            var bones=ArmTests.InstalledBones(); string side=left ? "L":"R";
+            var palm=bones.Single(b=>b.Name=="SE_Rig"+side+"Palm");
+            var index=bones.Single(b=>b.Name=="SE_Rig"+side+"_Index_3");
+            var thumb=bones.Single(b=>b.Name=="SE_Rig"+side+"_Thumb_3");
+            var pose=Matrix.Identity;
+            pose.Right=(Vector3)surface.Backward; pose.Up=(Vector3)surface.Up*(left && pinch ? -1:1);
+            pose.Backward=Vector3.Normalize(Vector3.Cross(pose.Right,pose.Up));
+            var contact=CockpitHandPose.Contact(palm,index,thumb,pinch);
+            pose=(Matrix)CockpitHandPose.Attach(pose,Matrix.Identity,contact,surface.Translation);
+            if(Vector3D.Distance(Vector3D.Transform(contact,(MatrixD)pose),surface.Translation)>.00001)
+                throw new Exception("Control preview hand missed contact");
+            palm.SetCompleteTransformFromAbsoluteMatrix(ref pose,false); Curl(bones,side,pinch);
+            var export=new PoseExport();
+            foreach(var bone in bones) export.absolute[bone.Name]=Elements(bone.AbsoluteTransform);
+            using(var file=File.Create(Path.Combine(output,name+"-"+side+".json")))
+                new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
+        }
         internal static void ExportGrip(string output,string name,bool left,Matrix pose,float trigger,string suffix)
         {
             var arm=ArmTests.InstalledBones(); string side=left ? "L":"R";
@@ -255,7 +274,9 @@ namespace SpaceEngineersVR.Diagnostics
             foreach(var rig in CockpitRig.All) for(int i=0;i<rig.Handles.Length;i++) foreach(float position in new[] {0f,.25f,.5f,.75f,1f})
             {
                 var handle=rig.Handles[i]; string name="Handle-"+rig.Subtype+"-"+i;
-                foreach(bool left in new[] {true,false}) ExportGrip(output,name,left,handle.Palm(left,position),1,"-"+(int)(position*100));
+                foreach(bool left in new[] {true,false})
+                    if(handle.Pinch) ExportContact(output,name+"-"+(int)(position*100),left,handle.TouchPose*(MatrixD)handle.Visual(position),true);
+                    else ExportGrip(output,name,left,handle.Palm(left,position),1,"-"+(int)(position*100));
                 var export=new PoseExport(); export.absolute["visual"]=Elements(handle.Visual(position));
                 export.absolute["touch"]=Elements((Matrix)handle.TouchPose*handle.Visual(position));
                 using(var file=File.Create(Path.Combine(output,name+"-"+(int)(position*100)+".json")))

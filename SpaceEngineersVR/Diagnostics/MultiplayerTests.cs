@@ -72,6 +72,13 @@ namespace SpaceEngineersVR.Diagnostics
             var record=new CockpitMemory.Record {Revision=3,Toolbar="<toolbar>parameter &amp; text</toolbar>",Covers=new[] {true,false,true}};
             var saved=CockpitMemory.Decode(CockpitMemory.Encode(record));
             Require(saved.Revision==3 && saved.Toolbar==record.Toolbar && saved.Covers.SequenceEqual(record.Covers),"Cockpit record loses assignments or covers");
+            var oldToolbar=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=new List<MyObjectBuilder_Toolbar.Slot> {
+                new MyObjectBuilder_Toolbar.Slot {Index=0},new MyObjectBuilder_Toolbar.Slot {Index=4},new MyObjectBuilder_Toolbar.Slot {Index=60} }};
+            var old=new CockpitMemory.Record {LayoutVersion=0,Toolbar=CockpitMemory.Toolbar(oldToolbar),Covers=new bool[64]};
+            old.Covers[14]=true;
+            Require(CockpitMemory.Upgrade(old,"OpenCockpitLarge") && !CockpitMemory.Upgrade(old,"OpenCockpitLarge"),"Control Seat layout migration repeats");
+            Require(CockpitMemory.Toolbar(old.Toolbar).Slots.Select(s=>s.Index).SequenceEqual(new[] {14,70}) && old.Covers[24] && !old.Covers[14],
+                "Control Seat migration loses assignments or reuses removed flat buttons");
             foreach(var invalid in new[] {"invalid base64",Convert.ToBase64String(new byte[12]),new string('A',CockpitMemory.Limit*2+1)})
             {
                 bool rejected=false; try { CockpitMemory.Decode(invalid); } catch { rejected=true; }

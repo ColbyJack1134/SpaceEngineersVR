@@ -58,6 +58,7 @@ namespace SpaceEngineersVR.Diagnostics
                 return new ReturnMessage(value,null,0,call.LogicalCallContext,call);
             }
         }
+        private sealed class TouchSession { public bool ModEnabled { get; set; } = true; }
         private sealed class Proxy : RealProxy
         {
             public MatrixD World=MatrixD.Identity;
@@ -69,6 +70,7 @@ namespace SpaceEngineersVR.Diagnostics
                 switch(call.MethodName)
                 {
                     case "get_WorldMatrix": value=World; break;
+                    case "HasLocalPlayerAccess": value=true; break;
                     case "get_TextureSize": value=new Vector2(512); break;
                     case "get_SurfaceSize": value=new Vector2(512,256); break;
                     case "get_ScriptBackgroundColor": value=Color.Black; break;
@@ -257,6 +259,43 @@ namespace SpaceEngineersVR.Diagnostics
                 }
             }
             object mouse=AccessTools.Field(type,"Mouse1").GetValue(native);
+            var bridge=typeof(TouchScreenBridge);
+            var registry=(System.Collections.IDictionary)AccessTools.Field(bridge,"screens").GetValue(null);
+            var savedBridge=new Dictionary<string,object>();
+            foreach(string name in new[] {"manager","session","enabledProperty","failed"}) savedBridge[name]=AccessTools.Field(bridge,name).GetValue(null);
+            Require(registry.Count==0,"Touchscreen guard fixture requires an empty registry");
+            try
+            {
+                blockProxy.World=MatrixD.Identity;
+                Set("Coords",Activator.CreateInstance(assembly.GetType("Lima.Touch.SurfaceCoords",true),"LCD",0,
+                    new Vector3(-.5f,.3f,0),new Vector3(-.5f,-.3f,0),new Vector3(.5f,-.3f,0)));
+                var state=new TouchSession();
+                AccessTools.Field(bridge,"manager").SetValue(null,new object());
+                AccessTools.Field(bridge,"session").SetValue(null,state);
+                AccessTools.Field(bridge,"enabledProperty").SetValue(null,typeof(TouchSession).GetProperty("ModEnabled"));
+                AccessTools.Field(bridge,"failed").SetValue(null,false);
+                var probe=new CockpitProbe(MatrixD.CreateTranslation(0,0,0));
+                Require(!TouchScreenBridge.NearScreen(block,probe),"Unregistered screen suppresses firing");
+                registry.Add(native,wrapper);
+                Require(TouchScreenBridge.NearScreen(block,probe),"Enabled registered screen has no protection");
+                Require(!TouchScreenBridge.NearScreen(block,new CockpitProbe(MatrixD.CreateTranslation(2,0,0))),"Registration protects unrelated surface geometry");
+                var other=(Sandbox.ModAPI.IMyTerminalBlock)new Proxy(typeof(Sandbox.ModAPI.IMyTerminalBlock)).GetTransparentProxy();
+                Require(!TouchScreenBridge.NearScreen(other,probe),"Registration protects another block");
+                Set("Enabled",false);
+                Require(!TouchScreenBridge.NearScreen(block,probe),"Disabled registration still suppresses firing");
+                Set("Enabled",true); state.ModEnabled=false;
+                Require(!TouchScreenBridge.NearScreen(block,probe),"Disabled touchscreen mod still suppresses firing");
+                state.ModEnabled=true;
+                Require(TouchScreenBridge.NearScreen(block,probe),"Re-enabled registration did not restore protection");
+                registry.Clear();
+                Require(!TouchScreenBridge.NearScreen(block,probe),"Removed registration still suppresses firing");
+            }
+            finally
+            {
+                registry.Clear();
+                foreach(var field in savedBridge) AccessTools.Field(bridge,field.Key).SetValue(null,field.Value);
+            }
+            log("PASS TouchScreenAPI guards: absent, enabled, disabled, restored and removed registrations; block and surface geometry isolation.");
             var buttons=wrapperType.GetMethod("Buttons");
             bool State(string name) => (bool)AccessTools.Property(buttonType,name).GetValue(mouse);
             buttons.Invoke(wrapper,new object[] { true,true,false }); Require(State("JustPressed"),"Mod fresh press lost");

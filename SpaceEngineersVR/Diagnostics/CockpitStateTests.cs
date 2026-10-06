@@ -59,29 +59,35 @@ namespace SpaceEngineersVR.Diagnostics
             Require(CockpitSwitchState.ReadValues(group,properties)==1,"Mixed locked/unconnected group falsely reports ready");
             other.Status=MyShipConnectorStatus.Unconnected;
             Require(CockpitSwitchState.ReadValues(group,properties)==0,"Fully disconnected group remains up");
-            foreach(var rig in CockpitRig.All)
+            foreach(var rig in CockpitRig.All) for(int slot=0;slot<rig.Count;slot++)
             {
-                foreach(var region in CockpitPanelGuard.Regions(rig))
+                var controlSurface=CockpitButtons.Preview(rig.Subtype,slot);
+                foreach(float value in new[] {0f,.5f,1f})
                 {
-                    var center=Vector3.Transform(region.Bounds.Center,region.Frame);
-                    Require(region.Contains(center),"Panel guard misses its own approach volume");
-                    Require(!region.Contains(Vector3.Transform(region.Bounds.Max+Vector3.One*.01f,region.Frame)),"Panel guard leaks outside its bounds");
-                    Require(!region.Contains(new Vector3(float.NaN,0,0)),"Invalid tracking enters a guard");
+                    controlSurface.Pose=CockpitLayout.Control(rig.Subtype,slot,out _)*(MatrixD)(rig.HandleAt(slot)?.Visual(value) ??
+                        rig.BarAt(slot)?.Visual(value) ?? rig.LeverAt(slot)?.Visual(value) ?? rig.ButtonAt(slot)?.Visual(value==1) ?? Matrix.Identity);
+                    Require(CockpitPanelGuard.NearSurface(controlSurface,new CockpitProbe(controlSurface.Pose)),"Live control contact is unprotected: "+rig.Subtype+"/"+slot);
+                    Require(!CockpitPanelGuard.NearSurface(controlSurface,new CockpitProbe(MatrixD.CreateTranslation(controlSurface.Width/2+.04,0,0)*controlSurface.Pose)),
+                        "Live control guard extends into distant space");
                 }
-                Vector3D Tip(int slot) { var pose=CockpitLayout.Control(rig.Subtype,slot,out _); return pose.Translation+pose.Backward*.033; }
-                foreach(var bank in rig.Banks) for(int slot=bank.First;slot<=bank.Last;slot++)
-                {
-                    Require(CockpitPanelGuard.Contains(rig.Subtype,new CockpitProbe(MatrixD.CreateTranslation(Tip(slot)))),"Switch approach is unprotected: "+rig.Subtype+"/"+slot);
-                    if(slot<bank.Last) Require(CockpitPanelGuard.Contains(rig.Subtype,new CockpitProbe(MatrixD.CreateTranslation((Tip(slot)+Tip(slot+1))*.5))),
-                        "Space between neighboring controls is unprotected: "+rig.Subtype+"/"+slot);
-                }
-                Require(!CockpitPanelGuard.Contains(rig.Subtype,new CockpitProbe(MatrixD.Identity)),"Empty cockpit space suppresses firing: "+rig.Subtype);
             }
-            Require(CockpitPanelGuard.Regions(CockpitRig.Find(CockpitLayout.Fighter)).Length==14,"Fighter switch banks, pull bar or screens lost their guards");
-            var surface=new SurfaceView {Pose=MatrixD.CreateRotationX(.4)*MatrixD.CreateTranslation(2e6,-3e6,4e6),Width=.108f,Height=.120f};
-            Require(CockpitPanelGuard.NearSurface(surface,new CockpitProbe(MatrixD.CreateTranslation(.065,0,.04)*surface.Pose)),"Moved seat-panel margin is lost at large world coordinates");
-            Require(!CockpitPanelGuard.NearSurface(surface,new CockpitProbe(MatrixD.CreateTranslation(.20,0,.04)*surface.Pose)),"Seat-panel protection consumes distant firing");
-            log("PASS connector native-state feedback and directed requests; panel approach/gap coverage, invalid tracking, large-world seat margin.");
+            var surface=new SurfaceView {Pose=MatrixD.CreateRotationX(.4)*MatrixD.CreateTranslation(2e6,-3e6,4e6),Width=.108f,Height=.120f,
+                Keys=new[] {new SurfaceKey("",0,0,1,1)}};
+            Require(CockpitPanelGuard.NearSurface(surface,new CockpitProbe(MatrixD.CreateTranslation(.070,0,0)*surface.Pose)),"Moved key margin is lost at large world coordinates");
+            Require(!CockpitPanelGuard.NearSurface(surface,new CockpitProbe(MatrixD.CreateTranslation(.20,0,0)*surface.Pose)),"Key protection consumes distant firing");
+            surface.Keys[0].Enabled=false;
+            Require(!CockpitPanelGuard.NearSurface(surface,new CockpitProbe(surface.Pose)),"Disabled panel key blocks firing");
+            surface.Keys[0].Enabled=true; surface.Enabled=false;
+            Require(!CockpitPanelGuard.NearSurface(surface,new CockpitProbe(surface.Pose)),"Disabled panel blocks firing");
+            var moving=new SurfaceView {Style=SurfaceStyle.ModelControl,Width=.02f,Height=.02f,
+                Pose=MatrixD.CreateTranslation(0,.15,0),Keys=new[] {new SurfaceKey("",0,0,1,1)}};
+            Require(CockpitPanelGuard.NearSurface(moving,new CockpitProbe(moving.Pose)) &&
+                !CockpitPanelGuard.NearSurface(moving,new CockpitProbe(MatrixD.Identity)),"Moving knob protects its old track position");
+            var round=new SurfaceView {Pose=MatrixD.Identity,Style=SurfaceStyle.ModelControl,Width=.1f,Height=.1f,
+                Keys=new[] {new SurfaceKey("",0,0,1,1) {Round=true}}};
+            Require(CockpitPanelGuard.NearSurface(round,new CockpitProbe(MatrixD.Identity)) &&
+                !CockpitPanelGuard.NearSurface(round,new CockpitProbe(MatrixD.CreateTranslation(.052,.052,0))),"Round guard consumes rectangular corners");
+            log("PASS connector native-state feedback and directed requests; live control contacts/endpoints, tight key margins and large-world transforms.");
         }
     }
 }

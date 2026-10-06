@@ -471,7 +471,7 @@ namespace SpaceEngineersVR.Diagnostics
         private static void NearMisses()
         {
             var panel=new SurfaceView { Pose=MatrixD.Identity,Width=.108f,Height=.120f,Keys=SeatPanel.Keys(true,true) };
-            var miss=new CockpitProbe(MatrixD.CreateTranslation(.075,0,.02));
+            var miss=new CockpitProbe(MatrixD.CreateTranslation(.064,0,0));
             Require(CockpitTouch.NearKey(panel,miss,out _,out _)<0 && CockpitPanelGuard.NearSurface(panel,miss),"Panel near miss is clickable or not protected");
             foreach(var point in new[] {new Vector3(.11f,0,.02f),new Vector3(0,0,.10f),new Vector3(0,0,-.11f),new Vector3(float.NaN,0,0)})
                 Require(!CockpitPanelGuard.NearSurface(panel,new CockpitProbe(MatrixD.CreateTranslation(point))),"Control margin blocks distant or invalid input");

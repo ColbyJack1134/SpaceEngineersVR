@@ -1,53 +1,53 @@
 using System.Collections.Generic;
-using System.Linq;
 using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
     internal static class CockpitPanelGuard
     {
-        private const float OutwardDepth=.05f;
+        internal const float Margin=.005f;
+        internal static BoundingBox KeyBounds(SurfaceView surface,SurfaceKey key,float margin=0)
+        {
+            var b=key.Bounds;
+            float z=key.Knob.HasValue ? WristKnob.Center(surface).Z:PhysicalSurface.KeyHeight(surface);
+            return new BoundingBox(new Vector3((b.X-.5f)*surface.Width-margin,(.5f-b.Y-b.Height)*surface.Height-margin,z-margin),
+                new Vector3((b.X+b.Width-.5f)*surface.Width+margin,(.5f-b.Y)*surface.Height+margin,z+margin));
+        }
+        internal static bool RoundContains(BoundingBox bounds,Vector3 point)
+        {
+            var half=bounds.HalfExtents; var delta=point-bounds.Center;
+            return half.X>0 && half.Y>0 && delta.X*delta.X/(half.X*half.X)+delta.Y*delta.Y/(half.Y*half.Y)<=1;
+        }
+        internal static bool NearSurface(SurfaceView surface,CockpitProbe probe) => surface.Enabled &&
+            CockpitTouch.NearKey(surface,probe.Transform(MatrixD.Invert(surface.Pose)),out _,out _,margin:Margin)>=0;
+        internal static bool NearPlane(SurfaceView surface,CockpitProbe probe) => probe.Transform(MatrixD.Invert(surface.Pose)).Intersects(
+            new BoundingBox(new Vector3(-surface.Width/2-Margin,-surface.Height/2-Margin,-Margin),
+                new Vector3(surface.Width/2+Margin,surface.Height/2+Margin,Margin)),.001f);
         internal struct Region
         {
             internal Matrix Frame;
             internal BoundingBox Bounds;
-            private Matrix inverse;
-            internal Region(Matrix frame,BoundingBox bounds) { Frame=frame; Bounds=bounds; inverse=Matrix.Invert(frame); }
-            internal bool Contains(Vector3 point) => point.IsValid() && Bounds.Contains(Vector3.Transform(point,inverse))!=ContainmentType.Disjoint;
-            internal bool Intersects(CockpitProbe probe) => probe.Transform(inverse).Intersects(Bounds);
+            internal Region(Matrix frame,BoundingBox bounds) { Frame=frame; Bounds=bounds; }
         }
-        private static Region Bank(string subtype,int first,int last)
+        // Inspection fixture: all switch covers open, moving grips at the supplied value.
+        internal static Region[] Regions(CockpitRig rig,float value=0)
         {
-            Matrix frame=(Matrix)CockpitLayout.Control(subtype,first,out _),inverse=Matrix.Invert(frame);
-            var bounds=BoundingBox.CreateInvalid();
-            for(int i=first;i<=last;i++) bounds.Include(Vector3.Transform((Vector3)CockpitLayout.Control(subtype,i,out _).Translation,inverse));
-            bounds.Min-=new Vector3(.045f,.045f,.035f);
-            bounds.Max+=new Vector3(.045f,.045f,OutwardDepth);
-            return new Region(frame,bounds);
-        }
-        private static Region Plane(Vector3 center,Vector3 normal,Vector3 up,float width,float height) =>
-            new Region(Matrix.CreateWorld(center,-normal,up),new BoundingBox(new Vector3(-width/2-.03f,-height/2-.03f,-.035f),
-                new Vector3(width/2+.03f,height/2+.03f,OutwardDepth)));
-        private static readonly Dictionary<CockpitRig,Region[]> regions=new Dictionary<CockpitRig,Region[]>();
-        internal static Region[] Regions(CockpitRig rig)
-        {
-            if(regions.TryGetValue(rig,out var result)) return result;
-            return regions[rig]=rig.Banks.Select(b=>Bank(rig.Subtype,b.First,b.Last))
-                .Concat(rig.Bars.Select(b=>Plane(b.Front,b.Normal,b.Up,b.Width,b.Height)))
-                .Concat(rig.Screens.Select(s=>Plane(s.Center,s.Normal,s.Up,s.Width,s.Height))).ToArray();
-        }
-        internal static bool Contains(string subtype,CockpitProbe probe)
-        {
-            var rig=CockpitRig.Find(subtype);
-            if(rig==null) return false;
-            foreach(var region in Regions(rig)) if(region.Intersects(probe)) return true;
-            return false;
-        }
-        internal static bool NearSurface(SurfaceView surface,CockpitProbe probe)
-        {
-            var bounds=new BoundingBox(new Vector3(-surface.Width/2-.03f,-surface.Height/2-.03f,-.035f),
-                new Vector3(surface.Width/2+.03f,surface.Height/2+.03f,OutwardDepth));
-            return probe.Transform(MatrixD.Invert(surface.Pose)).Intersects(bounds);
+            var regions=new List<Region>();
+            for(int slot=0;slot<rig.Count;slot++)
+            {
+                var surface=CockpitButtons.Preview(rig.Subtype,slot);
+                var handle=rig.HandleAt(slot); var bar=rig.BarAt(slot); var lever=rig.LeverAt(slot); var button=rig.ButtonAt(slot);
+                surface.Pose*=handle?.Visual(value) ?? bar?.Visual(value) ?? lever?.Visual(value) ?? button?.Visual(value==1) ?? Matrix.Identity;
+                var bounds=handle!=null && !handle.Pinch ? new BoundingBox(new Vector3(-handle.HalfWidth,-handle.Radius,-2*handle.Radius)-new Vector3(Margin),
+                    new Vector3(handle.HalfWidth,handle.Radius,0)+new Vector3(Margin)):KeyBounds(surface,surface.Keys[0],Margin);
+                regions.Add(new Region((Matrix)surface.Pose,bounds));
+                if(lever?.CoverActor>=0)
+                {
+                    var cover=new SurfaceView {Style=SurfaceStyle.ModelControl,Width=.019f,Height=.035f};
+                    regions.Add(new Region((Matrix)lever.CoverPose(1),KeyBounds(cover,new SurfaceKey("",0,0,1,1),Margin)));
+                }
+            }
+            return regions.ToArray();
         }
     }
 }

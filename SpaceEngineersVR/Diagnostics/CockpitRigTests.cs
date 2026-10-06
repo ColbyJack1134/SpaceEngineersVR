@@ -38,6 +38,13 @@ namespace SpaceEngineersVR.Diagnostics
                 if(rig.Bars.Any(b=>!mesh.Parts[b.Actor].Tangents.All(v=>v.IsValid() && Math.Abs(v.Length()-1)<.001f)))
                     throw new Exception("Extended bar stem has an invalid tangent: "+rig.Subtype);
                 Levers(rig,mesh);
+                foreach(var button in rig.Buttons.Where(b=>b.Actor>=0))
+                {
+                    var delta=Vector3.Transform(button.Center,button.Visual(true))-button.Center;
+                    if(Vector3.Distance(delta,-button.Normal*button.Travel)>.00001f || button.Travel<=0 ||
+                        mesh.Parts[button.Actor].Indices.Count!=rig.Pieces.Where(p=>p.Actor==button.Actor).Sum(p=>p.Triangles)*3)
+                        throw new Exception("Pushbutton stroke or cap partition differs from installed model: "+rig.Subtype+"/"+button.Actor+"; delta="+delta+"; indices="+mesh.Parts[button.Actor].Indices.Count);
+                }
                 foreach(var bar in rig.Bars)
                 {
                     var stem=mesh.Parts[bar.Actor].Positions.Select(p=>Vector3.Dot(p,bar.Normal)).ToArray();
@@ -179,7 +186,7 @@ namespace SpaceEngineersVR.Diagnostics
                 if(fighter.CoverIndex(slot)!=(slot<13 ? slot : slot>=21 && slot<33 ? slot-8 : -1))
                     throw new Exception("Fighter cover storage index changed: "+slot);
             var seat=CockpitRig.Find(CockpitLayout.ControlSeat);
-            if(seat.Buttons.Length!=4 || seat.Count!=61 || seat.HandleAt(59)==null || seat.HandleAt(60)==null)
+            if(seat.Buttons.Length!=14 || seat.Count!=77 || seat.HandleAt(69)==null || seat.HandleAt(70)==null || seat.Handles.Length!=8)
                 throw new Exception("Control Seat slot layout changed");
             foreach(var rig in CockpitRig.All.Where(r=>r!=fighter))
                 for(int slot=0;slot<rig.Count;slot++)

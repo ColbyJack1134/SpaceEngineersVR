@@ -389,7 +389,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Matrix left=moved && rig.Left!=null ? rig.Left.Visual(new Vector3(.5f,.4f,.6f)) : Matrix.Identity;
                 Matrix right=moved && rig.Right!=null ? rig.Right.Visual(new Vector3(-.5f,.4f,-.6f)) : Matrix.Identity;
                 CockpitRender.UpdateScene(rig,native,MatrixD.Identity,left,right,moved,moved,switchPreview:moved ? 1f:0f,coverPreview:moved ? 1f:0f,
-                    colorMask:neutralPaint,nativeRest:!moved);
+                    colorMask:neutralPaint,nativeRest:!moved,buttonPreview:moved);
             }
             MyRenderProxy.Draw3DScene();
             if(DateTime.UtcNow<next || (rigStep==1 || rigStep==2) && !CockpitRender.Ready) return;

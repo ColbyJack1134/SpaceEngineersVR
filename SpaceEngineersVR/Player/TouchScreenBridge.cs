@@ -156,9 +156,8 @@ namespace SpaceEngineersVR.Player
             session=next; selected=null; screens.Clear(); primary.Block(); secondary.Block(); touch.Reset();
             Logger.Info("TouchScreenAPI VR adapter attached to "+t.Assembly.GetName().Name);
         }
-        public static void Update()
+        internal static void RefreshRegistrations()
         {
-            OwnsInput=Pointing=PointingLeft=down=secondaryDown=false;
             if(failed) return;
             try
             {
@@ -167,6 +166,33 @@ namespace SpaceEngineersVR.Player
                 var list=((IEnumerable)listField.GetValue(manager)).Cast<object>().ToArray();
                 foreach(var stale in screens.Keys.Where(k=>!list.Contains(k)).ToArray()) screens.Remove(stale);
                 foreach(var value in list) if(!screens.ContainsKey(value)) screens.Add(value,new Screen(value));
+            }
+            catch(Exception ex) { failed=true; screens.Clear(); Logger.Warning(ex,"TouchScreenAPI registration refresh disabled"); }
+        }
+        internal static bool NearScreen(IMyTerminalBlock block,CockpitProbe probe)
+        {
+            if(failed || manager==null) return false;
+            try
+            {
+                if(!(bool)enabledProperty.GetValue(session)) return false;
+                foreach(var screen in screens.Values)
+                {
+                    if(screen.Block!=block || block==null || block.Closed || !block.HasLocalPlayerAccess() ||
+                        !(bool)screen.Enabled.GetValue(screen.Value)) continue;
+                    var plane=screen.Plane();
+                    if(plane!=null && CockpitPanelGuard.NearPlane(plane,probe)) return true;
+                }
+            }
+            catch(Exception ex) { failed=true; Logger.Warning(ex,"TouchScreenAPI screen protection disabled"); }
+            return false;
+        }
+        public static void Update()
+        {
+            OwnsInput=Pointing=PointingLeft=down=secondaryDown=false;
+            if(failed) return;
+            try
+            {
+                if(manager==null) return;
                 // A held native trigger is firing; screen-owned squeezes already blocked that gate.
                 bool firing=SeatFit.Eligible(SeatFit.Seat) && Controls.Static.Primary.IsPressed && !Controls.Static.Primary.HasPressed;
                 bool grabbingStick=Controls.Static.RightGripPressure.RawPosition.X>.025f && CockpitControls.NearGrip(Player.HandR) ||

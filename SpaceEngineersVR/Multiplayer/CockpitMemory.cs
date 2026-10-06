@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Sandbox.Common.ObjectBuilders;
 using Sandbox.Game.Entities;
 using Sandbox.Game.EntityComponents;
@@ -14,13 +15,14 @@ namespace SpaceEngineersVR.Multiplayer
     internal static class CockpitMemory
     {
         internal static readonly Guid Key=new Guid("b6d86dc9-ff9b-421b-8942-88e3d464d809");
-        internal const int Limit=262144,MaximumControls=64;
+        internal const int Limit=262144,MaximumControls=96;
         internal sealed class Record
         {
             internal long Revision;
             internal string Toolbar="";
             internal FlightTuning Flight;
             internal bool[] Covers=new bool[0];
+            internal int LayoutVersion=1;
         }
         private static VRage.Game.ModAPI.IMyUtilities Utilities => MyAPIUtilities.Static;
         internal static string Encode(Record record)
@@ -28,9 +30,10 @@ namespace SpaceEngineersVR.Multiplayer
             using(var stream=new MemoryStream())
             using(var writer=new BinaryWriter(stream))
             {
-                writer.Write(2); writer.Write(record.Revision); writer.Write(record.Toolbar ?? "");
+                writer.Write(3); writer.Write(record.Revision); writer.Write(record.Toolbar ?? "");
                 writer.Write(record.Covers.Length); foreach(bool value in record.Covers) writer.Write(value);
                 writer.Write(record.Flight!=null); record.Flight?.Write(writer);
+                writer.Write(record.LayoutVersion);
                 if(stream.Length>Limit) throw new InvalidDataException("Cockpit assignments exceed the storage limit.");
                 return Convert.ToBase64String(stream.ToArray());
             }
@@ -43,19 +46,44 @@ namespace SpaceEngineersVR.Multiplayer
             using(var reader=new BinaryReader(stream))
             {
                 int version=reader.ReadInt32();
-                if(stream.Length>Limit || version<1 || version>2) throw new InvalidDataException("Unsupported cockpit storage.");
+                if(stream.Length>Limit || version<1 || version>3) throw new InvalidDataException("Unsupported cockpit storage.");
                 var result=new Record {Revision=reader.ReadInt64(),Toolbar=reader.ReadString()};
                 int count=reader.ReadInt32();
                 if(count<0 || count>MaximumControls || result.Revision<0) throw new InvalidDataException("Invalid cockpit storage.");
                 result.Covers=new bool[count]; for(int i=0;i<count;i++) result.Covers[i]=reader.ReadBoolean();
                 if(version>=2 && reader.ReadBoolean()) result.Flight=FlightTuning.Read(reader);
+                result.LayoutVersion=version>=3 ? reader.ReadInt32():0;
+                if(result.LayoutVersion<0 || result.LayoutVersion>1) throw new InvalidDataException("Unsupported cockpit layout.");
                 if(stream.Position!=stream.Length) throw new InvalidDataException("Invalid cockpit storage length.");
                 return result;
             }
         }
         internal static Record Read(MyCockpit seat)
         {
-            return seat.Storage!=null && seat.Storage.TryGetValue(Key,out string value) ? Decode(value):new Record();
+            var record=seat.Storage!=null && seat.Storage.TryGetValue(Key,out string value) ? Decode(value):new Record();
+            if(Upgrade(record,seat.BlockDefinition.Id.SubtypeName)) Write(seat,record);
+            return record;
+        }
+        internal static void UpgradeToolbar(MyObjectBuilder_Toolbar toolbar,string subtype,int version)
+        {
+            if(version!=0 || subtype!="OpenCockpitLarge" || toolbar?.Slots==null) return;
+            toolbar.Slots=toolbar.Slots.Where(s=>s.Index>=4 && s.Index<61).Select(s=>
+            { s.Index+=10; return s; }).ToList();
+        }
+        internal static bool Upgrade(Record record,string subtype)
+        {
+            if(record.LayoutVersion!=0) return false;
+            if(subtype=="OpenCockpitLarge")
+            {
+                var toolbar=Toolbar(record.Toolbar);
+                UpgradeToolbar(toolbar,subtype,0);
+                if(toolbar!=null) record.Toolbar=Toolbar(toolbar);
+                var covers=new bool[MaximumControls];
+                for(int i=4;i<Math.Min(61,record.Covers.Length);i++) covers[i+10]=record.Covers[i];
+                record.Covers=covers;
+            }
+            record.LayoutVersion=1;
+            return true;
         }
         internal static void Write(MyCockpit seat,Record value)
         {

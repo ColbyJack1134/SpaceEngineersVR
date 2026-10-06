@@ -72,6 +72,7 @@ namespace SpaceEngineersVR.Player
             if(!string.IsNullOrEmpty(stored?.ToolbarXml))
                 try { builder=MyAPIGateway.Utilities.SerializeFromXML<MyObjectBuilder_Toolbar>(stored.ToolbarXml); }
                 catch(Exception ex) { Logger.Warning(ex,"Cockpit switch assignments could not be read; original config retained"); }
+            CockpitMemory.UpgradeToolbar(builder,seat.BlockDefinition.Id.SubtypeName,stored?.LayoutVersion ?? 1);
             toolbar.Init(builder,seat);
             loadedXml=builder==null ? "" : CockpitMemory.Toolbar(builder);
             toolbar.ItemChanged+=Changed;
@@ -86,7 +87,7 @@ namespace SpaceEngineersVR.Player
                 if(shared.Revision==0 && string.IsNullOrEmpty(shared.Toolbar) && shared.Covers.Length==0)
                 {
                     if(!string.IsNullOrEmpty(loadedXml)) SaveToolbar();
-                    var old=Common.Config.CockpitStates.FirstOrDefault(s=>s.World==world && s.Cockpit==owner.EntityId)?.Covers;
+                    var old=LoadLocal(owner).Covers;
                     if(old!=null) for(int i=0;i<Math.Min(old.Length,CockpitLayout.Count(owner.BlockDefinition.Id.SubtypeName));i++)
                         if(old[i]) MultiplayerRuntime.SaveCover(owner,i,true);
                 }
@@ -206,15 +207,21 @@ namespace SpaceEngineersVR.Player
         {
             string path=MySession.Static.CurrentPath;
             var record=new CockpitMemory.Record { Revision=1 };
+            var stored=Common.Config.CockpitActions.FirstOrDefault(s=>s.World==path && s.Cockpit==seat.EntityId);
             try
             {
-                string xml=Common.Config.CockpitActions.FirstOrDefault(s=>s.World==path && s.Cockpit==seat.EntityId)?.ToolbarXml;
+                string xml=stored?.ToolbarXml;
                 var builder=CockpitMemory.Toolbar(xml);
+                CockpitMemory.UpgradeToolbar(builder,seat.BlockDefinition.Id.SubtypeName,stored?.LayoutVersion ?? 1);
                 if(builder!=null) record.Toolbar=CockpitMemory.Toolbar(builder);
             }
             catch(Exception ex) { Logger.Warning(ex,"Local cockpit switch assignments could not be read"); }
-            var covers=Common.Config.CockpitStates.FirstOrDefault(s=>s.World==path && s.Cockpit==seat.EntityId)?.Covers;
-            if(covers!=null) record.Covers=(bool[])covers.Clone();
+            var state=Common.Config.CockpitStates.FirstOrDefault(s=>s.World==path && s.Cockpit==seat.EntityId);
+            if(state?.Covers!=null)
+            {
+                var old=new CockpitMemory.Record { Covers=(bool[])state.Covers.Clone(),LayoutVersion=state.LayoutVersion };
+                CockpitMemory.Upgrade(old,seat.BlockDefinition.Id.SubtypeName); record.Covers=old.Covers;
+            }
             return record;
         }
         internal static void SaveLocal(MyCockpit seat,CockpitMemory.Record record)
@@ -222,9 +229,9 @@ namespace SpaceEngineersVR.Player
             string path=MySession.Static.CurrentPath; long id=seat.EntityId;
             var config=Common.Config;
             config.CockpitActions=config.CockpitActions.Where(s=>s.World!=path || s.Cockpit!=id)
-                .Append(new CockpitActionSetting { World=path,Cockpit=id,ToolbarXml=record.Toolbar }).ToArray();
+                .Append(new CockpitActionSetting { World=path,Cockpit=id,ToolbarXml=record.Toolbar,LayoutVersion=1 }).ToArray();
             config.CockpitStates=config.CockpitStates.Where(s=>s.World!=path || s.Cockpit!=id)
-                .Append(new CockpitStateSetting { World=path,Cockpit=id,Covers=(bool[])record.Covers.Clone() }).ToArray();
+                .Append(new CockpitStateSetting { World=path,Cockpit=id,Covers=(bool[])record.Covers.Clone(),LayoutVersion=1 }).ToArray();
         }
         public static void Reset()
         {

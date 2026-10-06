@@ -66,7 +66,7 @@ namespace SpaceEngineersVR.Player
             if(model==uint.MaxValue) return;
             UpdateScene(CockpitRig.Find(cockpit.BlockDefinition.Id.SubtypeName),model,cockpit.WorldMatrix,left,right,leftHeld,rightHeld,leftOffset,rightOffset,colorMask:cockpit.SlimBlock.ColorMaskHSV);
         }
-        internal static void UpdateScene(CockpitRig rig,uint interior,MatrixD world,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3),float? switchPreview=null,float? coverPreview=null,Vector3? colorMask=null,int previewHover=-1,int previewHeld=-1,bool previewCover=false,bool nativeRest=false,float? barPreview=null)
+        internal static void UpdateScene(CockpitRig rig,uint interior,MatrixD world,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3),float? switchPreview=null,float? coverPreview=null,Vector3? colorMask=null,int previewHover=-1,int previewHeld=-1,bool previewCover=false,bool nativeRest=false,float? barPreview=null,bool? buttonPreview=null)
         {
             if (failed) return;
             try
@@ -136,7 +136,13 @@ namespace SpaceEngineersVR.Player
                 }
                 for(int slot=0;slot<activeRig.Count;slot++)
                 {
-                    if(activeRig.LeverAt(slot) is CockpitRig.Lever lever)
+                    if(activeRig.ButtonAt(slot) is CockpitRig.Button button && button.Actor>=0)
+                    {
+                        int state=State(slot,false);
+                        UpdatePose(check,button.Actor,(MatrixD)(nativeRest ? Matrix.Identity:button.Visual(buttonPreview ?? state==2))*world);
+                        SetRigFeedback(check,button.Actor,state);
+                    }
+                    else if(activeRig.LeverAt(slot) is CockpitRig.Lever lever)
                     {
                         UpdatePose(check,lever.Actor,(MatrixD)(nativeRest ? Matrix.Identity : lever.Visual(switchPreview ?? CockpitButtons.SwitchPosition(slot,subtype)))*world);
                         SetRigFeedback(check,lever.Actor,State(slot,false));

@@ -264,6 +264,7 @@ namespace SpaceEngineersVR.Plugin
             Player.FloatingMenu.Update();
             Player.RemoteView.Update();
             Player.DesktopWindow.Update();
+            Player.TouchScreenBridge.RefreshRegistrations();
             Player.CockpitTouch.BeginFrame();
             Player.CockpitButtons.Update();
             Player.SpatialUi.Update();
