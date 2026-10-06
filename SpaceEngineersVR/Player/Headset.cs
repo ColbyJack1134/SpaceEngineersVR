@@ -56,7 +56,7 @@ namespace SpaceEngineersVR.Player
                 if(RenderFrameBridge.Remote!=null) NativeGloves.Prepare(null);
                 DesktopCapture.Update(MyRender11.DeviceInstance);
                 RemoteFeed.Render(RenderFrameBridge.Remote);
-                NativeGloves.Prepare(rig);
+                NativeGloves.Prepare(rig,matrices.FarClipping);
                 resources=new EyeResolution.Scene(size);
                 StereoRenderState.Begin(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale),
                     rig?.ThirdPerson==true ? .005*scale : Math.Max(.03,matrices.NearClipping),matrices.LargeDistanceFarClipping);
@@ -154,7 +154,7 @@ namespace SpaceEngineersVR.Player
             DesktopWindow.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),trackingView,VrMath.Projection(l,r,t,b,.03));
             if (Main.MenuOpen || rig?.ThirdPerson==true) MenuHands.DrawInWorld((SharpDX.Direct3D11.Texture2D)target.GetResource(),eye,Main.MenuOpen);
             SpatialUi.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,RenderFrameBridge.Surfaces);
-            if(rig?.ThirdPerson==true && NativeGloves.Visible)
+            if(rig?.ThirdPerson==true && NativeGloves.Shown(true))
                 SpatialUi.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,RenderFrameBridge.Surfaces,tracking:true,trackingToWorld:rig.TrackingToWorld);
             SpatialUi.DrawFloating((SharpDX.Direct3D11.Texture2D)target.GetResource(),trackingView,VrMath.Projection(l,r,t,b,.03),RenderFrameBridge.Surfaces);
             FloatingKeyboard.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),eye);

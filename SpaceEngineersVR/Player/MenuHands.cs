@@ -218,7 +218,7 @@ float4 PS(P p):SV_TARGET {
                 if(menu && !MenuKeyboard.Standalone) Components.VRGUIManager.DrawStereo(texture,eye,ThirdPersonView.Active ? null:NativeHandLayer.Depth);
                 using (var target = new RenderTargetView(gpu, texture))
                     DrawEye(target, eye, size, hands, meshes, false,menu);
-                if(ThirdPersonView.Active && !NativeGloves.Visible)
+                if(ThirdPersonView.Active && !NativeGloves.Shown(true))
                 {
                     Matrix view=Matrix.Invert(OpenVR.System.GetEyeToHeadTransform(eye).ToMatrix()*Player.Headset.renderPose.deviceToAbsolute.matrix);
                     float l=0,r=0,t=0,b=0; OpenVR.System.GetProjectionRaw(eye,ref l,ref r,ref t,ref b);
@@ -350,7 +350,7 @@ float4 PS(P p):SV_TARGET {
             {
                 var hand=hands[h]; if(!hand.renderPose.isTracked) continue;
                 Matrix raw=hand.renderPose.deviceToAbsolute.matrix;
-                if(!NativeGloves.Visible && (!Main.WorldAvailable || !Common.Config.TrackedArms || !NativeHandLayer.Drawn(h==0) || !pointer))
+                if(!NativeGloves.Shown(h==0) && (!Main.WorldAvailable || !Common.Config.TrackedArms || !NativeHandLayer.Drawn(h==0) || !pointer))
                 {
                     if(meshes[h]!=null)
                     {
