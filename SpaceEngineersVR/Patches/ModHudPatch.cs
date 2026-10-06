@@ -11,7 +11,7 @@ namespace SpaceEngineersVR.Patches
     // Mod HUD frameworks draw a camera-facing plane about 0.1 m from the camera, too close for the eyes to fuse.
     internal static class ModHud
     {
-        private const double Reach=.3,Depth=1.5;
+        private const double Reach=.3,Depth=10;
         internal static bool Place(MyBillboard billboard)
         {
             var camera=MySector.MainCamera;
