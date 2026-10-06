@@ -259,6 +259,7 @@ namespace SpaceEngineersVR.Diagnostics
             GlyphAlpha(device,output,log);
             WindowClip(device,output,log);
             HudProfileTests.Render(device,output,log);
+            SharedWaypointRenders(device,output,log);
             var now=DateTime.UtcNow;
             using(var scene=new OverlayCanvas("Signal production scenarios",1920,1080,1,false,device))
             {
@@ -355,6 +356,28 @@ namespace SpaceEngineersVR.Diagnostics
             panel.Signals=WristSignals.Resolve(new WorldMarkers.View(new[] {a},now) {Mode=MyHudMarkerRender.SignalMode.NoNames},panel,head.Translation,new SignalLayout.Options(),now);
             WristPanel.Show(3); panel.Keys=WristPanel.Keys(null,false,false,false,true,null); WristPanel.Show(0);
         }
+        private static void SharedWaypointRenders(Device device,string output,Action<string> log)
+        {
+            using(var scene=new OverlayCanvas("Scaled stereo waypoints",1600,900,1,false,device))
+            foreach(double forward in new[] {-.05,0,.05})
+            {
+                var position=new Vector3D(0,10,forward);
+                var head=MatrixD.CreateWorld(Vector3D.Zero,Vector3D.Normalize(position),Vector3D.Backward);
+                var marker=Marker("pole-gps","GPS","Owner",position,"Waypoint"); marker.Distance=10;
+                var source=new WorldMarkers.View(new[] {marker},DateTime.UtcNow) {Mode=MyHudMarkerRender.SignalMode.FullDisplay};
+                var entries=SignalLayout.Build(source,head,new SignalLayout.Options(),DateTime.UtcNow);
+                foreach(int eye in new[] {-1,1})
+                {
+                    var view=MatrixD.Invert(MatrixD.CreateTranslation(eye*3.2,0,0)*head);
+                    var projection=VrMath.Projection(-.8f,.8f,-.45f,.45f,.5);
+                    Action paint=()=> { Background(scene,false); SignalPainter.Draw(scene.Texture,entries,head,view,projection,true,Vector3D.Up); };
+                    paint(); WaitIcons(); paint();
+                    UiTests.Save(scene.Texture,Path.Combine(output,"waypoint-pole-"+forward.ToString("0.00",System.Globalization.CultureInfo.InvariantCulture)+"-"+eye+".png"));
+                }
+            }
+            log("PASS production waypoint renders: shared center-facing orientation near and at the up-axis pole with third-person scale 100 eye separation.");
+        }
+
         private static void CrosshairRenders(Device device,string output,Action<string> log)
         {
             using(var scene=new OverlayCanvas("Ship crosshair scenarios",1600,900,1,false,device))

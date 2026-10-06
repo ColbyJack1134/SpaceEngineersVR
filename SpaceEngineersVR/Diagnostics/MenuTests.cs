@@ -21,9 +21,9 @@ namespace SpaceEngineersVR.Diagnostics
             string tabletQuery=null;
             var tabletTarget=MenuKeyboard.CreateTextTarget("damp",text=>tabletQuery=text);
             tabletTarget.InsertChar(true,'s');
-            Require(tabletQuery==tabletTarget.Text && tabletQuery.Length==5,"Standalone keyboard text does not reach tablet results");
+            Require(tabletQuery=="damps" && tabletTarget.Text==tabletQuery,"Standalone keyboard did not append at the query end");
             tabletTarget.KeypressBackspace(true);
-            Require(tabletQuery.Length==4,"Standalone tablet keyboard backspace failed");
+            Require(tabletQuery=="damp","Standalone tablet keyboard backspace failed");
             Require(GUI.MyPluginConfigDialog.CreatePage("Flight") is GUI.FlightOptions &&
                 GUI.MyPluginConfigDialog.CreatePage("Rendering") is GUI.RenderingOptions &&
                 GUI.MyPluginConfigDialog.CreatePage("Controls") is GUI.BindingHelp, "Settings search opens an empty category page");

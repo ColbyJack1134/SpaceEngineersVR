@@ -88,7 +88,7 @@ namespace SpaceEngineersVR.Player
             int labelIndex=0;
             foreach(var e in entries)
             {
-                if(e.Edge || !MarkerBillboard.TryCreate(e.Position,head,view,facingUp,faceViewer,out var board)) continue;
+                if(e.Edge || !MarkerBillboard.TryCreate(e.Position,head,facingUp,faceViewer,out var board)) continue;
                 board.Scale*=e.Primary.Kind=="Objective" ? 1.1:.55;
                 if(e.Ring) e.Primary.Ring?.AddNative(sprites,e.Position,view,projection,target.Description.Width,facingUp,faceViewer);
                 board.Scale*=e.IconScale;

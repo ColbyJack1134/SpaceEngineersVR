@@ -24,6 +24,7 @@ namespace SpaceEngineersVR.Diagnostics
             Lead(log);
             Motion(log);
             CharacterFacing(log);
+            SharedFacing(log);
             int count=0;
             foreach (double roll in new[] { 0.0,0.5,-0.8 })
             foreach (double yaw in new[] { -1.15,-0.6,0,0.6,1.15 })
@@ -68,6 +69,33 @@ namespace SpaceEngineersVR.Diagnostics
             pole.FaceViewer(Vector3D.Zero);
             if(!pole.Right.IsValid() || !pole.Up.IsValid()) throw new Exception("Viewer-facing pole singularity");
             log("PASS marker billboards: "+count+" peripheral/tilted/distant poses, view-aligned edges, shared stereo corners and world depth");
+        }
+
+        private static void SharedFacing(Action<string> log)
+        {
+            var origin=new Vector3D(1e9,-2e9,3e9);
+            foreach(double scale in new[] {1d,100d,10000d})
+            foreach(double forward in new[] {-.05,0,.05})
+            {
+                var position=origin+new Vector3D(0,10,forward);
+                var head=MatrixD.CreateWorld(origin,Vector3D.Normalize(position-origin),Vector3D.Backward);
+                if(!MarkerBillboard.TryCreate(position,head,Vector3D.Up,true,out var board)) throw new Exception("Shared marker rejected near-pole target");
+                Near(board.Right.Length(),1,"Shared marker right basis");
+                Near(board.Up.Length(),1,"Shared marker up basis");
+                Near(Vector3D.Dot(board.Right,board.Up),0,"Shared marker sheared");
+                Near(Vector3D.Dot(board.Right,head.Right),1,"Near-pole waypoint flipped against the shared head basis");
+                foreach(double offset in new[] {-.032*scale,.032*scale})
+                {
+                    var view=MatrixD.Invert(MatrixD.CreateTranslation(offset,0,0)*head);
+                    var projection=VrMath.Projection(-40,40,-2,2,.05);
+                    var sprite=new NativeSprite(null,default(RectangleF),Vector4.One);
+                    if(!board.Project(new RectangleF(-.5f,-.5f,1,1),view,projection,ref sprite)) throw new Exception("Shared marker lost stereo projection");
+                    var clip=Vector4D.Transform((Vector4D)sprite.TopLeft,MatrixD.Invert(projection));
+                    var world=Vector3D.Transform(new Vector3D(clip.X,clip.Y,clip.Z)/clip.W,MatrixD.Invert(view));
+                    Near(Vector3D.Distance(world,board.Point(-.5,-.5)),0,"Eyes projected different physical marker corners",.001);
+                }
+            }
+            log("PASS shared waypoint orientation: enlarged stereo separation, near/exact up-axis poles, orthogonal bases and common world corners at billion-metre origins.");
         }
 
         private static void CharacterFacing(Action<string> log)

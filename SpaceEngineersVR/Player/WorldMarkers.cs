@@ -252,7 +252,6 @@ namespace SpaceEngineersVR.Player
             if(Common.Config.CharacterMarkerRoll)
             {
                 signalUp=(trackingToWorld ?? MatrixD.Invert(SpaceEngineersVR.Wrappers.MyRender11.Environment_Matrices.ViewD)).Up;
-                signalHead=MarkerBillboard.WithUp(head,signalUp);
             }
             layout=SignalLayout.Build(renderSnapshot,head,options,DateTime.UtcNow);
             foreach(var window in windows) layout=WristSignals.OutsideWindow(layout,window,head);

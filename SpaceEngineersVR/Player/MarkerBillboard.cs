@@ -20,8 +20,14 @@ namespace SpaceEngineersVR.Player
 
         internal static bool TryCreate(Vector3D position,MatrixD head,MatrixD view,Vector3D? up,bool faceViewer,out MarkerBillboard billboard)
         {
-            if(!TryCreate(position,up.HasValue ? WithUp(head,up.Value):head,out billboard)) return false;
+            if(!TryCreate(position,head,up,false,out billboard)) return false;
             if(faceViewer) billboard.FaceViewer(MatrixD.Invert(view).Translation,up);
+            return true;
+        }
+        internal static bool TryCreate(Vector3D position,MatrixD head,Vector3D? up,bool faceViewer,out MarkerBillboard billboard)
+        {
+            if(!TryCreate(position,up.HasValue ? WithUp(head,up.Value):head,out billboard)) return false;
+            if(faceViewer) billboard.FaceViewer(head.Translation,up,head.Right);
             return true;
         }
         public static bool TryCreate(Vector3D position, MatrixD head, out MarkerBillboard billboard)
@@ -37,12 +43,15 @@ namespace SpaceEngineersVR.Player
 
         public Vector3D Point(double x, double y) => Center+Scale*(Right*x-Up*y);
 
-        internal void FaceViewer(Vector3D eye,Vector3D? referenceUp=null)
+        internal void FaceViewer(Vector3D eye,Vector3D? referenceUp=null,Vector3D? poleRight=null)
         {
             var normal=eye-Center;
             if(!normal.IsValid() || normal.LengthSquared()<.01) return;
             normal.Normalize();
             var right=Vector3D.Cross(referenceUp ?? Up,normal);
+            // Near the up axis, the shared head basis avoids an unstable roll flip.
+            if(poleRight.HasValue && right.LengthSquared()<1e-4)
+                right=poleRight.Value-normal*Vector3D.Dot(poleRight.Value,normal);
             if(right.LengthSquared()<1e-8) return;
             Right=Vector3D.Normalize(right);
             Up=Vector3D.Normalize(Vector3D.Cross(normal,Right));

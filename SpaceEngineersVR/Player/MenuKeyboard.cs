@@ -119,6 +119,7 @@ namespace SpaceEngineersVR.Player
         internal static MyGuiControlTextbox CreateTextTarget(string text,Action<string> changed)
         {
             var textbox=new MyGuiControlTextbox(defaultText:text,maxLength:60);
+            textbox.MoveCarriageToEnd();
             textbox.TextChanged+=box=>changed(box.Text);
             return textbox;
         }
