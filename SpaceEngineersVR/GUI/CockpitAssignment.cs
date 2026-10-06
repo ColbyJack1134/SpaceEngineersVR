@@ -35,6 +35,15 @@ namespace SpaceEngineersVR.GUI
         private int sourcePage,dropSlot=-1,heldItem=-1;
         private DateTime heldSince;
         internal static string MarkerIcon => System.IO.Path.Combine(Plugin.Common.AssetFolder,"Icons","vr.dds");
+        [HarmonyPatch(typeof(MyToolbarComponent),nameof(MyToolbarComponent.GetSlotControlText))]
+        private static class PageLabel
+        {
+            // Native page labels reuse slot bindings, which end at the ninth slot.
+            private static void Postfix(int slotIndex,ref StringBuilder __result)
+            {
+                if(__result==null && slotIndex>=0) __result=new StringBuilder((slotIndex+1).ToString());
+            }
+        }
         public CockpitAssignment(MyGuiScreenToolbarConfigBase screen,MyToolbar target,MyToolbar source,int count,int selected,bool switches=true)
         { this.screen=screen; this.target=target; this.source=source; this.count=count; this.selected=selected; this.switches=switches; sourcePage=source?.CurrentPage ?? 0; current=this; screen.Closed+=Closed; }
         internal static void Update(MyGuiScreenToolbarConfigBase screen)

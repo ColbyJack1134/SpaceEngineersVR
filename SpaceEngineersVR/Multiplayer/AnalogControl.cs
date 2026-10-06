@@ -20,6 +20,8 @@ namespace SpaceEngineersVR.Multiplayer
             switch(subtype)
             {
                 case "OpenCockpitLarge": return slot>=69 && slot<77;
+                case "SmallBlockCockpit": return slot>=35 && slot<37;
+                case "LargeBlockCockpitSeat": return slot>=115 && slot<117;
                 case "LargeBlockModularBridgeCockpit": return slot>=0 && slot<1;
                 case "RoverCockpit": return slot>=0 && slot<1;
                 case "SmallBlockFlushCockpit": return slot>=0 && slot<1;

@@ -229,9 +229,9 @@ namespace SpaceEngineersVR.Player
             string path=MySession.Static.CurrentPath; long id=seat.EntityId;
             var config=Common.Config;
             config.CockpitActions=config.CockpitActions.Where(s=>s.World!=path || s.Cockpit!=id)
-                .Append(new CockpitActionSetting { World=path,Cockpit=id,ToolbarXml=record.Toolbar,LayoutVersion=1 }).ToArray();
+                .Append(new CockpitActionSetting { World=path,Cockpit=id,ToolbarXml=record.Toolbar,LayoutVersion=CockpitMemory.CurrentLayout }).ToArray();
             config.CockpitStates=config.CockpitStates.Where(s=>s.World!=path || s.Cockpit!=id)
-                .Append(new CockpitStateSetting { World=path,Cockpit=id,Covers=(bool[])record.Covers.Clone(),LayoutVersion=1 }).ToArray();
+                .Append(new CockpitStateSetting { World=path,Cockpit=id,Covers=(bool[])record.Covers.Clone(),LayoutVersion=CockpitMemory.CurrentLayout }).ToArray();
         }
         public static void Reset()
         {

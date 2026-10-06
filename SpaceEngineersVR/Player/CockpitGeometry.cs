@@ -18,7 +18,7 @@ namespace SpaceEngineersVR.Player
         internal CockpitGeometry(MyModelData[] parts,int triangles) { Parts=parts; NativeTriangles=triangles; }
 
         // Index 0 receives every triangle outside the measured pieces.
-        internal static MyModelData[] Partition(Dictionary<string,object> tags,string name,int triangles,Vector3[] centers,int[] counts)
+        internal static MyModelData[] Partition(Dictionary<string,object> tags,string name,int triangles,Vector3[] centers,int[] counts,int[] first=null,int[] moving=null)
         {
             var vertices=((HalfVector4[])tags["Vertices"]).Select(v=>new Vector3(v.ToVector4())).ToArray();
             var uv=(HalfVector2[])tags["TexCoords0"];
@@ -53,10 +53,18 @@ namespace SpaceEngineersVR.Player
                 }
                 int slot=Array.FindIndex(centers,c=>Vector3.DistanceSquared(c,bounds.Center)<.000002f*.000002f);
                 if(slot>=0 && group.Count!=counts[slot]) throw new InvalidDataException("Cockpit control topology changed: "+name);
-                foreach(int triangle in group)
-                    buckets[slot+1].Add(triangle);
+                int begin=slot<0 ? 0:first?[slot] ?? 0,end=begin+(slot<0 ? group.Count:moving?[slot] ?? group.Count);
+                if(begin<0 || end>group.Count) throw new InvalidDataException("Cockpit cap range changed: "+name);
+                if(begin==0 && end==group.Count) buckets[slot+1].AddRange(group);
+                else
+                {
+                    // Caps and fixed bezels can share welded vertices; their native triangle order separates them.
+                    var ordered=group.OrderBy(i=>i).ToArray();
+                    for(int i=0;i<ordered.Length;i++) buckets[i>=begin && i<end ? slot+1:0].Add(ordered[i]);
+                }
             }
-            if(buckets.Skip(1).Where((b,i)=>b.Count!=counts[i]).Any() || buckets[0].Count!=triangles-counts.Sum())
+            var selected=moving ?? counts;
+            if(buckets.Skip(1).Where((b,i)=>b.Count!=selected[i]).Any() || buckets[0].Count!=triangles-selected.Sum())
                 throw new InvalidDataException("Could not isolate the inspected cockpit controls: "+name);
             return buckets.Select(bucket=>
             {

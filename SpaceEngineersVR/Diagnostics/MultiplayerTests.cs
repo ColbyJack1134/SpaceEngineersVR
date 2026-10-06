@@ -79,6 +79,24 @@ namespace SpaceEngineersVR.Diagnostics
             Require(CockpitMemory.Upgrade(old,"OpenCockpitLarge") && !CockpitMemory.Upgrade(old,"OpenCockpitLarge"),"Control Seat layout migration repeats");
             Require(CockpitMemory.Toolbar(old.Toolbar).Slots.Select(s=>s.Index).SequenceEqual(new[] {14,70}) && old.Covers[24] && !old.Covers[14],
                 "Control Seat migration loses assignments or reuses removed flat buttons");
+            var enclosedToolbar=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=new List<MyObjectBuilder_Toolbar.Slot> {
+                new MyObjectBuilder_Toolbar.Slot {Index=61},new MyObjectBuilder_Toolbar.Slot {Index=62},
+                new MyObjectBuilder_Toolbar.Slot {Index=67},new MyObjectBuilder_Toolbar.Slot {Index=68},
+                new MyObjectBuilder_Toolbar.Slot {Index=91},new MyObjectBuilder_Toolbar.Slot {Index=92} }};
+            var enclosed=new CockpitMemory.Record {LayoutVersion=1,Toolbar=CockpitMemory.Toolbar(enclosedToolbar),Covers=new bool[96]};
+            enclosed.Covers[62]=enclosed.Covers[68]=enclosed.Covers[92]=true;
+            Require(CockpitMemory.Upgrade(enclosed,"LargeBlockCockpitSeat") && !CockpitMemory.Upgrade(enclosed,"LargeBlockCockpitSeat"),
+                "Enclosed cockpit layout migration repeats");
+            Require(CockpitMemory.Toolbar(enclosed.Toolbar).Slots.Select(s=>s.Index).SequenceEqual(new[] {31,115,116}) &&
+                enclosed.Covers[116] && !enclosed.Covers[68],"Removed controls shift surviving assignments incorrectly");
+            var trimToolbar=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=new List<MyObjectBuilder_Toolbar.Slot>()};
+            foreach(int index in new[] {8,9,14,15,31,32,55,56,131,132,141,142,154,155,156})
+                trimToolbar.Slots.Add(new MyObjectBuilder_Toolbar.Slot {Index=index});
+            var trim=new CockpitMemory.Record {LayoutVersion=3,Toolbar=CockpitMemory.Toolbar(trimToolbar),Covers=new bool[160]};
+            trim.Covers[9]=trim.Covers[132]=trim.Covers[142]=trim.Covers[155]=true;
+            Require(CockpitMemory.Upgrade(trim,"LargeBlockCockpitSeat") && !CockpitMemory.Upgrade(trim,"LargeBlockCockpitSeat") &&
+                CockpitMemory.Toolbar(trim.Toolbar).Slots.Select(s=>s.Index).SequenceEqual(new[] {8,9,25,26,101,102,114,115,116}) &&
+                trim.Covers[102] && trim.Covers[115] && !trim.Covers[9],"Enclosed trim loses retained controls or reuses removed assignments");
             foreach(var invalid in new[] {"invalid base64",Convert.ToBase64String(new byte[12]),new string('A',CockpitMemory.Limit*2+1)})
             {
                 bool rejected=false; try { CockpitMemory.Decode(invalid); } catch { rejected=true; }

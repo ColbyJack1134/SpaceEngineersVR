@@ -16,24 +16,28 @@ namespace SpaceEngineersVR.Player
             public readonly Vector3 Contact,Pivot,Shaft;
             public readonly int Actor,BaseActor;
             private readonly float gripPitch;
+            private readonly Vector3 gripShaft;
             internal readonly Matrix Frame;
             public readonly float GripLift,GripInset;
-            public Stick(Vector3 contact,Vector3 pivot,Vector3 shaft,int actor,int baseActor,float gripPitch=0,float gripLift=0,float gripInset=0)
+            public Stick(Vector3 contact,Vector3 pivot,Vector3 shaft,int actor,int baseActor,float gripPitch=0,float gripLift=0,float gripInset=0,Vector3? gripShaft=null)
             {
                 Contact=contact; Pivot=pivot; Shaft=Vector3.Normalize(shaft); Actor=actor; BaseActor=baseActor; this.gripPitch=gripPitch; GripLift=gripLift; GripInset=gripInset;
+                this.gripShaft=Vector3.Normalize(gripShaft ?? Shaft);
                 Frame=CockpitStickMath.ShaftFrame(Shaft);
             }
             internal Matrix Visual(Vector3 axes) => CockpitStickMath.Visual(Pivot,axes,Frame);
             public Matrix Palm(bool left) => CockpitStickMath.RaiseGrip(
-                CockpitStickMath.GripPalm(left,Contact,Shaft)*CockpitStickMath.Around(Contact,Matrix.CreateRotationX(gripPitch)),Shaft,GripLift,GripInset);
+                CockpitStickMath.GripPalm(left,Contact,gripShaft)*CockpitStickMath.Around(Contact,Matrix.CreateRotationX(gripPitch)),gripShaft,GripLift,GripInset);
         }
         internal sealed class Piece
         {
             public readonly string Material;
             public readonly int MaterialTriangles,Triangles,Actor,StaticActor;
+            public readonly int FirstTriangle,MovingTriangles;
             public readonly Vector3 Center;
-            public Piece(string material,int total,int triangles,Vector3 center,int actor,int staticActor=0)
-            { Material=material; MaterialTriangles=total; Triangles=triangles; Center=center; Actor=actor; StaticActor=staticActor; }
+            public Piece(string material,int total,int triangles,Vector3 center,int actor,int staticActor=0,int firstTriangle=0,int movingTriangles=-1)
+            { Material=material; MaterialTriangles=total; Triangles=triangles; Center=center; Actor=actor; StaticActor=staticActor;
+                FirstTriangle=firstTriangle; MovingTriangles=movingTriangles<0 ? triangles:movingTriangles; }
         }
         internal sealed class Handle
         {
@@ -109,15 +113,21 @@ namespace SpaceEngineersVR.Player
             public readonly Matrix TemplateTransform;
             public readonly Piece TemplateBase;
             private readonly float rest;
-            public Lever(Vector3 center,Vector3 pivot,Vector3 normal,Vector3 axis,int actor,Vector3 coverCenter,Vector3 hinge,int coverActor,float initial,int templateActor=-1,Matrix? templateTransform=null,Piece templateBase=null,bool offAtRest=false)
+            public readonly float AngularTravel,Width,Height,ContactOffset;
+            public readonly bool FingerSlide;
+            public const float FingerTravel=.020f;
+            public Vector3 SlideAxis => Up;
+            public Lever(Vector3 center,Vector3 pivot,Vector3 normal,Vector3 axis,int actor,Vector3 coverCenter,Vector3 hinge,int coverActor,float initial,int templateActor=-1,Matrix? templateTransform=null,Piece templateBase=null,bool offAtRest=false,
+                float travel=Travel,float width=.018f,float height=.018f,float contactOffset=.007f,bool fingerSlide=false)
             {
                 Center=center; Pivot=pivot; Normal=Vector3.Normalize(normal); Axis=Vector3.Normalize(axis); Up=Vector3.Normalize(Vector3.Cross(Axis,Normal));
                 Actor=actor; CoverCenter=coverCenter; Hinge=hinge; CoverActor=coverActor; CoverInitial=initial; TemplateActor=templateActor; TemplateTransform=templateTransform ?? Matrix.Identity; TemplateBase=templateBase;
+                AngularTravel=travel; Width=width; Height=height; ContactOffset=contactOffset; FingerSlide=fingerSlide;
                 // Some installed banks model the off detent; others sit between the detents.
                 var stem=Center-Pivot;
-                rest=offAtRest ? -Travel*.5f : (float)Math.Atan2(Vector3.Dot(stem,Up),Vector3.Dot(stem,Normal));
+                rest=offAtRest ? -AngularTravel*.5f : (float)Math.Atan2(Vector3.Dot(stem,Up),Vector3.Dot(stem,Normal));
             }
-            public Matrix Visual(float value) => CockpitStickMath.Around(Pivot,Matrix.CreateFromAxisAngle(Axis,(MathHelper.Clamp(value,0,1)-.5f)*Travel-rest));
+            public Matrix Visual(float value) => CockpitStickMath.Around(Pivot,Matrix.CreateFromAxisAngle(Axis,(MathHelper.Clamp(value,0,1)-.5f)*AngularTravel-rest));
             public Matrix CoverVisual(float value) => CockpitStickMath.Around(Hinge,Matrix.CreateFromAxisAngle(Axis,(MathHelper.Clamp(value,0,1)-CoverInitial)*CoverTravel));
             public MatrixD CoverPose(float value)
             {
@@ -132,8 +142,9 @@ namespace SpaceEngineersVR.Player
             public readonly float Size;
             public readonly int Actor;
             public readonly float Travel;
-            public Button(Vector3 center,Vector3 normal,Vector3 up,float size,int actor=-1,float travel=0)
-            { Center=center; Normal=normal; Up=up; Size=size; Actor=actor; Travel=travel; }
+            public readonly bool Round;
+            public Button(Vector3 center,Vector3 normal,Vector3 up,float size,int actor=-1,float travel=0,bool round=false)
+            { Center=center; Normal=normal; Up=up; Size=size; Actor=actor; Travel=travel; Round=round; }
             internal MatrixD TouchPose => MatrixD.CreateWorld(Center,-Normal,Up);
             internal Matrix Visual(bool pressed) => Matrix.CreateTranslation(pressed ? -Normal*Travel:Vector3.Zero);
         }
@@ -240,7 +251,8 @@ namespace SpaceEngineersVR.Player
             foreach(var material in Pieces.GroupBy(p=>p.Material))
             {
                 var pieces=material.ToArray();
-                var parts=CockpitGeometry.Partition(tags,material.Key,pieces[0].MaterialTriangles,pieces.Select(p=>p.Center).ToArray(),pieces.Select(p=>p.Triangles).ToArray());
+                var parts=CockpitGeometry.Partition(tags,material.Key,pieces[0].MaterialTriangles,pieces.Select(p=>p.Center).ToArray(),pieces.Select(p=>p.Triangles).ToArray(),
+                    pieces.Select(p=>p.FirstTriangle).ToArray(),pieces.Select(p=>p.MovingTriangles).ToArray());
                 Append(actors[pieces[0].StaticActor],parts[0]);
                 for(int i=0;i<pieces.Length;i++) Append(actors[pieces[i].Actor],parts[i+1]);
                 triangles+=pieces[0].MaterialTriangles;

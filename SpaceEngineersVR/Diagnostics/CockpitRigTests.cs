@@ -42,7 +42,7 @@ namespace SpaceEngineersVR.Diagnostics
                 {
                     var delta=Vector3.Transform(button.Center,button.Visual(true))-button.Center;
                     if(Vector3.Distance(delta,-button.Normal*button.Travel)>.00001f || button.Travel<=0 ||
-                        mesh.Parts[button.Actor].Indices.Count!=rig.Pieces.Where(p=>p.Actor==button.Actor).Sum(p=>p.Triangles)*3)
+                        mesh.Parts[button.Actor].Indices.Count!=rig.Pieces.Where(p=>p.Actor==button.Actor).Sum(p=>p.MovingTriangles)*3)
                         throw new Exception("Pushbutton stroke or cap partition differs from installed model: "+rig.Subtype+"/"+button.Actor+"; delta="+delta+"; indices="+mesh.Parts[button.Actor].Indices.Count);
                 }
                 foreach(var bar in rig.Bars)
@@ -123,7 +123,7 @@ namespace SpaceEngineersVR.Diagnostics
                         if(Vector3.Distance(cavity,bar)>.00001f || !palm.IsValid())
                             throw new Exception("Bar grasp separates from the grip across hand/travel/offset");
                     }
-                    int triangles=rig.Pieces.Where(p=>p.Actor==handle.Actor).Sum(p=>p.Triangles);
+                    int triangles=rig.Pieces.Where(p=>p.Actor==handle.Actor).Sum(p=>p.MovingTriangles);
                     if(mesh.Parts[handle.Actor].Indices.Count!=triangles*3)
                         throw new Exception("Handle grip/stem partition differs from installed model");
                 }
@@ -140,6 +140,32 @@ namespace SpaceEngineersVR.Diagnostics
                 var off=Vector3.Transform(lever.Center,lever.Visual(0));
                 if(!(Vector3.Dot(Vector3.Transform(lever.Center,lever.Visual(1))-off,lever.Up)>0))
                     throw new Exception("Lever flips away from up: "+rig.Subtype);
+                if(lever.TemplateActor<0 && mesh.Parts[lever.Actor].Indices.Count!=rig.Pieces.Where(p=>p.Actor==lever.Actor).Sum(p=>p.MovingTriangles)*3)
+                    throw new Exception("Lever cap partition includes its fixed bezel: "+rig.Subtype);
+                var contact=Vector3.Transform(lever.Center+lever.Normal*lever.ContactOffset,lever.Visual(0));
+                var radial=contact-lever.Pivot; radial-=lever.Axis*Vector3.Dot(radial,lever.Axis);
+                radial=Vector3.Normalize(radial)*Math.Max(.035f,radial.Length());
+                var drag=new ControlDrag();
+                if(lever.FingerSlide)
+                {
+                    var target=new CockpitTouch.Target { Lever=true,FingerSlide=true };
+                    if(target.Pinch || target.Hinged || !target.Draggable) throw new Exception("Fingertip slider selects a grip or hinge gesture");
+                    drag.BeginLinear(contact,lever.SlideAxis,0,CockpitRig.Lever.FingerTravel);
+                    foreach(var direction in new[] {lever.Normal,lever.Axis})
+                    {
+                        drag.Move(contact+direction*CockpitRig.Lever.FingerTravel);
+                        if(drag.State || drag.Value>.001f) throw new Exception("Motion across a red control toggles its slide state");
+                    }
+                    drag.Move(contact+lever.Up*CockpitRig.Lever.FingerTravel);
+                }
+                else
+                {
+                    drag.Begin(contact,contact,lever.Pivot,lever.Axis,0,lever.AngularTravel);
+                    drag.Move(contact+Vector3.TransformNormal(radial,Matrix.CreateFromAxisAngle(lever.Axis,lever.AngularTravel))-radial);
+                }
+                if(Math.Abs(drag.Value-1)>.001f || !drag.State) throw new Exception("Lever hand travel misses on detent: "+rig.Subtype);
+                drag.Move(contact);
+                if(drag.Value>.001f || drag.State) throw new Exception("Lever hand travel misses off detent: "+rig.Subtype);
                 if(lever.CoverActor<0) continue;
                 for(int step=0;step<=10;step++)
                 {

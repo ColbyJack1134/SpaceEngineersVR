@@ -14,30 +14,32 @@ namespace SpaceEngineersVR.Diagnostics
         {
             Directory.CreateDirectory(output); UiTests.Initialize(game,Path.Combine(output,"data"));
             var values=new Dictionary<string,double[]>();
-            foreach(string subtype in new[] {CockpitLayout.ControlSeat,"OpenCockpitSmall","SmallBlockCockpitIndustrial","LargeBlockCockpitIndustrial"})
+            foreach(string subtype in new[] {CockpitLayout.ControlSeat,"OpenCockpitSmall","SmallBlockCockpitIndustrial","LargeBlockCockpitIndustrial","SmallBlockCockpit","LargeBlockCockpit","LargeBlockCockpitSeat"})
             {
                 var rig=CockpitRig.Find(subtype);
                 for(int i=0;i<rig.Count;i++)
                 {
-                    var button=rig.ButtonAt(i); var handle=rig.HandleAt(i);
-                    if(button==null && handle==null) continue;
+                    var button=rig.ButtonAt(i); var handle=rig.HandleAt(i); var lever=rig.LeverAt(i);
+                    if(button==null && handle==null && lever==null) continue;
                     foreach(float state in new[] {0f,.5f,1f})
                     {
-                        var visual=button!=null ? button.Visual(state==1):handle.Visual(state);
+                        var visual=button!=null ? button.Visual(state==1):handle!=null ? handle.Visual(state):lever.Visual(state);
                         var contact=CockpitLayout.Control(subtype,i,out _)*(MatrixD)visual;
                         string name=subtype+"-"+i+"-"+(int)(state*100);
                         values[name+"-visual"]=Elements(visual); values[name+"-touch"]=Elements(contact);
-                        if(button!=null || handle.Pinch)
-                            foreach(bool left in new[] {true,false}) CockpitHandTests.ExportContact(output,name,left,contact,handle!=null);
+                        if(button!=null || lever!=null || handle.Pinch)
+                            foreach(bool left in new[] {true,false}) CockpitHandTests.ExportContact(output,name,left,contact,handle!=null || lever!=null && !lever.FingerSlide);
+                        else foreach(bool left in new[] {true,false}) CockpitHandTests.ExportGrip(output,subtype+"-"+i,left,handle.Palm(left,state),1,"-"+(int)(state*100));
                     }
                 }
-                if(subtype.Contains("Industrial"))
+                if(subtype.Contains("Industrial") || subtype=="SmallBlockCockpit" || subtype=="LargeBlockCockpit" || subtype=="LargeBlockCockpitSeat")
                 {
                     for(int i=0;i<rig.Count;i++) values[subtype+"-control-"+i]=Elements(CockpitLayout.Control(subtype,i,out _));
                     foreach(bool left in new[] {true,false})
                     {
                         var stick=left ? rig.Left:rig.Right;
                         CockpitHandTests.ExportGrip(output,subtype,left,stick.Palm(left)*stick.Visual(Vector3.Zero),0,"-neutral");
+                        CockpitHandTests.ExportGrip(output,subtype,left,stick.Palm(left)*stick.Visual(Vector3.Zero),1,"-pressed");
                         values[subtype+"-grip-"+(left ? "L":"R")]=Elements(stick.Palm(left));
                     }
                     SeatPanel.TryMount(subtype,out var mount,out var width,out var height);

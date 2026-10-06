@@ -35,7 +35,7 @@ namespace SpaceEngineersVR.Diagnostics
         private readonly CockpitAssignment assignment;
         private readonly MyGuiScreenToolbarConfigBase owner;
         private readonly bool ordinary;
-        private static int Count => Player.CockpitLayout.Count(Player.CockpitLayout.Fighter);
+        private static int Count => Player.CockpitLayout.MaximumCount;
         public override string GetFriendlyName() => "SEVR assignment preview";
         private static void Set(object instance,string field,object value) => AccessTools.Field(instance.GetType(),field).SetValue(instance,value);
         internal AssignmentPreview(bool ordinary=false) : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.95f,.70f))
@@ -54,6 +54,14 @@ namespace SpaceEngineersVR.Diagnostics
             if(ordinary) target.SwitchToPage(1);
             MyToolbarComponent.CurrentToolbar=target;
             toolbar=new PreviewToolbar(style) { Position=new Vector2(.33f,.20f),OriginAlign=MyGuiDrawAlignEnum.HORISONTAL_RIGHT_AND_VERTICAL_BOTTOM };
+            if(!ordinary)
+            {
+                var extended=new MyToolbar(MyToolbarType.ButtonPanel,9,11);
+                toolbar.ShowToolbar(extended);
+                extended.SwitchToPage(10);
+                if(toolbar.ToolbarGrid.ColumnsCount!=9) throw new Exception("Extended assignment toolbar lost its slots");
+                toolbar.ShowToolbar(target);
+            }
             Controls.Add(toolbar);
             owner=(MyGuiScreenToolbarConfigBase)FormatterServices.GetUninitializedObject(typeof(MyGuiScreenToolbarConfigBase));
             Set(owner,"m_position",new Vector2(.5f));

@@ -15,14 +15,14 @@ namespace SpaceEngineersVR.Multiplayer
     internal static class CockpitMemory
     {
         internal static readonly Guid Key=new Guid("b6d86dc9-ff9b-421b-8942-88e3d464d809");
-        internal const int Limit=262144,MaximumControls=96;
+        internal const int Limit=262144,MaximumControls=160,CurrentLayout=4;
         internal sealed class Record
         {
             internal long Revision;
             internal string Toolbar="";
             internal FlightTuning Flight;
             internal bool[] Covers=new bool[0];
-            internal int LayoutVersion=1;
+            internal int LayoutVersion=CurrentLayout;
         }
         private static VRage.Game.ModAPI.IMyUtilities Utilities => MyAPIUtilities.Static;
         internal static string Encode(Record record)
@@ -53,7 +53,7 @@ namespace SpaceEngineersVR.Multiplayer
                 result.Covers=new bool[count]; for(int i=0;i<count;i++) result.Covers[i]=reader.ReadBoolean();
                 if(version>=2 && reader.ReadBoolean()) result.Flight=FlightTuning.Read(reader);
                 result.LayoutVersion=version>=3 ? reader.ReadInt32():0;
-                if(result.LayoutVersion<0 || result.LayoutVersion>1) throw new InvalidDataException("Unsupported cockpit layout.");
+                if(result.LayoutVersion<0 || result.LayoutVersion>CurrentLayout) throw new InvalidDataException("Unsupported cockpit layout.");
                 if(stream.Position!=stream.Length) throw new InvalidDataException("Invalid cockpit storage length.");
                 return result;
             }
@@ -66,23 +66,66 @@ namespace SpaceEngineersVR.Multiplayer
         }
         internal static void UpgradeToolbar(MyObjectBuilder_Toolbar toolbar,string subtype,int version)
         {
-            if(version!=0 || subtype!="OpenCockpitLarge" || toolbar?.Slots==null) return;
-            toolbar.Slots=toolbar.Slots.Where(s=>s.Index>=4 && s.Index<61).Select(s=>
-            { s.Index+=10; return s; }).ToList();
+            if(toolbar?.Slots==null) return;
+            if(version==0 && subtype=="OpenCockpitLarge")
+                toolbar.Slots=toolbar.Slots.Where(s=>s.Index>=4 && s.Index<61).Select(s=>
+                { s.Index+=10; return s; }).ToList();
+            if(version<2 && subtype=="LargeBlockCockpitSeat")
+                toolbar.Slots=toolbar.Slots.Where(s=>s.Index<62 || s.Index>=68).Select(s=>
+                { if(s.Index>=68) s.Index-=6; return s; }).ToList();
+            if(version<3 && subtype=="LargeBlockCockpitSeat")
+                toolbar.Slots=toolbar.Slots.Select(s=> { if(s.Index>=62) s.Index+=70; return s; }).ToList();
+            if(version<4 && subtype=="LargeBlockCockpitSeat")
+                toolbar.Slots=toolbar.Slots.Where(s=>TrimmedEnclosedSlot(s.Index)>=0).Select(s=>
+                { s.Index=TrimmedEnclosedSlot(s.Index); return s; }).ToList();
+        }
+        private static int TrimmedEnclosedSlot(int slot)
+        {
+            if(slot<0 || slot>=157) return -1;
+            if(slot<9) return slot;
+            if(slot<15) return -1;
+            if(slot<32) return slot-6;
+            if(slot<56) return -1;
+            if(slot<132) return slot-30;
+            if(slot<142) return -1;
+            return slot-40;
         }
         internal static bool Upgrade(Record record,string subtype)
         {
-            if(record.LayoutVersion!=0) return false;
-            if(subtype=="OpenCockpitLarge")
+            if(record.LayoutVersion>=CurrentLayout) return false;
+            var toolbar=Toolbar(record.Toolbar);
+            UpgradeToolbar(toolbar,subtype,record.LayoutVersion);
+            if(toolbar!=null) record.Toolbar=Toolbar(toolbar);
+            if(record.LayoutVersion==0 && subtype=="OpenCockpitLarge")
             {
-                var toolbar=Toolbar(record.Toolbar);
-                UpgradeToolbar(toolbar,subtype,0);
-                if(toolbar!=null) record.Toolbar=Toolbar(toolbar);
                 var covers=new bool[MaximumControls];
                 for(int i=4;i<Math.Min(61,record.Covers.Length);i++) covers[i+10]=record.Covers[i];
                 record.Covers=covers;
             }
-            record.LayoutVersion=1;
+            if(record.LayoutVersion<2 && subtype=="LargeBlockCockpitSeat")
+            {
+                var covers=new bool[MaximumControls];
+                for(int i=0;i<Math.Min(62,record.Covers.Length);i++) covers[i]=record.Covers[i];
+                for(int i=68;i<Math.Min(93,record.Covers.Length);i++) covers[i-6]=record.Covers[i];
+                record.Covers=covers;
+            }
+            if(record.LayoutVersion<3 && subtype=="LargeBlockCockpitSeat")
+            {
+                var covers=new bool[MaximumControls];
+                for(int i=0;i<Math.Min(87,record.Covers.Length);i++) covers[i<62 ? i:i+70]=record.Covers[i];
+                record.Covers=covers;
+            }
+            if(record.LayoutVersion<4 && subtype=="LargeBlockCockpitSeat")
+            {
+                var covers=new bool[MaximumControls];
+                for(int i=0;i<Math.Min(157,record.Covers.Length);i++)
+                {
+                    int slot=TrimmedEnclosedSlot(i);
+                    if(slot>=0) covers[slot]=record.Covers[i];
+                }
+                record.Covers=covers;
+            }
+            record.LayoutVersion=CurrentLayout;
             return true;
         }
         internal static void Write(MyCockpit seat,Record value)

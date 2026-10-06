@@ -38,8 +38,8 @@ namespace SpaceEngineersVR.Player
             var pose=CockpitLayout.Control(subtype,index,out float size);
             var rig=CockpitRig.Find(subtype);
             return new SurfaceView { Id="CockpitControl"+index,Style=SurfaceStyle.ModelControl,
-                Pose=pose,Width=size,Height=rig.HandleAt(index)!=null ? .032f : rig.BarAt(index)?.Height ?? size,GeometryFeedback=(rig.ButtonAt(index)?.Actor ?? 0)>=0,
-                Keys=new[] {new SurfaceKey("",0,0,1,1)} };
+                Pose=pose,Width=size,Height=rig.HandleAt(index)!=null ? .032f : rig.BarAt(index)?.Height ?? rig.LeverAt(index)?.Height ?? size,GeometryFeedback=(rig.ButtonAt(index)?.Actor ?? 0)>=0,
+                Keys=new[] {new SurfaceKey("",0,0,1,1) {Round=rig.ButtonAt(index)?.Round ?? false}} };
         }
         private static void Release() { HoveredSwitch=-1; Targets=new CockpitTouch.Target[0]; Views=new SurfaceView[0]; }
         private static readonly double[] pendingCovers=new double[CockpitLayout.MaximumCount];
@@ -114,10 +114,10 @@ namespace SpaceEngineersVR.Player
                     string key=Alignment.SeatKey("control"+i);
                     s.Pose=Alignment.Apply(key,native); s.Width*=Alignment.Scale(key); s.Height*=Alignment.Scale(key);
                     MatrixD correction=seat.WorldMatrix*MatrixD.Invert(native)*s.Pose*seat.PositionComp.WorldMatrixNormalizedInv;
-                    targets.Add(new CockpitTouch.Target { Surface=s,Slot=i,Analog=handle!=null,Handle=handle,Lever=lever!=null,Pull=bar!=null,Position=positions[i],
+                    targets.Add(new CockpitTouch.Target { Surface=s,Slot=i,Analog=handle!=null,Handle=handle,Lever=lever!=null,FingerSlide=lever?.FingerSlide==true,Pull=bar!=null,Position=positions[i],
                         Pivot=(Vector3)Vector3D.Transform(handle?.Pivot ?? lever?.Pivot ?? Vector3.Zero,correction),
-                        Axis=(Vector3)Vector3D.TransformNormal(handle?.Axis ?? bar?.Normal ?? lever?.Axis ?? Vector3.Right,correction),
-                        Travel=handle?.Range ?? bar?.Travel ?? CockpitRig.Lever.Travel });
+                        Axis=(Vector3)Vector3D.TransformNormal(handle?.Axis ?? bar?.Normal ?? (lever?.FingerSlide==true ? lever.SlideAxis:lever?.Axis) ?? Vector3.Right,correction),
+                        Travel=handle?.Range ?? bar?.Travel ?? (lever?.FingerSlide==true ? CockpitRig.Lever.FingerTravel:lever?.AngularTravel) ?? CockpitRig.Lever.Travel });
                 }
                 Targets=targets.ToArray(); Views=targets.Select(t=>t.Surface).ToArray();
             }

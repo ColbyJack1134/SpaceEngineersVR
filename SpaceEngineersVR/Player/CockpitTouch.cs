@@ -13,13 +13,14 @@ namespace SpaceEngineersVR.Player
         internal sealed class Target
         {
             public SurfaceView Surface;
-            public bool Lever,Cover,Pull,Analog;
+            public bool Lever,Cover,Pull,Analog,FingerSlide;
             public CockpitRig.Handle Handle;
             public int Slot=-1;
             public float Position,Travel;
             public Vector3 Pivot,Axis;
-            public bool Hinged => Lever || Cover || Handle?.Hinged==true;
-            public bool Draggable => Hinged || Pull || Analog;
+            public bool Hinged => Lever && !FingerSlide || Cover || Handle?.Hinged==true;
+            public bool Draggable => Hinged || Pull || Analog || FingerSlide;
+            public bool Pinch => Draggable && !FingerSlide;
         }
         internal sealed class Hand
         {
@@ -134,7 +135,7 @@ namespace SpaceEngineersVR.Player
         internal static bool Hovering(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Hover!=null;
         public static bool Attached(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Input.Surface!=null;
         internal static bool HoldingBar(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Target?.Analog==true && hands[hand==Player.HandL ? 1 : 0].Target.Handle.Pinch==false && Attached(hand);
-        public static bool Pinching(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Target?.Draggable==true && Attached(hand);
+        public static bool Pinching(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Target?.Pinch==true && Attached(hand);
         private static Controller Controller(int i) => i==0 ? Player.HandR : Player.HandL;
         private static void Consume(int i)
         {
@@ -286,7 +287,7 @@ namespace SpaceEngineersVR.Player
                     h.StartPosition=held.Position; h.GripOffset=chosenContact.X;
                     h.ValuePulse.Reset(held.Position);
                     if(held.Hinged) h.Drag.Begin(raw,held.Handle!=null ? Vector3.Transform(held.Handle.Center,held.Handle.Visual(held.Position)):h.Anchor,held.Pivot,held.Axis,held.Position,held.Travel);
-                    else if(held.Pull || held.Analog) h.Drag.BeginLinear(raw,held.Axis,held.Position,held.Travel);
+                    else if(held.Pull || held.Analog || held.FingerSlide) h.Drag.BeginLinear(raw,held.Axis,held.Position,held.Travel);
                     CockpitFeedback.Engage(hand);
                 }
                 h.Target=h.Input.Surface!=null ? held : null;

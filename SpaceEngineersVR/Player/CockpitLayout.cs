@@ -19,8 +19,8 @@ namespace SpaceEngineersVR.Player
             if(rig?.BarAt(index) is CockpitRig.Bar bar) { size=bar.Width; return bar.TouchPose; }
             if(rig?.ButtonAt(index) is CockpitRig.Button button) { size=button.Size; return button.TouchPose; }
             var lever=rig.LeverAt(index);
-            size=.018f;
-            return MatrixD.CreateWorld(lever.Center+lever.Normal*.007f,-lever.Normal,lever.Up);
+            size=lever.Width;
+            return MatrixD.CreateWorld(lever.Center+lever.Normal*lever.ContactOffset,-lever.Normal,lever.Up);
         }
     }
 }
