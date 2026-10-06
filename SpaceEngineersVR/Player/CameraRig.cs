@@ -32,6 +32,7 @@ namespace SpaceEngineersVR.Player
         private static Vector3D eyeOffset;
         private static double standingEye;
         private static readonly EyeHeightCalibration eyeHeight=new EyeHeightCalibration();
+        private static bool onLadder;
         private static object activeDefinition;
         private static bool restoreBag, restoreHead;
         private static readonly System.Reflection.FieldInfo bagField=AccessTools.Field(typeof(MyCharacter),"m_enableBag");
@@ -44,6 +45,7 @@ namespace SpaceEngineersVR.Player
             var previous=owner;
             if(previous!=null && !previous.Closed) { previous.EnableBag(restoreBag); previous.EnableHead(restoreHead); }
             owner=null; activeDefinition=null; Volatile.Write(ref frame,null); crouchDrop=0; crouchTime=0;
+            onLadder=false;
             if(previous!=null && !previous.Closed && MySession.Static!=null) refreshDepth(previous);
             if(forgetHeight) eyeHeight.Clear();
         }
@@ -52,7 +54,7 @@ namespace SpaceEngineersVR.Player
             HandInteraction.ResetTouch();
             if(owner==null) return;
             anchor=VrMath.RecenterAnchor(anchor,oldOrigin,newOrigin);
-            anchor.Translation=BodyFrame(owner).Translation+Vector3D.TransformNormal(eyeOffset,anchor);
+            Place(owner,BodyFrame(owner));
         }
         public static MatrixD Anchor => anchor;
         public static bool Owns(MyCharacter character) => owner==character && Current!=null;
@@ -67,6 +69,7 @@ namespace SpaceEngineersVR.Player
         public static void Begin(MyCharacter character)
         {
             MatrixD body=BodyFrame(character);
+            bool ladder=character.IsOnLadder;
             if (owner!=character || !ReferenceEquals(activeDefinition,character.Definition))
             {
                 Reset();
@@ -89,10 +92,11 @@ namespace SpaceEngineersVR.Player
                 Logger.Info("Independent VR camera rig initialized; eye height="+height.ToString("F3")+
                     "; animated="+measured.ToString("F3")+"; bind="+rest.ToString("F3"));
             }
-            else
+            else if (ladder==onLadder)
             {
                 // Only changes since END of last tick are game/joystick rotation.
                 // Physical body-follow yaw is already in lastBody and never enters the camera.
+                // Mounting or leaving a ladder turns the body to face it; the view keeps its heading.
                 anchor=VrMath.AdvanceAnchor(anchor,lastBody,body);
             }
             if (!((IMyCharacter)character).EnabledThrusts)
@@ -105,7 +109,13 @@ namespace SpaceEngineersVR.Player
             character.Render.NearFlag=false;
             character.EnableBag(ThirdPersonView.Character);
             eyeOffset.Y=(BodyFit.Fitting(character) ? BodyFit.DesiredEye(character) : standingEye)-CrouchDrop(character);
-            anchor.Translation=body.Translation+Vector3D.TransformNormal(eyeOffset,anchor);
+            onLadder=ladder;
+            Place(character,body);
+        }
+        private static void Place(MyCharacter character,MatrixD body)
+        {
+            // Installed ladder clips lean the head toward the ladder; the eye follows the animated head.
+            anchor.Translation=body.Translation+Vector3D.TransformNormal(eyeOffset,anchor)+body.Forward*LadderClimb.ViewLead(character);
         }
         private static double crouchDrop;
         private static long crouchTime;
@@ -123,7 +133,7 @@ namespace SpaceEngineersVR.Player
         public static void End(MyCharacter character)
         {
             lastBody=BodyFrame(character);
-            anchor.Translation=lastBody.Translation+Vector3D.TransformNormal(eyeOffset,anchor);
+            Place(character,lastBody);
             Publish();
         }
         public static void RefreshAfterSimulation(MyCharacter character)

@@ -74,6 +74,8 @@ namespace SpaceEngineersVR.Diagnostics
                 }
             }
             log("PASS installed skeleton body fit: five sizes, standing/seat pivots, exact hand targets and rigid left cuff/tablet");
+            System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(LadderClimb).TypeHandle);
+            log("PASS installed ladder members: offset, constraint, end checks and ladder switching");
             var id=new MyDefinitionId(typeof(MyObjectBuilder_Component),"SteelPlate");
             var rows=new[] {
                 new MyHudBlockInfo.ComponentInfo {DefinitionId=id,ComponentName="Steel Plate",TotalCount=10,MountedCount=3,StockpileCount=2,AvailableAmount=4},

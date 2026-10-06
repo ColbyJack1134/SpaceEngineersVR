@@ -21,7 +21,8 @@ namespace SpaceEngineersVR.Player
             try
             {
                 CameraRig.Begin(character);
-                if(ThirdPersonView.Character) return;
+                // The native ladder holds the body facing the ladder; head turns and steps stay in the view.
+                if(ThirdPersonView.Character || character.IsOnLadder) return;
                 if (Common.Config.UseHeadRotationForCharacter)
                 {
                     MatrixD head=(MatrixD)Player.Headset.deviceToPlayer*CameraRig.Anchor;

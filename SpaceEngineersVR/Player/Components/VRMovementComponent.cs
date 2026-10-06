@@ -198,6 +198,15 @@ namespace SpaceEngineersVR.Player.Components
         void ControlWalk()
         {
             var controls = Controls.Static;
+            // Ladder climbing moves the native ladder offset directly; native moves would start animated steps.
+            LadderClimb.Update(Character,controls.WalkLongitudinal.Position.Y);
+            if (Character.IsOnLadder)
+            {
+                if (controls.JumpOrClimbUp.HasPressed)
+                    ((VRage.Game.ModAPI.Interfaces.IMyControllableEntity)Character).Jump(Vector3.Up);
+                ApplyMoveAndRotation(Vector3.Zero,Vector2.Zero,0);
+                return;
+            }
 
             var move = Vector3.Zero;
             var rotate = Vector2.Zero;
@@ -233,7 +242,8 @@ namespace SpaceEngineersVR.Player.Components
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void ControlFlight()
         {
-            var controls = Controls.Static;
+            // Gripping a rung while flying mounts the ladder.
+            LadderClimb.Update(Character,0);
 
             ReadFlightInput(false, out Vector3 move, out Vector2 rotate, out float roll);
 
