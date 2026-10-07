@@ -326,6 +326,15 @@ namespace SpaceEngineersVR.Diagnostics
             Require(!CockpitTouch.NearBar(farFinger,new CockpitProbe {Start=new Vector3D(0,0,.09),End=new Vector3D(0,0,.05)},out _,out _),"Distant grasp cavity captures bar");
             var nearFinger=new CockpitProbe {Start=new Vector3D(0,0,.005),End=new Vector3D(0,0,.03),Tip=new Vector3D(0,0,.005)};
             Require(CockpitTouch.NearBar(nearFinger,null,out _,out _),"Fingertip capture requires a palm");
+            var grabZone=new CockpitFeedback.ProximityPulse();
+            var wheelGrab=new SpaceEngineersVR.Player.Control.GripCapture();
+            wheelGrab.Update(true,false,false,true);
+            Require(grabZone.Sample(true,.099f,.1f),"Wheel approach did not signal capture zone");
+            grabZone.Sample(true,.105f,.1f);
+            Require(wheelGrab.Update(true,true,grabZone.Contains(.105f,.1f),true),"Signaled wheel boundary drift rejects fresh squeeze");
+            wheelGrab.Update(true,false,false,true);
+            grabZone.Sample(true,.116f,.1f);
+            Require(!wheelGrab.Update(true,true,grabZone.Contains(.116f,.1f),true),"Wheel captures outside proximity exit boundary");
             var hover=new CockpitFeedback.ProximityPulse();
             Require(!hover.Sample(true,.2f,.1f) && hover.Sample(true,.099f,.1f),"Stick approach did not pulse once on entry");
             for(int i=0;i<120;i++) Require(!hover.Sample(true,i%2==0 ? .098f : .102f,.1f),"Grab-zone boundary jitter repeated hover feedback");

@@ -18,6 +18,10 @@ namespace SpaceEngineersVR.Player
         internal sealed class Turn
         {
             private Matrix previous,grab;
+            private readonly Vector3 axis;
+            private readonly float travel,direction;
+            public Turn(Vector3? axis=null,float travel=Travel,float direction=-1)
+            { this.axis=Vector3.Normalize(axis ?? Vector3.Backward); this.travel=travel; this.direction=direction; }
             private float initial;
             public float Value {get; private set;}
             public Matrix Wrist {get; private set;}
@@ -26,14 +30,15 @@ namespace SpaceEngineersVR.Player
             {
                 if(!local.IsValid()) return;
                 var delta=Quaternion.CreateFromRotationMatrix(Matrix.Invert(previous.GetOrientation())*local.GetOrientation());
-                float length=(float)Math.Sqrt(delta.Z*delta.Z+delta.W*delta.W);
+                float projected=Vector3.Dot(new Vector3(delta.X,delta.Y,delta.Z),axis);
+                float length=(float)Math.Sqrt(projected*projected+delta.W*delta.W);
                 if(length<.001f) return;
-                float angle=2*(float)Math.Atan2(delta.Z/length,delta.W/length);
+                float angle=2*(float)Math.Atan2(projected/length,delta.W/length);
                 if(angle>MathHelper.Pi) angle-=MathHelper.TwoPi;
                 if(angle < -MathHelper.Pi) angle+=MathHelper.TwoPi;
                 previous=local;
-                Value=MathHelper.Clamp(Value-angle/Travel,0,1);
-                Wrist=grab*Matrix.CreateRotationZ((initial-Value)*Travel);
+                Value=MathHelper.Clamp(Value+direction*angle/travel,0,1);
+                Wrist=grab*Matrix.CreateFromAxisAngle(axis,(Value-initial)*travel/direction);
             }
         }
         internal static void Add(List<NativeSprite> sprites,ShaderResourceView texture,SurfaceView panel,float value,MatrixD view,MatrixD projection)

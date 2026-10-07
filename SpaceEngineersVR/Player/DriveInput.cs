@@ -21,7 +21,7 @@ namespace SpaceEngineersVR.Player
             ship=controller;
             Braking=move.Y>.5f;
         }
-        public static void Throttle(bool trigger) => gas=trigger && ship?.Toolbar?.SelectedItem==null;
+        public static void Throttle(bool trigger) => gas=CockpitControls.Throttle>.1f || trigger && ship?.Toolbar?.SelectedItem==null;
         public static void Stop() { ship=null; gas=Braking=false; }
 
         // Native wheels read X as steering and the sign of Z as throttle.

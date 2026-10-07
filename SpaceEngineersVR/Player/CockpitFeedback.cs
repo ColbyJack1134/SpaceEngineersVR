@@ -13,10 +13,11 @@ namespace SpaceEngineersVR.Player
         internal sealed class ProximityPulse
         {
             private bool inside;
+            internal bool Contains(float distance,float radius) => distance<radius*(inside ? 1.15f:1);
             public bool Sample(bool available,float distance,float radius,bool suppressed=false)
             {
                 if(!available) { inside=false; return false; }
-                if(inside) { if(distance>radius*1.15f) inside=false; return false; }
+                if(inside) { if(distance>=radius*1.15f) inside=false; return false; }
                 if(distance>=radius || float.IsNaN(distance)) return false;
                 inside=true;
                 return !suppressed;

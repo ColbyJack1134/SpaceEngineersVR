@@ -26,10 +26,13 @@ namespace SpaceEngineersVR.Player
             public readonly bool[] Verified;
             public readonly MatrixD?[] Poses;
             public readonly string[] Materials;
+            public readonly string[][] ActorMaterials;
             public int ReadyCount;
             public volatile string Error;
-            public Verification(uint interior,int count,string[] materials)
-            { Interior=interior; Verified=new bool[count]; Poses=new MatrixD?[count]; Materials=materials; }
+            public volatile string NativeStatus="No native proxy verification";
+            public Verification(uint interior,CockpitGeometry geometry,string[] materials)
+            { Interior=interior; Verified=new bool[geometry.Parts.Length]; Poses=new MatrixD?[geometry.Parts.Length]; Materials=materials;
+                ActorMaterials=geometry.Parts.Select(p=>p.Sections.Select(s=>s.MaterialName).Distinct().ToArray()).ToArray(); }
         }
         private static Verification verification;
         private static CockpitGeometry geometry;
@@ -53,7 +56,7 @@ namespace SpaceEngineersVR.Player
                 foreach(string material in previous.Materials)
                     MyRenderProxy.UpdateModelProperties(previous.Interior,material,RenderFlags.Visible,RenderFlags.Visible|Hidden,null,null);
             }
-            owner=null; activeRig=null; recovery.Clear(); appliedColor=null; feedback.Clear();
+            owner=null; activeRig=null; recovery.Clear(); appliedColor=null; feedback.Clear(); screenTextures.Clear();
         }
         public static void Update(MyCockpit cockpit,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3))
         {
@@ -65,8 +68,9 @@ namespace SpaceEngineersVR.Player
             uint model=interior ? render.InteriorRenderId:render.ExteriorRenderId;
             if(model==uint.MaxValue) return;
             UpdateScene(CockpitRig.Find(cockpit.BlockDefinition.Id.SubtypeName),model,cockpit.WorldMatrix,left,right,leftHeld,rightHeld,leftOffset,rightOffset,colorMask:cockpit.SlimBlock.ColorMaskHSV);
+            SyncScreens(cockpit);
         }
-        internal static void UpdateScene(CockpitRig rig,uint interior,MatrixD world,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3),float? switchPreview=null,float? coverPreview=null,Vector3? colorMask=null,int previewHover=-1,int previewHeld=-1,bool previewCover=false,bool nativeRest=false,float? barPreview=null,bool? buttonPreview=null)
+        internal static void UpdateScene(CockpitRig rig,uint interior,MatrixD world,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3),float? switchPreview=null,float? coverPreview=null,Vector3? colorMask=null,int previewHover=-1,int previewHeld=-1,bool previewCover=false,bool nativeRest=false,float? barPreview=null,bool? buttonPreview=null,float? throttlePreview=null)
         {
             if (failed) return;
             try
@@ -78,8 +82,10 @@ namespace SpaceEngineersVR.Player
                 if (verification==null)
                 {
                     activeRig=rig;
+                    foreach(string templateSubtype in activeRig.Buttons.Select(b=>b.TemplateSubtype).Where(s=>s!=null).Distinct())
+                        MyRenderProxy.PreloadModel(CockpitRig.Find(templateSubtype).Model,forceOldPipeline:true);
                     geometry=activeRig.Geometry(MyFileSystem.ContentPath);
-                    verification=new Verification(interior,geometry.Parts.Length,activeRig.Pieces.Select(p=>p.Material).Distinct().ToArray());
+                    verification=new Verification(interior,geometry,activeRig.Pieces.Select(p=>p.Material).Distinct().ToArray());
                     deadline=DateTime.UtcNow.AddSeconds(8);
                     // This also converts the instance to the engine's supported per-material pipeline.
                     foreach(string material in verification.Materials)
@@ -89,7 +95,7 @@ namespace SpaceEngineersVR.Player
                 var check=verification;
                 Vector3 paint=colorMask ?? Vector3.Zero;
                 if (check.Error!=null) throw new InvalidOperationException(check.Error);
-                if (!Ready && DateTime.UtcNow>deadline) throw new TimeoutException("Cockpit control renderer did not confirm hidden native geometry and replacement meshes.");
+                if (!Ready && DateTime.UtcNow>deadline) throw new TimeoutException("Cockpit control renderer did not confirm hidden native geometry and replacement meshes: "+check.NativeStatus);
                 if (check.NativeHidden && check.Actors.Length==0)
                 {
                     long started=FeatureTiming.Start();
@@ -125,6 +131,17 @@ namespace SpaceEngineersVR.Player
                     appliedColor=paint;
                 }
                 foreach(int actor in activeRig.StaticActors) UpdatePose(check,actor,world);
+                if(activeRig.Wheel!=null)
+                {
+                    UpdatePose(check,activeRig.Wheel.Actor,(MatrixD)(nativeRest ? Matrix.Identity:left)*world);
+                    SetRigFeedback(check,activeRig.Wheel.Actor,leftHeld || rightHeld ? 2:0);
+                    if(activeRig.Wheel.ThrottleActor>=0)
+                    {
+                        Matrix twist=nativeRest ? Matrix.Identity:activeRig.Wheel.ThrottleVisual(throttlePreview ?? CockpitControls.ThrottleVisual);
+                        UpdatePose(check,activeRig.Wheel.ThrottleActor,(MatrixD)(twist*(nativeRest ? Matrix.Identity:left))*world);
+                        SetRigFeedback(check,activeRig.Wheel.ThrottleActor,rightHeld ? 2:0);
+                    }
+                }
                 UpdateRigStick(check,activeRig.Left,left,leftOffset,leftHeld,world);
                 UpdateRigStick(check,activeRig.Right,right,rightOffset,rightHeld,world);
                 string subtype=activeRig.Subtype;
@@ -167,6 +184,44 @@ namespace SpaceEngineersVR.Player
                 var previousOwner=owner; Reset(); owner=previousOwner;
                 recovery.Fail(ex,"COCKPIT CONTROLS disabled; native interior and button flight restored");
             }
+        }
+        private static readonly System.Collections.Generic.Dictionary<string,string> screenTextures=new System.Collections.Generic.Dictionary<string,string>();
+        internal static int MovingScreenActor(CockpitRig rig,string material) => rig?.Wheel==null ? -1 :
+            rig.Pieces.Where(p=>p.Actor==rig.Wheel.Actor && p.Material==material).Select(p=>p.Actor).DefaultIfEmpty(-1).First();
+        internal static void PreserveScreenVisibility(uint id,string material,ref RenderFlags add,ref RenderFlags remove)
+        {
+            if(verification==null || id!=verification.Interior || string.IsNullOrEmpty(material) || !material.StartsWith("CockpitScreen_",StringComparison.Ordinal) ||
+                MovingScreenActor(activeRig,material)<0 || add==0 && remove==0) return;
+            // The engine replaces this override on live LCD updates rather than merging it.
+            // Without Visible, the engine translates remove flags into main/forward skip removal.
+            add|=RenderFlags.Visible|Hidden; remove=(remove&~Hidden)|RenderFlags.Visible;
+        }
+        internal static void ScreenTexture(string material,string path)
+        {
+            if(!Ready) return;
+            int actor=MovingScreenActor(activeRig,material);
+            if(actor<0 || screenTextures.TryGetValue(material,out string previous) && previous==path) return;
+            MyRenderProxy.ChangeMaterialTexture(verification.Actors[actor],material,path);
+            screenTextures[material]=path;
+        }
+        private static void SyncScreens(MyCockpit cockpit)
+        {
+            if(!Ready || activeRig.Wheel==null || cockpit.BlockDefinition.ScreenAreas==null) return;
+            var provider=(Sandbox.ModAPI.Ingame.IMyTextSurfaceProvider)cockpit;
+            for(int i=0;i<cockpit.BlockDefinition.ScreenAreas.Count;i++)
+            {
+                string material=cockpit.BlockDefinition.ScreenAreas[i].Name;
+                if(MovingScreenActor(activeRig,material)<0) continue;
+                var surface=provider.GetSurface(i);
+                if(surface!=null) ScreenTexture(material,(string)Member(surface,"m_previousTextureID"));
+            }
+        }
+        internal static MatrixD SurfaceWorld(Sandbox.ModAPI.IMyTerminalBlock block,int index)
+        {
+            if(block==owner && Ready && index>=0 && index<owner.BlockDefinition.ScreenAreas.Count &&
+                MovingScreenActor(activeRig,owner.BlockDefinition.ScreenAreas[index].Name)>=0)
+                return (MatrixD)activeRig.Wheel.Visual(CockpitControls.SteeringPosition)*block.WorldMatrix;
+            return block.WorldMatrix;
         }
         private static void UpdateRigStick(Verification check,CockpitRig.Stick stick,Matrix visual,Vector3 offset,bool held,MatrixD world)
         {
@@ -224,6 +279,7 @@ namespace SpaceEngineersVR.Player
                 if (id!=check.Interior && replacement<0) return;
                 var lods=Member(renderable,"Lods") as IEnumerable;
                 if (lods==null) return;
+                var expected=replacement<0 ? check.Materials:check.ActorMaterials[replacement];
                 bool found=false,otherVisible=false; var nativeMaterials=new System.Collections.Generic.HashSet<string>();
                 foreach (object lod in lods)
                 foreach (object proxy in (IEnumerable)Member(lod,"RenderableProxies"))
@@ -235,10 +291,10 @@ namespace SpaceEngineersVR.Player
                     object flags=Member(proxy,"Flags");
                     long mask=Convert.ToInt64(Enum.Parse(flags.GetType(),"SkipInMainView, SkipInDepth, SkipInForward"));
                     long value=Convert.ToInt64(flags);
-                    if (Array.IndexOf(check.Materials,material)>=0)
+                    if (Array.IndexOf(expected,material)>=0)
                     {
                         bool hidden=(value&mask)==mask;
-                        if (id==check.Interior && !hidden) return;
+                        if (id==check.Interior && !hidden) { check.NativeStatus="Visible native material "+material+": "+flags; return; }
                         nativeMaterials.Add(material);
                         if (replacement>=0 && (value&mask)!=0) throw new InvalidOperationException("Replacement cockpit proxy is hidden.");
                         found=true;
@@ -248,7 +304,7 @@ namespace SpaceEngineersVR.Player
                 if (!found) return;
                 if (id==check.Interior)
                 {
-                    if(nativeMaterials.Count!=check.Materials.Length) return;
+                    if(nativeMaterials.Count!=check.Materials.Length) { check.NativeStatus="Missing native materials: "+string.Join(", ",check.Materials.Except(nativeMaterials)); return; }
                     if (!otherVisible) throw new InvalidOperationException("Native stick suppression hid unrelated cockpit geometry.");
                     if (!check.NativeHidden) Logger.Info("COCKPIT CONTROLS native material hidden in main/depth/forward passes; other interior materials visible");
                     check.NativeHidden=true;

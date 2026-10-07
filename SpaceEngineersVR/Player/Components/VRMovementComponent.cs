@@ -174,7 +174,7 @@ namespace SpaceEngineersVR.Player.Components
                 if(!controllerFlight) { rotate=Vector2.Zero; roll=0; }
             }
 
-            if (controllerFlight && !ThirdPersonView.Active && !CockpitControls.RotationOwned && Common.Config.LegacyShipTilt && controls.ThrustRoll.IsPressed && Player.HandR.pose.isTracked)
+            if (controllerFlight && !ThirdPersonView.Active && !CockpitControls.RotationOwned && !CockpitControls.IsSteering && Common.Config.LegacyShipTilt && controls.ThrustRoll.IsPressed && Player.HandR.pose.isTracked)
             {
                 Matrix hand = Player.HandR.deviceToPlayer;
                 hand.Translation = Vector3.Zero;
@@ -256,9 +256,9 @@ namespace SpaceEngineersVR.Player.Components
         {
             var controls = Controls.Static;
             move = FlightAxes.Translation(controls.ThrustLRUD.Position, controls.ThrustLRFB.Position,
-                ship && CockpitControls.Held(Player.HandL) ? 0 : controls.ThrustUp.Position.X, WeaponHandling.ConsumesLeftGrip ? 0 : ThirdPersonView.Descent(controls.ThrustDown.Position.X), controls.ThrustForward.Position.X, controls.ThrustBackward.Position.X);
+                ship && !CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) ? 0 : controls.ThrustUp.Position.X, WeaponHandling.ConsumesLeftGrip || ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) ? 0 : ThirdPersonView.Descent(controls.ThrustDown.Position.X), controls.ThrustForward.Position.X, controls.ThrustBackward.Position.X);
             float rollSensitivity = ship ? Common.Config.ShipRollSensitivity : Common.Config.JetpackRoll;
-            FlightAxes.Rotation(controls.ThrustRotate.Position, controls.ThrustRoll.IsPressed && !TouchScreenBridge.OwnsInput && !(WeaponHandling.ToolModifier && controls.Primary.IsPressed), ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
+            FlightAxes.Rotation(controls.ThrustRotate.Position, controls.ThrustRoll.IsPressed && !(ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandR)) && !TouchScreenBridge.OwnsInput && !(WeaponHandling.ToolModifier && controls.Primary.IsPressed), ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
         }
 
         void ApplyMoveAndRotation(Vector3 move, Vector2 rotate, float roll)
@@ -283,7 +283,7 @@ namespace SpaceEngineersVR.Player.Components
 
             var controlledEntity = MySession.Static.ControlledEntity;
             bool turret=RemoteView.Turret;
-            bool stickAction=(controlledEntity is MyShipController || turret) && InputRouter.CockpitInteraction && CockpitControls.Held(Player.HandL) &&
+            bool stickAction=(controlledEntity is MyShipController || turret) && InputRouter.CockpitInteraction && !CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) &&
                 !CockpitControls.Adjusting && !PlacementControls.OwnsTools && !BlockInspection.ConsumesSecondary && !HelmetHud.ProtectsRight &&
                 !TouchScreenBridge.OwnsInput && !FloatingWindows.OwnsInput && Player.HandL.pose.isTracked;
             stickSecondary.Update(stickAction && controls.LeftTriggerPressure.Active && controls.LeftTriggerPressure.CanPress,

@@ -389,12 +389,14 @@ namespace SpaceEngineersVR.Diagnostics
             var rig=rigs[rigIndex];
             native=MyRenderProxy.CreateRenderEntity("SEVR rig probe "+rig.Subtype,rig.Model,MatrixD.Identity,MyMeshDrawTechnique.MESH,
                 RenderFlags.Visible|RenderFlags.ForceOldPipeline|RenderFlags.CastShadows,(CullingOptions)0,Color.White,neutralPaint);
+            foreach(string material in rig.Pieces.Select(p=>p.Material).Distinct().Where(m=>CockpitRender.MovingScreenActor(rig,m)>=0 && m.StartsWith("CockpitScreen_")))
+                MyRenderProxy.ChangeMaterialTexture(native,material,@"Textures\Models\default_online.dds");
             next=DateTime.UtcNow.AddSeconds(2);
         }
         private static void UpdateRig()
         {
             var rig=rigs[rigIndex];
-            Vector3 center=rig.Left!=null && rig.Right!=null ? (rig.Left.Contact+rig.Right.Contact)*.5f : (rig.Left ?? rig.Right)?.Contact ?? rig.Handles[0].Center;
+            Vector3 center=rig.Wheel!=null ? rig.Wheel.Pivot : rig.Left!=null && rig.Right!=null ? (rig.Left.Contact+rig.Right.Contact)*.5f : (rig.Left ?? rig.Right)?.Contact ?? rig.Handles[0].Center;
             Vector3D eye=center+new Vector3(.02f,.55f,.48f);
             var view=MatrixD.CreateLookAt(eye,center,Vector3D.Up);
             var size=Wrappers.MyRender11.Resolution; float aspect=(float)size.X/size.Y;
@@ -407,10 +409,15 @@ namespace SpaceEngineersVR.Diagnostics
             if(rigStep==1 || rigStep==2)
             {
                 bool moved=rigStep==2;
-                Matrix left=moved && rig.Left!=null ? rig.Left.Visual(new Vector3(.5f,.4f,.6f)) : Matrix.Identity;
+                Matrix left=moved && rig.Wheel!=null ? rig.Wheel.Visual(.7f) : moved && rig.Left!=null ? rig.Left.Visual(new Vector3(.5f,.4f,.6f)) : Matrix.Identity;
                 Matrix right=moved && rig.Right!=null ? rig.Right.Visual(new Vector3(-.5f,.4f,-.6f)) : Matrix.Identity;
                 CockpitRender.UpdateScene(rig,native,MatrixD.Identity,left,right,moved,moved,switchPreview:moved ? 1f:0f,coverPreview:moved ? 1f:0f,
-                    colorMask:neutralPaint,nativeRest:!moved,buttonPreview:moved);
+                    colorMask:neutralPaint,nativeRest:!moved,barPreview:moved ? 1f:0f,buttonPreview:moved,throttlePreview:moved ? 1f:0f);
+                foreach(string material in rig.Pieces.Select(p=>p.Material).Distinct().Where(m=>m.StartsWith("CockpitScreen_")))
+                {
+                    CockpitRender.ScreenTexture(material,@"Textures\Models\default_online.dds");
+                    MyRenderProxy.UpdateModelProperties(native,material,RenderFlags.Visible,(RenderFlags)0,null,null);
+                }
             }
             MyRenderProxy.Draw3DScene();
             if(DateTime.UtcNow<next || (rigStep==1 || rigStep==2) && !CockpitRender.Ready) return;

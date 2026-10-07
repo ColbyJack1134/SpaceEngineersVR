@@ -30,8 +30,8 @@ namespace SpaceEngineersVR.Multiplayer
                 case "SmallBlockSuspendedControlSeat": return slot==11;
                 case "SmallBlockSuspendedControlSeatB": return slot==11;
                 case "SmallBlockCapCockpit": return slot==15;
-                case "SpeederCockpit": return slot>=0 && slot<1;
-                case "SpeederCockpitCompact": return slot>=0 && slot<1;
+                case "SpeederCockpit": return slot==1;
+                case "SpeederCockpitCompact": return slot==1;
                 case "LargeBlockOpenSlopedCockpit": return slot>=23 && slot<26;
                 case "LargeBlockClosedSlopedCockpit": return slot>=23 && slot<26;
                 case "SmallBlockOpenSlopedCockpit": return slot>=8 && slot<11;

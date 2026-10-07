@@ -81,6 +81,13 @@ namespace SpaceEngineersVR.Player
             if(frame.HasValue) turn=Matrix.Transpose(frame.Value)*turn*frame.Value;
             return Around(pivot,turn);
         }
+        internal static bool GripAligned(Matrix wrist,Matrix attached)
+        {
+            if(!wrist.IsValid() || !attached.IsValid()) return false;
+            var first=Quaternion.CreateFromRotationMatrix(wrist.GetOrientation());
+            var second=Quaternion.CreateFromRotationMatrix(attached.GetOrientation());
+            return Math.Abs(Quaternion.Dot(first,second))>=(float)Math.Cos(MathHelper.ToRadians(75)*.5f);
+        }
         internal static Matrix GripPalm(bool left,Vector3 contact,Vector3 shaft)
         {
             float side=left ? -1 : 1;

@@ -216,6 +216,19 @@ namespace SpaceEngineersVR.Diagnostics
                     Enumerable.Range(0,7).All(i=>!helmRecord.Covers[i]),
                     "Helm cylinder migration loses red, switch, analog, slider assignments or cover states");
             }
+            foreach(string subtype in new[] {"SpeederCockpit","SpeederCockpitCompact"})
+            for(int version=0;version<13;version++)
+            {
+                var toolbar=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=new[] {
+                    new MyObjectBuilder_Toolbar.Slot {Index=0,Data=new MyObjectBuilder_ToolbarItemTerminalBlock {
+                        BlockEntityId=1400,_Action="IncreaseVelocity"}}}.ToList()};
+                var saddleRecord=new CockpitMemory.Record {LayoutVersion=version,Toolbar=CockpitMemory.Toolbar(toolbar)};
+                Require(CockpitMemory.Upgrade(saddleRecord,subtype) && !CockpitMemory.Upgrade(saddleRecord,subtype),"Saddle migration repeats");
+                var slot=CockpitMemory.Toolbar(saddleRecord.Toolbar).Slots.Single();
+                Require(slot.Index==1 && slot.Data is MyObjectBuilder_ToolbarItemTerminalBlock item && item.BlockEntityId==1400 &&
+                    item._Action=="IncreaseVelocity" && !AnalogControl.IsHandle(subtype,0) && AnalogControl.IsHandle(subtype,1),
+                    "Saddle emergency button migration loses analog assignment");
+            }
             var flushToolbar=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=Enumerable.Range(0,8).Select(i=>
                 new MyObjectBuilder_Toolbar.Slot {Index=i,Data=new MyObjectBuilder_ToolbarItemTerminalBlock {BlockEntityId=700+i,
                     _Action=i==7 ? "IncreaseVelocity":"OnOff"}}).ToList()};

@@ -29,6 +29,27 @@ namespace SpaceEngineersVR.Player
             public Matrix Palm(bool left) => CockpitStickMath.RaiseGrip(
                 CockpitStickMath.GripPalm(left,Contact,gripShaft)*CockpitStickMath.Around(Contact,Matrix.CreateRotationX(gripPitch)),gripShaft,GripLift,GripInset);
         }
+        internal sealed class Steering
+        {
+            public readonly Vector3 Pivot,Axis,LeftContact,RightContact;
+            public readonly int Actor,ThrottleActor;
+            public readonly float Range,ThrottleRange;
+            public readonly Vector3 RightShaft;
+            private readonly Matrix leftPalm,rightPalm;
+            public Steering(Vector3 pivot,Vector3 axis,Vector3 leftContact,Vector3 rightContact,Vector3 leftShaft,Vector3 rightShaft,int actor,float range,int throttleActor=-1,float throttleRange=.9599311f,float gripPitch=0)
+            {
+                Pivot=pivot; Axis=Vector3.Normalize(axis); LeftContact=leftContact; RightContact=rightContact; Actor=actor; Range=range;
+                ThrottleActor=throttleActor; ThrottleRange=throttleRange; RightShaft=Vector3.Normalize(rightShaft);
+                leftPalm=CockpitStickMath.GripPalm(true,leftContact,Vector3.Normalize(leftShaft))*CockpitStickMath.Around(leftContact,Matrix.CreateRotationX(gripPitch));
+                rightPalm=CockpitStickMath.GripPalm(false,rightContact,throttleActor>=0 ? -RightShaft:RightShaft)*CockpitStickMath.Around(rightContact,Matrix.CreateRotationX(gripPitch));
+            }
+            internal Matrix Visual(float value) => CockpitStickMath.Around(Pivot,Matrix.CreateFromAxisAngle(Axis,MathHelper.Clamp(value,-1,1)*Range));
+            internal Matrix ThrottleVisual(float value) => ThrottleActor<0 ? Matrix.Identity :
+                CockpitStickMath.Around(RightContact,Matrix.CreateFromAxisAngle(RightShaft,MathHelper.Clamp(value,0,1)*ThrottleRange));
+            internal Matrix Palm(bool left,float value,float throttle=0) =>
+                (left ? leftPalm:rightPalm*ThrottleVisual(throttle))*Visual(value);
+            internal Vector3 Contact(bool left,float value) => Vector3.Transform(left ? LeftContact:RightContact,Visual(value));
+        }
         internal sealed class Piece
         {
             public readonly string Material;
@@ -150,11 +171,11 @@ namespace SpaceEngineersVR.Player
             public readonly bool Round;
             public readonly int TemplateActor;
             public readonly Matrix TemplateTransform;
-            public readonly string TemplateMaterial;
+            public readonly string TemplateMaterial,TemplateSubtype;
             public Button(Vector3 center,Vector3 normal,Vector3 up,float size,int actor=-1,float travel=0,bool round=false,
-                int templateActor=-1,Matrix? templateTransform=null,string templateMaterial=null)
+                int templateActor=-1,Matrix? templateTransform=null,string templateMaterial=null,string templateSubtype=null)
             { Center=center; Normal=normal; Up=up; Size=size; Actor=actor; Travel=travel; Round=round;
-                TemplateActor=templateActor; TemplateTransform=templateTransform ?? Matrix.Identity; TemplateMaterial=templateMaterial; }
+                TemplateActor=templateActor; TemplateTransform=templateTransform ?? Matrix.Identity; TemplateMaterial=templateMaterial; TemplateSubtype=templateSubtype; }
             internal MatrixD TouchPose => MatrixD.CreateWorld(Center,-Normal,Up);
             internal Matrix Visual(bool pressed) => Matrix.CreateTranslation(pressed ? -Normal*Travel:Vector3.Zero);
         }
@@ -164,9 +185,10 @@ namespace SpaceEngineersVR.Player
             public readonly float Travel,Width,Height;
             public readonly int Actor;
             public readonly float StemDepth;
-            public Bar(Vector3 front,Vector3 normal,Vector3 up,float travel,float width,float height,int actor,float stemDepth)
-            { Front=front; Normal=normal; Up=up; Travel=travel; Width=width; Height=height; Actor=actor; StemDepth=stemDepth; }
-            internal MatrixD TouchPose => MatrixD.CreateWorld(Front,-Normal,Up);
+            private readonly Vector3 contactNormal;
+            public Bar(Vector3 front,Vector3 normal,Vector3 up,float travel,float width,float height,int actor,float stemDepth,Vector3? contactNormal=null)
+            { Front=front; Normal=normal; Up=up; Travel=travel; Width=width; Height=height; Actor=actor; StemDepth=stemDepth; this.contactNormal=contactNormal ?? normal; }
+            internal MatrixD TouchPose => MatrixD.CreateWorld(Front,-contactNormal,Up);
             internal Matrix Visual(float position) => Matrix.CreateTranslation(Normal*(Travel*MathHelper.Clamp(position,0,1)));
             internal void ExtendStem(MyModelData mesh)
             {
@@ -203,7 +225,9 @@ namespace SpaceEngineersVR.Player
         public readonly string Subtype,Model;
         private readonly string geometryModel;
         public readonly MatrixD SeatMount;
+        public readonly Vector3 DefaultSeatOffset;
         public readonly Stick Left,Right;
+        public readonly Steering Wheel;
         public readonly Piece[] Pieces;
         // Assignment slots, in persisted order: buttons, levers, handles, then bars.
         public readonly Button[] Buttons;
@@ -216,9 +240,9 @@ namespace SpaceEngineersVR.Player
         public readonly int[] StaticActors;
         private CockpitGeometry geometry;
         private CockpitRig(string subtype,string model,string geometryModel,Vector3 panel,Vector3 normal,Stick left,Stick right,Piece[] pieces,Lever[] levers,Handle[] handles=null,
-            Button[] buttons=null,Bar[] bars=null,Screen[] screens=null,bool packedCovers=false)
+            Button[] buttons=null,Bar[] bars=null,Screen[] screens=null,bool packedCovers=false,Steering steering=null,Vector3 defaultSeatOffset=default(Vector3))
         {
-            Subtype=subtype; Model=model; this.geometryModel=geometryModel; Left=left; Right=right; Pieces=pieces;
+            Subtype=subtype; Model=model; this.geometryModel=geometryModel; Left=left; Right=right; Pieces=pieces; Wheel=steering; DefaultSeatOffset=defaultSeatOffset;
             Buttons=buttons ?? new Button[0]; Levers=levers; Handles=handles ?? new Handle[0]; Bars=bars ?? new Bar[0];
             Screens=screens ?? new Screen[0];
             var up=Vector3.Normalize(Vector3.Cross(normal,Vector3.Right));
@@ -287,7 +311,9 @@ namespace SpaceEngineersVR.Player
             foreach(var bar in Bars) bar.ExtendStem(actors[bar.Actor]);
             foreach(var button in Buttons.Where(b=>b.TemplateActor>=0))
             {
-                AppendTransformed(actors[button.Actor],actors[button.TemplateActor],button.TemplateTransform);
+                var source=button.TemplateSubtype==null ? actors[button.TemplateActor] :
+                    Find(button.TemplateSubtype).Geometry(content).Parts[button.TemplateActor];
+                AppendTransformed(actors[button.Actor],source,button.TemplateTransform);
                 if(button.TemplateMaterial!=null)
                     for(int i=0;i<actors[button.Actor].Sections.Count;i++)
                     {

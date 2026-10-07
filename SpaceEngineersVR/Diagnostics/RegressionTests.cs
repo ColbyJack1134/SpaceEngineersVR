@@ -307,6 +307,7 @@ namespace SpaceEngineersVR.Diagnostics
             CockpitTests.Run(log);
             FlightControlTests.Run(log);
             CockpitRigTests.Run(log);
+            CockpitSteeringTests.Run(log);
             CockpitStateTests.Run(log);
             AnalogControlTests.Run(log);
             CockpitProbeTests.Run(log);

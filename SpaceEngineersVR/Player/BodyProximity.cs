@@ -1,4 +1,5 @@
 using System;
+using Sandbox.Game.Entities;
 using Sandbox.Game.World;
 using SpaceEngineersVR.Plugin;
 using VRageMath;
@@ -28,7 +29,10 @@ namespace SpaceEngineersVR.Player
             NativeHandLayer.Actor=character?.Render.GetRenderObjectID() ?? uint.MaxValue;
             if(!Main.VrActive || character==null || character.IsDead || ThirdPersonView.Active)
             { Reset(); return; }
-            bool hide=Common.Config.HideFirstPersonBody;
+            var seat=character.Parent as MyCockpit;
+            string subtype=seat?.BlockDefinition.Id.SubtypeName;
+            bool saddle=SeatFit.Eligible(seat) && (subtype=="SpeederCockpit" || subtype=="SpeederCockpitCompact");
+            bool hide=Common.Config.HideFirstPersonBody || saddle;
             bool proximity=character.IsSitting ? Common.Config.BodyProximityFade : Common.Config.OnFootBodyProximityFade;
             if(!hide && !proximity) { Reset(); return; }
             uint id=character.Render.GetRenderObjectID();
@@ -40,7 +44,7 @@ namespace SpaceEngineersVR.Player
             var head=SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation;
             var local=(Vector3)Vector3D.Transform(head,character.PositionComp.WorldMatrixInvScaled);
             float target=hide ? 1 : Amount(local,pelvis.AbsoluteTransform.Translation,chest.AbsoluteTransform.Translation);
-            float next=MathHelper.Lerp(fade,target,.25f);
+            float next=saddle ? 1 : MathHelper.Lerp(fade,target,.25f);
             if(Math.Abs(next-target)<.005f) next=target;
             if(Math.Abs(next-fade)<.001f) return;
             fade=next;

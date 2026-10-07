@@ -196,6 +196,18 @@ namespace SpaceEngineersVR.Diagnostics
                 for(int i=0;i<(int)Math.Round(1/frame);i++) offset=SeatFit.Step(offset,Vector3.Down,frame);
                 Require(Math.Abs(offset.Y+.12)<.00001,"Seat speed depends on frame rate");
             }
+            foreach(string subtype in new[] {"RoverCockpit","BuggyCockpit","SpeederCockpit","SpeederCockpitCompact"})
+            {
+                Vector3 target=SeatFit.Default(subtype);
+                Require(SeatFit.Limit(target)==target,"Default seat fit exceeds adjustment limits");
+                foreach(float frame in new[] {1f/30,1f/60,1f/120})
+                {
+                    Vector3 offset=Vector3.Zero;
+                    for(int i=0;i<(int)Math.Round(6/frame);i++) offset=SeatFit.Center(offset,target,frame);
+                    Require(offset==target,"Reset seat does not converge to cockpit default");
+                }
+            }
+            Require(SeatFit.Default(CockpitLayout.Fighter)==Vector3.Zero,"Accepted cockpit default seat fit changed");
             Require(SeatFit.Limit(new Vector3(float.NaN))==Vector3.Zero,"Invalid saved seat fit accepted");
             Require(SeatFit.Step(new Vector3(0,-.45f,0),Vector3.Down,2).Y==-.45f,"Seat lower bound exceeded");
             Require(HelmetHud.NearTemple(Matrix.CreateTranslation(.21f,0,0),Matrix.Identity),"Temple gesture missed");

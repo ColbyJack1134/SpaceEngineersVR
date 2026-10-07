@@ -63,7 +63,7 @@ namespace SpaceEngineersVR.Player
             {
                 object coords=Coords.GetValue(Value); var t=coords.GetType();
                 return PlaneFor((Vector3)Field(t,"TopLeft").GetValue(coords),(Vector3)Field(t,"BottomLeft").GetValue(coords),
-                    (Vector3)Field(t,"BottomRight").GetValue(coords),Block.WorldMatrix);
+                    (Vector3)Field(t,"BottomRight").GetValue(coords),CockpitRender.SurfaceWorld(Block,Index));
             }
             public void Buttons(bool active,bool first,bool second)
             {

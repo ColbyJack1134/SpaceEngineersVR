@@ -14,6 +14,10 @@ namespace SpaceEngineersVR.Diagnostics
         internal static void Run(Action<string> log)
         {
             string content=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(MyModelImporter).Assembly.Location),"..","Content"));
+            var rover=CockpitRig.Find("RoverCockpit");
+            if(rover.Handles.Length!=1 || rover.Handles[0].Actor!=1 || rover.Bars.Length!=1 || rover.Bars[0].Actor!=4 ||
+                !AnalogControl.IsHandle(rover.Subtype,0) || AnalogControl.IsHandle(rover.Subtype,1))
+                throw new Exception("Rover pull bar changes existing analog slot or is classified as analog");
             foreach(var rig in CockpitRig.All)
             {
                 if(!SeatPanel.TryMount(rig.Subtype,out var mount,out float width,out float height) ||
@@ -43,7 +47,7 @@ namespace SpaceEngineersVR.Diagnostics
                 {
                     var delta=Vector3.Transform(button.Center,button.Visual(true))-button.Center;
                     if(Vector3.Distance(delta,-button.Normal*button.Travel)>.00001f || button.Travel<=0 ||
-                        mesh.Parts[button.Actor].Indices.Count!=(button.TemplateActor>=0 ? mesh.Parts[button.TemplateActor].Indices.Count:
+                        mesh.Parts[button.Actor].Indices.Count!=(button.TemplateActor>=0 ? (button.TemplateSubtype==null ? mesh : CockpitRig.Find(button.TemplateSubtype).Geometry(content)).Parts[button.TemplateActor].Indices.Count:
                             rig.Pieces.Where(p=>p.Actor==button.Actor).Sum(p=>p.MovingTriangles)*3))
                         throw new Exception("Pushbutton stroke or cap partition differs from installed model: "+rig.Subtype+"/"+button.Actor+"; delta="+delta+"; indices="+mesh.Parts[button.Actor].Indices.Count);
                 }

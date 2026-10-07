@@ -20,13 +20,19 @@ namespace SpaceEngineersVR.Player
             (seat.IsInFirstPersonView || seat.ForceFirstPersonCamera || RemoteView.UsesSeat(seat));
         internal static Vector3 Limit(Vector3 value) => value.IsValid() ? Vector3.Clamp(value,new Vector3(-0.35f,-0.45f,-0.45f),new Vector3(0.35f,0.3f,0.45f)) : Vector3.Zero;
         internal static Vector3 Step(Vector3 value,Vector3 direction,double seconds) => Limit(value+direction*(float)Math.Min(0.05,Math.Max(0,seconds))*0.12f);
+        internal static Vector3 Default(string subtype) => CockpitRig.Find(subtype)?.DefaultSeatOffset ?? Vector3.Zero;
+        internal static Vector3 Center(Vector3 value,Vector3 target,double seconds)
+        {
+            float step=(float)Math.Min(.05,Math.Max(0,seconds))*.12f;
+            return Vector3.Distance(value,target)<=step ? target:Step(value,Vector3.Normalize(target-value),seconds);
+        }
         public static void Update()
         {
             var next=RemoteView.HomeSeat ?? MySession.Static?.ControlledEntity as MyCockpit;
             if (!Eligible(next)) next=null;
             if (Seat!=next)
             {
-                Seat=next; Offset=Vector3.Zero;
+                Seat=next; Offset=Default(Seat?.BlockDefinition.Id.SubtypeName);
                 Player.SeatOrigin(Seat!=null);
                 var saved=Seat==null ? null : Common.Config.SeatFits?.FirstOrDefault(s=>s.Subtype==Seat.BlockDefinition.Id.SubtypeName);
                 if (saved!=null) Offset=Limit(new Vector3(saved.X,saved.Y,saved.Z));
@@ -38,8 +44,7 @@ namespace SpaceEngineersVR.Player
         {
             if (Seat==null || !InputRouter.Gameplay || Main.MenuOpen) return;
             // Called once per main update. Use simulation time, capped after a hitch.
-            float step=(float)elapsed*.12f;
-            Vector3 value=reset ? (Offset.Length()<=step ? Vector3.Zero : Offset-Vector3.Normalize(Offset)*step) : Step(Offset,direction,elapsed);
+            Vector3 value=reset ? Center(Offset,Default(Seat.BlockDefinition.Id.SubtypeName),elapsed) : Step(Offset,direction,elapsed);
             if (value==Offset) return;
             Offset=value;
             string subtype=Seat.BlockDefinition.Id.SubtypeName;

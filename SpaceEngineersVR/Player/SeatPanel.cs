@@ -51,10 +51,12 @@ namespace SpaceEngineersVR.Player
             if(!SeatFit.Eligible(SeatFit.Seat) || Plugin.Main.MenuOpen || !InputRouter.Gameplay) return;
             if(clicked==4) { FlightSettings.Open(wrist); return; }
             if(clicked==7) CockpitControls.ToggleAdjustment();
-            else if(clicked==8) { if(CockpitControls.Adjusting) CockpitControls.ResetPlacement(); else SeatFit.Move(Vector3.Zero,true); }
+            else if(clicked==8 && CockpitControls.Adjusting) CockpitControls.ResetPlacement();
             else if(clicked>=9 && clicked<14) Activate(clicked);
             if(held>=0 && held<directions.Length && held!=4 && !CockpitControls.Held(Player.HandR) && !CockpitControls.Held(Player.HandL))
                 SeatFit.Move(directions[held],false);
+            else if(!CockpitControls.Adjusting && (clicked==8 || held==8) && !CockpitControls.Held(Player.HandR) && !CockpitControls.Held(Player.HandL))
+                SeatFit.Move(Vector3.Zero,true);
         }
         internal static float[] States()
         {

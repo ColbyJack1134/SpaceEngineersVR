@@ -15,7 +15,7 @@ namespace SpaceEngineersVR.Multiplayer
     internal static class CockpitMemory
     {
         internal static readonly Guid Key=new Guid("b6d86dc9-ff9b-421b-8942-88e3d464d809");
-        internal const int Limit=262144,MaximumControls=160,CurrentLayout=12;
+        internal const int Limit=262144,MaximumControls=160,CurrentLayout=13;
         internal sealed class Record
         {
             internal long Revision;
@@ -108,6 +108,8 @@ namespace SpaceEngineersVR.Multiplayer
             if(version<12 && (subtype=="SmallBlockStandingCockpit" || subtype=="LargeBlockStandingCockpit"))
                 toolbar.Slots=toolbar.Slots.Where(s=>s.Index>=0 && s.Index<12).Select(s=>
                 { if(s.Index>0) s.Index+=6; return s; }).ToList();
+            if(version<13 && (subtype=="SpeederCockpit" || subtype=="SpeederCockpitCompact"))
+                toolbar.Slots=toolbar.Slots.Where(s=>s.Index==0).Select(s=> { s.Index=1; return s; }).ToList();
         }
         private static int TrimmedEnclosedSlot(int slot)
         {
