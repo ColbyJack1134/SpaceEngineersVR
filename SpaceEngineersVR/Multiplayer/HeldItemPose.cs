@@ -41,16 +41,17 @@ namespace SpaceEngineersVR.Multiplayer
         }
         internal static MatrixD Working(MatrixD model,WeaponProfile profile) => MatrixD.CreateWorld(Vector3D.Transform(profile.Muzzle,model),
             Vector3D.TransformNormal(profile.Direction,model),model.Up);
-        internal static bool Clear(MyCharacter character,Vector3D from,Vector3D to)
+        internal static bool Clear(MyCharacter character,Vector3D from,Vector3D to,bool ignoreCharacters=false)
         {
             if(Vector3D.DistanceSquared(from,to)<.000001) return true;
             var line=new LineD(from,to);
-            return !MyEntities.GetIntersectionWithLine(ref line,character,character.CurrentWeapon as MyEntity,ignoreChildren:false,ignoreFloatingObjects:false).HasValue;
+            return !MyEntities.GetIntersectionWithLine(ref line,character,character.CurrentWeapon as MyEntity,ignoreChildren:false,ignoreFloatingObjects:false,ignoreCharacters:ignoreCharacters).HasValue;
         }
         internal static bool MuzzleClear(MyCharacter character,MatrixD model,WeaponProfile profile)
         {
             var grip=Vector3D.Transform(profile.Primary,model); var muzzle=Vector3D.Transform(profile.Muzzle,model);
-            return Clear(character,character.GetHeadMatrix(true,true).Translation,grip) && Clear(character,grip,muzzle);
+            // Close targets may overlap the held weapon without preventing a shot.
+            return Clear(character,character.GetHeadMatrix(true,true).Translation,grip,ignoreCharacters:true) && Clear(character,grip,muzzle,ignoreCharacters:true);
         }
     }
     [HarmonyPatch(typeof(MyAutomaticRifleGun),nameof(MyAutomaticRifleGun.Shoot),new[] {typeof(MyShootActionEnum),typeof(Vector3),typeof(Vector3D?),typeof(string)})]
