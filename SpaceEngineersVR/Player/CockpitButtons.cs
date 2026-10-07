@@ -103,7 +103,7 @@ namespace SpaceEngineersVR.Player
                         var head=SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation;
                         if(Vector3D.Dot(cover.Pose.Backward,head-cover.Pose.Translation)<0) cover.Pose=MatrixD.CreateRotationY(Math.PI)*cover.Pose;
                         targets.Add(new CockpitTouch.Target { Surface=cover,Slot=i,Cover=true,Position=covers[coverIndex],
-                            Pivot=lever.Hinge,Axis=lever.Axis,Travel=CockpitRig.Lever.CoverTravel });
+                            Pivot=lever.Hinge,Axis=lever.CoverAxis,Travel=CockpitRig.Lever.CoverTravel });
                     }
                     bool modeled=(rig.ButtonAt(i)?.Actor ?? 0)>=0;
                     if(modeled && !(CockpitRender.Ready && (!covered || open[coverIndex] && covers[coverIndex]>.98f))) continue;

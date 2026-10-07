@@ -23,7 +23,8 @@ namespace SpaceEngineersVR.Diagnostics
                 var mesh=rig.Geometry(content);
                 if(mesh.Parts.Length!=rig.ActorCount || !rig.Matches(rig.Model))
                     throw new Exception("Cockpit rig model or actor count mismatch: "+rig.Subtype);
-                int copied=rig.Levers.Where(l=>l.TemplateActor>=0).Sum(l=>mesh.Parts[l.Actor].Indices.Count+(l.TemplateBase?.Triangles ?? 0)*3);
+                int copied=rig.Levers.Where(l=>l.TemplateActor>=0).Sum(l=>mesh.Parts[l.Actor].Indices.Count+(l.TemplateBase?.Triangles ?? 0)*3)+
+                    rig.Buttons.Where(b=>b.TemplateActor>=0).Sum(b=>mesh.Parts[b.Actor].Indices.Count);
                 if(mesh.Parts.Sum(p=>p.Indices.Count)-copied!=mesh.NativeTriangles*3)
                     throw new Exception("Cockpit partition lost native triangles: "+rig.Subtype);
                 for(int actor=0;actor<mesh.Parts.Length;actor++)
@@ -42,7 +43,8 @@ namespace SpaceEngineersVR.Diagnostics
                 {
                     var delta=Vector3.Transform(button.Center,button.Visual(true))-button.Center;
                     if(Vector3.Distance(delta,-button.Normal*button.Travel)>.00001f || button.Travel<=0 ||
-                        mesh.Parts[button.Actor].Indices.Count!=rig.Pieces.Where(p=>p.Actor==button.Actor).Sum(p=>p.MovingTriangles)*3)
+                        mesh.Parts[button.Actor].Indices.Count!=(button.TemplateActor>=0 ? mesh.Parts[button.TemplateActor].Indices.Count:
+                            rig.Pieces.Where(p=>p.Actor==button.Actor).Sum(p=>p.MovingTriangles)*3))
                         throw new Exception("Pushbutton stroke or cap partition differs from installed model: "+rig.Subtype+"/"+button.Actor+"; delta="+delta+"; indices="+mesh.Parts[button.Actor].Indices.Count);
                 }
                 foreach(var bar in rig.Bars)
@@ -185,14 +187,14 @@ namespace SpaceEngineersVR.Diagnostics
                     var a=part.Positions[part.Indices[t]];
                     var cross=Vector3.Cross(part.Positions[part.Indices[t+1]]-a,part.Positions[part.Indices[t+2]]-a);
                     float area=cross.Length();
-                    if(area>largest && Math.Abs(Vector3.Dot(cross/area,lever.Axis))<.2f) { largest=area; face=cross/area; }
+                    if(area>largest && Math.Abs(Vector3.Dot(cross/area,lever.CoverAxis))<.2f) { largest=area; face=cross/area; }
                 }
                 if(largest==0) throw new Exception("Cover leaf face missing: "+rig.Subtype);
                 return face;
             }
             var faces=rig.Levers.Where(l=>l.CoverActor>=0).ToDictionary(l=>l,Face);
             foreach(var lever in faces.Keys)
-            foreach(var reference in faces.Keys.Where(l=>l.CoverInitial!=lever.CoverInitial && Vector3.Dot(l.Axis,lever.Axis)>Math.Cos(Math.PI/180) && Vector3.Dot(l.Normal,lever.Normal)>Math.Cos(Math.PI/180)))
+            foreach(var reference in faces.Keys.Where(l=>l.CoverInitial!=lever.CoverInitial && Vector3.Dot(l.CoverAxis,lever.CoverAxis)>Math.Cos(Math.PI/180) && Vector3.Dot(l.Normal,lever.Normal)>Math.Cos(Math.PI/180)))
             foreach(float endpoint in new[] {0f,1f})
             {
                 var face=Vector3.TransformNormal(faces[lever],lever.CoverVisual(endpoint));

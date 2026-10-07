@@ -15,7 +15,7 @@ namespace SpaceEngineersVR.Multiplayer
     internal static class CockpitMemory
     {
         internal static readonly Guid Key=new Guid("b6d86dc9-ff9b-421b-8942-88e3d464d809");
-        internal const int Limit=262144,MaximumControls=160,CurrentLayout=4;
+        internal const int Limit=262144,MaximumControls=160,CurrentLayout=10;
         internal sealed class Record
         {
             internal long Revision;
@@ -78,6 +78,30 @@ namespace SpaceEngineersVR.Multiplayer
             if(version<4 && subtype=="LargeBlockCockpitSeat")
                 toolbar.Slots=toolbar.Slots.Where(s=>TrimmedEnclosedSlot(s.Index)>=0).Select(s=>
                 { s.Index=TrimmedEnclosedSlot(s.Index); return s; }).ToList();
+            if(version<5 && subtype=="SmallBlockCapCockpit")
+                toolbar.Slots=toolbar.Slots.Where(s=>s.Index>=0 && s.Index<15).Select(s=>
+                { s.Index++; return s; }).ToList();
+            if(version<6)
+            {
+                int inserted=subtype=="SmallBlockFlushCockpit" ? 7 :
+                    subtype=="SmallBlockSuspendedControlSeat" || subtype=="LargeBlockSuspendedControlSeat" ||
+                    subtype=="SmallBlockSuspendedControlSeatB" || subtype=="LargeBlockSuspendedControlSeatB" ? 9:0;
+                if(inserted>0) toolbar.Slots=toolbar.Slots.Where(s=>s.Index==0).Select(s=>
+                { s.Index=inserted; return s; }).ToList();
+            }
+            if(version<7 && subtype=="SmallBlockFlushCockpit")
+                toolbar.Slots=toolbar.Slots.Where(s=>s.Index>=0 && s.Index<8).Select(s=>
+                { s.Index=s.Index==7 ? 18:s.Index+8; return s; }).ToList();
+            if(version<8 && (subtype=="SmallBlockSuspendedControlSeat" || subtype=="LargeBlockSuspendedControlSeat" ||
+                subtype=="SmallBlockSuspendedControlSeatB" || subtype=="LargeBlockSuspendedControlSeatB"))
+                toolbar.Slots=toolbar.Slots.Where(s=>s.Index>=0 && s.Index<10).Select(s=>
+                { if(s.Index==9) s.Index=11; return s; }).ToList();
+            if(version<9 && (subtype=="SmallBlockOpenSlopedCockpit" || subtype=="SmallBlockClosedSlopedCockpit"))
+                toolbar.Slots=toolbar.Slots.Where(s=>s.Index>=0 && s.Index<3).Select(s=>
+                { s.Index+=8; return s; }).ToList();
+            if(version<10 && (subtype=="LargeBlockOpenSlopedCockpit" || subtype=="LargeBlockClosedSlopedCockpit"))
+                toolbar.Slots=toolbar.Slots.Where(s=>s.Index>=0 && s.Index<17).Select(s=>
+                { s.Index+=s.Index<14 ? 3:9; return s; }).ToList();
         }
         private static int TrimmedEnclosedSlot(int slot)
         {
@@ -123,6 +147,18 @@ namespace SpaceEngineersVR.Multiplayer
                     int slot=TrimmedEnclosedSlot(i);
                     if(slot>=0) covers[slot]=record.Covers[i];
                 }
+                record.Covers=covers;
+            }
+            if(record.LayoutVersion<5 && subtype=="SmallBlockCapCockpit")
+            {
+                var covers=new bool[MaximumControls];
+                for(int i=0;i<Math.Min(14,record.Covers.Length);i++) covers[i+1]=record.Covers[i];
+                record.Covers=covers;
+            }
+            if(record.LayoutVersion<10 && (subtype=="LargeBlockOpenSlopedCockpit" || subtype=="LargeBlockClosedSlopedCockpit"))
+            {
+                var covers=new bool[MaximumControls];
+                for(int i=0;i<Math.Min(14,record.Covers.Length);i++) covers[i+3]=record.Covers[i];
                 record.Covers=covers;
             }
             record.LayoutVersion=CurrentLayout;

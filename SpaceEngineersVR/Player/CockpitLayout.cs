@@ -20,7 +20,7 @@ namespace SpaceEngineersVR.Player
             if(rig?.ButtonAt(index) is CockpitRig.Button button) { size=button.Size; return button.TouchPose; }
             var lever=rig.LeverAt(index);
             size=lever.Width;
-            return MatrixD.CreateWorld(lever.Center+lever.Normal*lever.ContactOffset,-lever.Normal,lever.Up);
+            return MatrixD.CreateWorld(lever.Center+lever.ContactNormal*lever.ContactOffset,-lever.ContactNormal,lever.Up);
         }
     }
 }

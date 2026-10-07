@@ -105,7 +105,7 @@ namespace SpaceEngineersVR.Player
             internal const float Travel=1.05f;
             // 65 degrees between the installed open and closed cover leaf faces.
             internal const float CoverTravel=1.134464f;
-            public readonly Vector3 Center,Pivot,Normal,Axis,Up;
+            public readonly Vector3 Center,Pivot,Normal,Axis,Up,ContactNormal,CoverAxis;
             public readonly int Actor,CoverActor;
             public readonly Vector3 CoverCenter,Hinge;
             public readonly float CoverInitial;
@@ -115,24 +115,29 @@ namespace SpaceEngineersVR.Player
             private readonly float rest;
             public readonly float AngularTravel,Width,Height,ContactOffset;
             public readonly bool FingerSlide;
+            private readonly bool independentCoverAxis;
             public const float FingerTravel=.020f;
             public Vector3 SlideAxis => Up;
             public Lever(Vector3 center,Vector3 pivot,Vector3 normal,Vector3 axis,int actor,Vector3 coverCenter,Vector3 hinge,int coverActor,float initial,int templateActor=-1,Matrix? templateTransform=null,Piece templateBase=null,bool offAtRest=false,
-                float travel=Travel,float width=.018f,float height=.018f,float contactOffset=.007f,bool fingerSlide=false)
+                float travel=Travel,float width=.018f,float height=.018f,float contactOffset=.007f,bool fingerSlide=false,Vector3? contactNormal=null,Vector3? coverAxis=null)
             {
                 Center=center; Pivot=pivot; Normal=Vector3.Normalize(normal); Axis=Vector3.Normalize(axis); Up=Vector3.Normalize(Vector3.Cross(Axis,Normal));
                 Actor=actor; CoverCenter=coverCenter; Hinge=hinge; CoverActor=coverActor; CoverInitial=initial; TemplateActor=templateActor; TemplateTransform=templateTransform ?? Matrix.Identity; TemplateBase=templateBase;
                 AngularTravel=travel; Width=width; Height=height; ContactOffset=contactOffset; FingerSlide=fingerSlide;
+                ContactNormal=contactNormal.HasValue ? Vector3.Normalize(contactNormal.Value):Normal;
+                CoverAxis=coverAxis.HasValue ? Vector3.Normalize(coverAxis.Value):Axis;
+                independentCoverAxis=coverAxis.HasValue;
                 // Some installed banks model the off detent; others sit between the detents.
                 var stem=Center-Pivot;
                 rest=offAtRest ? -AngularTravel*.5f : (float)Math.Atan2(Vector3.Dot(stem,Up),Vector3.Dot(stem,Normal));
             }
             public Matrix Visual(float value) => CockpitStickMath.Around(Pivot,Matrix.CreateFromAxisAngle(Axis,(MathHelper.Clamp(value,0,1)-.5f)*AngularTravel-rest));
-            public Matrix CoverVisual(float value) => CockpitStickMath.Around(Hinge,Matrix.CreateFromAxisAngle(Axis,(MathHelper.Clamp(value,0,1)-CoverInitial)*CoverTravel));
+            public Matrix CoverVisual(float value) => CockpitStickMath.Around(Hinge,Matrix.CreateFromAxisAngle(CoverAxis,(MathHelper.Clamp(value,0,1)-CoverInitial)*CoverTravel));
             public MatrixD CoverPose(float value)
             {
                 Vector3 center=Vector3.Transform(CoverCenter,CoverVisual(value)),leaf=center-Hinge;
-                var normal=Vector3.TransformNormal(Normal,Matrix.CreateFromAxisAngle(Axis,value*CoverTravel));
+                var normal=independentCoverAxis ? Vector3.Normalize(Vector3.Cross(CoverAxis,leaf)) :
+                    Vector3.TransformNormal(Normal,Matrix.CreateFromAxisAngle(CoverAxis,value*CoverTravel));
                 return MatrixD.CreateWorld(center+leaf*.45f+normal*.002f,-normal,Vector3.Normalize(leaf));
             }
         }
@@ -143,8 +148,13 @@ namespace SpaceEngineersVR.Player
             public readonly int Actor;
             public readonly float Travel;
             public readonly bool Round;
-            public Button(Vector3 center,Vector3 normal,Vector3 up,float size,int actor=-1,float travel=0,bool round=false)
-            { Center=center; Normal=normal; Up=up; Size=size; Actor=actor; Travel=travel; Round=round; }
+            public readonly int TemplateActor;
+            public readonly Matrix TemplateTransform;
+            public readonly string TemplateMaterial;
+            public Button(Vector3 center,Vector3 normal,Vector3 up,float size,int actor=-1,float travel=0,bool round=false,
+                int templateActor=-1,Matrix? templateTransform=null,string templateMaterial=null)
+            { Center=center; Normal=normal; Up=up; Size=size; Actor=actor; Travel=travel; Round=round;
+                TemplateActor=templateActor; TemplateTransform=templateTransform ?? Matrix.Identity; TemplateMaterial=templateMaterial; }
             internal MatrixD TouchPose => MatrixD.CreateWorld(Center,-Normal,Up);
             internal Matrix Visual(bool pressed) => Matrix.CreateTranslation(pressed ? -Normal*Travel:Vector3.Zero);
         }
@@ -214,6 +224,7 @@ namespace SpaceEngineersVR.Player
             var up=Vector3.Normalize(Vector3.Cross(normal,Vector3.Right));
             SeatMount=MatrixD.CreateWorld(panel,-normal,up);
             ActorCount=pieces.Length==0 ? 0 : pieces.Max(p=>Math.Max(p.Actor,p.StaticActor))+1;
+            if(Buttons.Any(b=>b.TemplateActor>=0)) ActorCount=Math.Max(ActorCount,Buttons.Max(b=>b.Actor)+1);
             StaticActors=pieces.Select(p=>p.StaticActor).Distinct().ToArray();
             // Saved Fighter cover states predate slot-indexed storage and number covers consecutively.
             coverIndices=new int[Count];
@@ -274,6 +285,16 @@ namespace SpaceEngineersVR.Player
                     AppendTransformed(actors[0],templateBases[part],lever.TemplateTransform);
             }
             foreach(var bar in Bars) bar.ExtendStem(actors[bar.Actor]);
+            foreach(var button in Buttons.Where(b=>b.TemplateActor>=0))
+            {
+                AppendTransformed(actors[button.Actor],actors[button.TemplateActor],button.TemplateTransform);
+                if(button.TemplateMaterial!=null)
+                    for(int i=0;i<actors[button.Actor].Sections.Count;i++)
+                    {
+                        var section=actors[button.Actor].Sections[i]; section.MaterialName=button.TemplateMaterial;
+                        actors[button.Actor].Sections[i]=section;
+                    }
+            }
             if(actors.Skip(1).Any(a=>a.Indices.Count==0)) throw new InvalidDataException("Cockpit rig has an empty actor: "+Subtype);
             // Native runtime meshes use 16-bit indices.
             if(actors.Any(a=>a.Positions.Count>ushort.MaxValue+1)) throw new InvalidDataException("Cockpit actor exceeds native index range: "+Subtype);
