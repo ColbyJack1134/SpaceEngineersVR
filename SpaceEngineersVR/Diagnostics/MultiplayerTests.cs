@@ -181,6 +181,41 @@ namespace SpaceEngineersVR.Diagnostics
                     Enumerable.Range(0,26).All(i=>AnalogControl.IsHandle(subtype,i)==(i>=23)),
                     "Large Sloped migration loses assignments, cover states or analog classification");
             }
+            foreach(string subtype in new[] {"SmallBlockStandingCockpit","LargeBlockStandingCockpit"})
+            for(int version=0;version<11;version++)
+            {
+                var toolbar=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=Enumerable.Range(0,7).Select(i=>
+                    new MyObjectBuilder_Toolbar.Slot {Index=i,Data=new MyObjectBuilder_ToolbarItemTerminalBlock {
+                        BlockEntityId=1200+i,_Action=i==6 ? "IncreaseVelocity":"OnOff"}}).ToList()};
+                var helmRecord=new CockpitMemory.Record {LayoutVersion=version,Toolbar=CockpitMemory.Toolbar(toolbar),
+                    Covers=Enumerable.Range(0,6).Select(i=>i%2==0).ToArray()};
+                Require(CockpitMemory.Upgrade(helmRecord,subtype) && !CockpitMemory.Upgrade(helmRecord,subtype),
+                    "Helm button migration repeats");
+                var slots=CockpitMemory.Toolbar(helmRecord.Toolbar).Slots;
+                Require(slots.Select(v=>v.Index).SequenceEqual(Enumerable.Range(7,7)) && slots.All(v=>
+                    v.Data is MyObjectBuilder_ToolbarItemTerminalBlock item && item.BlockEntityId==1193+v.Index &&
+                    item._Action==(v.Index==13 ? "IncreaseVelocity":"OnOff")) &&
+                    Enumerable.Range(0,6).All(i=>helmRecord.Covers[i+7]==(i%2==0)) && !helmRecord.Covers[0] &&
+                    Enumerable.Range(0,19).All(i=>AnalogControl.IsHandle(subtype,i)==(i>=13 && i<18)),
+                    "Helm button migration loses assignments, cover states or analog classification");
+            }
+            foreach(string subtype in new[] {"SmallBlockStandingCockpit","LargeBlockStandingCockpit"})
+            {
+                var toolbar=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=Enumerable.Range(0,12).Select(i=>
+                    new MyObjectBuilder_Toolbar.Slot {Index=i,Data=new MyObjectBuilder_ToolbarItemTerminalBlock {
+                        BlockEntityId=1300+i,_Action=i>=7 ? "IncreaseVelocity":"OnOff"}}).ToList()};
+                var helmRecord=new CockpitMemory.Record {LayoutVersion=11,Toolbar=CockpitMemory.Toolbar(toolbar),
+                    Covers=Enumerable.Range(0,7).Select(i=>i>0 && i%2==0).ToArray()};
+                Require(CockpitMemory.Upgrade(helmRecord,subtype) && !CockpitMemory.Upgrade(helmRecord,subtype),
+                    "Helm cylinder button migration repeats");
+                var slots=CockpitMemory.Toolbar(helmRecord.Toolbar).Slots;
+                Require(slots.Select(v=>v.Index).SequenceEqual(new[] {0}.Concat(Enumerable.Range(7,11))) && slots.All(v=>
+                    v.Data is MyObjectBuilder_ToolbarItemTerminalBlock item && item.BlockEntityId==1300+(v.Index==0 ? 0:v.Index-6) &&
+                    item._Action==(v.Index>=13 ? "IncreaseVelocity":"OnOff")) &&
+                    Enumerable.Range(1,6).All(i=>helmRecord.Covers[i+6]==(i%2==0)) &&
+                    Enumerable.Range(0,7).All(i=>!helmRecord.Covers[i]),
+                    "Helm cylinder migration loses red, switch, analog, slider assignments or cover states");
+            }
             var flushToolbar=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=Enumerable.Range(0,8).Select(i=>
                 new MyObjectBuilder_Toolbar.Slot {Index=i,Data=new MyObjectBuilder_ToolbarItemTerminalBlock {BlockEntityId=700+i,
                     _Action=i==7 ? "IncreaseVelocity":"OnOff"}}).ToList()};

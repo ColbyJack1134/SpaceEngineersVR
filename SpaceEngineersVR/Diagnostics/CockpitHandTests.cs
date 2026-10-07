@@ -19,7 +19,7 @@ namespace SpaceEngineersVR.Diagnostics
             var index=bones.Single(b=>b.Name=="SE_Rig"+side+"_Index_3");
             var thumb=bones.Single(b=>b.Name=="SE_Rig"+side+"_Thumb_3");
             var pose=Matrix.Identity;
-            pose.Right=(Vector3)surface.Backward; pose.Up=(Vector3)surface.Up*(left && pinch ? -1:1);
+            pose.Right=(Vector3)surface.Backward; pose.Up=(Vector3)surface.Up;
             pose.Backward=Vector3.Normalize(Vector3.Cross(pose.Right,pose.Up));
             var contact=CockpitHandPose.Contact(palm,index,thumb,pinch);
             pose=(Matrix)CockpitHandPose.Attach(pose,Matrix.Identity,contact,surface.Translation);

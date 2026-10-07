@@ -15,7 +15,7 @@ namespace SpaceEngineersVR.Multiplayer
     internal static class CockpitMemory
     {
         internal static readonly Guid Key=new Guid("b6d86dc9-ff9b-421b-8942-88e3d464d809");
-        internal const int Limit=262144,MaximumControls=160,CurrentLayout=10;
+        internal const int Limit=262144,MaximumControls=160,CurrentLayout=12;
         internal sealed class Record
         {
             internal long Revision;
@@ -102,6 +102,12 @@ namespace SpaceEngineersVR.Multiplayer
             if(version<10 && (subtype=="LargeBlockOpenSlopedCockpit" || subtype=="LargeBlockClosedSlopedCockpit"))
                 toolbar.Slots=toolbar.Slots.Where(s=>s.Index>=0 && s.Index<17).Select(s=>
                 { s.Index+=s.Index<14 ? 3:9; return s; }).ToList();
+            if(version<11 && (subtype=="SmallBlockStandingCockpit" || subtype=="LargeBlockStandingCockpit"))
+                toolbar.Slots=toolbar.Slots.Where(s=>s.Index>=0 && s.Index<7).Select(s=>
+                { s.Index++; return s; }).ToList();
+            if(version<12 && (subtype=="SmallBlockStandingCockpit" || subtype=="LargeBlockStandingCockpit"))
+                toolbar.Slots=toolbar.Slots.Where(s=>s.Index>=0 && s.Index<12).Select(s=>
+                { if(s.Index>0) s.Index+=6; return s; }).ToList();
         }
         private static int TrimmedEnclosedSlot(int slot)
         {
@@ -159,6 +165,18 @@ namespace SpaceEngineersVR.Multiplayer
             {
                 var covers=new bool[MaximumControls];
                 for(int i=0;i<Math.Min(14,record.Covers.Length);i++) covers[i+3]=record.Covers[i];
+                record.Covers=covers;
+            }
+            if(record.LayoutVersion<11 && (subtype=="SmallBlockStandingCockpit" || subtype=="LargeBlockStandingCockpit"))
+            {
+                var covers=new bool[MaximumControls];
+                for(int i=0;i<Math.Min(6,record.Covers.Length);i++) covers[i+1]=record.Covers[i];
+                record.Covers=covers;
+            }
+            if(record.LayoutVersion<12 && (subtype=="SmallBlockStandingCockpit" || subtype=="LargeBlockStandingCockpit"))
+            {
+                var covers=new bool[MaximumControls];
+                for(int i=1;i<Math.Min(7,record.Covers.Length);i++) covers[i+6]=record.Covers[i];
                 record.Covers=covers;
             }
             record.LayoutVersion=CurrentLayout;

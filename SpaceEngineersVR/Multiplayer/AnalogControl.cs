@@ -36,8 +36,8 @@ namespace SpaceEngineersVR.Multiplayer
                 case "LargeBlockClosedSlopedCockpit": return slot>=23 && slot<26;
                 case "SmallBlockOpenSlopedCockpit": return slot>=8 && slot<11;
                 case "SmallBlockClosedSlopedCockpit": return slot>=8 && slot<11;
-                case "SmallBlockStandingCockpit": return slot>=6 && slot<7;
-                case "LargeBlockStandingCockpit": return slot>=6 && slot<7;
+                case "SmallBlockStandingCockpit": return slot>=13 && slot<18;
+                case "LargeBlockStandingCockpit": return slot>=13 && slot<18;
                 default: return false;
             }
         }
