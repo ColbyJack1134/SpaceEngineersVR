@@ -18,7 +18,7 @@ namespace SpaceEngineersVR.GUI
             bool result=base.Update(hasFocus);
             if(!Main.VrActive) return result;
             if(measurement!=null) measurement.Text=Player.Player.CalibrationStatus;
-            if(measure!=null) measure.Text=Player.Player.IsCalibrating ? "Cancel measurement":"Measure standing height";
+            if(measure!=null) measure.Text=Player.Player.IsCalibrating ? "Cancel measurement":"Measure headset height";
             if(measuring && !Player.Player.IsCalibrating) RecreateControls(false);
             measuring=Player.Player.IsCalibrating;
             return result;
@@ -33,12 +33,12 @@ namespace SpaceEngineersVR.GUI
             var config=Common.Config;
             Label(-.25f,"Standing height (cm)");
             height=new MyGuiControlSlider(new Vector2(-.035f,-.20f),minValue:100,maxValue:240,width:.53f,defaultValue:180,
-                labelText:"{0} cm",labelDecimalPlaces:0,labelSpaceWidth:.09f,intValue:true,showLabel:true) { Value=config.PlayerHeight*100 };
+                labelText:"{0} cm",labelDecimalPlaces:1,labelSpaceWidth:.09f,showLabel:true) { Value=config.PlayerHeight*100 };
             height.ValueChanged+=s=>BodyFit.SetHeight(s.Value/100); Controls.Add(height);
-            measure=new MyGuiControlButton(new Vector2(0,-.115f),text:new StringBuilder("Measure standing height"),onButtonClick:b=> {
+            measure=new MyGuiControlButton(new Vector2(0,-.115f),text:new StringBuilder("Measure headset height"),onButtonClick:b=> {
                 if(Player.Player.IsCalibrating) Player.Player.CancelCalibration(); else Player.Player.StartCalibration();
             }) { Enabled=Main.VrActive }; Controls.Add(measure);
-            measurement=new MyGuiControlLabel(new Vector2(0,-.055f),text:Main.VrActive ? Player.Player.CalibrationStatus : "Stand upright to measure, or enter your height.",textScale:.55f,
+            measurement=new MyGuiControlLabel(new Vector2(0,-.055f),text:Main.VrActive ? Player.Player.CalibrationStatus : "Enter your height above. Stand upright to measure headset height.",textScale:.55f,
                 originAlign:MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER); Controls.Add(measurement);
             Label(.005f,"Seated play (toggle for standing)");
             var seated=new MyGuiControlCheckbox(new Vector2(.29f,.005f)) { IsChecked=config.SeatedPlay };

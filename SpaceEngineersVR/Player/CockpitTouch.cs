@@ -173,9 +173,10 @@ namespace SpaceEngineersVR.Player
                 var k=s.Keys[i]; if(!k.Enabled || k.Bounds.Width<=0 || k.Bounds.Height<=0) continue;
                 var bounds=CockpitPanelGuard.KeyBounds(s,k,margin);
                 if(!probe.Intersects(bounds,padding)) continue;
-                var point=Vector3.Clamp((Vector3)probe.Tip,bounds.Min,bounds.Max);
+                if(k.Round && SegmentDisk.DistanceSquared(probe.Start,probe.End,bounds)>(CockpitProbe.Radius+padding)*(CockpitProbe.Radius+padding)) continue;
+                var point=k.Round ? SegmentDisk.Closest((Vector3)probe.Tip,bounds) : Vector3.Clamp((Vector3)probe.Tip,bounds.Min,bounds.Max);
                 float candidate=Vector3.Distance((Vector3)probe.Tip,point);
-                if(candidate>=distance || k.Round && !CockpitPanelGuard.RoundContains(bounds,point)) continue;
+                if(candidate>=distance) continue;
                 distance=candidate; contact=point; key=i;
             }
             return key;

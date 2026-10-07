@@ -56,7 +56,68 @@ namespace SpaceEngineersVR.Diagnostics
                 int moved=CockpitTouch.NearKey(panel,new CockpitProbe(pointer*world).Transform(MatrixD.Invert(world)),out _,out _);
                 Require(hit==moved,"Capsule loses selection at rotated large-world coordinates");
             }
+            RoundContacts(log);
             log("PASS cockpit capsule: 500 independent distance checks, tangent/invalid/large-world cases, adjacent keys and all bar states approached from the saved joystick side.");
+        }
+        private static void RoundContacts(Action<string> log)
+        {
+            var random=new Random(1723);
+            var bounds=new BoundingBox(new Vector3(-.012f,-.012f,-.005f),new Vector3(.012f,.012f,.005f));
+            for(int i=0;i<300;i++)
+            {
+                Func<Vector3D> point=()=>new Vector3D(random.NextDouble()*.1-.05,random.NextDouble()*.1-.05,random.NextDouble()*.1-.05);
+                var a=point(); var b=i%5==0 ? a:point();
+                float actual=SegmentDisk.DistanceSquared(a,b,bounds); double reference=double.MaxValue;
+                for(int j=0;j<=2000;j++)
+                {
+                    var p=Vector3D.Lerp(a,b,j/2000d);
+                    double radial=Math.Max(0,Math.Sqrt(p.X*p.X+p.Y*p.Y)-.012);
+                    double axial=Math.Max(0,Math.Abs(p.Z)-.005);
+                    reference=Math.Min(reference,radial*radial+axial*axial);
+                }
+                Require(Math.Abs(actual-reference)<2e-8,"Round cap distance disagrees with independent segment sampling");
+            }
+            Require(SegmentDisk.DistanceSquared(new Vector3D(double.NaN,0,0),Vector3D.Zero,bounds)==float.MaxValue,"Invalid segment enters round cap");
+            int count=0;
+            foreach(var rig in CockpitRig.All)
+            for(int slot=0;slot<rig.Buttons.Length;slot++)
+            {
+                var button=rig.Buttons[slot]; if(!button.Round) continue;
+                count++;
+                var surface=CockpitButtons.Preview(rig.Subtype,slot);
+                Require(Math.Abs(surface.Width-surface.Height)<1e-7,"Round cap is not circular");
+                foreach(bool left in new[] {false,true}) foreach(double angle in new[] {0d,30d,45d,60d})
+                foreach(double azimuth in new[] {0d,90d,180d,270d}) foreach(float state in new[] {0f,1f})
+                foreach(float depth in new[] {-.006f,0f,.002f}) foreach(int axis in new[] {-1,0,1})
+                {
+                    surface.Pose=button.TouchPose*(MatrixD)button.Visual(state==1);
+                    var pointer=MatrixD.CreateRotationY(angle*Math.PI/180)*MatrixD.CreateRotationZ(azimuth*Math.PI/180);
+                    pointer.Translation=new Vector3D(axis*button.Size*.25,0,depth);
+                    var local=new CockpitProbe(pointer,left);
+                    Require(CockpitTouch.NearKey(surface,local,out float intended,out _)>=0,"Round cap misses centered/off-center approach: "+rig.Subtype+"/"+slot);
+                    var world=local.Transform(surface.Pose);
+                    Require(CockpitPanelGuard.NearSurface(surface,world),"Accepted round contact escapes input guard");
+                    for(int other=0;other<rig.Buttons.Length;other++)
+                    {
+                        if(other==slot) continue;
+                        var neighbor=CockpitButtons.Preview(rig.Subtype,other);
+                        if(Vector3D.Distance(surface.Pose.Translation,neighbor.Pose.Translation)>.12) continue;
+                        int hit=CockpitTouch.NearKey(neighbor,world.Transform(MatrixD.Invert(neighbor.Pose)),out float distance,out _);
+                        Require(hit<0 || distance-.001f>intended,"Neighbor/hysteresis steals round-cap press: "+rig.Subtype+"/"+slot+" -> "+other);
+                    }
+                }
+            }
+            var cap=new SurfaceView {Style=SurfaceStyle.ModelControl,Width=.015f,Height=.015f,
+                Keys=new[] {new SurfaceKey("",0,0,1,1) {Round=true}}};
+            Require(CockpitTouch.NearKey(cap,new CockpitProbe(MatrixD.CreateTranslation(.012,.012,0)),out _,out _)>=0,"Off-center capsule contact rejected by fingertip disk check");
+            var held=new CockpitTouch.Hand();
+            held.Sample(true,0,false,"A",0); held.Sample(true,1,true,"A",0);
+            held.Sample(true,1,true,"B",0);
+            Require(held.Surface=="A" && !held.Pressed,"Round neighbor retargets or repeats held action");
+            held.Sample(true,0,false,"B",0); held.Sample(true,1,true,"B",0);
+            Require(held.Surface=="B" && held.Pressed,"Round neighbor cannot acquire after release");
+            Require(count==56,"Round-contact regression inventory changed");
+            log("PASS round contacts: 300 independent distances, all 56 caps at two travel states/depths/angles/both hands, guarded contact, neighbor ranking and held-action capture.");
         }
     }
 }

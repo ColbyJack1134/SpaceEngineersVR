@@ -35,6 +35,7 @@ namespace SpaceEngineersVR.Player
 
         private static int CalibratingTicksLeft = 0;
         private static BodyCalibration CalibrationInProgress;
+        private static readonly StandingMeasurement standingMeasurement=new StandingMeasurement();
 
 
         public static MatrixAndInvert PlayerToAbsolute { get; private set; } = MatrixAndInvert.Identity;
@@ -181,7 +182,7 @@ namespace SpaceEngineersVR.Player
             if (CalibratingTicksLeft > 0)
             {
                 CalibrationUpdate();
-                CalibrationStatus="Measuring: "+((CalibratingTicksLeft+59)/60)+" s · eye height "+(CalibrationInProgress.height*100).ToString("0")+" cm";
+                CalibrationStatus="Measuring headset height: "+((CalibratingTicksLeft+59)/60)+" s";
                 CalibratingTicksLeft--;
 
                 if (CalibratingTicksLeft <= 0)
@@ -196,25 +197,21 @@ namespace SpaceEngineersVR.Player
             }
         }
 
-        public static string CalibrationStatus { get; private set; }="Stand upright to measure, or enter your height.";
+        public static string CalibrationStatus { get; private set; }="Enter your height above. Stand upright to measure headset height.";
         public static void StartCalibration(int timeTicks = CalibrationTimeTicks)
         {
             CalibratingTicksLeft = timeTicks;
             PerformanceHud.Notify("Stand upright and look ahead. Measuring for five seconds.",6);
 
-            CalibrationInProgress.height = 0f;
             CalibrationInProgress.armSpan = 0f;
+            standingMeasurement.Clear();
         }
 
         private static void CalibrationUpdate()
         {
             if (Headset.pose.isTracked)
             {
-                Vector3 headPos = Headset.pose.deviceToAbsolute.matrix.Translation;
-                float height = headPos.Y;
-
-                if (CalibrationInProgress.height < height)
-                    CalibrationInProgress.height = height;
+                standingMeasurement.Sample(Headset.pose.deviceToAbsolute.matrix.Translation.Y);
             }
 
             if (HandL.pose.isTracked && HandR.pose.isTracked)
@@ -230,15 +227,8 @@ namespace SpaceEngineersVR.Player
 
         public static void FinishCalibration()
         {
-            var character=Sandbox.Game.World.MySession.Static?.LocalCharacter;
-            float measured=CalibrationInProgress.height;
-            if(measured>.3f && measured<2.5f)
+            if(standingMeasurement.TryApply(Common.Config,Headset.pose.isTracked,out float measured))
             {
-                float ratio=character==null ? 1.8f/1.69f : character.Definition.CharacterCollisionHeight/BodyFit.EyeReference(character);
-                Common.Config.PlayerHeight=MathHelper.Clamp(measured*ratio,1,2.4f);
-                Common.Config.MeasuredEyeHeight=measured;
-                Common.Config.SeatedPlay=false;
-                Common.Config.BodyCalibrated=true;
                 if(CalibrationInProgress.armSpan>0) Common.Config.PlayerArmSpan=CalibrationInProgress.armSpan;
                 using(PlayerCalibrationLock.AcquireExclusiveUsing())
                 {
@@ -246,10 +236,10 @@ namespace SpaceEngineersVR.Player
                     PlayerCalibration.armSpan=Common.Config.PlayerArmSpan;
                 }
                 ApplyCalibrationOrigin();
-                CalibrationStatus="Measured height: "+(Common.Config.PlayerHeight*100).ToString("0")+" cm. Adjust above if needed.";
+                CalibrationStatus="Headset height: "+(measured*100).ToString("0.0")+" cm. Standing height kept.";
                 PerformanceHud.Notify(CalibrationStatus,5);
             }
-            else { CalibrationStatus="Measurement failed. Check tracking and floor setup."; PerformanceHud.Notify(CalibrationStatus,5); }
+            else { CalibrationStatus="Measurement failed. Stand still and check tracking and floor setup."; PerformanceHud.Notify(CalibrationStatus,5); }
             CalibratingTicksLeft=0;
         }
         public static void CancelCalibration()

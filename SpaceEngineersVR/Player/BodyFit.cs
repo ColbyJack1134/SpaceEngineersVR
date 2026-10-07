@@ -119,7 +119,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void SetHeight(float height)
         {
-            Common.Config.PlayerHeight=MathHelper.Clamp(height,1.0f,2.4f); Common.Config.BodyCalibrated=true; Common.Config.MeasuredEyeHeight=0;
+            Common.Config.PlayerHeight=MathHelper.Clamp(height,1.0f,2.4f); Common.Config.BodyCalibrated=true;
             if(Main.VrActive) Player.ApplyCalibrationOrigin();
         }
         public static void SetSeated(bool value)

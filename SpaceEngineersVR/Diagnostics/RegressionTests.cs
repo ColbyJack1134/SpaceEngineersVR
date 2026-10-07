@@ -18,6 +18,7 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Run(Action<string> log)
         {
             KeyboardInputTests.Run(log);
+            StandingMeasurementTests.Run(log);
             MultiplayerTests.Run(log);
             var cameraMessageA = new object(); var cameraMessageB = new object();
             var frameA = new CameraRig.Frame(MatrixD.CreateTranslation(100, 0, 0), Matrix.Identity);

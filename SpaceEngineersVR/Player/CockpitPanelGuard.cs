@@ -13,11 +13,6 @@ namespace SpaceEngineersVR.Player
             return new BoundingBox(new Vector3((b.X-.5f)*surface.Width-margin,(.5f-b.Y-b.Height)*surface.Height-margin,z-margin),
                 new Vector3((b.X+b.Width-.5f)*surface.Width+margin,(.5f-b.Y)*surface.Height+margin,z+margin));
         }
-        internal static bool RoundContains(BoundingBox bounds,Vector3 point)
-        {
-            var half=bounds.HalfExtents; var delta=point-bounds.Center;
-            return half.X>0 && half.Y>0 && delta.X*delta.X/(half.X*half.X)+delta.Y*delta.Y/(half.Y*half.Y)<=1;
-        }
         internal static bool NearSurface(SurfaceView surface,CockpitProbe probe) => surface.Enabled &&
             CockpitTouch.NearKey(surface,probe.Transform(MatrixD.Invert(surface.Pose)),out _,out _,margin:Margin)>=0;
         internal static bool NearPlane(SurfaceView surface,CockpitProbe probe) => probe.Transform(MatrixD.Invert(surface.Pose)).Intersects(
