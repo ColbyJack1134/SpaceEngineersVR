@@ -33,11 +33,20 @@ namespace SpaceEngineersVR.Patches
             var frame=AccessTools.PropertyGetter(AccessTools.TypeByName("VRageRender.MyCommon"),"FrameConstants");
             int begin=code.FindIndex(i=>i.opcode==OpCodes.Ldsfld && Equals(i.operand,alive));
             int end=code.FindIndex(i=>i.Calls(simulate))+1;
+            int depth=code.FindIndex(i=>i.opcode==OpCodes.Ldarg_1);
+            if(depth<3 || !code[depth+1].Calls(AccessTools.Method(AccessTools.TypeByName("VRage.Render11.RenderContext.MyAllShaderStages"),"SetSrv")))
+                throw new InvalidOperationException("Particle depth binding layout changed");
+            var bindDepth=code.GetRange(depth-3,5);
             if(begin<0 || end<=begin) throw new InvalidOperationException("Particle simulation layout changed");
             var run=generator.DefineLabel(); var rendered=generator.DefineLabel();
+            code[end].labels.Add(rendered);
+            bindDepth[0].MoveLabelsFrom(code[begin]);
+            // Rendering needs the current view's depth even when simulation is skipped.
+            code.RemoveRange(depth-3,5);
+            code.InsertRange(begin,bindDepth);
+            begin+=5;
             var gate=new CodeInstruction(OpCodes.Call,AccessTools.PropertyGetter(typeof(StereoParticles),nameof(StereoParticles.Advance)));
-            gate.MoveLabelsFrom(code[begin]);
-            code[begin].labels.Add(run); code[end].labels.Add(rendered);
+            code[begin].labels.Add(run);
             int frames=0;
             for(int index=0;index<code.Count;index++)
             {

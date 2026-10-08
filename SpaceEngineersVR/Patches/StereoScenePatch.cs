@@ -68,9 +68,21 @@ namespace SpaceEngineersVR.Patches
                     var load=CodeInstruction.LoadLocal(billboard); load.MoveLabelsFrom(instruction); yield return load;
                     yield return new CodeInstruction(OpCodes.Call,AccessTools.Method(typeof(StereoBillboardPatch),nameof(Camera)));
                 }
+                else if(instruction.operand is MethodInfo normalize && normalize.DeclaringType==typeof(VRage.Utils.MyUtils) &&
+                    normalize.Name=="Normalize" && normalize.GetParameters().Length==1 && normalize.GetParameters()[0].ParameterType==typeof(Vector3D))
+                {
+                    found++;
+                    var load=CodeInstruction.LoadLocal(billboard); load.MoveLabelsFrom(instruction); yield return load;
+                    yield return new CodeInstruction(OpCodes.Call,AccessTools.Method(typeof(StereoBillboardPatch),nameof(Direction)));
+                }
                 yield return instruction;
             }
-            if(found!=2) throw new InvalidOperationException("Native billboard facing layout changed");
+            if(found!=3) throw new InvalidOperationException("Native billboard facing layout changed");
+        }
+        private static Vector3D Direction(Vector3D direction,VRageRender.MyBillboard billboard)
+        {
+            var eye=MyRender11.Environment_Matrices.CameraPosition;
+            return direction+(Camera(eye,billboard)-eye);
         }
         private static Vector3D Camera(Vector3D eye,VRageRender.MyBillboard billboard) => StereoRenderState.PhysicalEye && billboard.CustomViewProjection==-1 ?
             MatrixD.Invert(StereoRenderState.CenterView).Translation : eye;

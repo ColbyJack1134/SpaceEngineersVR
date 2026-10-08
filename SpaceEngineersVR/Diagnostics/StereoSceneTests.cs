@@ -26,6 +26,22 @@ namespace SpaceEngineersVR.Diagnostics
                     Near(clip.Y/clip.W,1-2*v,"AO vertical reconstruction");
                 }
             }
+            foreach(float near in new[] {.03f,.5f})
+            {
+                var projection=StereoRenderState.FlareFrustum(new Vector4(-1.2f,.8f,-.9f,1.1f),near);
+                foreach(float distance in new[] {100000f,1000000f,2000000f}) foreach(float yaw in new[] {-.01f,0,.01f})
+                {
+                    var view=Matrix.CreateRotationY(yaw)*Matrix.CreateRotationZ(.4f);
+                    var combined=view*projection;
+                    var point=new Vector3(distance*.1f,0,distance);
+                    var clip=Vector4.Transform(point,combined); clip/=clip.W;
+                    var shifted=new Vector3(clip.X*1.1f,clip.Y*1.04f,clip.Z);
+                    var back=Vector3.Transform(shifted,Matrix.Invert(combined));
+                    Require(back.IsValid(),"Shifted distant flare generated nonfinite geometry");
+                    var depth=Vector3.Transform(point,view).Z;
+                    Require(Math.Abs(Vector3.Transform(back,view).Z-depth)<distance*.00001,"Flare ghost changed depth at sun scale");
+                }
+            }
             var active=AccessTools.Field(typeof(StereoRenderState),"<Active>k__BackingField");
             var slope=AccessTools.Field(typeof(StereoRenderState),"<PixelSlopeX>k__BackingField");
             var headField=AccessTools.Field(typeof(WorldMarkers),"renderHead");
@@ -57,10 +73,10 @@ namespace SpaceEngineersVR.Diagnostics
             string shaders=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(VRageRender.MyRenderProxy).Assembly.Location),"..","Content","Shaders"));
             using(var device=new Device(DriverType.Warp))
             {
-                try { StereoParticles.Ensure(device,shaders); }
+                try { StereoParticles.Ensure(device,shaders); StereoSmokeTests.Run(device,shaders,log); }
                 finally { StereoParticles.Dispose(); }
             }
-            log("PASS stereo scenes: asymmetric AO reconstruction, shared marker geometry/size with eye parallax at large coordinates and third-person scale, installed particle vertex shaders");
+            log("PASS stereo scenes: asymmetric AO reconstruction, finite shifted sun-scale flare placement under head rotation, shared marker geometry/size with eye parallax at large coordinates and third-person scale, installed particle vertex shaders");
         }
         private static void Require(bool condition,string message) { if(!condition) throw new Exception(message); }
         internal static void RunNative(BorrowedRtvTexture target,string output,Action<string> log)
@@ -77,10 +93,55 @@ namespace SpaceEngineersVR.Diagnostics
                 var point=new Vector3D((a.X*.3+b.X)*12,(a.Y*.8+b.Y)*12,-12);
                 var clip=Vector4D.Transform(new Vector4D(point,1),(MatrixD)camera.Projection);
                 Near(clip.X/clip.W,-.4,"Native AO horizontal reconstruction"); Near(clip.Y/clip.W,-.6,"Native AO vertical reconstruction");
+                LineFades(camera);
                 RenderMarkers(MyRender11.DeviceInstance,output);
-                log("PASS native stereo AO constants and production crosshair/locking-ring/lead renders at scales 1 and 100");
+                log("PASS native stereo AO constants, common line-billboard angular fades with custom/remote camera preservation, and production crosshair/locking-ring/lead renders at scales 1 and 100");
             }
             finally { camera.Restore(savedCamera); }
+        }
+        private static void LineFades(EnvironmentMatrices camera)
+        {
+            var active=AccessTools.Field(typeof(StereoRenderState),"<Active>k__BackingField");
+            var center=AccessTools.Field(typeof(StereoRenderState),"<CenterView>k__BackingField");
+            var direction=AccessTools.Method(typeof(StereoBillboardPatch),"Direction");
+            object savedActive=active.GetValue(null),savedCenter=center.GetValue(null);
+            int savedView=StereoRenderState.View; var savedCamera=camera.CameraPosition;
+            try
+            {
+                active.SetValue(null,true);
+                var head=MatrixD.CreateRotationZ(.4)*MatrixD.CreateTranslation(1e7,2e7,3e7);
+                center.SetValue(null,MatrixD.Invert(head));
+                var board=new VRageRender.MyBillboard {CustomViewProjection=-1};
+                foreach(double scale in new[] {1d,100d})
+                {
+                    var source=head.Translation+head.Forward*.15*scale+head.Right*.02*scale;
+                    camera.CameraPosition=head.Translation-head.Right*.032*scale; StereoRenderState.View=0;
+                    var left=(Vector3D)direction.Invoke(null,new object[] {camera.CameraPosition-source,board});
+                    camera.CameraPosition=head.Translation+head.Right*.032*scale; StereoRenderState.View=1;
+                    var raw=camera.CameraPosition-source;
+                    var right=(Vector3D)direction.Invoke(null,new object[] {raw,board});
+                    Require(Vector3D.Distance(left,right)<1e-7,"Line-billboard angular fade directions disagree");
+                    float Fade(Vector3D ray)
+                    {
+                        float n=1-Math.Abs(Vector3.Dot(VRage.Utils.MyUtils.Normalize(ray),(Vector3)head.Forward));
+                        return (1-(float)Math.Pow(1-n,30))*.5f;
+                    }
+                    Near(Fade(left),Fade(right),"Line-billboard brightness differs between eyes");
+                    board.CustomViewProjection=0;
+                    Require((Vector3D)direction.Invoke(null,new object[] {raw,board})==raw,"Custom-view line fade changed");
+                    board.CustomViewProjection=-1;
+                    using(var remote=new RemoteScene())
+                    {
+                        Require(!StereoRenderState.PhysicalEye,"Remote scene inherited physical-eye facing");
+                        Require((Vector3D)direction.Invoke(null,new object[] {raw,board})==raw,"Remote line fade borrowed the headset camera");
+                    }
+                }
+            }
+            finally
+            {
+                active.SetValue(null,savedActive); center.SetValue(null,savedCenter);
+                StereoRenderState.View=savedView; camera.CameraPosition=savedCamera;
+            }
         }
         internal static void RenderMarkers(Device device,string output)
         {

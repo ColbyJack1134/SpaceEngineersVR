@@ -14,6 +14,17 @@ namespace SpaceEngineersVR.Diagnostics
 {
     internal static class StereoParticleTests
     {
+        [ThreadStatic] private static ShaderResourceView expectedDepth;
+        private static int depthChecks;
+        private static void CaptureDepth(object __1) => expectedDepth=(ShaderResourceView)CockpitRender.Member(__1,"Srv");
+        private static void VerifyDepth(object __0)
+        {
+            var stage=CockpitRender.Member(__0,"PixelShader");
+            var resources=(ShaderResourceView[])AccessTools.Field(stage.GetType(),"m_srvs").GetValue(stage);
+            Require(expectedDepth!=null && resources[0]!=null && resources[0].NativePointer==expectedDepth.NativePointer,
+                "Particle pixel shader did not bind this view's depth at t0");
+            System.Threading.Interlocked.Increment(ref depthChecks);
+        }
         private static bool RetainEmitter(ref int __result) { __result=1; return false; }
         internal static void RunNative(BorrowedRtvTexture target,Action<string> log)
         {
@@ -61,6 +72,9 @@ namespace SpaceEngineersVR.Diagnostics
                 AccessTools.Field(native,"m_emitterData").SetValue(null,copy);
                 AccessTools.Field(native,"m_emitterCount").SetValue(null,1);
                 harmony.Patch(update,new HarmonyMethod(typeof(StereoParticleTests),nameof(RetainEmitter)) {priority=Priority.First});
+                depthChecks=0;
+                harmony.Patch(AccessTools.Method(native,"Run"),prefix:new HarmonyMethod(typeof(StereoParticleTests),nameof(CaptureDepth)));
+                harmony.Patch(AccessTools.Method(native,"Render"),prefix:new HarmonyMethod(typeof(StereoParticleTests),nameof(VerifyDepth)));
                 config.HiddenAreaMask=config.StableShadows=false;
                 AccessTools.Field(common,"m_lastFrameTimeDelta").SetValue(null,.1f);
                 AccessTools.Field(typeof(StereoRenderState),"<Active>k__BackingField").SetValue(null,true);
@@ -109,11 +123,12 @@ namespace SpaceEngineersVR.Diagnostics
                     Require(Math.Abs(next[10]-4.8f)<.0001,"Following physical frame did not advance once");
                     Require(Math.Abs(next[0]-.4f)<.0001 && next[1]==left[1] && next[2]==left[2],"Remote camera leaked into particle origin history");
                 }
-                log("PASS native stereo particles: one lifetime/motion step, unchanged right/camera/desktop GPU state and alive lists, distant-camera origin isolation; remote flare queries and extra-view reflection updates blocked");
+                Require(depthChecks>=5,"Particle depth binding was not checked in every view");
+                log("PASS native stereo particles: per-view pixel depth binding, one lifetime/motion step, unchanged right/camera/desktop GPU state and alive lists, distant-camera origin isolation; remote flare queries and extra-view reflection updates blocked");
             }
             finally
             {
-                harmony.UnpatchAll(harmony.Id);
+                harmony.UnpatchAll(harmony.Id); expectedDepth=null;
                 foreach(var backup in backups)
                 {
                     context.CopyResource(backup.Item2,backup.Item1);

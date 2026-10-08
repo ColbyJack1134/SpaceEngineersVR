@@ -21,6 +21,7 @@ internal static class Program
         };
         try
         {
+            if(args.Length==3 && args[1]=="--stereo-smoke-test") { StereoSmokeTests.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--weapon-test") { WeaponTests.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--ammo-test") { WeaponTests.Ammo(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==2 && args[1]=="--lcd-input-test") { LcdInputTests.Run(Console.WriteLine); return 0; }

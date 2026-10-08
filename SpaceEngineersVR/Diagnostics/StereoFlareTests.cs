@@ -17,6 +17,7 @@ namespace SpaceEngineersVR.Diagnostics
         private static object flare;
         private static Vector3D position;
         private static Vector3D[] corners;
+        private static int generated=1;
         private static readonly Type native=AccessTools.TypeByName("VRageRender.MyFlareRenderer");
         private static readonly FieldInfo poolField=AccessTools.Field(AccessTools.TypeByName("VRageRender.MyBillboardRenderer"),"m_billboardsOncePool");
         private static readonly MethodInfo draw=native.GetMethods(BindingFlags.Static|BindingFlags.NonPublic).Single(m=>m.Name=="Draw" && m.GetParameters().Length==5);
@@ -26,9 +27,12 @@ namespace SpaceEngineersVR.Diagnostics
             if(flare==null) return;
             object pool=poolField.GetValue(null); int count=Count(pool);
             draw.Invoke(null,new[] {flare,(object)position,Vector3D.Forward,Vector4.One,1f});
-            if(Count(pool)!=count+1) throw new Exception("Expected one generated flare");
-            var board=(MyBillboard)AccessTools.Method(pool.GetType(),"GetAllocatedItem").Invoke(pool,new object[] {count});
-            corners=new[] {board.Position0,board.Position1,board.Position2,board.Position3};
+            if(Count(pool)!=count+generated) throw new Exception("Unexpected generated flare count");
+            corners=Enumerable.Range(count,generated).SelectMany(index=>
+            {
+                var board=(MyBillboard)AccessTools.Method(pool.GetType(),"GetAllocatedItem").Invoke(pool,new object[] {index});
+                return new[] {board.Position0,board.Position1,board.Position2,board.Position3};
+            }).ToArray();
         }
         internal static void RunNative(BorrowedRtvTexture target,Action<string> log)
         {
@@ -74,13 +78,49 @@ namespace SpaceEngineersVR.Diagnostics
                 camera.Restore(savedCamera); StereoRenderState.View=0; Draw(target);
                 for(int i=0;i<4;i++) Require(Vector3D.Distance(left[i],corners[i])<1e-7,"Camera changed next physical flare geometry");
                 Require(ReferenceEquals(baseline,AccessTools.Method(pool.GetType(),"GetAllocatedItem").Invoke(pool,new object[] {originalCount})),"Scene cleanup replaced a simulation billboard");
-                log("PASS native stereo flares: one generated quad per scene, identical world corners in both eyes, camera geometry isolation and no pool accumulation");
+                description.MaxDistance=1e9f;
+                description.Glares=new[]
+                {
+                    new MySubGlare {Material=MyStringId.GetOrCompute("SunFlareWhiteAnamorphic"),Color=Vector4.One,Size=new Vector2(110000,3000),
+                        Type=SubGlareType.AnamorphicInverted,ScreenIntensityMultiplierCenter=1,ScreenIntensityMultiplierEdge=1},
+                    new MySubGlare {Material=MyStringId.GetOrCompute("SunFlareWhiteAnamorphic"),Color=Vector4.One,Size=new Vector2(120000,1000),
+                        Type=SubGlareType.Anamorphic,ScreenIntensityMultiplierCenter=1,ScreenIntensityMultiplierEdge=1},
+                    new MySubGlare {Material=MyStringId.GetOrCompute("SunFlareWhiteAnamorphic"),Color=Vector4.One,Size=new Vector2(100000,1000),
+                        Type=SubGlareType.Anamorphic,ScreenIntensityMultiplierCenter=1,ScreenIntensityMultiplierEdge=1,ScreenCenterDistance=new Vector2(-.1f,-.04f)}
+                };
+                AccessTools.Method(native,"Set").Invoke(null,new[] {flare,null,(object)description});
+                generated=3;
+                foreach(double scale in new[] {1d,100d}) foreach(double yaw in new[] {-.01d,0,.01d})
+                {
+                    var head=MatrixD.CreateRotationY(yaw)*MatrixD.CreateRotationZ(.4)*MatrixD.CreateTranslation(1e7,2e7,3e7);
+                    center.SetValue(null,MatrixD.Invert(head));
+                    projection.SetValue(null,StereoRenderState.FlareFrustum(new Vector4(-1.2f,.8f,-.9f,1.1f),.005*scale));
+                    position=head.Translation+head.Forward*1e6+head.Right*150000;
+                    camera.CameraPosition=head.Translation-head.Right*.032*scale;
+                    StereoRenderState.View=0; AddFlare(); left=corners;
+                    AccessTools.Field(pool.GetType(),"m_nextAllocateIndex").SetValue(pool,initial);
+                    camera.CameraPosition=head.Translation+head.Right*.032*scale;
+                    StereoRenderState.View=1; AddFlare();
+                    for(int i=0;i<corners.Length;i++)
+                    {
+                        Require(corners[i].IsValid(),"Long sun flare generated nonfinite geometry");
+                        Require(Vector3D.Distance(left[i],corners[i])<1e-7,"Long sun flare eye corners disagree");
+                    }
+                    for(int i=0;i<3;i++)
+                    {
+                        var midpoint=(corners[i*4]+corners[i*4+1]+corners[i*4+2]+corners[i*4+3])*.25;
+                        var viewPosition=Vector3D.TransformNormal(midpoint-head.Translation,MatrixD.Invert(head));
+                        Require(Math.Abs(viewPosition.Z+1e6)<20,"Long flare moved off the sun's depth plane");
+                    }
+                    AccessTools.Field(pool.GetType(),"m_nextAllocateIndex").SetValue(pool,initial);
+                }
+                log("PASS native stereo flares: scene pool isolation, matching eye corners, three long sun strips including shifted ghost remain finite at sun scale under head rotation and scales 1/100");
             }
             finally
             {
                 harmony.UnpatchAll(harmony.Id);
                 if(flare!=null) AccessTools.Method(native,"Remove").Invoke(null,new[] {flare});
-                flare=null; corners=null;
+                flare=null; corners=null; generated=1;
                 AccessTools.Field(pool.GetType(),"m_nextAllocateIndex").SetValue(pool,originalCount);
                 camera.Restore(savedCamera); active.SetValue(null,oldActive); center.SetValue(null,oldCenter); projection.SetValue(null,oldProjection); StereoRenderState.View=oldView;
                 Common.Config.HiddenAreaMask=mask; Common.Config.StableShadows=shadows;

@@ -15,7 +15,7 @@ namespace SpaceEngineersVR.Player
         public static long Frame { get; private set; }
         public static bool Active { get; private set; }
         public static int View { get; set; }=-1;
-        internal static bool PhysicalEye => Active && View>=0 && View<=1;
+        internal static bool PhysicalEye => Active && !RemoteScene.Active && View>=0 && View<=1;
         internal static bool AdvanceScene => !RemoteScene.Active && (!Active || View==0);
         internal static double PixelSlopeX { get; private set; }
         internal static Matrix CenterProjection { get; private set; }
@@ -44,7 +44,7 @@ namespace SpaceEngineersVR.Player
             // A centered, symmetric frustum covers both asymmetric eye frusta.
             // Extra angular margin covers eye separation for nearby shadow casters.
             ShadowProjection=ShadowFrustum(x,y,near,far);
-            CenterProjection=(Matrix)VrMath.Projection(raw.X,raw.Y,raw.Z,raw.W,near,far);
+            CenterProjection=FlareFrustum(raw,near);
             if(Interlocked.Exchange(ref request,0)!=0)
             {
                 while(trace.TryDequeue(out _)) { }
@@ -52,6 +52,8 @@ namespace SpaceEngineersVR.Player
                 trace.Enqueue("frame,view,event,values");
             }
         }
+        internal static Matrix FlareFrustum(Vector4 bounds,double near) =>
+            (Matrix)VrMath.Projection(bounds.X,bounds.Y,bounds.Z,bounds.W,near);
         internal static Matrix ShadowFrustum(float x,float y,double near,double far)
         {
             // Native cascade fitting unprojects z=0 and z=1. An infinite far
