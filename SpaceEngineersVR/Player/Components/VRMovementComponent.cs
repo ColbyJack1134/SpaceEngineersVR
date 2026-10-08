@@ -112,6 +112,8 @@ namespace SpaceEngineersVR.Player.Components
 
         internal static bool ToolActionHeld => active!=null && (active.wasShooting || active.wasSecondary);
         internal static void StopActive() => active?.StopInput();
+        internal static void StopOwner(Sandbox.Game.Entities.IMyControllableEntity owner)
+        { if(owner!=null && ReferenceEquals(active?.inputOwner,owner)) active.StopInput(); }
         private void TraceInput()
         {
             var c=Controls.Static;
@@ -138,7 +140,12 @@ namespace SpaceEngineersVR.Player.Components
         {
             jumpOwner?.WheelJump(false); jumpOwner=null; stickSecondary.Block(); DriveInput.Stop();
             var controlled = inputOwner;
-            if (hadControllerMovement) { RemoteView.Stop(controlled); controlled?.MoveAndRotateStopped(); }
+            if (hadControllerMovement)
+            {
+                // Native ship stop can return after the pilot/control owner has detached.
+                controlled?.MoveAndRotate(Vector3.Zero,Vector2.Zero,0);
+                controlled?.MoveAndRotateStopped();
+            }
             StopTools(controlled);
             if (active == this) UsingControllerMovement = false;
             hadControllerMovement = wasShooting = wasSecondary = virtualStickHeld = false;

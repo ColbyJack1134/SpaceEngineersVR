@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.Remoting.Messaging;
 using System.Runtime.Remoting.Proxies;
@@ -63,12 +64,21 @@ namespace SpaceEngineersVR.Diagnostics
         {
             public MatrixD World=MatrixD.Identity;
             public readonly List<MySprite> Sprites=new List<MySprite>();
+            public readonly Sandbox.Game.World.MyControllerInfo ControllerInfo=new Sandbox.Game.World.MyControllerInfo();
+            public readonly List<string> MovementCalls=new List<string>();
+            public Vector3 Move=Vector3.Forward;
             public Proxy(Type type) : base(type) { }
             public override IMessage Invoke(IMessage message)
             {
                 var call=(IMethodCallMessage)message; object value=null;
                 switch(call.MethodName)
                 {
+                    case "get_ControllerInfo": value=ControllerInfo; break;
+                    case "MoveAndRotate":
+                        Move=(Vector3)call.Args[0];
+                        Require((Vector2)call.Args[1]==Vector2.Zero && (float)call.Args[2]==0,"Release retained rotation or roll");
+                        MovementCalls.Add("neutral"); break;
+                    case "MoveAndRotateStopped": MovementCalls.Add("stop"); break;
                     case "get_WorldMatrix": value=World; break;
                     case "HasLocalPlayerAccess": value=true; break;
                     case "get_TextureSize": value=new Vector2(512); break;
@@ -87,6 +97,7 @@ namespace SpaceEngineersVR.Diagnostics
         private static void Require(bool condition,string reason) { if(!condition) throw new Exception(reason); }
         public static void Run(Action<string> log)
         {
+            VerifyMovementRelease(log);
             foreach(var method in Patches.DoubleClickTolerancePatch.Targets)
                 if(Harmony.GetPatchInfo(method)?.Transpilers.Count!=1)
                     throw new Exception("Double-click tolerance is not attached to "+method.DeclaringType.Name);
@@ -305,6 +316,56 @@ namespace SpaceEngineersVR.Diagnostics
             buttons.Invoke(wrapper,new object[] { true,true,false }); Require(State("JustPressed"),"Mod fresh press after cancellation lost");
             buttons.Invoke(wrapper,new object[] { true,false,false }); Require(State("JustReleased"),"Mod deliberate release lost");
             log("PASS actual TouchScreenAPI source fixture: reflection contract, 96 rectangular/trapezoid, rotated and moving large-world LCD UV/pixel mappings, native button hold/cancel/rearm/release semantics. No saved world loaded.");
+        }
+        private static void VerifyMovementRelease(Action<string> log)
+        {
+            var ship=typeof(Sandbox.Game.Entities.MyShipController);
+            var detached=FormatterServices.GetUninitializedObject(ship);
+            var move=AccessTools.Property(ship,"MoveIndicator");
+            move.SetValue(detached,Vector3.Forward);
+            AccessTools.Method(ship,"MoveAndRotateStopped").Invoke(detached,null);
+            Require((Vector3)move.GetValue(detached)==Vector3.Forward,"Native detached-pilot stop fixture no longer reproduces retained input");
+
+            var type=typeof(Player.Components.VRMovementComponent);
+            var active=AccessTools.Field(type,"active"); var owner=AccessTools.Field(type,"inputOwner");
+            var had=AccessTools.Field(type,"hadControllerMovement");
+            var saved=active.GetValue(null); bool savedUsing=Player.Components.VRMovementComponent.UsingControllerMovement;
+            var a=new Proxy(typeof(Sandbox.Game.Entities.IMyControllableEntity));
+            var b=new Proxy(typeof(Sandbox.Game.Entities.IMyControllableEntity));
+            var old=(Sandbox.Game.Entities.IMyControllableEntity)a.GetTransparentProxy();
+            var next=(Sandbox.Game.Entities.IMyControllableEntity)b.GetTransparentProxy();
+            var component=new Player.Components.VRMovementComponent();
+            void Arm() { owner.SetValue(component,old); had.SetValue(component,true); active.SetValue(null,component); Player.Components.VRMovementComponent.UsingControllerMovement=true; }
+            try
+            {
+                Arm(); Player.Components.VRMovementComponent.StopOwner(next);
+                Require(a.MovementCalls.Count==0 && ReferenceEquals(owner.GetValue(component),old),"Release touched an unrelated input owner");
+                Player.Components.VRMovementComponent.StopOwner(old);
+                Require(a.Move==Vector3.Zero && a.MovementCalls.SequenceEqual(new[] {"neutral","stop"}) &&
+                    owner.GetValue(component)==null && !Player.Components.VRMovementComponent.UsingControllerMovement,
+                    "Old owner was not neutralized before native stop");
+                Player.Components.VRMovementComponent.StopOwner(old);
+                Require(a.MovementCalls.Count==2,"Repeated release sent more input");
+
+                var controller=(Sandbox.Game.World.MyEntityController)FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.World.MyEntityController));
+                AccessTools.Property(controller.GetType(),"ControlledEntity").SetValue(controller,old);
+                var prefix=AccessTools.Method(typeof(Patches.MovementReleasePatch),"Prefix");
+                Arm(); prefix.Invoke(null,new object[] {controller,old});
+                Require(a.MovementCalls.Count==2,"Same-owner control request stopped movement");
+                b.ControllerInfo.Controller=controller;
+                prefix.Invoke(null,new object[] {controller,next});
+                Require(a.MovementCalls.Count==2,"Rejected control request stopped the current owner");
+                b.ControllerInfo.Controller=null;
+                prefix.Invoke(null,new object[] {controller,next});
+                Require(a.MovementCalls.Count==4 && b.MovementCalls.Count==0 && owner.GetValue(component)==null,
+                    "Control handoff stopped the destination instead of the captured owner");
+                Arm(); prefix.Invoke(null,new object[] {controller,null});
+                Require(a.MovementCalls.Count==6 && owner.GetValue(component)==null,"Control loss retained captured input");
+                foreach(var method in new[] {AccessTools.Method(controller.GetType(),"TakeControl"),AccessTools.Method(typeof(Sandbox.Game.Entities.MyCockpit),"RemovePilot")})
+                    Require(Harmony.GetPatchInfo(method).Prefixes.Any(p=>p.PatchMethod.DeclaringType.Namespace=="SpaceEngineersVR.Patches" && p.PatchMethod.DeclaringType.Name.Contains("MovementRelease")),"Movement release is not attached to "+method.Name);
+                log("PASS movement release: native detached-pilot stop failure reproduced; explicit neutral before stop, captured-owner isolation, same/rejected requests preserved, handoff/control loss and release hooks.");
+            }
+            finally { active.SetValue(null,saved); Player.Components.VRMovementComponent.UsingControllerMovement=savedUsing; }
         }
     }
 }

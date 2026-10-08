@@ -264,8 +264,6 @@ namespace SpaceEngineersVR.Player
             MySession.Static.ControlledEntity.MoveAndRotate(Vector3.Zero,aim,0);
             Zoom(zoom/60*.6f);
         }
-        public static void Stop(Sandbox.Game.Entities.IMyControllableEntity owner)
-        { if(IsTurret(owner)) owner.MoveAndRotate(Vector3.Zero,Vector2.Zero,0); }
         public static void Zoom(float delta)
         {
             if(delta==0 || source==null) return;
