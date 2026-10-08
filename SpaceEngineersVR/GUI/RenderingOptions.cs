@@ -33,7 +33,7 @@ namespace SpaceEngineersVR.GUI
             Slider(-.03f,83,config.RemoteFeedScale,v=> { config.RemoteFeedScale=v; RefreshFeed(v); });
             RefreshFeed(config.RemoteFeedScale);
             Label(.075f,"Particle density (100% restores original)");
-            Slider(.135f,50,config.ParticleDensity,v=>config.ParticleDensity=v,25,100);
+            Slider(.135f,50,config.ParticleDensity,v=>config.ParticleDensity=v,15,100);
             Label(.205f,"Mirror headset on desktop");
             var mirror=new MyGuiControlCheckbox(new Vector2(.28f,.205f)) { IsChecked=config.MirrorDesktop };
             mirror.IsCheckedChanged+=c=>config.MirrorDesktop=c.IsChecked; Controls.Add(mirror);

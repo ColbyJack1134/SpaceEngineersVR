@@ -184,6 +184,9 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(Emit(100,0,10)==50,"Half particle density did not halve native continuous emission");
                 Require(Math.Abs(Emit(3,0,100)-15)<=1,"Reduced low-rate particles lost fractional accumulation");
                 Require(Emit(0,7,10)==7,"Particle density changed burst emission");
+                Common.Config.ParticleDensity=.15f;
+                Require(Math.Abs(Emit(100,0,10)-15)<=1,"Minimum particle density did not preserve native fractional emission");
+                Common.Config.ParticleDensity=.5f;
                 multiplier.SetValue(null,.25f);
                 Require(Math.Abs(Emit(100,0,10)-12)<=1,"Particle density replaced native quality scaling");
                 multiplier.SetValue(null,1f); failed.SetValue(null,true); active.SetValue(null,false);

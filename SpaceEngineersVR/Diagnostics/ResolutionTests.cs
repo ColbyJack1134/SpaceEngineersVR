@@ -50,7 +50,7 @@ namespace SpaceEngineersVR.Diagnostics
             config.ParticleDensity=float.NaN;
             if(config.ParticleDensity!=.5f) throw new Exception("Invalid particle density was accepted");
             config.ParticleDensity=0;
-            if(config.ParticleDensity!=.25f) throw new Exception("Particle density removed all particles");
+            if(config.ParticleDensity!=.15f) throw new Exception("Particle density removed all particles");
             config.ParticleDensity=2;
             if(config.ParticleDensity!=1) throw new Exception("Particle density exceeded the native emission rate");
             log("PASS independent eye resolution: runtime default, scale/aspect, allocation bounds, letterbox and existing profile persistence");
