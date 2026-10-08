@@ -27,7 +27,8 @@ namespace SpaceEngineersVR.Player
         internal static bool Reveal { get; private set; }
         private static int lastMode=-1;
         private static float ownRange=-1,friendlyRange=-1,otherRange=-1;
-        private static readonly InputGate leftTrigger=new InputGate(),leftGrip=new InputGate(),rightGrip=new InputGate();
+        private static readonly InputGate leftTrigger=new InputGate(),leftGrip=new InputGate();
+        private static readonly VisorGesture visorGesture=new VisorGesture();
         private static readonly HeadGesture rightGesture=new HeadGesture();
         internal static bool ProtectsRight { get; private set; }
         internal static bool ViewGestureHeld { get; private set; }
@@ -91,7 +92,9 @@ namespace SpaceEngineersVR.Player
             bool nearLeft=guard && Player.HandL.pose.isTracked && NearHead(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix);
             bool nearRight=guard && Player.HandR.pose.isTracked && (rightGesture.Inside || NearHead(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix));
             Reveal=active && Markers && (Mode==2 || (nearLeft || nearRight && !gun) && DateTime.UtcNow>=revealPauseUntil);
-            rightGrip.Update(active && Player.HandR.pose.isTracked && c.Secondary.Active,c.Secondary.RawPressed);
+            bool visorPressed=visorGesture.Update(active && Player.HandR.pose.isTracked && c.Secondary.Active,
+                rightGesture.Inside,c.Secondary.RawPressed,ThirdPersonView.Active,
+                ThirdPersonView.Active && c.LeftGripPressure.RawPosition.X>.025f && c.RightGripPressure.RawPosition.X>.025f,DateTime.UtcNow);
             float grip=c.LeftGripPressure.RawPosition.X;
             if(grip<=.025f) ViewGestureHeld=false;
             leftGrip.Update(active && Player.HandL.pose.isTracked && c.LeftGripPressure.Active,grip>.55f);
@@ -131,7 +134,7 @@ namespace SpaceEngineersVR.Player
                 c.Primary.BlockUntilRelease();
                 Player.HandR.Vibrate(0,0.035f,130,0.35f);
             }
-            if (rightGrip.Pressed)
+            if (visorPressed)
             {
                 GameActions.HelmetAction.Run();
                 c.Secondary.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease();
@@ -168,7 +171,7 @@ namespace SpaceEngineersVR.Player
         }
         private static void DrawTransitionCore()
         {
-            if(animationFailed || !Main.WorldAvailable || Main.MenuOpen || ThirdPersonView.Active)
+            if(animationFailed || !Main.WorldAvailable || Main.MenuOpen)
             { visor?.Hide(); return; }
             try
             {

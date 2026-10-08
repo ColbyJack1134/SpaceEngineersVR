@@ -200,6 +200,27 @@ namespace SpaceEngineersVR.Diagnostics
             Require(Math.Abs(CrouchControl.ViewDrop(true,false,0,depth)-depth)<1e-5f && Math.Abs(CrouchControl.ViewDrop(true,false,.3f,depth)-.25f)<1e-5f &&
                 CrouchControl.ViewDrop(true,true,.4f,depth)==0 && CrouchControl.ViewDrop(false,false,0,depth)==0 && CrouchControl.ViewDrop(true,false,.8f,depth)==0,"Crouched view height is wrong");
             var gesture=new HeadGesture(); var gameTrigger=new InputGate();
+            var visor=new VisorGesture();
+            var visorTime=DateTime.UtcNow;
+            visor.Update(true,true,false,true,false,visorTime);
+            Require(!visor.Update(true,true,true,true,false,visorTime),"Third-person visor fired before pan detection");
+            Require(!visor.Update(true,true,true,true,true,visorTime.AddSeconds(.05)),"Two-grip pan toggled visor");
+            Require(!visor.Update(false,true,true,true,false,visorTime.AddSeconds(.2)),"Pan cancellation completed visor gesture");
+            Require(!visor.Update(true,true,true,true,false,visorTime.AddSeconds(.3)),"Ending pan rearmed a held visor grip");
+            visor.Update(true,true,false,true,false,visorTime.AddSeconds(.4));
+            Require(!visor.Update(true,true,true,true,false,visorTime.AddSeconds(.5)),"Fresh third-person visor press was immediate");
+            Require(!visor.Update(true,true,false,true,false,visorTime.AddSeconds(.55)),"Short visor tap skipped detection window");
+            Require(visor.Update(true,true,false,true,false,visorTime.AddSeconds(.66)),"Deliberate short visor tap was lost");
+            Require(!visor.Update(true,true,false,true,false,visorTime.AddSeconds(.8)),"Delayed visor tap repeated");
+            Require(visor.Update(true,true,true,false,false,visorTime.AddSeconds(.9)),"First-person visor acquired pan delay");
+            visor.Update(true,true,false,true,false,visorTime.AddSeconds(1));
+            visor.Update(true,true,true,true,false,visorTime.AddSeconds(1.1));
+            Require(!visor.Update(true,false,true,true,false,visorTime.AddSeconds(1.2)) &&
+                !visor.Update(true,true,true,true,false,visorTime.AddSeconds(1.4)),"Leaving temple retained or rearmed visor gesture");
+            visor.Update(true,true,false,true,false,visorTime.AddSeconds(1.5));
+            Require(!visor.Update(true,true,true,true,true,visorTime.AddSeconds(1.6)) &&
+                !visor.Update(true,true,true,true,false,visorTime.AddSeconds(1.8)),"Same-frame pan request toggled visor");
+            log("PASS visor gesture: third-person pan delay/cancellation, deliberate short tap, held-grip release gate, temple exit and immediate first-person toggle");
             var temple=Matrix.CreateTranslation(.21f,0,0);
             gesture.Update(true,temple,Matrix.Identity,false); gameTrigger.Update(true,false);
             int cycles=0;
