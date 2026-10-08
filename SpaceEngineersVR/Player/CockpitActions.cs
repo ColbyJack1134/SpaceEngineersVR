@@ -27,9 +27,11 @@ namespace SpaceEngineersVR.Player
         internal static bool SharedReady => owner!=null && MultiplayerRuntime.Get(owner,out _);
         private static MyGuiScreenBase editor;
         private static GUI.CockpitAssignment assignment;
+        private static CockpitAssignmentToolbar assignmentToolbar;
         private static readonly List<AnalogControl.Channel>[] analog=new List<AnalogControl.Channel>[CockpitLayout.MaximumCount];
         private static readonly double[] nextAnalog=new double[CockpitLayout.MaximumCount];
         public static MyToolbar Toolbar => toolbar;
+        internal static bool EditingToolbar(MyToolbar candidate) => editing && ReferenceEquals(candidate,assignmentToolbar?.Toolbar);
         internal static bool ReadAnalog(int slot,out float position,out string label)
         {
             position=0; label=null;
@@ -145,9 +147,18 @@ namespace SpaceEngineersVR.Player
                 if(desired!=true) RemoteView.Exit();
                 return true;
             }
+            var controller=MySession.Static.ControlledEntity as MyShipController;
+            bool weapon=CockpitSwitchState.WeaponState(item,controller,out bool selected);
+            if(weapon && (selected || desired==false))
+            {
+                // Repeated selection cycles ammunition in vanilla. Down clears only this weapon's selection.
+                if(selected && desired!=true) controller.SwitchToWeapon((MyToolbarItemWeapon)null);
+                return true;
+            }
             if(!item.Enabled || (item is MyToolbarItemTerminalGroup group && !group.PlayerHasAccessToAllBlocks(MySession.Static.LocalPlayerId)))
             { EssentialHud.Notify("This switch action is unavailable or access is denied."); return false; }
             if(view) return desired!=false && toolbar.ActivateItemAtIndex(slot);
+            if(weapon) return controller!=null && toolbar.ActivateItemAtIndex(slot);
             bool stateful=CockpitSwitchState.Read(item,out _);
             if(!stateful && desired==false) return false;
             return stateful && desired.HasValue ? CockpitSwitchState.Set(item,desired.Value) : toolbar.ActivateItemAtIndex(slot);
@@ -162,9 +173,8 @@ namespace SpaceEngineersVR.Player
             return rankBlocks.Count>0 && rankBlocks.TrueForAll(b=>b!=null && test(b));
         }
         internal static bool Analog(int slot,MyToolbarItemActions item) => Handle(slot) && AllBlocks(item,b=>AnalogControl.Resolve(b,item.ActionId)!=null);
-        // Handles drive numeric actions; other switches gain only connector lock's Ready position.
         internal static bool Compatible(int slot,MyToolbarItemActions item,string action) => owner!=null &&
-            AllBlocks(item,b=>Handle(slot) ? AnalogControl.Resolve(b,action)!=null : CockpitSwitchState.ShowsReady(b,action));
+            AllBlocks(item,b=>Handle(slot) ? AnalogControl.Resolve(b,action)!=null : CockpitSwitchState.ShowsReady(b,action) || CockpitSwitchState.ViewAction(action,b) || CockpitSwitchState.BatteryAction(b,action));
         public static bool ReadState(int slot,out float state)
         {
             state=0;
@@ -179,11 +189,15 @@ namespace SpaceEngineersVR.Player
             previous=MyToolbarComponent.CurrentToolbar; previousAutoUpdate=MyToolbarComponent.AutoUpdate;
             try
             {
-                editing=true; MyToolbarComponent.CurrentToolbar=toolbar; MyToolbarComponent.AutoUpdate=false;
-                if(selected>=0) toolbar.SwitchToPage(selected/toolbar.SlotCount);
+                editing=true;
+                assignmentToolbar=new CockpitAssignmentToolbar(toolbar,CockpitAssignmentLayout.Find(owner.BlockDefinition.Id.SubtypeName));
+                var target=assignmentToolbar.Toolbar;
+                selected=assignmentToolbar.Layout.DisplayIndex(selected);
+                MyToolbarComponent.CurrentToolbar=target; MyToolbarComponent.AutoUpdate=false;
+                if(selected>=0) target.SwitchToPage(selected/target.SlotCount);
                 editor=MyGuiSandbox.CreateScreen(MyPerGameSettings.GUI.ToolbarConfigScreen,0,owner,null);
-                assignment=new GUI.CockpitAssignment((MyGuiScreenToolbarConfigBase)editor,toolbar,previous,
-                    CockpitLayout.Count(owner.BlockDefinition.Id.SubtypeName),selected);
+                assignment=new GUI.CockpitAssignment((MyGuiScreenToolbarConfigBase)editor,target,previous,
+                    target.SlotCount*target.PageCount,selected,layout:assignmentToolbar.Layout);
                 assignment.Update();
                 editor.Closed+=Closed;
                 MyGuiSandbox.AddScreen(MyGuiScreenGamePlay.ActiveGameplayScreen=editor);
@@ -200,7 +214,8 @@ namespace SpaceEngineersVR.Player
             assignment?.Dispose(); assignment=null;
             if(editor!=null) editor.Closed-=Closed;
             editor=null;
-            if(ReferenceEquals(MyToolbarComponent.CurrentToolbar,toolbar)) MyToolbarComponent.CurrentToolbar=previous;
+            if(ReferenceEquals(MyToolbarComponent.CurrentToolbar,assignmentToolbar?.Toolbar)) MyToolbarComponent.CurrentToolbar=previous;
+            assignmentToolbar?.Dispose(); assignmentToolbar=null;
             MyToolbarComponent.AutoUpdate=previousAutoUpdate; previous=null;
         }
         internal static CockpitMemory.Record LoadLocal(MyCockpit seat)

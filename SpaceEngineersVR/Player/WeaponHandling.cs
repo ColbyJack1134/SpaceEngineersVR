@@ -68,7 +68,7 @@ namespace SpaceEngineersVR.Player
             var local=offTracked ? (Vector3)Vector3D.Transform(Vector3D.Transform(WeaponPose.GrabOffset,left),MatrixD.Invert(valid && TryPose(character,out var displayed,out _) ? displayed:oneWorld)):Vector3.Zero;
             bool interaction=offTracked && InputRouter.Gameplay && !Main.MenuOpen && (support.Held ||
                 !character.CurrentWeapon.IsReloading && !CockpitTouch.Owns(Player.HandL) && !HandInteraction.Owns(Player.HandL) &&
-                !FloatingWindows.PointingFor(Player.HandL) && !TouchScreenBridge.PointingFor(Player.HandL) && !HelmetHud.Consumes(Player.HandL));
+                !FloatingWindows.PointingFor(Player.HandL) && !TouchScreenBridge.PointingFor(Player.HandL) && !ArthurLcdBridge.PointingFor(Player.HandL) && !HelmetHud.Consumes(Player.HandL));
             var supportPoint=profile.SupportContact(character.HandItemDefinition.LeftHand);
             int candidate=interaction && !ConsumesLeftGrip ? profile.Grab(local,supportPoint):0;
             if(candidate==1 && !reachable) candidate=0;

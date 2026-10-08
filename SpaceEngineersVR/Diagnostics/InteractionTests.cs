@@ -127,6 +127,17 @@ namespace SpaceEngineersVR.Diagnostics
                 if(b.Width<=0) continue;
                 Require(seatView.KeyAt(new Vector2(b.X+b.Width/2,b.Y+b.Height/2))==i,"Seat controls overlap the new lock");
             }
+            seatView.Width=.108f; seatView.Height=.120f; seatView.Pose=MatrixD.Identity;
+            for(int i=0;i<seatKeys.Length;i++)
+            {
+                var bounds=seatKeys[i].Bounds;
+                var pose=MatrixD.CreateTranslation((bounds.Center.X-.5)*seatView.Width,(.5-bounds.Center.Y)*seatView.Height,.3);
+                Require(SpatialUi.WristRayTarget(new[] {seatView},pose,3,out int key,out _)==seatView && key==i,
+                    "Seat ray does not target the same control as physical touch");
+            }
+            Require(SpatialUi.WristRayTarget(new[] {seatView},MatrixD.CreateTranslation(1,0,.3),3,out _,out _)==null,"Seat ray captures an unrelated surface");
+            Require(SpatialUi.WristRayTarget(new[] {seatView},MatrixD.CreateTranslation(0,0,4),3,out _,out _)==null,"Seat ray exceeds interaction distance");
+            log("PASS seat panel ray: all 14 controls match physical layout, unrelated directions and out-of-range rays remain free.");
             seatView.Keys=SeatPanel.Keys(true,false);
             Require(seatView.KeyAt(seatView.Keys[8].Bounds.Center)==8,"Locked cockpit cannot reset the seat");
             Require(seatView.Keys[8].Bounds==seatKeys[8].Bounds && seatView.Keys[12].Bounds==seatKeys[12].Bounds,"Locking sticks moved Reset or Lights");

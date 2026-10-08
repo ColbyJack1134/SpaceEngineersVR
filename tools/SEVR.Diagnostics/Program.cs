@@ -23,6 +23,7 @@ internal static class Program
         {
             if(args.Length==3 && args[1]=="--weapon-test") { WeaponTests.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--ammo-test") { WeaponTests.Ammo(game,args[2],Console.WriteLine); return 0; }
+            if(args.Length==2 && args[1]=="--lcd-input-test") { LcdInputTests.Run(Console.WriteLine); return 0; }
             if(args.Length==2 && args[1]=="--keyboard-test") { KeyboardInputTests.Run(Console.WriteLine); return 0; }
             if(args.Length==4 && args[1]=="--stick-preview") { StickPreview.Export(game,args[2],args[3]); return 0; }
             if(args.Length==4 && args[1]=="--export-model") { ModelInspection.Export(game,args[2],args[3]); return 0; }

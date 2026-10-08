@@ -42,7 +42,7 @@ namespace SpaceEngineersVR.Player
         private static readonly ToolbarGesture gesture=new ToolbarGesture(),quickGesture=new ToolbarGesture();
         private static ActionChoice[] quickChoices;
         private static ActionChoice[][] quickPages;
-        private static int quickPage,variantPages;
+        private static int quickPage,variantPages,blockPages;
         public static bool QuickPending => Controls.Static.QuickMenu.RawPressed;
         private static int iconRevision;
         private static object owner;
@@ -146,11 +146,14 @@ namespace SpaceEngineersVR.Player
         private static void Open(bool quick)
         {
             quickChoices=quick ? GameActions.WheelActions(PlacementControls.OwnsTools,InputRouter.Mode==InputMode.Piloting,ThirdPersonView.Active,InputRouter.Mode==InputMode.Jetpack || MySession.Static?.LocalCharacter?.JetpackComp?.TurnedOn==true):null;
-            quickPage=variantPages=0; quickPages=null;
+            quickPage=variantPages=blockPages=0; quickPages=null;
             if(quick)
             {
                 var variants=PlacementControls.Mode==InputMode.Building ? BlockVariants.Choices() : Array.Empty<ActionChoice>(); variantPages=(variants.Length+8)/9;
                 quickPages=BlockVariants.Pages(variants,quickChoices);
+                var block=PlacementControls.OwnsTools ? Array.Empty<ActionChoice>():BlockActions.Capture();
+                blockPages=(block.Length+8)/9;
+                quickPages=BlockActions.Pages(block,quickPages);
                 quickChoices=quickPages[0];
             }
             owner=MySession.Static.ControlledEntity; toolbar=MyToolbarComponent.CurrentToolbar;
@@ -206,8 +209,8 @@ namespace SpaceEngineersVR.Player
             }
             var next = new View { Pose = pose, Labels = labels, Enabled = enabled, Selected = selection, Icons = icons, SubIcons = subIcons, ItemText = itemText,
                 Title = group == 0 ? "Toolbar " + ((toolbar?.CurrentPage ?? 0) + 1) + "/" + (toolbar?.PageCount ?? 0)
-                    : quickPages?.Length>1 ? (variantPages>0 ? "Building " : "Quick actions ")+(quickPage+1)+" / "+quickPages.Length : "Quick actions",
-                Variants=group==1 && quickPage<variantPages,Group=group,Page=group==0 ? toolbar?.CurrentPage ?? 0 : quickPage,Pages=group==0 ? toolbar?.PageCount ?? 1 : quickPages?.Length ?? 1,
+                    : quickPages?.Length>1 ? (quickPage<blockPages ? "Block actions " : variantPages>0 ? "Building " : "Quick actions ")+(quickPage+1)+" / "+quickPages.Length : "Quick actions",
+                Variants=group==1 && quickPage>=blockPages && quickPage<blockPages+variantPages,Group=group,Page=group==0 ? toolbar?.CurrentPage ?? 0 : quickPage,Pages=group==0 ? toolbar?.PageCount ?? 1 : quickPages?.Length ?? 1,
                 Hint = group==0 ? ControlsHint : "Hold Y · Right stick selects · X: inventory · Release Y confirms · B: cancel"+(quickPages?.Length>1 ? "\nLeft / right trigger: previous / next page" : "") };
             if (!next.SameAs(view)) view=next;
         }
@@ -215,6 +218,7 @@ namespace SpaceEngineersVR.Player
         public static void Close(bool resume = true)
         {
             gesture.Reset(); quickGesture.Reset(); selection = -1; view = null;
+            quickChoices=null; quickPages=null;
             InputRouter.RadialOpen = false;
             InputRouter.Reset();
             if (resume) InputRouter.Update();

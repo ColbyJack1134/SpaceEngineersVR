@@ -28,9 +28,11 @@ namespace SpaceEngineersVR.Player
         internal static bool HoldingRight => hands[0].Input.Surface!=null;
         internal static bool OwnsRight => hands[0].Input.Consumed;
         internal static bool Owns(Controller hand) { var h=hands[hand==Player.HandL ? 1 : 0]; return h.Input.Consumed || h.Input.Surface!=null || h.Hover!=null; }
+        internal static bool PhysicalOwns(Controller hand) { var h=hands[hand==Player.HandL ? 1 : 0]; return h.Input.Consumed || h.Input.Surface!=null || h.PhysicalHover; }
         // Left aiming redirects native use detection so labels and actions use the same target.
         internal static bool LeftAiming { get; private set; }
         private static readonly Control.InputGate leftUse=new Control.InputGate();
+        private static Controller detectionHand;
         private static string leftLabel;
         private static DateTime nextLeftLabel;
         internal static Controller UseHand => LeftAiming ? Player.HandL : Player.HandR;
@@ -42,7 +44,7 @@ namespace SpaceEngineersVR.Player
             public MatrixD Wrist;
             public DateTime Grabbed,NextLabel;
             public string Label;
-            public bool Pointing;
+            public bool Pointing,PhysicalHover;
         }
         private static readonly Contact[] hands={new Contact(),new Contact()};
         private static readonly List<MyEntity> nearby=new List<MyEntity>();
@@ -52,7 +54,7 @@ namespace SpaceEngineersVR.Player
         internal static bool PointingFor(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Pointing;
         internal static void ResetTouch()
         {
-            foreach(var h in hands) { h.Input.Reset(); h.Hover=h.Pressed=null; h.Label=null; h.Pointing=false; }
+            foreach(var h in hands) { h.Input.Reset(); h.Hover=h.Pressed=null; h.Label=null; h.Pointing=h.PhysicalHover=false; }
             controls.Clear(); nearby.Clear(); nextDetection=DateTime.MinValue;
         }
         internal const double PressReach=.16;
@@ -73,7 +75,7 @@ namespace SpaceEngineersVR.Player
         {
             ray = default(LineD);
             var character = MySession.Static?.LocalCharacter;
-            var hand = UseHand;
+            var hand = detectionHand ?? UseHand;
             if (!InputRouter.Gameplay || character == null || character.IsDead || character.IsSitting ||
                 MySession.Static.ControlledEntity != character || !TryWorldPose(hand, out MatrixD pose)) return false;
             if(TrackedArms.TryFreePointPose(hand,out var finger)) pose=finger;
@@ -164,8 +166,8 @@ namespace SpaceEngineersVR.Player
             {
                 var h=hands[i]; var hand=i==0 ? Player.HandR : Player.HandL;
                 var input=InteractionInput.Read(hand,true);
-                bool free=available && (i==0 ? rightPose : leftPose) && !HelmetHud.Consumes(hand);
-                h.Pointing=false;
+                bool free=available && (i==0 ? rightPose : leftPose) && !HelmetHud.Consumes(hand) && !ArthurLcdBridge.Owns(hand) && !ArthurLcdBridge.PointingFor(hand);
+                h.Pointing=h.PhysicalHover=false;
                 if(!free)
                 {
                     h.Input.Sample(false,input,null,-1); h.Hover=h.Pressed=null; h.Label=null;
@@ -208,6 +210,7 @@ namespace SpaceEngineersVR.Player
                 bool aiming=i==0 && (ShowRay(c.PointerPressure.RawPosition.X,rayVisible) || c.Primary.RawPressed);
                 bool keepHover=h.Hover?.Owner!=null && !h.Hover.Owner.Closed && Pressable(h.Hover) &&
                     Vector3D.Distance(tip,ClosestControlPoint(h.Hover.ActivationMatrix,tip))<PressReach+.025;
+                h.PhysicalHover=target!=null || h.Pressed!=null || keepHover;
                 h.Pointing=target!=null || h.Pressed!=null || aiming || keepHover;
                 var hover=h.Pressed ?? target ?? (keepHover ? h.Hover : aiming ? character.GetDetectorComponent()?.UseObject : null);
                 if(!ReferenceEquals(hover,h.Hover))
@@ -271,7 +274,7 @@ namespace SpaceEngineersVR.Player
             bool allowed=!disabled && (InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Building) && !InputRouter.Flying &&
                 MySession.Static?.ControlledEntity==character && character!=null && !character.IsDead && !character.IsSitting &&
                 !ThirdPersonView.Active && Player.HandL.pose.isTracked && !PlacementControls.OwnsTools && !HelmetHud.Consumes(Player.HandL) &&
-                !Owns(Player.HandL) && !CockpitTouch.Owns(Player.HandL) && !TouchScreenBridge.PointingFor(Player.HandL) && !FloatingWindows.PointingFor(Player.HandL) &&
+                !Owns(Player.HandL) && !CockpitTouch.Owns(Player.HandL) && !TouchScreenBridge.PointingFor(Player.HandL) && !ArthurLcdBridge.PointingFor(Player.HandL) && !FloatingWindows.PointingFor(Player.HandL) &&
                 !WeaponHandling.ConsumesLeftGrip && c.LeftTriggerPressure.Active;
             // Raw pressure keeps the laser up through a full pull, like the right ray; the gate uses once per pull.
             float pressure=allowed ? c.LeftTriggerPressure.RawPosition.X : 0;
@@ -302,6 +305,17 @@ namespace SpaceEngineersVR.Player
                 "; use=" + (detector.UseObject?.GetType().Name ?? "none") +
                 "; target=" + (detector.UseObject?.Owner?.DisplayName ?? "none"));
         }
+        internal static IMyUseObject CaptureRightTarget()
+        {
+            detectionHand=Player.HandR;
+            try
+            {
+                if(!TryInteractionRay(out _)) return null;
+                RefreshTarget(false);
+                return MySession.Static?.LocalCharacter?.GetDetectorComponent()?.UseObject;
+            }
+            finally { detectionHand=null; }
+        }
         public static void Update()
         {
             if (disabled) return;
@@ -321,7 +335,7 @@ namespace SpaceEngineersVR.Player
                     if(Common.Config.DeveloperTools && !SpatialUi.Pointing && !SpatialUi.OwnsRight && !SpatialUi.RayTargeted) MySimpleObjectDraw.DrawLine(grip.Translation-grip.Up*0.035,grip.Translation+grip.Up*0.035,
                         MyStringId.GetOrCompute("Square"),ref lineColor,0.025f);
                     bool show = hand == Player.HandL ? LeftAiming :
-                        !LeftAiming && rayVisible && !SpatialUi.RayTargeted && !SpatialUi.OwnsRight && !CockpitTouch.OwnsRight && !HoldingRight && !TouchScreenBridge.Pointing;
+                        !LeftAiming && rayVisible && !SpatialUi.RayTargeted && !SpatialUi.OwnsRight && !CockpitTouch.OwnsRight && !HoldingRight && !TouchScreenBridge.Pointing && !ArthurLcdBridge.PointingFor(Player.HandR);
                     if (show && !WeaponHandling.HideUseRay && TryInteractionRay(out LineD ray))
                     {
                         var aim=MatrixD.CreateWorld(ray.From,ray.Direction,Vector3D.CalculatePerpendicularVector(ray.Direction));

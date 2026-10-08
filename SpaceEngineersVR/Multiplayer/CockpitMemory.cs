@@ -208,7 +208,8 @@ namespace SpaceEngineersVR.Multiplayer
             {
                 if(slot.Index<0 || slot.Index>=count || used[slot.Index]) return false;
                 used[slot.Index]=true;
-                if(slot.Data!=null && !(slot.Data is MyObjectBuilder_ToolbarItemTerminalBlock) && !(slot.Data is MyObjectBuilder_ToolbarItemTerminalGroup)) return false;
+                if(slot.Data!=null && !(slot.Data is MyObjectBuilder_ToolbarItemTerminalBlock) && !(slot.Data is MyObjectBuilder_ToolbarItemTerminalGroup) &&
+                    !(slot.Data is MyObjectBuilder_ToolbarItemWeapon)) return false;
             }
             return true;
         }

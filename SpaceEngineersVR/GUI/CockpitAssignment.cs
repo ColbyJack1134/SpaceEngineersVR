@@ -26,13 +26,14 @@ namespace SpaceEngineersVR.GUI
         private readonly MyToolbar target,source;
         private readonly int count,selected;
         private readonly bool switches;
+        private readonly CockpitAssignmentLayout layout;
         private MyGuiControlToolbar toolbar;
         private MyGuiControlGrid sourceGrid;
         private MyGuiControlGridDragAndDrop drag;
         private MyDragAndDropEventArgs pendingClick;
         private MyGuiControlContextMenu clickMenu;
         private MyGuiControlLabel sourceLabel;
-        private int sourcePage,dropSlot=-1,heldItem=-1;
+        private int sourcePage,dropSlot=-1,dropPage=-1,pendingPage=-1,heldItem=-1;
         private DateTime heldSince;
         internal static string MarkerIcon => System.IO.Path.Combine(Plugin.Common.AssetFolder,"Icons","vr.dds");
         [HarmonyPatch(typeof(MyToolbarComponent),nameof(MyToolbarComponent.GetSlotControlText))]
@@ -44,8 +45,9 @@ namespace SpaceEngineersVR.GUI
                 if(__result==null && slotIndex>=0) __result=new StringBuilder((slotIndex+1).ToString());
             }
         }
-        public CockpitAssignment(MyGuiScreenToolbarConfigBase screen,MyToolbar target,MyToolbar source,int count,int selected,bool switches=true)
-        { this.screen=screen; this.target=target; this.source=source; this.count=count; this.selected=selected; this.switches=switches; sourcePage=source?.CurrentPage ?? 0; current=this; screen.Closed+=Closed; }
+        public CockpitAssignment(MyGuiScreenToolbarConfigBase screen,MyToolbar target,MyToolbar source,int count,int selected,bool switches=true,CockpitAssignmentLayout layout=null)
+        { this.screen=screen; this.target=target; this.source=source; this.count=count; this.selected=selected; this.switches=switches; this.layout=layout; sourcePage=source?.CurrentPage ?? 0; current=this; screen.Closed+=Closed; }
+        private int Control(int index) => layout!=null ? layout.Control(index):index>=0 && index<count ? index:-1;
         internal static void Update(MyGuiScreenToolbarConfigBase screen)
         { if(current?.screen==screen) current.Update(); }
         private void Closed(MyGuiScreenBase screen,bool unloading) => Dispose();
@@ -60,16 +62,19 @@ namespace SpaceEngineersVR.GUI
                 AddPaging(toolbar.ToolbarGrid,false);
                 if(source!=null && drag!=null) AddSource();
             }
+            if(layout!=null)
+                foreach(var page in (System.Collections.Generic.List<MyGuiControlLabel>)AccessTools.Field(typeof(MyGuiControlToolbar),"m_pageLabelList").GetValue(toolbar)) page.Visible=false;
             var label=screen.Controls.GetControlByName("LabelToolbar") as MyGuiControlLabel;
             int first=target.CurrentPage*target.SlotCount;
-            if(label!=null) { label.Text=switches ? (selected>=first && selected<first+target.SlotCount ? "Switch "+(selected+1)+" · " : "Switches ")+ (first+1)+"–"+Math.Min(first+target.SlotCount,count) :
+            if(label!=null) { label.Text=layout!=null ? layout.Pages[target.CurrentPage].Name+" · "+(target.CurrentPage+1)+" / "+target.PageCount : switches ? (selected>=first && selected<first+target.SlotCount ? "Switch "+(selected+1)+" · " : "Switches ")+ (first+1)+"–"+Math.Min(first+target.SlotCount,count) :
                     (selected>=first && selected<first+target.SlotCount ? "Assign slot "+(selected-first+1)+" · " : "Toolbar · ")+"Page "+(target.CurrentPage+1)+" / "+target.PageCount;
                 label.TextScale=.65f;
                 label.Position=toolbar.ToolbarGrid.GetPositionAbsoluteTopLeft()-screen.GetPosition()-new Vector2(0,.017f);
                 label.OriginAlign=MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER; }
+            if(layout!=null) toolbar.ToolbarGrid.MaxItemCount=layout.Pages[target.CurrentPage].Controls.Length;
             if(selected>=0) toolbar.ToolbarGrid.SelectedIndex=selected>=first && selected<first+target.SlotCount ? (int?)(selected-first) : null;
             for(int i=0;i<target.SlotCount;i++)
-                if(first+i>=count)
+                if(Control(first+i)<0)
                 {
                     var item=toolbar.ToolbarGrid.GetItemAt(i);
                     if(item==null) toolbar.ToolbarGrid.SetItemAt(i,new MyGuiGridItem((string[])null,null,"",null) { Enabled=false });
@@ -102,14 +107,18 @@ namespace SpaceEngineersVR.GUI
             if(ship) { sourcePage=(sourcePage+source.PageCount+direction)%source.PageCount; FillSource(); }
             else
             {
-                int pages=(count+target.SlotCount-1)/target.SlotCount;
+                pendingClick=null; heldItem=-1; dropSlot=dropPage=-1;
+                clickMenu?.Deactivate(); clickMenu=null;
+                Field<MyGuiControlContextMenu>("m_onDropContextMenu")?.Deactivate();
+                toolbar.HideContextMenu();
+                int pages=layout?.Pages.Length ?? (count+target.SlotCount-1)/target.SlotCount;
                 target.SwitchToPage((target.CurrentPage+pages+direction)%pages);
                 Update();
             }
         }
         private void AddPaging(MyGuiControlGrid grid,bool ship)
         {
-            int pages=ship ? source.PageCount : (count+target.SlotCount-1)/target.SlotCount;
+            int pages=ship ? source.PageCount : layout?.Pages.Length ?? (count+target.SlotCount-1)/target.SlotCount;
             if(pages<2) return;
             var topLeft=grid.GetPositionAbsoluteTopLeft()-screen.GetPosition();
             var size=grid.ItemSize*.82f;
@@ -129,7 +138,7 @@ namespace SpaceEngineersVR.GUI
         }
         private void FillSource()
         {
-            sourceLabel.Text="Ship toolbar "+(sourcePage+1)+" · drag to a switch";
+            sourceLabel.Text="Ship toolbar "+(sourcePage+1)+" · drag to assign";
             for(int i=0;i<source.SlotCount;i++)
             {
                 var item=source.GetItemAtIndex(sourcePage*source.SlotCount+i);
@@ -148,9 +157,15 @@ namespace SpaceEngineersVR.GUI
         internal static MyDragAndDropEventArgs DoubleClickDrop(MyGuiScreenToolbarConfigBase screen,MyGuiControlGrid grid,MyGuiGridItem item,int itemIndex)
         {
             var c=current;
-            if(c==null || c.screen!=screen || c.toolbar==null || c.selected<0 || c.selected>=c.count ||
+            if(c==null || c.screen!=screen || c.toolbar==null || c.Control(c.selected)<0 ||
                 !ReferenceEquals(MyToolbarComponent.CurrentToolbar,c.target) || c.toolbar.IsToolbarGrid(grid)) return null;
             int slot=c.selected-c.target.CurrentPage*c.target.SlotCount;
+            if(c.layout!=null && (slot<0 || slot>=c.target.SlotCount))
+            {
+                slot=-1;
+                for(int i=0;i<c.layout.Pages[c.target.CurrentPage].Controls.Length;i++)
+                    if(c.target.GetSlotItem(i)==null) { slot=i; break; }
+            }
             if(slot<0 || slot>=c.target.SlotCount || item?.Enabled!=true) return null;
             return new MyDragAndDropEventArgs { Item=item,DragFrom=new MyDragAndDropInfo {Grid=grid,ItemIndex=itemIndex},
                 DropTo=new MyDragAndDropInfo {Grid=c.toolbar.ToolbarGrid,ItemIndex=slot} };
@@ -158,22 +173,29 @@ namespace SpaceEngineersVR.GUI
         internal static bool HandleDoubleClick(MyGuiScreenToolbarConfigBase screen,MyGuiControlGrid grid,MyGuiControlGrid.EventArgs args)
         {
             var drop=DoubleClickDrop(screen,grid,grid.TryGetItemAt(args.RowIndex,args.ColumnIndex),args.ItemIndex);
-            if(drop==null) return false;
+            if(drop==null) return current?.screen==screen && current.layout!=null && current.toolbar!=null && ReferenceEquals(MyToolbarComponent.CurrentToolbar,current.target) && !current.toolbar.IsToolbarGrid(grid);
             // The catalog still owns the second press and can reclaim focus on release.
             current.pendingClick=drop;
+            current.pendingPage=current.target.CurrentPage;
             return true;
         }
         internal static bool HandleInput(MyGuiScreenToolbarConfigBase screen)
         {
             var c=current;
             if(c==null || c.screen!=screen) return false;
+            if(c.dropPage>=0 && c.dropPage!=c.target.CurrentPage)
+            {
+                c.pendingClick=null; c.clickMenu?.Deactivate(); c.clickMenu=null;
+                c.Field<MyGuiControlContextMenu>("m_onDropContextMenu")?.Deactivate();
+                c.dropSlot=c.dropPage=-1;
+            }
             if(c.pendingClick==null && c.clickMenu==null) c.HoldToAssign(DateTime.UtcNow);
             else c.heldItem=-1;
             if(c.pendingClick!=null)
             {
                 if(MyInput.Static.IsPrimaryButtonPressed()) return true;
                 var drop=c.pendingClick; c.pendingClick=null;
-                if(DoubleClickDrop(screen,drop.DragFrom.Grid,drop.Item,drop.DragFrom.ItemIndex)==null) return true;
+                if(c.pendingPage!=c.target.CurrentPage || DoubleClickDrop(screen,drop.DragFrom.Grid,drop.Item,drop.DragFrom.ItemIndex)==null) return true;
                 nativeDrop.Invoke(screen,new object[] {drop.DragFrom.Grid,drop});
                 var menu=c.Field<MyGuiControlContextMenu>("m_onDropContextMenu");
                 if(menu?.Enabled==true)
@@ -227,14 +249,15 @@ namespace SpaceEngineersVR.GUI
             if(c==null || c.screen!=screen) return false;
             bool target=args.DropTo!=null && c.toolbar.IsToolbarGrid(args.DropTo.Grid);
             int index=target ? c.target.SlotToIndex(args.DropTo.ItemIndex) : -1;
-            c.dropSlot=index;
-            if(target && index>=c.count) return true;
+            c.dropSlot=c.Control(index); c.dropPage=target ? c.target.CurrentPage:-1;
+            if(target && (c.dropSlot<0 || !ReferenceEquals(MyToolbarComponent.CurrentToolbar,c.target))) return true;
             if(c.sourceGrid==null) return false;
             if(args.DropTo?.Grid==c.sourceGrid) return true;
             if(args.DragFrom?.Grid!=c.sourceGrid) return false;
             if(target && index>=0 && args.Item.UserData is MyToolbarItem item && item.AllowedInToolbarType(MyToolbarType.ButtonPanel))
             {
-                var copy=MyToolbarItemFactory.CreateToolbarItem(item.GetObjectBuilder());
+                var data=item.GetObjectBuilder();
+                var copy=data==null ? null:MyToolbarItemFactory.CreateToolbarItem(data);
                 if(copy!=null) c.target.SetItemAtIndex(index,copy);
             }
             return true;
@@ -247,6 +270,27 @@ namespace SpaceEngineersVR.GUI
             if(c==null || c.screen!=screen || !c.switches || c.dropSlot<0 || item==null || menu!=c.Field<MyGuiControlContextMenu>("m_onDropContextMenu")) return false;
             int slot=c.dropSlot;
             filled=Fill(menu,item.PossibleActions(c.target.ToolbarType),id=>CockpitActions.Compatible(slot,item,id));
+            return true;
+        }
+        internal static bool Assign(MyToolbarItem item,int slot,string action=null)
+        {
+            var c=current;
+            if(c?.layout==null || !ReferenceEquals(MyToolbarComponent.CurrentToolbar,c.target)) return false;
+            int index=c.target.SlotToIndex(slot),control=c.Control(index);
+            if(slot<0 || slot>=c.target.SlotCount || control<0) return true;
+            var actions=item as MyToolbarItemActions;
+            string previous=actions?.ActionId;
+            if(action!=null && actions!=null) actions.ActionId=action;
+            Action<bool> commit=success=> {
+                if(!success || current!=c || !ReferenceEquals(MyToolbarComponent.CurrentToolbar,c.target) || c.target.SlotToIndex(slot)!=index)
+                { if(action!=null && actions!=null) actions.ActionId=previous; return; }
+                c.target.SetItemAtIndex(index,item);
+            };
+            // Physical controls may intentionally share an action; native hotbar deduplication would clear another control.
+            if(item==null) commit(true);
+            else if(actions!=null && CockpitActions.Analog(control,actions))
+            { Multiplayer.AnalogControl.DefaultParameters(item,actions.ActionId); commit(true); }
+            else MyGuiScreenToolbarConfigBase.RequestItemParameters(item,commit);
             return true;
         }
         // Compatible actions first with the VR icon in place of the action icon; native order is kept within each group.

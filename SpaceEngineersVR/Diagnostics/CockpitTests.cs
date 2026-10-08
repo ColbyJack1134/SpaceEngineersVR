@@ -66,6 +66,16 @@ namespace SpaceEngineersVR.Diagnostics
                 Near(move,new Vector3(0,1,-1),"Strong tilt must reach full thrust; thumb must lift");
                 Require(rotate==new Vector2(0,5) && roll==0,"Thumb yaw sign or scale");
             }
+            foreach(float horizontal in new[] {-1f,0f,1f})
+            foreach(float vertical in new[] {-1f,0f,1f})
+            {
+                Vector3 move=Vector3.Zero; Vector2 rotate=Vector2.Zero; float roll=0;
+                CockpitStickMath.ApplyFlight(true,true,new Vector3(.5f,0,-1),Vector3.Zero,vertical,.5f,10,.6f,
+                    ref move,ref rotate,ref roll,thumbHorizontal:horizontal);
+                Near(move,new Vector3(MathHelper.Clamp(.25f+horizontal,-1,1),vertical,-1),"Held translation joystick thumb axes conflict");
+                Require(rotate==new Vector2(0,5) && roll==0,"Translation thumb changed yaw or roll");
+            }
+            log("PASS held translation joystick: both thumb axes add lateral and vertical thrust with clamping; forward thrust, yaw and roll remain independent.");
             foreach (bool l in new[] {false,true})
             foreach (bool r in new[] {false,true})
             {

@@ -11,7 +11,7 @@ namespace SpaceEngineersVR.Player
 {
     internal static class MenuKeyboard
     {
-        private static MyGuiControlTextbox target;
+        private static MyGuiControlBase target;
         private static MyGuiScreenBase screen;
         private static Func<bool> valid;
         private static Action closed;
@@ -22,8 +22,32 @@ namespace SpaceEngineersVR.Player
         private static bool shift;
         private static DateTime navigateAfter;
         public static int Selected { get; private set; }
-        public static string Preview => target==null ? "" : Hotkeys ? HotkeyInput.Status : target.Type==MyGuiControlTextboxType.Password ? new string('*',target.Text.Length) :
-            target.Text.Insert(Math.Min(target.Text.Length,target.CarriagePositionIndex),"|");
+        public static string Preview => target==null ? "" : Hotkeys ? HotkeyInput.Status : TextPreview(target);
+        internal static string TextPreview(MyGuiControlBase control)
+        {
+            string text=control is MyGuiControlTextbox box ? box.Text:((MyGuiControlMultilineEditableText)control).Text.ToString();
+            if(control is MyGuiControlTextbox password && password.Type==MyGuiControlTextboxType.Password) return new string('*',text.Length);
+            int caret=control is MyGuiControlTextbox single ? single.CarriagePositionIndex:(int)CockpitRender.Member(control,"CarriagePositionIndex");
+            caret=Math.Max(0,Math.Min(text.Length,caret));
+            if(control is MyGuiControlMultilineEditableText)
+            {
+                int start=caret>0 ? text.LastIndexOf('\n',caret-1)+1:0;
+                int end=text.IndexOf('\n',caret); if(end<0) end=text.Length;
+                start=Math.Max(start,caret-32); end=Math.Min(end,caret+32);
+                text=text.Substring(start,end-start); caret-=start;
+            }
+            return text.Insert(caret,"|");
+        }
+        internal static void Insert(MyGuiControlBase control,char value)
+        {
+            if(control is MyGuiControlTextbox box) box.InsertChar(true,value);
+            else if(control is MyGuiControlMultilineEditableText editor) editor.InsertChar(true,value);
+        }
+        internal static void Backspace(MyGuiControlBase control)
+        {
+            if(control is MyGuiControlTextbox box) box.KeypressBackspace(true);
+            else if(control is MyGuiControlMultilineEditableText editor) editor.KeypressBackspace(true);
+        }
         public static SurfaceKey[] Keys { get; private set; }=MakeKeys(false);
         internal static SurfaceKey[] MakeHotkeys()
         {
@@ -44,15 +68,16 @@ namespace SpaceEngineersVR.Player
                     if(cluster[row,col]!=null) keys.Add(new SurfaceKey(cluster[row,col],nav+col*navStep,.335f+row*.13f,.068f,height));
             return keys.ToArray();
         }
-        internal static SurfaceKey[] MakeKeys(bool caps,string done="DONE")
+        internal static SurfaceKey[] MakeKeys(bool caps,string done="DONE",bool multiline=false)
         {
             var keys=new System.Collections.Generic.List<SurfaceKey>();
             string[] rows=caps ? new[] { "!@#$%^&*()","QWERTYUIOP","ASDFGHJKL:","ZXCVBNM<>?" } : new[] { "1234567890","qwertyuiop","asdfghjkl;","zxcvbnm,./" };
             for(int row=0;row<rows.Length;row++)
                 for(int col=0;col<rows[row].Length;col++) keys.Add(new SurfaceKey(rows[row][col].ToString(),.025f+col*.095f,.28f+row*.125f,.085f,.108f));
-            keys.AddRange(new[] { new SurfaceKey(caps ? "⇧ 123" : "⇧ #@",.025f,.79f,.14f,.115f),new SurfaceKey("SPACE",.18f,.79f,.25f,.115f),
+            keys.AddRange(new[] { new SurfaceKey(caps ? "⇧ 123" : "⇧ #@",.025f,.79f,.14f,.115f),new SurfaceKey("SPACE",.18f,.79f,multiline ? .115f:.25f,.115f),
                 new SurfaceKey("'",.445f,.79f,.08f,.115f),new SurfaceKey("-",.54f,.79f,.08f,.115f),
                 new SurfaceKey("BKSP",.635f,.79f,.155f,.115f),new SurfaceKey(done,.805f,.79f,.17f,.115f) });
+            if(multiline) keys.Add(new SurfaceKey("ENTER",.31f,.79f,.115f,.115f));
             foreach(var key in keys)
             {
                 var b=key.Bounds;
@@ -76,14 +101,15 @@ namespace SpaceEngineersVR.Player
             }
             switch(label)
             {
-                case "⇧ 123": case "⇧ #@": shift=!shift; Keys=MakeKeys(shift,done); break;
-                case "BKSP": target.KeypressBackspace(true); break;
+                case "⇧ 123": case "⇧ #@": shift=!shift; Keys=MakeKeys(shift,done,target is MyGuiControlMultilineEditableText); break;
+                case "BKSP": Backspace(target); break;
                 case "DONE": Close(); break;
                 case "SEND":
-                    var chat=screen; var box=target;
+                    var chat=screen; var box=target as MyGuiControlTextbox;
                     Close(); VrChat.Send(chat,box); break;
-                case "SPACE": target.InsertChar(true,' '); break;
-                default: target.InsertChar(true,label[0]); break;
+                case "SPACE": Insert(target,' '); break;
+                case "ENTER": Insert(target,'\n'); break;
+                default: Insert(target,label[0]); break;
             }
         }
 
@@ -97,6 +123,14 @@ namespace SpaceEngineersVR.Player
                 textbox=current.Controls.OfType<MyGuiControlSearchBox>().FirstOrDefault(s=>s.Visible && s.Enabled)?.TextBox;
             return textbox!=null && textbox.Enabled && textbox.Visible ? textbox : null;
         }
+
+        internal static MyGuiControlBase EditTarget(MyGuiScreenBase current)
+        {
+            if(current?.FocusedControl is MyGuiControlMultilineEditableText editor)
+                return editor.Enabled && editor.Visible && editor.Selectable ? editor:null;
+            return TextTarget(current);
+        }
+        internal static bool TextHovered(MyGuiScreenBase current) => EditTarget(current)?.IsMouseOver==true;
 
         private static bool TargetValid() => screen==VRGUIManager.TopScreen && (valid?.Invoke() ?? true);
         internal static void Open(string text,Action<string> changed,Func<bool> isValid,Action onClosed)
@@ -129,11 +163,11 @@ namespace SpaceEngineersVR.Player
             if(IsOpen) { if(reposition) FloatingKeyboard.Show(true); return; }
             if(!FloatingKeyboard.Available || !Player.Headset.pose.isTracked) return;
             var current=VRGUIManager.TopScreen;
-            var textbox=TextTarget(current);
+            var textbox=EditTarget(current);
             if(textbox==null) return;
             current.FocusedControl=textbox;
             screen=current; target=textbox; Selected=0;
-            done=VrChat.IsChat(current) ? "SEND":"DONE"; Keys=MakeKeys(false,done);
+            done=VrChat.IsChat(current) ? "SEND":"DONE"; Keys=MakeKeys(false,done,target is MyGuiControlMultilineEditableText);
             FloatingKeyboard.Show(reposition,FloatingMenu.Current?.Pose.Translation);
             MenuPointer.Release(); Controls.Static.BlockUntilRelease();
         }

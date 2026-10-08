@@ -1,4 +1,9 @@
 using System;
+using System.Collections.Generic;
+using Sandbox.Game.Screens.Helpers;
+using Sandbox.ModAPI.Interfaces;
+using VRage.Collections;
+using VRage.Game;
 using System.Runtime.Remoting.Messaging;
 using System.Runtime.Remoting.Proxies;
 using Sandbox.ModAPI.Ingame;
@@ -9,6 +14,13 @@ namespace SpaceEngineersVR.Diagnostics
 {
     internal static class AnalogControlTests
     {
+        private sealed class ParameterItem : MyToolbarItemTerminalBlock, IUserCustomizableTerminalAction
+        {
+            internal Sandbox.ModAPI.IMyTerminalBlock Owner;
+            internal readonly List<Sandbox.Game.Gui.ITerminalAction> Actions=new List<Sandbox.Game.Gui.ITerminalAction>();
+            public override ListReader<Sandbox.Game.Gui.ITerminalAction> AllActions => Actions;
+            IMyTerminalBlock IUserCustomizableTerminalAction.GetBlock() => Owner;
+        }
         private sealed class Actuator : RealProxy
         {
             internal float Min,Max,Position,Velocity,Override;
@@ -94,6 +106,42 @@ namespace SpaceEngineersVR.Diagnostics
         }
         internal static void RunNative(Action<string> log)
         {
+            var piston=(Sandbox.Game.Entities.Blocks.MyPistonBase)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.Blocks.MyPistonBase));
+            piston.SlimBlock=(Sandbox.Game.Entities.Cube.MySlimBlock)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.Cube.MySlimBlock));
+            piston.SlimBlock.BlockDefinition=new Sandbox.Definitions.MyPistonBaseDefinition {MaxVelocity=2};
+            HarmonyLib.AccessTools.Field(piston.GetType(),"m_currentPos").SetValue(piston,3.25f);
+            var move=new Sandbox.Game.Gui.MyTerminalAction<Sandbox.Game.Entities.Blocks.MyPistonBase>("SetAndMove",new System.Text.StringBuilder("Move"),"");
+            move.ParameterDefinitions.Add(TerminalActionParameter.Get(""));
+            move.ParameterDefinitions.Add(TerminalActionParameter.Get(""));
+            var fresh=new ParameterItem {Owner=piston,ActionId="SetAndMove"}; fresh.Actions.Add(move);
+            AnalogControl.DefaultParameters(fresh,fresh.ActionId);
+            Require(fresh.Parameters.Count==2 && (float)fresh.Parameters[0].Value==3.25f && (float)fresh.Parameters[1].Value==2,
+                "Fresh analog assignment omitted native position/speed defaults");
+            var terminal=(MyToolbarItemTerminalBlock)MyToolbarItemFactory.CreateToolbarItem(new Sandbox.Common.ObjectBuilders.MyObjectBuilder_ToolbarItemTerminalBlock {BlockEntityId=987654322,_Action="SetAndMove"});
+            foreach(var parameter in fresh.Parameters) terminal.Parameters.Add(parameter);
+            var copied=(MyToolbarItemTerminalBlock)HarmonyLib.AccessTools.Method(typeof(Player.CockpitAssignmentToolbar),"Copy").Invoke(null,new object[] {terminal});
+            Require(copied.Parameters.Count==2 && (float)copied.Parameters[1].Value==2,"Assignment copy lost initialized movement parameters");
+            terminal.Parameters[1]=TerminalActionParameter.Get(0f);
+            Require((float)copied.Parameters[1].Value==2,"Assignment copy shared mutable movement parameters");
+            var rotor=(Sandbox.Game.Entities.Cube.MyMotorStator)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.Cube.MyMotorStator));
+            rotor.SlimBlock=(Sandbox.Game.Entities.Cube.MySlimBlock)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.Cube.MySlimBlock));
+            rotor.SlimBlock.CubeGrid=(Sandbox.Game.Entities.MyCubeGrid)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.MyCubeGrid));
+            HarmonyLib.AccessTools.Field(rotor.GetType(),"m_currentAngle").SetValue(rotor,MathHelper.PiOver2);
+            var rotate=new Sandbox.Game.Gui.MyTerminalAction<Sandbox.Game.Entities.Cube.MyMotorStator>("RotateToAngle",new System.Text.StringBuilder("Rotate"),"");
+            for(int i=0;i<3;i++) rotate.ParameterDefinitions.Add(TerminalActionParameter.Get(""));
+            var freshRotor=new ParameterItem {Owner=rotor,ActionId="RotateToAngle"}; freshRotor.Actions.Add(rotate);
+            var environment=Sandbox.Game.World.MySector.EnvironmentDefinition;
+            try
+            {
+                Sandbox.Game.World.MySector.EnvironmentDefinition=new Sandbox.Definitions.MyEnvironmentDefinition();
+                HarmonyLib.AccessTools.Field(typeof(Sandbox.Definitions.MyEnvironmentDefinition),"m_largeShipMaxAngularSpeedInRadians").SetValue(Sandbox.Game.World.MySector.EnvironmentDefinition,MathHelper.Pi);
+                AnalogControl.DefaultParameters(freshRotor,freshRotor.ActionId);
+            }
+            finally { Sandbox.Game.World.MySector.EnvironmentDefinition=environment; }
+            Require(freshRotor.Parameters.Count==3 && Math.Abs((float)freshRotor.Parameters[0].Value-90)<.001f &&
+                (float)freshRotor.Parameters[1].Value>0 && (long)freshRotor.Parameters[2].Value==(long)MyRotationDirection.AUTO,
+                "Fresh rotor assignment omitted angle, speed or automatic direction");
+            log("PASS native fresh analog assignment: empty parameter lists initialized from native definitions, actual piston position/rotor angle/full speed, automatic direction and independent serialized parameter copy.");
             float scalar=10;
             var slider=new Sandbox.Game.Gui.MyTerminalControlSlider<Sandbox.Game.Entities.Blocks.MyPistonBase>("Range",VRage.Utils.MyStringId.NullOrEmpty,VRage.Utils.MyStringId.NullOrEmpty);
             slider.SetLogLimits(1,1000); slider.Getter=_=>scalar; slider.Setter=(_,value)=>scalar=value;

@@ -155,7 +155,7 @@ namespace SpaceEngineersVR.Player
         }
         internal static float Trigger(Controller hand) => CockpitTouch.HoldingBar(hand) || LadderClimb.Holding(hand) ? 1 : (hand==Player.HandL ? Controls.Static.LeftTriggerPressure:Controls.Static.PointerPressure).RawPosition.X;
         private static bool RequiresPointing(Controller hand) => Main.MenuOpen || MenuKeyboard.IsOpen || CockpitTouch.Attached(hand) ||
-            TouchScreenBridge.PointingFor(hand) || FloatingWindows.PointingFor(hand) || HandInteraction.PointingFor(hand) ||
+            TouchScreenBridge.PoseFor(hand) || ArthurLcdBridge.PoseFor(hand) || FloatingWindows.PointingFor(hand) || HandInteraction.PointingFor(hand) ||
             (hand==Player.HandL ? CockpitTouch.LeftPointing:CockpitTouch.RightPointing || SpatialUi.Pointing || BlockInspection.Current!=null);
         private static bool FreeFingers(MyCharacter character,Controller hand) => !ThirdPersonView.Active && character.CurrentWeapon==null &&
             !CockpitControls.Held(hand) && !RequiresPointing(hand);

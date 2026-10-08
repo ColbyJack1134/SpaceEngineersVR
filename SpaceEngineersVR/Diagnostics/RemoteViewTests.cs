@@ -87,6 +87,30 @@ namespace SpaceEngineersVR.Diagnostics
             var home=Entity<MyCockpit>(); var remote=Entity<MyRemoteControl>();
             var camera=Entity<MyCameraBlock>(); var alternate=Entity<MyCameraBlock>();
             var turret=(MyLargeTurretBase)FormatterServices.GetUninitializedObject(typeof(MyTurretControlBlock).Assembly.GetTypes().First(t=>!t.IsAbstract && typeof(MyLargeTurretBase).IsAssignableFrom(t))); var custom=Entity<MyTurretControlBlock>();
+            foreach(object target in new object[] {remote,turret,custom,camera})
+            {
+                string action=target is MyCameraBlock ? "View":"Control";
+                Require(CockpitSwitchState.ViewBlock(target) && CockpitSwitchState.ViewAction(action,target) &&
+                    !CockpitSwitchState.ViewAction("OnOff",target),"View/control switch classification or VR action ranking differs from supported blocks");
+                Require(CockpitSwitchState.ViewActive(target,target,camera) &&
+                    !CockpitSwitchState.ViewActive(target,home,alternate),"View/control switch does not follow actual ownership");
+            }
+            Require(CockpitSwitchState.ViewActive(remote,remote,camera) && CockpitSwitchState.ViewActive(camera,remote,camera) &&
+                !CockpitSwitchState.ViewActive(turret,remote,camera),"Remote camera nesting lights an unrelated control switch");
+            var definition=Entity<Sandbox.Definitions.MyCubeBlockDefinition>();
+            definition.Id=new VRage.Game.MyDefinitionId(typeof(VRage.Game.MyObjectBuilder_CubeBlock),"SwitchWeaponFixture");
+            var weapon=Entity<Sandbox.Game.Screens.Helpers.MyToolbarItemWeapon>();
+            weapon.Definition=definition;
+            var guns=Entity<Sandbox.Game.GameSystems.MyGridSelectionSystem>();
+            home.GridSelectionSystem=guns;
+            Set(guns,"m_gunId",definition.Id);
+            Require(CockpitSwitchState.WeaponState(weapon,home,out bool weaponActive) && weaponActive,"Selected native weapon does not raise its switch");
+            Set(guns,"m_gunId",new VRage.Game.MyDefinitionId(typeof(VRage.Game.MyObjectBuilder_CubeBlock),"OtherWeaponFixture"));
+            Require(CockpitSwitchState.WeaponState(weapon,home,out weaponActive) && !weaponActive,"Selecting another native weapon leaves the old switch up");
+            Set(guns,"m_gunId",null);
+            Require(CockpitSwitchState.WeaponState(weapon,home,out weaponActive) && !weaponActive &&
+                CockpitSwitchState.WeaponState(weapon,null,out weaponActive) && !weaponActive,"Cleared selection or absent ship controller leaves a weapon switch up");
+            log("PASS view/control switch ownership for cameras, remote controls and both turret types; native weapon selection follows selected, replaced and cleared gun IDs.");
             Set(remote,"m_previousControlledEntity",home);
             Set(camera,"<IsWorking>k__BackingField",true); Set(alternate,"<IsWorking>k__BackingField",true);
             Set(turret,"<IsWorking>k__BackingField",true);

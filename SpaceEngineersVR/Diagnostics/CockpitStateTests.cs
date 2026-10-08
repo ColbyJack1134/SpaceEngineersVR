@@ -27,9 +27,60 @@ namespace SpaceEngineersVR.Diagnostics
                 return new ReturnMessage(result,null,0,call.LogicalCallContext,call);
             }
         }
+        private sealed class Battery : RealProxy
+        {
+            internal ChargeMode Mode,Requested;
+            internal int Requests;
+            internal Battery() : base(typeof(IMyBatteryBlock)) { }
+            public override IMessage Invoke(IMessage message)
+            {
+                var call=(IMethodCallMessage)message; object result=null;
+                switch(call.MethodName)
+                {
+                    case "get_ChargeMode": result=Mode; break;
+                    case "set_ChargeMode": Requested=(ChargeMode)call.Args[0]; Requests++; break;
+                    default: throw new Exception("Unexpected battery call: "+call.MethodName);
+                }
+                return new ReturnMessage(result,null,0,call.LogicalCallContext,call);
+            }
+        }
+        private static void Batteries(Action<string> log)
+        {
+            var battery=new Battery(); var block=(IMyBatteryBlock)battery.GetTransparentProxy();
+            foreach(string id in new[] {"Recharge","Discharge"})
+            foreach(string suffix in new[] {"","_On","_Off"})
+            foreach(ChargeMode current in new[] {ChargeMode.Auto,ChargeMode.Recharge,ChargeMode.Discharge})
+            foreach(bool on in new[] {false,true})
+            {
+                string action=id+suffix;
+                ChargeMode target=id=="Recharge" ? ChargeMode.Recharge:ChargeMode.Discharge;
+                battery.Mode=current; battery.Requests=0;
+                Require(CockpitSwitchState.BatteryAction(block,action) &&
+                    CockpitSwitchState.ReadValue(block,null,action)==(current==target ? 1:0),"Battery switch does not observe its selected mode");
+                CockpitSwitchState.SetValue(block,null,on,action);
+                bool change=on ? current!=target:current==target;
+                Require(battery.Requests==(change ? 1:0) && (!change || battery.Requested==(on ? target:ChargeMode.Auto)) &&
+                    battery.Mode==current && CockpitSwitchState.ReadValue(block,null,action)==(current==target ? 1:0),
+                    "Battery switch repeats a request, clears a different mode or invents confirmation");
+            }
+            Require(!CockpitSwitchState.BatteryAction(block,"Auto") && !CockpitSwitchState.BatteryAction(block,"OnOff"),"Battery mapping consumes unrelated actions");
+            var other=new Battery {Mode=ChargeMode.Discharge};
+            battery.Mode=ChargeMode.Recharge;
+            var group=new[] {block,(IMyBatteryBlock)other.GetTransparentProxy()};
+            var values=new Sandbox.ModAPI.Interfaces.ITerminalProperty<bool>[2];
+            Require(CockpitSwitchState.ReadValues(group,values,"Recharge")==.5f &&
+                CockpitSwitchState.ReadValues(group,values,"Discharge")==.5f,"Mixed battery modes lose the middle state");
+            CockpitSwitchState.SetValue(block,null,false,"Discharge");
+            Require(battery.Mode==ChargeMode.Recharge,"Inactive discharge changes recharge");
+            other.Mode=ChargeMode.Recharge;
+            Require(CockpitSwitchState.ReadValues(group,values,"Recharge")==1 &&
+                CockpitSwitchState.ReadValues(group,values,"Discharge")==0,"Matching battery groups show conflicting active modes");
+            log("PASS battery switch modes: Auto/Recharge/Discharge, both directions, all action variants, inactive-mode safety, observed confirmation and mixed groups.");
+        }
         private static void Require(bool value,string reason) { if(!value) throw new Exception(reason); }
         internal static void Run(Action<string> log)
         {
+            Batteries(log);
             var connector=new Connector(); var block=(IMyShipConnector)connector.GetTransparentProxy();
             connector.Status=MyShipConnectorStatus.Connectable;
             Require(CockpitSwitchState.ReadValue(block,null)==.5f,"Ready connector is not centered");

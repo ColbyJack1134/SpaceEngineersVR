@@ -24,13 +24,17 @@ namespace SpaceEngineersVR.Player
         private static bool expanded,wristDirect,wristHoverFeedback;
         private static readonly RenderRecovery recovery=new RenderRecovery("Physical UI");
         private static bool failed => recovery.Failed;
-        public static bool OwnsRight => wristTouch.Consumed || FlightSettings.WindowCaptured;
+        public static bool OwnsRight => wristTouch.Consumed || seatRayPress.Held || FlightSettings.WindowCaptured;
         internal static bool ContentCaptured => wristTouch.Committed;
         internal static bool WristInUse => fold>0 || wristTouch.Surface!=null;
         public static bool RayTargeted { get; private set; }
         public static bool Available => !failed;
         private static int wristHover=-1,wristPressed=-1,seatHover=-1,seatPressed=-1;
         private static float fold;
+        private static readonly InteractionPress seatRayPress=new InteractionPress();
+        private static int seatRayKey=-1;
+        private static float seatRayDistance;
+        private static bool seatRayTargeted;
         private static object wristOwner;
         private static SurfaceKey heldKey;
         private static DateTime lastUpdate;
@@ -55,7 +59,7 @@ namespace SpaceEngineersVR.Player
             MySession.Static?.LocalCharacter?.JetpackComp?.TurnedOn==true,EssentialHud.Current);
         public static void ReleaseInput()
         {
-            wristTouch.Reset(); CockpitTouch.Reset(); Pointing=RayTargeted=wristHoverFeedback=false; rayPressedKey=null;
+            wristTouch.Reset(); seatRayPress.Block(); seatRayTargeted=false; CockpitTouch.Reset(); Pointing=RayTargeted=wristHoverFeedback=false; rayPressedKey=null;
             FloatingKeyboard.ReleaseInput();
             wristHover=wristPressed=seatHover=seatPressed=-1;
             current=new SurfaceView[0];
@@ -71,7 +75,7 @@ namespace SpaceEngineersVR.Player
             FlightSettings.Check();
             if(failed || !Player.Headset.pose.isTracked || !Player.HandR.pose.isTracked || !Player.HandL.pose.isTracked ||
                 (!InputRouter.Gameplay && InputRouter.Mode!=InputMode.Menu))
-            { current=new SurfaceView[0]; wristTouch.Reset(); CockpitTouch.Reset(); wrist=wristMenu=seat=null; Pointing=RayTargeted=wristHoverFeedback=false; return; }
+            { current=new SurfaceView[0]; wristTouch.Reset(); seatRayPress.Block(); seatRayTargeted=false; CockpitTouch.Reset(); wrist=wristMenu=seat=null; Pointing=RayTargeted=wristHoverFeedback=false; return; }
             var now=DateTime.UtcNow;
             float dt=(float)Math.Min(.05,Math.Max(0,(now-lastUpdate).TotalSeconds)); lastUpdate=now;
             fold=MathHelper.Clamp(fold+(expanded ? 1 : -1)*dt*4,0,1);
@@ -134,10 +138,32 @@ namespace SpaceEngineersVR.Player
             {
                 var input=CockpitTouch.Read("Seat");
                 int clicked=input.Pressed ? input.Held : -1;
+                var actor=input.Actor;
                 seatHover=input.Hover; seatPressed=input.Held;
-                if(clicked>=0) CockpitFeedback.Click(input.Actor);
-                if(!(wristTouch.Committed && heldKey?.SeatControl>=0)) SeatPanel.UpdateInput(clicked>=0 ? seat.Keys[clicked].SeatControl:-1,input.Held>=0 ? seat.Keys[input.Held].SeatControl:-1);
+                bool firing=c.Primary.IsPressed && !c.Primary.HasPressed && !seatRayPress.Held;
+                bool rayFree=!firing && !RayTargeted && !CockpitControls.Held(Player.HandR) && !CockpitTouch.OwnsRight && !FloatingWindows.OwnsInput &&
+                    !wristTouch.Consumed && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.OwnsInput &&
+                    !WeaponHandling.ConsumesLeftGrip && !Main.MenuOpen;
+                int rayKey=-1;
+                seatRayTargeted=rayFree && Vector3D.Dot(seat.Pose.Backward,DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation-seat.Pose.Translation)>.015 &&
+                    WristRayTarget(new[] {seat},world,3,out rayKey,out seatRayDistance)!=null &&
+                    HandInteraction.ObstacleDistance(world,seatRayDistance)+.005f>=seatRayDistance;
+                if(input.Hover>=0) seatRayTargeted=false;
+                if(!seatRayTargeted || rayKey!=seatRayKey) seatRayPress.Block();
+                seatRayKey=rayKey;
+                var rayInput=InteractionInput.Read(Player.HandR,false);
+                seatRayPress.Update(seatRayTargeted && rayKey>=0,rayInput);
+                if(seatRayTargeted)
+                {
+                    seatHover=rayKey;
+                    if(rayInput.Down) rayInput.Consume();
+                    if(seatRayPress.Held) seatPressed=rayKey;
+                    if(seatRayPress.Pressed) { clicked=rayKey; actor=Player.HandR; }
+                }
+                if(clicked>=0) CockpitFeedback.Click(actor);
+                if(!(wristTouch.Committed && heldKey?.SeatControl>=0)) SeatPanel.UpdateInput(clicked>=0 ? seat.Keys[clicked].SeatControl:-1,seatPressed>=0 ? seat.Keys[seatPressed].SeatControl:-1);
             }
+            else { seatRayPress.Block(); seatRayTargeted=false; }
             // A touch owns its input while the finger is on a surface, preventing tool use.
             if(wristTouch.Consumed) InteractionInput.Read(Player.HandR,wristDirect).Consume();
             if(seatPressed>=0 || (wristHover>=0 && trigger)) c.Primary.BlockUntilRelease();
@@ -350,7 +376,7 @@ namespace SpaceEngineersVR.Player
             if(!s.TrackingSpace) return s;
             return s.At((s.HandLocal.HasValue ? s.HandLocal.Value*Player.HandL.RenderGripTracking:s.Pose)*(trackingToWorld ?? MatrixD.Identity));
         }
-        private static SurfaceView RaySurface(MatrixD aim,float distance) => new SurfaceView {
+        internal static SurfaceView RaySurface(MatrixD aim,float distance) => new SurfaceView {
             Id="WristRay",Style=SurfaceStyle.Pointer,Width=.002f,Height=distance,
             Pose=MatrixD.CreateWorld(aim.Translation+aim.Forward*distance*.5,aim.Forward,aim.Up) };
         internal static void DrawFloating(Texture2D target,MatrixD view,MatrixD projection,SurfaceView[] frame)
@@ -393,6 +419,9 @@ namespace SpaceEngineersVR.Player
                         surfaces=surfaces.Concat(new[] {ray}).ToArray();
                     }
                 }
+                if(!tracking && pointing && seatRayTargeted && !CockpitTouch.OwnsRight &&
+                    (HandInteraction.ShowRay(controls.PointerPressure.RawPosition.X,false) || controls.Primary.RawPressed))
+                    surfaces=surfaces.Concat(new[] {RaySurface(aim,seatRayDistance)}).ToArray();
                 PhysicalSurface.Draw(target,surfaces,view,projection,tracking && !trackingToWorld.HasValue ? MenuHands.Depth : PhysicalSurface.SceneDepth());
                 recovery.Succeeded();
             }

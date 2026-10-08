@@ -147,6 +147,13 @@ namespace SpaceEngineersVR.Diagnostics
                         Enabled=Enumerable.Repeat(true,9).ToArray(),SubIcons=new string[9],ItemText=new string[9],Selected=0 };
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
                     Save(wheel.Texture,Path.Combine(output,"wheel-actions-preview.png"));
+                    var blockChoices=BlockActions.Choices(VRage.Game.Entity.UseObject.UseActionEnum.Manipulate|VRage.Game.Entity.UseObject.UseActionEnum.OpenTerminal,true,_=>true,_=>{});
+                    var blockPages=BlockActions.Pages(blockChoices,BlockVariants.Pages(Array.Empty<ActionChoice>(),GameActions.WheelActions(false,false,false)));
+                    var blockPage=blockPages[0];
+                    model.Title="Block actions 1 / "+blockPages.Length; model.Pages=blockPages.Length; model.Selected=1;
+                    model.Labels=blockPage.Select(a=>a?.Label ?? "").ToArray(); model.Icons=blockPage.Select(a=>a==null ? Array.Empty<string>():new[] {a.Icon}).ToArray();
+                    model.Enabled=blockPage.Select(a=>a!=null).ToArray();
+                    Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"wheel-block-actions.png"));
                     foreach(var entry in new[] { Tuple.Create("third-person",false,true,true),Tuple.Create("cockpit-building",true,true,true),Tuple.Create("cockpit-first",false,true,false),Tuple.Create("building",true,false,false),Tuple.Create("blueprint",true,false,false),Tuple.Create("character",false,false,false),Tuple.Create("jetpack",false,false,false) })
                     {
                         var choices=entry.Item1=="blueprint" ? GameActions.ClipboardActions():GameActions.WheelActions(entry.Item2,entry.Item3,entry.Item4,entry.Item1=="jetpack");
@@ -399,6 +406,13 @@ namespace SpaceEngineersVR.Diagnostics
                 Save(scene.Texture,Path.Combine(output,"keyboard-3d-preview.png"));
                 using(var bitmap=new Bitmap(Path.Combine(output,"keyboard-3d-preview.png")))
                     if(bitmap.GetPixel(512,320).R==7) throw new Exception("Keyboard hidden with clear controller depth");
+                keyboard.Keys=MenuKeyboard.MakeKeys(false,multiline:true); keyboard.Text="LCD prompt|";
+                PhysicalSurface.Paint(canvas,keyboard); canvas.Upload(); Save(canvas.Texture,Path.Combine(output,"keyboard-multiline-preview.png"));
+                keyboard.Height=keyboard.Width*KeyboardWindow.Aspect;
+                scene.Clear(System.Drawing.Color.FromArgb(255,7,12,18)); scene.Upload();
+                PhysicalSurface.Draw(scene.Texture,new[] {keyboard},MatrixD.Identity,projection,srv);
+                Save(scene.Texture,Path.Combine(output,"keyboard-multiline-3d.png"));
+                keyboard.Text="reactor|";
                 keyboard.Keys=MenuKeyboard.MakeKeys(true);
                 PhysicalSurface.Paint(canvas,keyboard); canvas.Upload(); Save(canvas.Texture,Path.Combine(output,"keyboard-symbols-preview.png"));
                 keyboard.Keys=MenuKeyboard.MakeHotkeys(); keyboard.Text="Ctrl+";

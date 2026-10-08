@@ -81,11 +81,7 @@ namespace SpaceEngineersVR.Player
             if(checkTextFocus)
             {
                 checkTextFocus=false;
-                var focused=Components.VRGUIManager.TopScreen?.FocusedControl;
-                // A grid/category click may leave the search box focused. Require
-                // the pointer to have actually reached the text field as well.
-                if((focused is Sandbox.Graphics.GUI.MyGuiControlTextbox box && box.IsMouseOver) ||
-                    (focused is MyGuiControlSearchBox search && search.TextBox.IsMouseOver))
+                if(MenuKeyboard.TextHovered(Components.VRGUIManager.TopScreen))
                     MenuKeyboard.Open();
             }
             var controls = Controls.Static;

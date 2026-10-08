@@ -217,7 +217,7 @@ namespace SpaceEngineersVR.Player
                 var input=InteractionInput.Read(hand,true);
                 bool flying=i==0 ? c.ThrustRotate.RawPosition.LengthSquared()>.04f :
                     c.ThrustLRUD.RawPosition.LengthSquared()>.04f || c.ThrustLRFB.RawPosition.LengthSquared()>.04f;
-                bool free=available && !CockpitControls.Held(hand) && !HelmetHud.Consumes(hand) &&
+                bool free=available && !ArthurLcdBridge.Owns(hand) && !CockpitControls.Held(hand) && !HelmetHud.Consumes(hand) &&
                     (i!=0 || !FloatingWindows.OwnsInput && !SpatialUi.OwnsRight && !TouchScreenBridge.OwnsInput);
                 h.Change=-1;
                 if(!free)

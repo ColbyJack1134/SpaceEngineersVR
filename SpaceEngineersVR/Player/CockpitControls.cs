@@ -205,13 +205,13 @@ namespace SpaceEngineersVR.Player
                 CockpitFeedback.Hover(Player.HandR);
             leftNear=available && NearDistance(true,leftDistance);
             rightNear=available && NearDistance(false,rightDistance);
-            if (left.Update(available && !CockpitTouch.Owns(Player.HandL),leftDown,leftNear,true,Common.Config.TapHoldSticks && !Adjusting,Multiplayer.MultiplayerRuntime.Now))
+            if (left.Update(available && !CockpitTouch.Owns(Player.HandL) && !ArthurLcdBridge.Owns(Player.HandL),leftDown,leftNear,true,Common.Config.TapHoldSticks && !Adjusting,Multiplayer.MultiplayerRuntime.Now))
             {
                 grabLeft=DateTime.UtcNow; leftDetent.Sample(false,Vector3.Zero,grabLeft);
                 leftStartOffset=placement.Left;
                 leftNeutral=l; BlockGrip(true); Player.HandL.Vibrate(0,0.055f,110,0.5f);
             }
-            if (right.Update(available && !CockpitTouch.OwnsRight,rightDown,rightNear,true,Common.Config.TapHoldSticks && !Adjusting,Multiplayer.MultiplayerRuntime.Now))
+            if (right.Update(available && !CockpitTouch.OwnsRight && !ArthurLcdBridge.Owns(Player.HandR),rightDown,rightNear,true,Common.Config.TapHoldSticks && !Adjusting,Multiplayer.MultiplayerRuntime.Now))
             {
                 grabRight=DateTime.UtcNow; rightDetent.Sample(false,Vector3.Zero,grabRight);
                 rightStartOffset=placement.Right;
@@ -295,7 +295,8 @@ namespace SpaceEngineersVR.Player
             bool singleLeft=Rig!=null && Rig.Right==null;
             if(right.Consumed || singleLeft && left.Consumed)
                 aim=new Vector2(CockpitStickMath.Response(rotation.X,tuning.RotationCurve),CockpitStickMath.Response(rotation.Z,tuning.RotationCurve))*speed;
-            if(left.Consumed && !singleLeft) zoom=translation.Z;
+            if(OwnsRightThumb) zoom=-Controls.Static.ThrustRotate.Position.Y;
+            else if(left.Consumed && !singleLeft) zoom=0;
         }
         public static void ApplyFlight(float speed,ref Vector3 move,ref Vector2 rotate,ref float roll)
         {
@@ -309,7 +310,7 @@ namespace SpaceEngineersVR.Player
             bool singleLeft=Rig!=null && Rig.Right==null;
             var c=Controls.Static;
             CockpitStickMath.ApplyFlight(left.Consumed && !singleLeft,right.Consumed || singleLeft && left.Consumed,left.Held ? translation : Vector3.Zero,right.Held || singleLeft && left.Held ? rotation : Vector3.Zero,
-                left.Held && !singleLeft ? c.ThrustLRFB.Position.Y : 0,OwnsRightThumb ? c.ThrustRotate.Position.X : 0,speed,Common.Config.ShipRollSensitivity,ref move,ref rotate,ref roll,tuning.RotationCurve,tuning.TranslationCurve);
+                left.Held && !singleLeft ? c.ThrustLRFB.Position.Y : 0,OwnsRightThumb ? c.ThrustRotate.Position.X : 0,speed,Common.Config.ShipRollSensitivity,ref move,ref rotate,ref roll,tuning.RotationCurve,tuning.TranslationCurve,left.Held && !singleLeft ? c.ThrustLRFB.Position.X:0);
         }
         public static void Draw()
         {

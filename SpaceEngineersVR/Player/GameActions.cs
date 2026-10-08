@@ -283,7 +283,7 @@ namespace SpaceEngineersVR.Player
                 MySession.Static?.ControlledEntity==MySession.Static?.LocalCharacter;
             bool flight=InputRouter.Flying && InputRouter.Gameplay && !RemoteView.Turret;
             bool alternate=character && InputRouter.Flying &&
-                (c.ThrustRoll.RawPressed || c.RightGripPressure.RawPosition.X>.55f);
+                !ArthurLcdBridge.Owns(Player.HandR) && (c.ThrustRoll.RawPressed || c.RightGripPressure.RawPosition.X>.55f);
             var now=DateTime.UtcNow;
             if(jumpHold.Update(character || flight,jump.HasPressed,jump.IsPressed,now,character,alternate)) { dampenerTap.Reset(); Execute(JetpackAction); }
             else if(flight && jumpHold.Tapped && jumpHold.Alternate) { dampenerTap.Reset(); Execute(RelativeDampeners); }
@@ -294,11 +294,12 @@ namespace SpaceEngineersVR.Player
                 else if(taps==2) Execute(RelativeDampeners);
             }
             HandInteraction.UpdateLeftUse();
-            if (c.Interact.HasPressed && !PlacementControls.Painting || c.Terminal.HasPressed || c.Inventory.HasPressed)
+            bool interact=c.Interact.HasPressed && !ArthurLcdBridge.Owns(Player.HandR);
+            if (interact && !PlacementControls.Painting || c.Terminal.HasPressed || c.Inventory.HasPressed)
                 HandInteraction.RefreshTarget();
             if (c.Reload.HasPressed) NativeActions.Pulse(MyControlsSpace.RELOAD);
-            if (c.Interact.HasPressed && RemoteView.Active) { RemoteView.Exit(); InputRouter.Update(); return; }
-            if (c.Interact.HasPressed && !PlacementControls.Painting)
+            if (interact && RemoteView.Active) { RemoteView.Exit(); InputRouter.Update(); return; }
+            if (interact && !PlacementControls.Painting)
             {
                 if (!HandInteraction.TryInteract()) { MySession.Static.ControlledEntity?.Use(); HandInteraction.Feedback(); }
                 InputRouter.Update();

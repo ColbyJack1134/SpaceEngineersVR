@@ -10,6 +10,24 @@ namespace SpaceEngineersVR.Diagnostics
         private static void Require(bool value,string label) { if(!value) throw new Exception(label); }
         public static void Run(Action<string> log)
         {
+            var supported=VRage.Game.Entity.UseObject.UseActionEnum.Manipulate|VRage.Game.Entity.UseObject.UseActionEnum.OpenTerminal|VRage.Game.Entity.UseObject.UseActionEnum.OpenInventory;
+            var used=new System.Collections.Generic.List<VRage.Game.Entity.UseObject.UseActionEnum>();
+            bool blockAvailable=true;
+            var blockActions=BlockActions.Choices(supported,true,_=>blockAvailable,action=>used.Add(action));
+            Require(blockActions.Select(a=>a.Label).SequenceEqual(new[] {"Edit text","Control panel","Block inventory"}),"LCD native actions missing or in the wrong order");
+            foreach(var action in blockActions) action.Run();
+            Require(used.SequenceEqual(new[] {VRage.Game.Entity.UseObject.UseActionEnum.Manipulate,VRage.Game.Entity.UseObject.UseActionEnum.OpenTerminal,VRage.Game.Entity.UseObject.UseActionEnum.OpenInventory}),"Block choices invoked a different native action");
+            blockAvailable=false;
+            foreach(var action in blockActions) { Require(!action.Enabled,"Unavailable captured block action stayed enabled"); action.Run(); }
+            Require(used.Count==3,"Lost block access executed a captured action");
+            Require(BlockActions.Choices(VRage.Game.Entity.UseObject.UseActionEnum.OpenTerminal,false,_=>true,_=>{}).Single().Label=="Control panel","Unsupported native actions leaked into block page");
+            var personal=BlockVariants.Pages(Array.Empty<ActionChoice>(),GameActions.WheelActions(false,false,false));
+            var capturedPages=BlockActions.Pages(blockActions,personal);
+            Require(capturedPages[0].Where(a=>a!=null).SequenceEqual(blockActions) && capturedPages.Skip(1).SequenceEqual(personal),"Captured block actions mixed with personal pages or changed their order");
+            Require(BlockActions.Pages(Array.Empty<ActionChoice>(),personal).SequenceEqual(personal),"Empty target added a blank block page");
+            var future=BlockActions.Pages(Enumerable.Range(0,12).Select(i=>new ActionChoice("Block "+i,()=>{})).ToArray(),personal);
+            Require(future.Length==personal.Length+2 && future.All(p=>p.Length==9) && future[1].Count(a=>a!=null)==3,"Extended block actions overflowed native radial pages");
+            log("PASS captured block actions: supported native use/terminal/inventory dispatch, access-loss rejection, fixed first page, personal-page order, no-target fallback and multi-page growth.");
             foreach(var context in new[] {
                 new[] {false,false,false,false},new[] {false,false,false,true},new[] {true,false,false,false},
                 new[] {true,false,false,true},new[] {false,true,false,false},new[] {false,true,true,false},new[] {true,false,true,false},new[] {false,false,true,false},new[] {true,true,false,false},new[] {true,true,true,false},new[] {true,false,true,true},new[] {false,false,true,true} })

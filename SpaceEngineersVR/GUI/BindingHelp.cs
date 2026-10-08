@@ -28,6 +28,7 @@ namespace SpaceEngineersVR.GUI
             lines.Add("TOOLBAR: hold B, select with LEFT stick, release B to use. Center cancels.");
             lines.Add("Left trigger: previous page. Right trigger: next page. A: assign in G menu.");
             lines.Add("QUICK ACTIONS: hold Y, select with RIGHT stick, release Y to use.");
+            lines.Add("Point with the right hand before holding Y: block actions open first. Triggers page to your quick actions; the target stays fixed.");
             lines.Add("After the Y ring opens, X opens inventory. B cancels the ring.");
             lines.Add("Building: Y opens variants first. Left/right triggers page to more variants and actions. Right grip + X changes size.");
             lines.Add("Tap B closes an open tablet. Search results stay on the tablet; its search field opens the movable physical keyboard.");
@@ -69,12 +70,14 @@ namespace SpaceEngineersVR.GUI
             lines.Add("Hold and move levers/covers. Release early to cancel; a held control stays attached until you let go.");
             lines.Add("Hover a switch and tap B to assign it. Holding B still opens the toolbar.");
             lines.Add("Fighter: 41 switches and pull bar. Control Seat: four assignable keypad controls.");
-            lines.Add("Grip physical sticks: RIGHT tilt pitch/roll, twist/thumbstick yaw. LEFT tilt thrust, twist/thumbstick lift.");
+            lines.Add("Grip physical sticks: RIGHT tilt pitch/roll, twist/thumbstick yaw. LEFT tilt thrust, twist lift; thumbstick left/right and up/down add thrust.");
+            lines.Add("While gripping the rotation stick: right thumbstick up/down zooms the camera or turret.");
+            lines.Add("Interactive LCDs: touch or aim and squeeze trigger. Arthur LCDs: aimed thumbstick up/down scrolls.");
             lines.Add("Single-stick cockpits: stick rotates, right thumbstick yaws; controller translation stays.");
             lines.Add("WHEELS: right trigger drives with nothing selected, left stick steers/reverses, rise brakes.");
             lines.Add("Modeled rover/buggy wheels and speeder handlebars are not interactive. Their seat panel works.");
             lines.Add("Each grab captures neutral. Flight options: physical sticks only in first person.");
-            lines.Add("Seat panel padlock: unlock/move/lock stick placement; reset is available unlocked.");
+            lines.Add("Seat panel: touch or aim and squeeze trigger. Padlock unlocks stick placement.");
             lines.Add("Rifle / launcher: hold left grip near foregrip for two-handed aiming.");
             lines.Add("Reload and developer tools are in Tablet > Search. Tools remain hand-tracked.");
             lines.Add("Release controls after menus, tracking loss, recentering or a changed context.");

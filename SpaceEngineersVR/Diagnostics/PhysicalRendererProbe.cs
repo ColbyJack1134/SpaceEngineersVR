@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
 using System.Linq;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
@@ -117,6 +118,7 @@ namespace SpaceEngineersVR.Diagnostics
         private static AssignmentPreview assignment;
         private static Sandbox.Graphics.GUI.MyGuiScreenBase options;
         private static bool rotationPreviewsSaved;
+        private static bool remoteVisibilityChecked;
         private static readonly Vector3 neutralPaint=new Vector3(0,-.8f,-.13f);
         private static DateTime next,deadline;
         private static volatile string pending;
@@ -174,7 +176,9 @@ namespace SpaceEngineersVR.Diagnostics
                     MenuTests.Run(line=>Logger.Info(line));
                     PlacementTests.RunNativeFixture(line=>Logger.Info(line));
                     NativeIntegrationTests.Run(line=>Logger.Info(line));
+                    ArthurLcdTests.RunNative(line=>Logger.Info(line));
                     AnalogControlTests.RunNative(line=>Logger.Info(line));
+                    CockpitAssignmentTests.RunNative(line=>Logger.Info(line));
                     BuildOrientationTests.RunNative(line=>Logger.Info(line));
                     CockpitHandTests.NativeContacts(line=>Logger.Info(line));
                     native=MyRenderProxy.CreateRenderEntity("SEVR probe interior",CockpitRig.Find(CockpitLayout.Fighter).Model,MatrixD.Identity,MyMeshDrawTechnique.MESH,
@@ -312,7 +316,10 @@ namespace SpaceEngineersVR.Diagnostics
                     if(phase==33) { options=new GUI.BindingHelp(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options); }
                     if(phase==34 || phase==35)
                     {
-                        HarmonyLib.AccessTools.Field(typeof(GUI.BindingHelp),"page").SetValue(options,phase==34 ? 2:3);
+                        var helpLines=(List<string>)HarmonyLib.AccessTools.Field(typeof(GUI.BindingHelp),"lines").GetValue(options);
+                        int cockpitPage=helpLines.FindIndex(line=>line.StartsWith("Grip physical sticks:"))/8;
+                        int blockPage=helpLines.FindIndex(line=>line.StartsWith("Point with the right hand before holding Y:"))/8;
+                        HarmonyLib.AccessTools.Field(typeof(GUI.BindingHelp),"page").SetValue(options,phase==34 ? blockPage:cockpitPage);
                         options.RecreateControls(false);
                     }
                     if(phase==36) { options?.CloseScreenNow(); options=null; }
@@ -453,6 +460,11 @@ namespace SpaceEngineersVR.Diagnostics
             if (!Active || path==null || captured==path || renderError!=null) return;
             try
             {
+                if(phase==3 && !remoteVisibilityChecked)
+                {
+                    CockpitVisibilityTests.RunNative(line=>Logger.Info(line));
+                    remoteVisibilityChecked=true;
+                }
                 var size=Wrappers.MyRender11.Resolution;
                 AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),"SetupCameraMatrices").Invoke(null,new object[] {camera});
                 // Main-menu fixtures have no world environment to initialize material multipliers.
@@ -511,6 +523,25 @@ namespace SpaceEngineersVR.Diagnostics
                         Logger.Info("PASS native HUD retained over 120 camera-only batches and cleared on source change");
                     }
                     MatrixD surfacePose=MatrixD.CreateTranslation(0,-.10,-.5)*MatrixD.Invert(camera.ViewMatrix);
+                    if(phase==24)
+                    {
+                        using(var preview=new Texture2D(physicalTarget.Device,physicalTarget.Description))
+                        {
+                            physicalTarget.Device.ImmediateContext.CopyResource(physicalTarget,preview);
+                            var panel=new SurfaceView {Id="Seat",Title="SEAT",Width=.108f,Height=.120f,Pose=surfacePose,
+                                Keys=SeatPanel.Keys(true,false),Hover=4,Levels=new float[14]};
+                            var from=Vector3D.Transform(new Vector3D(.12,-.12,.20),surfacePose);
+                            var center=panel.Keys[4].Bounds.Center;
+                            var to=Vector3D.Transform(new Vector3D((center.X-.5)*panel.Width,(.5-center.Y)*panel.Height,0),surfacePose);
+                            var pointer=MatrixD.CreateWorld(from,Vector3D.Normalize(to-from),surfacePose.Up);
+                            PhysicalSurface.Draw(preview,new[] {panel,SpatialUi.RaySurface(pointer,(float)Vector3D.Distance(from,to))},
+                                camera.ViewMatrix,camera.ProjectionMatrix,PhysicalSurface.SceneDepth());
+                            SignalTests.WaitIcons();
+                            PhysicalSurface.Draw(preview,new[] {panel,SpatialUi.RaySurface(pointer,(float)Vector3D.Distance(from,to))},
+                                camera.ViewMatrix,camera.ProjectionMatrix,PhysicalSurface.SceneDepth());
+                            UiTests.Save(preview,Path.Combine(output,"seat-panel-ray-native.png"));
+                        }
+                    }
                     PhysicalSurface.Draw(physicalTarget,new[] { new SurfaceView { Id="Physical probe",Title="SEAT FIT",Text="Scene depth probe",Width=.24f,Height=.18f,Pose=surfacePose,
                         Keys=new[] { new SurfaceKey("UP",.08f,.40f,.38f,.35f),new SurfaceKey("DOWN",.54f,.40f,.38f,.35f) } } },camera.ViewMatrix,camera.ProjectionMatrix,PhysicalSurface.SceneDepth());
                     // The main menu has no world lighting. Inspect actual rasterized albedo/depth occlusion.

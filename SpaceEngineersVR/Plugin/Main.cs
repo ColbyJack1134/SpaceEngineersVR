@@ -118,6 +118,7 @@ namespace SpaceEngineersVR.Plugin
             Player.NativeGloves.Reset();
             Player.MenuPointer.Release();
             Player.TouchScreenBridge.Reset();
+            Player.ArthurLcdBridge.Reset();
             Player.CockpitButtons.Reset();
             Player.BodyProximity.Reset();
             Player.TrackedArms.Reset();
@@ -158,6 +159,7 @@ namespace SpaceEngineersVR.Plugin
                     Player.TrackedArms.Reset();
                     Player.CockpitControls.Reset();
                     Player.TouchScreenBridge.Reset();
+                    Player.ArthurLcdBridge.Reset();
                     Player.CockpitButtons.Reset();
                     Player.ThirdPersonView.Reset();
                     Player.NativeGloves.Reset();
@@ -265,10 +267,12 @@ namespace SpaceEngineersVR.Plugin
             Player.RemoteView.Update();
             Player.DesktopWindow.Update();
             Player.TouchScreenBridge.RefreshRegistrations();
+            Player.ArthurLcdBridge.RefreshRegistrations();
             Player.CockpitTouch.BeginFrame();
             Player.CockpitButtons.Update();
             Player.SpatialUi.Update();
             Player.TouchScreenBridge.Update();
+            Player.ArthurLcdBridge.Update();
             Player.HandInteraction.UpdateTouch();
             Player.ThirdPersonView.Update();
             Player.BlockInspection.Update();
@@ -294,6 +298,7 @@ namespace SpaceEngineersVR.Plugin
             }
             if (Player.InputRouter.Gameplay) { if(!Player.WeaponHandling.ToolEquipped) Player.HandInteraction.Update(); Player.CockpitControls.Draw(); }
             Player.TouchScreenBridge.Draw();
+            Player.ArthurLcdBridge.Draw();
             Player.EssentialHud.Update();
             Player.HelmetLight.Publish();
             Player.SpatialUi.Publish();
@@ -327,6 +332,7 @@ namespace SpaceEngineersVR.Plugin
             Player.SpatialUi.Reset();
             Player.NativeGloves.Reset();
             Player.TouchScreenBridge.Reset();
+            Player.ArthurLcdBridge.Reset();
             Player.CockpitButtons.Reset();
             Player.CameraRig.Reset(forgetHeight:true);
             Player.ThirdPersonView.Reset();

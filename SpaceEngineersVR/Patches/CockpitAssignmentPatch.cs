@@ -24,6 +24,16 @@ namespace SpaceEngineersVR.Patches
         private static bool Prefix(MyGuiScreenToolbarConfigBase __instance,MyGuiControlGrid sender,MyGuiControlGrid.EventArgs eventArgs) =>
             !GUI.CockpitAssignment.HandleDoubleClick(__instance,sender,eventArgs);
     }
+    [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),nameof(MyGuiScreenToolbarConfigBase.DropGridItemToToolbar))]
+    internal static class GroupedToolbarDropPatch
+    {
+        private static bool Prefix(MyToolbarItem item,int slot) => !GUI.CockpitAssignment.Assign(item,slot);
+    }
+    [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),nameof(MyGuiScreenToolbarConfigBase.UpdateGridItemByRightClick))]
+    internal static class GroupedToolbarActionPatch
+    {
+        private static bool Prefix(MyToolbarItem item,int slot,string selectedAction) => !GUI.CockpitAssignment.Assign(item,slot,selectedAction);
+    }
     [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),"UpdateContextMenu")]
     internal static class SwitchActionRankPatch
     {
@@ -53,7 +63,7 @@ namespace SpaceEngineersVR.Patches
         // Switches are the pilot's ship controls: offer the ship-only view, control and Jump actions native button panels exclude.
         private static void Prefix(MyToolbarItemTerminalBlock __instance,ref MyToolbarType type)
         {
-            if(type==MyToolbarType.ButtonPanel && CockpitActions.Toolbar!=null && ReferenceEquals(MyToolbarComponent.CurrentToolbar,CockpitActions.Toolbar) &&
+            if(type==MyToolbarType.ButtonPanel && CockpitActions.EditingToolbar(MyToolbarComponent.CurrentToolbar) &&
                 (CockpitSwitchState.ViewBlock(__instance.Block) || __instance.Block is Sandbox.Game.Entities.MyJumpDrive))
                 type=MyToolbarType.Ship;
         }

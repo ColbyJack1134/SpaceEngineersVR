@@ -35,7 +35,10 @@ namespace SpaceEngineersVR.Diagnostics
         private readonly CockpitAssignment assignment;
         private readonly MyGuiScreenToolbarConfigBase owner;
         private readonly bool ordinary;
-        private static int Count => Player.CockpitLayout.MaximumCount;
+        private readonly Player.CockpitAssignmentToolbar grouped;
+        private readonly MyToolbar physical;
+        private readonly int selected;
+        private static int Count => Player.CockpitLayout.Count(Player.CockpitLayout.ControlSeat);
         public override string GetFriendlyName() => "SEVR assignment preview";
         private static void Set(object instance,string field,object value) => AccessTools.Field(instance.GetType(),field).SetValue(instance,value);
         internal AssignmentPreview(bool ordinary=false) : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.95f,.70f))
@@ -49,9 +52,16 @@ namespace SpaceEngineersVR.Diagnostics
             previousComponent=AccessTools.Field(typeof(MyToolbarComponent),"m_instance").GetValue(null);
             if(previousComponent==null) AccessTools.Field(typeof(MyToolbarComponent),"m_instance").SetValue(null,FormatterServices.GetUninitializedObject(typeof(MyToolbarComponent)));
             previous=MyToolbarComponent.CurrentToolbar;
-            target=new MyToolbar(ordinary ? MyToolbarType.Ship:MyToolbarType.ButtonPanel,9,ordinary ? 3:(Count+8)/9);
+            if(ordinary) target=new MyToolbar(MyToolbarType.Ship,9,3);
+            else
+            {
+                physical=new MyToolbar(MyToolbarType.ButtonPanel,9,(Count+8)/9);
+                grouped=new Player.CockpitAssignmentToolbar(physical,Player.CockpitAssignmentLayout.Find(Player.CockpitLayout.ControlSeat));
+                target=grouped.Toolbar;
+            }
+            selected=ordinary ? 10:grouped.Layout.DisplayIndex(58);
             source=ordinary ? null:new MyToolbar(MyToolbarType.Ship,9,3);
-            if(ordinary) target.SwitchToPage(1);
+            target.SwitchToPage(selected/target.SlotCount);
             MyToolbarComponent.CurrentToolbar=target;
             toolbar=new PreviewToolbar(style) { Position=new Vector2(.33f,.20f),OriginAlign=MyGuiDrawAlignEnum.HORISONTAL_RIGHT_AND_VERTICAL_BOTTOM };
             if(!ordinary)
@@ -70,14 +80,14 @@ namespace SpaceEngineersVR.Diagnostics
             Set(owner,"m_dragAndDrop",drag); Controls.Add(drag);
             Controls.Add(new MyGuiControlLabel(new Vector2(-.32f,.10f),text:"Switches") {Name="LabelToolbar"});
             Controls.Add(new MyGuiControlLabel(new Vector2(0,-.23f),text:ordinary ? "Toolbar assignment":"Cockpit assignment",originAlign:MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER));
-            assignment=new CockpitAssignment(owner,target,source,ordinary ? target.SlotCount*target.PageCount:Count,10,switches:!ordinary); assignment.Update();
+            assignment=new CockpitAssignment(owner,target,source,target.SlotCount*target.PageCount,selected,switches:!ordinary,layout:grouped?.Layout); assignment.Update();
             FillArtwork();
         }
         private void FillArtwork()
         {
             string[] art={"GridPowerOn","Dampeners","Handbrake","Light","ToggleConnectors","GridPowerOn","Dampeners","Light","Handbrake"};
             foreach(var grid in Controls.OfType<MyGuiControlGrid>().Concat(new[] {toolbar.ToolbarGrid}))
-                for(int i=0;i<9;i++) if(grid!=toolbar.ToolbarGrid || target.CurrentPage*9+i<Count)
+                for(int i=0;i<Math.Min(9,grid.MaxItemCount);i++)
                     grid.SetItemAt(i,ordinary && target.CurrentPage==1 && i==1 ? null:new MyGuiGridItem(Player.NativeSprites.Hud(art[i]),null,"Action",null));
         }
         internal void VerifyAndPage()
@@ -109,22 +119,35 @@ namespace SpaceEngineersVR.Diagnostics
                 var pixels=MyGuiManager.GetScreenSizeFromNormalizedSize(left.Size);
                 if(Math.Abs(pixels.X-pixels.Y)>2) throw new Exception("Toolbar paging buttons are not square: "+pixels);
             }
-            ((MyGuiControlButton)Controls.GetControlByName("SwitchNextPage")).PressButton();
-            if(target.CurrentPage!=1) throw new Exception("Switch page 2 failed");
+            var forward=(MyGuiControlButton)Controls.GetControlByName("SwitchNextPage");
+            var backward=(MyGuiControlButton)Controls.GetControlByName("SwitchPreviousPage");
+            var fixedForward=forward.GetPositionAbsolute(); var fixedBackward=backward.GetPositionAbsolute();
+            var fixedGrid=toolbar.ToolbarGrid.GetPositionAbsoluteTopLeft();
+            int initial=target.CurrentPage;
+            forward.PressButton();
+            if(target.CurrentPage!=(initial+1)%target.PageCount) throw new Exception("Switch next group failed");
             ((MyGuiControlButton)Controls.GetControlByName("ShipNextPage")).PressButton();
-            if(source.CurrentPage!=0 || target.CurrentPage!=1) throw new Exception("Browsing ship actions changed an actual toolbar page");
-            for(int page=2;page<target.PageCount;page++)
+            if(source.CurrentPage!=0 || target.CurrentPage!=(initial+1)%target.PageCount) throw new Exception("Browsing ship actions changed an actual toolbar page");
+            target.SwitchToPage(0); assignment.Update();
+            for(int page=0;page<target.PageCount;page++)
             {
-                ((MyGuiControlButton)Controls.GetControlByName("SwitchNextPage")).PressButton();
-                if(target.CurrentPage!=page) throw new Exception("Switch page advancement failed");
+                if(target.CurrentPage!=page || toolbar.ToolbarGrid.MaxItemCount!=grouped.Layout.Pages[page].Controls.Length ||
+                    forward.GetPositionAbsolute()!=fixedForward || backward.GetPositionAbsolute()!=fixedBackward ||
+                    toolbar.ToolbarGrid.GetPositionAbsoluteTopLeft()!=fixedGrid) throw new Exception("Group paging moved its arrows or exposed unused slots");
+                if(((System.Collections.Generic.List<MyGuiControlLabel>)AccessTools.Field(typeof(MyGuiControlToolbar),"m_pageLabelList").GetValue(toolbar)).Any(label=>label.Visible))
+                    throw new Exception("Native toolbar refresh restored the obsolete numeric page strip");
+                int used=grouped.Layout.Pages[page].Controls.Length;
+                if(used<9)
+                {
+                    if(toolbar.ToolbarGrid.IsValidIndex(used)) throw new Exception("Hidden group slot can be selected");
+                    var drop=new MyDragAndDropEventArgs { DropTo=new MyDragAndDropInfo {Grid=toolbar.ToolbarGrid,ItemIndex=used} };
+                    if(!CockpitAssignment.HandleDrop(owner,drop)) throw new Exception("Hidden group slot accepts a drop");
+                }
+                forward.PressButton();
             }
-            int used=Count%9;
-            if(used>0 && toolbar.ToolbarGrid.GetItemAt(used)?.Enabled!=false)
-                throw new Exception("Last switch page accepts an out-of-range slot");
-            ((MyGuiControlButton)Controls.GetControlByName("SwitchNextPage")).PressButton();
             if(target.CurrentPage!=0) throw new Exception("Switch page wrap failed");
-            ((MyGuiControlButton)Controls.GetControlByName("SwitchPreviousPage")).PressButton(); FillArtwork();
-            Plugin.Logger.Info("PASS native assignment UI: square buttons, independent page changes, all switch pages, wrap and disabled unused slots.");
+            backward.PressButton(); FillArtwork();
+            Plugin.Logger.Info("PASS native grouped assignment UI: actual Control Seat groups, hidden unused slots/drop rejection, fixed arrows/grid, independent ship browsing, all pages and wrap.");
         }
         private void VerifyDoubleClick()
         {
@@ -133,9 +156,9 @@ namespace SpaceEngineersVR.Diagnostics
             var item=new MyGuiGridItem((string[])null,null,"Assignment",new MyGuiScreenToolbarConfigBase.GridItemUserData {
                 ItemData=()=> {requests++; return new MyObjectBuilder_ToolbarItemEmpty();} });
             grid.SetItemAt(0,item);
-            target.SwitchToPage(1); assignment.Update();
+            target.SwitchToPage(selected/9); assignment.Update();
             var drop=CockpitAssignment.DoubleClickDrop(owner,grid,item,0);
-            if(drop?.DropTo.Grid!=toolbar.ToolbarGrid || drop.DropTo.ItemIndex!=1 || drop.DragFrom.Grid!=grid || drop.Item!=item)
+            if(drop?.DropTo.Grid!=toolbar.ToolbarGrid || drop.DropTo.ItemIndex!=selected%9 || drop.DragFrom.Grid!=grid || drop.Item!=item)
                 throw new Exception("Double-click did not target the highlighted page/slot");
             var click=AccessTools.Method(typeof(MyGuiScreenToolbarConfigBase),"OnGridItemDoubleClicked",new[] {typeof(MyGuiControlGrid),typeof(MyGuiControlGrid.EventArgs),typeof(bool)});
             click.Invoke(owner,new object[] {grid,new MyGuiControlGrid.EventArgs {RowIndex=0,ColumnIndex=0,ItemIndex=0},false});
@@ -149,14 +172,21 @@ namespace SpaceEngineersVR.Diagnostics
             if(CockpitAssignment.DoubleClickDrop(owner,grid,item,0)!=null) throw new Exception("Stale toolbar owner accepted");
             MyToolbarComponent.CurrentToolbar=target;
             target.SwitchToPage(0); assignment.Update();
-            if(CockpitAssignment.DoubleClickDrop(owner,grid,item,0)!=null) throw new Exception("Hidden assignment slot accepted");
+            var otherPage=CockpitAssignment.DoubleClickDrop(owner,grid,item,0);
+            if(ordinary ? otherPage!=null : otherPage?.DropTo.Grid!=toolbar.ToolbarGrid || otherPage.DropTo.ItemIndex!=0)
+                throw new Exception("Other-page assignment did not preserve ordinary rejection or choose the first visible group slot");
             target.SwitchToPage(page); assignment.Update();
-            Plugin.Logger.Info("PASS native double-click assignment: highlighted page/slot, native drop dispatch, disabled/hidden/toolbar/stale-owner rejection and no equipment activation.");
-            AssignmentMenuTests.Run(owner,target,toolbar,assignment,Controls,!ordinary);
+            Plugin.Logger.Info("PASS native double-click assignment: highlighted page/slot, native drop dispatch, other-page group fallback, disabled/toolbar/stale-owner rejection and no equipment activation.");
+            if(!ordinary) AssignmentMenuTests.RunGrouped(owner,target,toolbar,assignment,grouped.Layout,physical,selected);
+            AssignmentMenuTests.Run(owner,target,toolbar,assignment,Controls,!ordinary,selected,ordinary ? (Action)null:()=> {
+                var assigned=physical.GetItemAtIndex(58) as MyToolbarItemTerminalBlock;
+                if(assigned?.BlockEntityId!=987654321 || assigned.ActionId!="IncreaseOverride" || physical.GetItemAtIndex(selected)!=null)
+                    throw new Exception("Native action chooser saved to a display slot instead of the highlighted physical switch");
+            });
         }
         internal void Finish()
         {
-            assignment.Dispose(); toolbar.OnRemoving(); MyToolbarComponent.CurrentToolbar=previous; AccessTools.Field(typeof(MyToolbarComponent),"m_instance").SetValue(null,previousComponent); CloseScreenNow();
+            assignment.Dispose(); toolbar.OnRemoving(); grouped?.Dispose(); MyToolbarComponent.CurrentToolbar=previous; AccessTools.Field(typeof(MyToolbarComponent),"m_instance").SetValue(null,previousComponent); CloseScreenNow();
         }
     }
 }

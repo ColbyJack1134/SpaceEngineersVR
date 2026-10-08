@@ -49,6 +49,7 @@ namespace SpaceEngineersVR.Player
                 var factory=Read(managers,"ModelFactory");
                 if(changed==null) changed=AccessTools.Method(factory.GetType(),"OnLoddingSettingChanged");
                 restore.Insert(0,()=>changed.Invoke(factory,null)); changed.Invoke(factory,null);
+                CockpitRender.RemoteVisibility(restore);
                 Active=true;
             }
             catch { Dispose(); throw; }

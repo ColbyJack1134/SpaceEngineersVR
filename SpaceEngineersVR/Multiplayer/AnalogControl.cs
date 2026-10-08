@@ -128,6 +128,11 @@ namespace SpaceEngineersVR.Multiplayer
             var item=toolbarItem as IUserCustomizableTerminalAction;
             var parameters=item?.Parameters;
             var block=item?.GetBlock();
+            if(parameters!=null && parameters.Count==0 && toolbarItem is MyToolbarItemActions actions)
+            {
+                var definitions=actions.GetCurrentAction()?.GetParameterDefinitions();
+                if(definitions.HasValue) foreach(var parameter in definitions.Value) parameters.Add(parameter);
+            }
             if(action=="SetAndMove" && block is Sandbox.Game.Entities.Blocks.MyPistonBase piston && parameters?.Count>1)
             {
                 parameters[0]=TerminalActionParameter.Get(piston.CurrentPosition);

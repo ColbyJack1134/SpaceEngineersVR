@@ -32,9 +32,9 @@ namespace SpaceEngineersVR.Player
             private static float Endpoint(float input,float smoothed) => input==0 || Math.Abs(input)>=1 ? input:smoothed;
         }
         public static void ApplyFlight(bool ownsTranslation,bool ownsRotation,Vector3 translation,Vector3 rotation,float thumbVertical,float thumbYaw,
-            float speed,float rollSensitivity,ref Vector3 move,ref Vector2 rotate,ref float roll,float exponent=2,float translationExponent=-1)
+            float speed,float rollSensitivity,ref Vector3 move,ref Vector2 rotate,ref float roll,float exponent=2,float translationExponent=-1,float thumbHorizontal=0)
         {
-            if (ownsTranslation) move=Vector3.Clamp(Response(translation,translationExponent<0 ? exponent:translationExponent)+thumbVertical*Vector3.Up,-Vector3.One,Vector3.One);
+            if (ownsTranslation) move=Vector3.Clamp(Response(translation,translationExponent<0 ? exponent:translationExponent)+new Vector3(thumbHorizontal,thumbVertical,0),-Vector3.One,Vector3.One);
             if (!ownsRotation) return;
             Vector3 command=Response(rotation,exponent);
             command.Y=MathHelper.Clamp(command.Y+thumbYaw,-1,1);

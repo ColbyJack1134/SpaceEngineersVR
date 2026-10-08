@@ -120,7 +120,7 @@ namespace SpaceEngineersVR.Player.Components
             var ship=MySession.Static?.ControlledEntity as MyShipController;
             Logger.Info("INPUT ownership: mode="+InputRouter.Mode+"; trigger="+c.Primary.RawPressed+"/"+c.Primary.IsPressed+
                 "; flightActive="+c.ThrustRotate.Active+"; clipboard="+PlacementControls.ClipboardActive+"; adjust="+PlacementControls.Adjusting+
-                "; screen="+TouchScreenBridge.OwnsInput+"; feed="+RemoteView.OwnsInput+"; viewGrab="+ThirdPersonView.Manipulating+
+                "; screen="+(TouchScreenBridge.OwnsInput || ArthurLcdBridge.OwnsInput)+"; arthur="+ArthurLcdBridge.Status+"; feed="+RemoteView.OwnsInput+"; viewGrab="+ThirdPersonView.Manipulating+
                 "; physicalOnly="+Common.Config.PhysicalShipControlsOnly+"; ship="+ship?.EntityId+"; control="+ship?.EnableShipControl+
                 "; sticks="+CockpitControls.Status);
         }
@@ -226,7 +226,7 @@ namespace SpaceEngineersVR.Player.Components
             if (controls.JumpOrClimbUp.HasPressed)
                 ((VRage.Game.ModAPI.Interfaces.IMyControllableEntity)Character).Jump(Vector3.Up);
 
-            bool onFoot=(InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Building) && !TouchScreenBridge.OwnsInput;
+            bool onFoot=(InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Building) && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Player.HandR);
             bool physical=onFoot && !Common.Config.SeatedPlay && !ThirdPersonView.Character && !Character.IsOnLadder && Player.Headset.pose.isTracked;
             if (Crouch.Update(controls.WalkRotate.Active ? controls.WalkRotate.Position : Vector2.Zero,onFoot && controls.WalkRotate.Active,physical,
                 HeadDrop,BodyFit.CrouchDepth(Character),Character.IsCrouching,System.DateTime.UtcNow))
@@ -258,7 +258,7 @@ namespace SpaceEngineersVR.Player.Components
             move = FlightAxes.Translation(controls.ThrustLRUD.Position, controls.ThrustLRFB.Position,
                 ship && !CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) ? 0 : controls.ThrustUp.Position.X, WeaponHandling.ConsumesLeftGrip || ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) ? 0 : ThirdPersonView.Descent(controls.ThrustDown.Position.X), controls.ThrustForward.Position.X, controls.ThrustBackward.Position.X);
             float rollSensitivity = ship ? Common.Config.ShipRollSensitivity : Common.Config.JetpackRoll;
-            FlightAxes.Rotation(controls.ThrustRotate.Position, controls.ThrustRoll.IsPressed && !(ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandR)) && !TouchScreenBridge.OwnsInput && !(WeaponHandling.ToolModifier && controls.Primary.IsPressed), ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
+            FlightAxes.Rotation(controls.ThrustRotate.Position, controls.ThrustRoll.IsPressed && !(ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandR)) && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Player.HandR) && !(WeaponHandling.ToolModifier && controls.Primary.IsPressed), ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
         }
 
         void ApplyMoveAndRotation(Vector3 move, Vector2 rotate, float roll)
@@ -285,17 +285,17 @@ namespace SpaceEngineersVR.Player.Components
             bool turret=RemoteView.Turret;
             bool stickAction=(controlledEntity is MyShipController || turret) && InputRouter.CockpitInteraction && !CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) &&
                 !CockpitControls.Adjusting && !PlacementControls.OwnsTools && !BlockInspection.ConsumesSecondary && !HelmetHud.ProtectsRight &&
-                !TouchScreenBridge.OwnsInput && !FloatingWindows.OwnsInput && Player.HandL.pose.isTracked;
+                !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Player.HandL) && !FloatingWindows.OwnsInput && Player.HandL.pose.isTracked;
             stickSecondary.Update(stickAction && controls.LeftTriggerPressure.Active && controls.LeftTriggerPressure.CanPress,
                 controls.LeftTriggerPressure.RawPosition.X>.55f);
-            bool primaryPressed=!HelmetHud.ProtectsRight && !FloatingWindows.OwnsInput && controls.Primary.IsPressed && !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput;
+            bool primaryPressed=!HelmetHud.ProtectsRight && !FloatingWindows.OwnsInput && controls.Primary.IsPressed && !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Player.HandR);
             bool ship=controlledEntity is MyShipController;
             DriveInput.Throttle(ship && primaryPressed);
             bool gripSecondary=FlightAxes.SecondaryGrip(InputRouter.Flying,ship,CockpitControls.RotationOwned,CockpitControls.NearGrip(Player.HandR),controls.ThrustRotate.RawPosition,turret);
             // Right grip is also the roll modifier, so ships take secondary from a short tap without stick input.
-            bool uiOwnsRight=SpatialUi.OwnsRight || CockpitTouch.OwnsRight || HandInteraction.OwnsRight || FloatingWindows.OwnsInput || TouchScreenBridge.OwnsInput;
+            bool uiOwnsRight=SpatialUi.OwnsRight || CockpitTouch.OwnsRight || HandInteraction.OwnsRight || FloatingWindows.OwnsInput || TouchScreenBridge.OwnsInput || ArthurLcdBridge.Owns(Player.HandR);
             bool gripTap=secondaryTap.Update((ship || turret) && controls.Secondary.IsPressed,(ship || turret) && controls.Secondary.HasReleased,!gripSecondary || uiOwnsRight,System.DateTime.UtcNow);
-            bool secondaryPressed=!HelmetHud.ProtectsRight && (!turret || ShipTargeting.CanLock(controlledEntity)) && !FloatingWindows.OwnsInput && !BlockInspection.ConsumesSecondary && (stickSecondary.Held || (ship || turret ? gripTap && gripSecondary:controls.Secondary.IsPressed && gripSecondary) || controls.Primary.IsPressed && GameActions.AlternateTrigger) && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput;
+            bool secondaryPressed=!HelmetHud.ProtectsRight && (!turret || ShipTargeting.CanLock(controlledEntity)) && !FloatingWindows.OwnsInput && !BlockInspection.ConsumesSecondary && (stickSecondary.Held || (ship || turret ? gripTap && gripSecondary:controls.Secondary.IsPressed && gripSecondary) || controls.Primary.IsPressed && GameActions.AlternateTrigger) && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Player.HandR);
             if(controlledEntity is Sandbox.Game.Entities.Character.MyCharacter character && character.CurrentWeapon==null)
                 secondaryPressed=false;
 

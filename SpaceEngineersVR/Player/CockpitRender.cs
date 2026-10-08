@@ -9,6 +9,7 @@ using Sandbox.Game.Entities;
 using Sandbox.Game.EntityComponents.Renders;
 using SpaceEngineersVR.Plugin;
 using VRage.FileSystem;
+using VRage.Render.Scene;
 using VRageMath;
 using VRageRender;
 using VRageRender.Import;
@@ -21,6 +22,7 @@ namespace SpaceEngineersVR.Player
         internal sealed class Verification
         {
             public readonly uint Interior;
+            public volatile uint Exterior=uint.MaxValue;
             public uint[] Actors=new uint[0];
             public volatile bool NativeHidden;
             public readonly bool[] Verified;
@@ -42,6 +44,7 @@ namespace SpaceEngineersVR.Player
         private static bool failed => recovery.Failed;
         private static Vector3? appliedColor;
         private static DateTime deadline;
+        private static volatile bool remoteInterior;
         public static bool Ready => verification!=null && verification.NativeHidden && Volatile.Read(ref verification.ReadyCount)==verification.Verified.Length && verification.Error==null;
         public static string Status => failed ? "Sticks unavailable: button flight" : Ready ? "Cockpit controls ready" : "Checking cockpit control renderer";
         private static string Name(int i) => "SEVR_Cockpit_"+activeRig.Subtype+"_"+i;
@@ -56,7 +59,7 @@ namespace SpaceEngineersVR.Player
                 foreach(string material in previous.Materials)
                     MyRenderProxy.UpdateModelProperties(previous.Interior,material,RenderFlags.Visible,RenderFlags.Visible|Hidden,null,null);
             }
-            owner=null; activeRig=null; recovery.Clear(); appliedColor=null; feedback.Clear(); screenTextures.Clear();
+            owner=null; activeRig=null; remoteInterior=false; recovery.Clear(); appliedColor=null; feedback.Clear(); screenTextures.Clear();
         }
         public static void Update(MyCockpit cockpit,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3))
         {
@@ -67,8 +70,32 @@ namespace SpaceEngineersVR.Player
             if (render==null || render.RenderObjectIDs.Length<(interior ? 2:1)) return;
             uint model=interior ? render.InteriorRenderId:render.ExteriorRenderId;
             if(model==uint.MaxValue) return;
+            bool remote=RemoteView.UsesSeat(cockpit) && !ThirdPersonView.Active;
+            if(remote!=remoteInterior) { remoteInterior=remote; cockpit.UpdateCockpitModel(); }
             UpdateScene(CockpitRig.Find(cockpit.BlockDefinition.Id.SubtypeName),model,cockpit.WorldMatrix,left,right,leftHeld,rightHeld,leftOffset,rightOffset,colorMask:cockpit.SlimBlock.ColorMaskHSV);
+            if(verification!=null) verification.Exterior=render.ExteriorRenderId;
             SyncScreens(cockpit);
+        }
+        internal static void RemoteVisibility(System.Collections.Generic.List<Action> restore)
+        {
+            var check=verification;
+            if(check==null || !remoteInterior) return;
+            RemoteVisibility(check,restore);
+        }
+        internal static void RemoteVisibility(Verification check,System.Collections.Generic.List<Action> restore)
+        {
+            if(check.Exterior==uint.MaxValue || check.Exterior==check.Interior) return;
+            void Set(uint id,bool visible)
+            {
+                var actor=MyIDTracker<MyActor>.FindByID(id);
+                if(actor==null || actor.IsVisible==visible) return;
+                bool saved=actor.IsVisible;
+                restore.Add(()=> { actor.SetVisibility(saved); actor.UpdateBeforeDraw(); });
+                actor.SetVisibility(visible); actor.UpdateBeforeDraw();
+            }
+            Set(check.Interior,false);
+            foreach(uint id in check.Actors) if(id!=uint.MaxValue) Set(id,false);
+            Set(check.Exterior,true);
         }
         internal static void UpdateScene(CockpitRig rig,uint interior,MatrixD world,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3),float? switchPreview=null,float? coverPreview=null,Vector3? colorMask=null,int previewHover=-1,int previewHeld=-1,bool previewCover=false,bool nativeRest=false,float? barPreview=null,bool? buttonPreview=null,float? throttlePreview=null)
         {
@@ -323,8 +350,18 @@ namespace SpaceEngineersVR.Player
             catch(Exception ex) { check.Error=ex.ToString(); }
         }
         private static readonly ConcurrentDictionary<(Type,string),MemberInfo> members=new ConcurrentDictionary<(Type,string),MemberInfo>();
-        internal static MemberInfo Find(Type type,string name) =>
-            members.GetOrAdd((type,name),key=>(MemberInfo)AccessTools.Field(key.Item1,key.Item2) ?? AccessTools.Property(key.Item1,key.Item2));
+        internal static MemberInfo Find(Type type,string name) => members.GetOrAdd((type,name),key=>
+        {
+            var field=AccessTools.Field(key.Item1,key.Item2);
+            if(field!=null) return field;
+            // A derived property can hide a base property with a different return type.
+            for(var current=key.Item1;current!=null;current=current.BaseType)
+            {
+                var property=current.GetProperty(key.Item2,BindingFlags.Instance|BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.DeclaredOnly);
+                if(property!=null) return property;
+            }
+            return null;
+        });
         internal static object Member(object instance,string name)
         {
             if (instance==null) throw new InvalidOperationException("Missing renderer member "+name);
