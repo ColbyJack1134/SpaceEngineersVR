@@ -77,6 +77,8 @@ namespace SpaceEngineersVR.Config
         public float EyeRenderScale { get => eyeRenderScale; set => SetValue(ref eyeRenderScale,Bound(value,.5f,1.5f,1)); }
         private float remoteFeedScale=5f/6;
         public float RemoteFeedScale { get => remoteFeedScale; set => SetValue(ref remoteFeedScale,Bound(value,.5f,1.5f,5f/6)); }
+        private float particleDensity=.5f;
+        public float ParticleDensity { get => particleDensity; set => SetValue(ref particleDensity,Bound(value,.25f,1,.5f)); }
         private bool invertShipPitch,invertJetpackPitch,hudWithVisorOpen;
         private bool? showVitals;
         private int waypointMode=-1;

@@ -19,6 +19,7 @@ namespace SpaceEngineersVR.Player
         private static DeviceContext context;
         private static IntPtr device;
         private static bool active,pending,failed,thirdPerson,cockpit;
+        private static float particleDensity;
         private static long next,submitted;
         private static VRageMath.Vector2I size;
         internal static int Completed { get; private set; }
@@ -44,6 +45,7 @@ namespace SpaceEngineersVR.Player
                 }
                 Array.Clear(written,0,written.Length);
                 cockpit=EssentialHud.Current?.Piloting==true;
+                particleDensity=Common.Config?.ParticleDensity ?? .5f;
                 thirdPerson=ThirdPersonView.Active;
                 context.Begin(disjoint); active=true; next=now+Stopwatch.Frequency*2;
             }
@@ -85,7 +87,7 @@ namespace SpaceEngineersVR.Player
                 text.Append("post ").Append((written[tone] && written[end] && ticks[end]>=ticks[tone] ? (ticks[end]-ticks[tone])*1000.0/clock.Frequency : double.NaN).ToString("F3"));
                 return text.ToString();
             }
-            Logger.Info($"VR GPU sample: eyes {size.X}x{size.Y}; cockpit {cockpit}; third person {thirdPerson}; native scene L/R {Ms(Area.SceneLeft):F3}/{Ms(Area.SceneRight):F3} ms; world UI L/R {Ms(Area.WorldUiLeft):F3}/{Ms(Area.WorldUiRight):F3} ms; companion {Ms(Area.Companion):F3} ms; remote feed {Ms(Area.RemoteFeed):F3} ms; HUD upload/draw {Ms(Area.Hud):F3} ms");
+            Logger.Info($"VR GPU sample: eyes {size.X}x{size.Y}; cockpit {cockpit}; third person {thirdPerson}; particle density {particleDensity*100:F0}%; native scene L/R {Ms(Area.SceneLeft):F3}/{Ms(Area.SceneRight):F3} ms; world UI L/R {Ms(Area.WorldUiLeft):F3}/{Ms(Area.WorldUiRight):F3} ms; companion {Ms(Area.Companion):F3} ms; remote feed {Ms(Area.RemoteFeed):F3} ms; HUD upload/draw {Ms(Area.Hud):F3} ms");
             Logger.Info($"VR GPU passes left: {Passes(0,Area.SceneLeft)} ms");
             Logger.Info($"VR GPU passes right: {Passes(1,Area.SceneRight)} ms");
         }

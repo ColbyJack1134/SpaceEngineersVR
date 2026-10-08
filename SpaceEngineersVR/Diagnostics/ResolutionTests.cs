@@ -38,14 +38,21 @@ namespace SpaceEngineersVR.Diagnostics
             var serializer=new XmlSerializer(typeof(PluginConfig));
             PluginConfig config;
             using(var reader=new StringReader("<PluginConfig><TrackedArms>false</TrackedArms></PluginConfig>")) config=(PluginConfig)serializer.Deserialize(reader);
-            if(config.EyeRenderScale!=1 || RemoteFeed.Size(config.RemoteFeedScale)!=new Vector2I(1600,900) || !config.MirrorDesktop || config.TrackedArms) throw new Exception("Existing profiles lost their rendering defaults");
+            if(config.EyeRenderScale!=1 || RemoteFeed.Size(config.RemoteFeedScale)!=new Vector2I(1600,900) || config.ParticleDensity!=.5f || !config.MirrorDesktop || config.TrackedArms) throw new Exception("Existing profiles lost their rendering defaults");
             config.EyeRenderScale=.75f;
+            config.ParticleDensity=1;
             using(var writer=new StringWriter())
             {
                 serializer.Serialize(writer,config);
                 using(var reader=new StringReader(writer.ToString())) config=(PluginConfig)serializer.Deserialize(reader);
             }
-            if(config.EyeRenderScale!=.75f || config.TrackedArms) throw new Exception("Render scale persistence changed other options");
+            if(config.EyeRenderScale!=.75f || config.ParticleDensity!=1 || config.TrackedArms) throw new Exception("Render scale persistence changed other options");
+            config.ParticleDensity=float.NaN;
+            if(config.ParticleDensity!=.5f) throw new Exception("Invalid particle density was accepted");
+            config.ParticleDensity=0;
+            if(config.ParticleDensity!=.25f) throw new Exception("Particle density removed all particles");
+            config.ParticleDensity=2;
+            if(config.ParticleDensity!=1) throw new Exception("Particle density exceeded the native emission rate");
             log("PASS independent eye resolution: runtime default, scale/aspect, allocation bounds, letterbox and existing profile persistence");
         }
 

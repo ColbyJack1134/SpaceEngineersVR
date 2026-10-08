@@ -32,17 +32,19 @@ namespace SpaceEngineersVR.GUI
             void RefreshFeed(float scale) { var size=RemoteFeed.Size(scale); feed.Text=$"{size.X} × {size.Y} · 100% is 1920 × 1080"; }
             Slider(-.03f,83,config.RemoteFeedScale,v=> { config.RemoteFeedScale=v; RefreshFeed(v); });
             RefreshFeed(config.RemoteFeedScale);
-            Label(.11f,"Mirror headset on desktop");
-            var mirror=new MyGuiControlCheckbox(new Vector2(.28f,.11f)) { IsChecked=config.MirrorDesktop };
+            Label(.075f,"Particle density (100% restores original)");
+            Slider(.135f,50,config.ParticleDensity,v=>config.ParticleDensity=v,25,100);
+            Label(.205f,"Mirror headset on desktop");
+            var mirror=new MyGuiControlCheckbox(new Vector2(.28f,.205f)) { IsChecked=config.MirrorDesktop };
             mirror.IsCheckedChanged+=c=>config.MirrorDesktop=c.IsChecked; Controls.Add(mirror);
-            Label(.2f,RenderPerformance.Summary,.65f);
+            Label(.285f,RenderPerformance.Summary,.65f);
             Controls.Add(new MyGuiControlButton(new Vector2(-.16f,.36f),text:new StringBuilder("Reset defaults"),onButtonClick:b=> {
-                config.EyeRenderScale=1; config.RemoteFeedScale=5f/6; RecreateControls(false); }));
+                config.EyeRenderScale=1; config.RemoteFeedScale=5f/6; config.ParticleDensity=.5f; RecreateControls(false); }));
             Controls.Add(new MyGuiControlButton(new Vector2(.16f,.36f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
         }
-        private void Slider(float y,float defaultPercent,float value,System.Action<float> changed)
+        private void Slider(float y,float defaultPercent,float value,System.Action<float> changed,float min=50,float max=150)
         {
-            var slider=new MyGuiControlSlider(new Vector2(-.025f,y),minValue:50,maxValue:150,width:.55f,defaultValue:defaultPercent,
+            var slider=new MyGuiControlSlider(new Vector2(-.025f,y),minValue:min,maxValue:max,width:.55f,defaultValue:defaultPercent,
                 labelText:"{0}%",labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=value*100 };
             slider.ValueChanged+=s=>changed(s.Value/100);
             Controls.Add(slider);

@@ -28,6 +28,7 @@ namespace SpaceEngineersVR.Diagnostics
         private static bool RetainEmitter(ref int __result) { __result=1; return false; }
         internal static void RunNative(BorrowedRtvTexture target,Action<string> log)
         {
+            VerifyDensity(log);
             var native=AccessTools.TypeByName("VRageRender.MyGPUParticleRenderer");
             var common=AccessTools.TypeByName("VRageRender.MyCommon");
             var context=MyRender11.DeviceInstance.ImmediateContext;
@@ -139,6 +140,60 @@ namespace SpaceEngineersVR.Diagnostics
                 foreach(var saved in fields) saved.Key.SetValue(null,saved.Value);
                 camera.Restore(savedCamera); StereoRenderState.View=view;
                 config.HiddenAreaMask=mask; config.StableShadows=shadows;
+            }
+        }
+        private static void VerifyDensity(Action<string> log)
+        {
+            var type=AccessTools.TypeByName("VRageRender.MyGPUEmitter");
+            var emitters=AccessTools.TypeByName("VRageRender.MyGPUEmitters");
+            var common=AccessTools.TypeByName("VRageRender.MyCommon");
+            var delta=AccessTools.Field(common,"m_lastFrameTimeDelta");
+            var multiplier=AccessTools.Field(emitters,"<ParticleCountMultiplier>k__BackingField");
+            var active=AccessTools.Field(typeof(StereoRenderState),"<Active>k__BackingField");
+            var failed=AccessTools.Field(typeof(Main),"failed");
+            object savedDelta=delta.GetValue(null),savedMultiplier=multiplier.GetValue(null),savedActive=active.GetValue(null),savedFailed=failed.GetValue(null);
+            float savedDensity=Common.Config.ParticleDensity;
+            int Emit(float rate,float burst,int steps)
+            {
+                var emitter=Activator.CreateInstance(type,BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic,null,new object[] {"SEVR density fixture"},null);
+                AccessTools.Field(type,"BufferIndex").SetValue(emitter,0);
+                var field=AccessTools.Field(type,"EmitterData"); var data=Activator.CreateInstance(field.FieldType);
+                AccessTools.Field(field.FieldType,"ParticlesPerSecond").SetValue(data,rate);
+                AccessTools.Field(field.FieldType,"ParticlesPerFrame").SetValue(data,burst);
+                AccessTools.Field(field.FieldType,"AtlasTexture").SetValue(data,"SEVR density fixture");
+                AccessTools.Field(field.FieldType,"ParentID").SetValue(data,uint.MaxValue);
+                AccessTools.Field(field.FieldType,"DistanceMaxSqr").SetValue(data,float.MaxValue);
+                field.SetValue(emitter,data);
+                var update=AccessTools.Method(type,"Update"); var layout=AccessTools.Field(field.FieldType,"Data").FieldType;
+                int count=0;
+                for(int i=0;i<steps;i++)
+                {
+                    var args=new[] {Activator.CreateInstance(layout)};
+                    update.Invoke(emitter,args);
+                    count+=(int)AccessTools.Field(layout,"NumParticlesToEmitThisFrame").GetValue(args[0]);
+                }
+                return count;
+            }
+            try
+            {
+                delta.SetValue(null,.1f); multiplier.SetValue(null,1f); active.SetValue(null,true);
+                Common.Config.ParticleDensity=1;
+                int original=Emit(100,0,10);
+                Require(original==100,"Native full particle density changed emission");
+                Common.Config.ParticleDensity=.5f;
+                Require(Emit(100,0,10)==50,"Half particle density did not halve native continuous emission");
+                Require(Math.Abs(Emit(3,0,100)-15)<=1,"Reduced low-rate particles lost fractional accumulation");
+                Require(Emit(0,7,10)==7,"Particle density changed burst emission");
+                multiplier.SetValue(null,.25f);
+                Require(Math.Abs(Emit(100,0,10)-12)<=1,"Particle density replaced native quality scaling");
+                multiplier.SetValue(null,1f); failed.SetValue(null,true); active.SetValue(null,false);
+                Require(Emit(100,0,10)==original,"Particle density changed non-VR emission");
+                log("PASS native particle density: original/half rates, fractional accumulation, native quality multiplication, bursts unchanged and non-VR isolation.");
+            }
+            finally
+            {
+                delta.SetValue(null,savedDelta); multiplier.SetValue(null,savedMultiplier); active.SetValue(null,savedActive); failed.SetValue(null,savedFailed);
+                Common.Config.ParticleDensity=savedDensity;
             }
         }
         private static int Counter(UnorderedAccessView uav)
