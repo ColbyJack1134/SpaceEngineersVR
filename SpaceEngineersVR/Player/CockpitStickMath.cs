@@ -66,6 +66,12 @@ namespace SpaceEngineersVR.Player
             float yaw=-(float)Math.Atan2(heading.X,heading.Z);
             return new Vector3(tilt.X,twist ? Axis(yaw*sensitivity/TwistRange,twistDeadzone<0 ? deadzone:twistDeadzone) : 0,tilt.Y);
         }
+        internal static Vector3 SmoothVisual(Vector3 value,Vector3 target,float seconds)
+        {
+            if(!value.IsValid() || !target.IsValid()) return Vector3.Zero;
+            float blend=(float)(1-Math.Exp(-Math.Max(0,seconds)/.025));
+            return Vector3.Lerp(value,target,blend);
+        }
         internal static Vector3 ReturnVisual(Vector3 value,float seconds)
         {
             float step=Math.Max(0,seconds)/.12f;

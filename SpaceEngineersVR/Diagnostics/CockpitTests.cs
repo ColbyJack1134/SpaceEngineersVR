@@ -138,6 +138,19 @@ namespace SpaceEngineersVR.Diagnostics
             Require(smooth.X>0 && smooth.X<.5f,"Smoothing bypassed");
             Near(filter.Update(true,new Vector3(0,1,-1),.01f,.025f),new Vector3(0,1,-1),"Smoothing delays neutral or full travel");
             Near(filter.Update(false,Vector3.One,.01f,.025f),Vector3.Zero,"Smoothing leaks after release");
+            Vector3 VisualAt(int hz)
+            {
+                Vector3 value=Vector3.Zero;
+                for(int i=0;i<hz/12;i++) value=CockpitStickMath.SmoothVisual(value,new Vector3(.5f,-.75f,1),1f/hz);
+                return value;
+            }
+            foreach(int hz in new[] {36,60,120,144})
+                Near(VisualAt(hz),VisualAt(72),"Visual smoothing changes with update rate");
+            Vector3 visual=Vector3.Zero;
+            for(int i=0;i<120;i++) visual=CockpitStickMath.SmoothVisual(visual,new Vector3(.5f+(i%2==0 ? .03f:-.03f)),1f/120);
+            Require(Math.Abs(visual.X-.5f)<.006f,"Visual smoothing retains tracking jitter");
+            Near(CockpitStickMath.SmoothVisual(visual,Vector3.One,0),visual,"Repeated visual refresh advances animation");
+            Near(CockpitStickMath.ReturnVisual(visual,.12f),Vector3.Zero,"Smoothed visual cannot return to center");
             var pulse=new CockpitFeedback.StickPulse(); var now=DateTime.UtcNow;
             Require(pulse.Sample(true,Vector3.Zero,now)==0,"Grab emitted a center pulse");
             Require(pulse.Sample(true,new Vector3(.4f,.4f,0),now.AddMilliseconds(100))==1,"Leaving neutral has no light tick");

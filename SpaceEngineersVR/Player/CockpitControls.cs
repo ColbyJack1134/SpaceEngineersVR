@@ -209,13 +209,13 @@ namespace SpaceEngineersVR.Player
             {
                 grabLeft=DateTime.UtcNow; leftDetent.Sample(false,Vector3.Zero,grabLeft);
                 leftStartOffset=placement.Left;
-                leftNeutral=l; BlockGrip(true); Player.HandL.Vibrate(0,0.055f,110,0.5f);
+                leftNeutral=l; leftAngles=Vector3.Zero; BlockGrip(true); Player.HandL.Vibrate(0,0.055f,110,0.5f);
             }
             if (right.Update(available && !CockpitTouch.OwnsRight && !ArthurLcdBridge.Owns(Player.HandR),rightDown,rightNear,true,Common.Config.TapHoldSticks && !Adjusting,Multiplayer.MultiplayerRuntime.Now))
             {
                 grabRight=DateTime.UtcNow; rightDetent.Sample(false,Vector3.Zero,grabRight);
                 rightStartOffset=placement.Right;
-                rightNeutral=r; BlockGrip(false); Player.HandR.Vibrate(0,0.055f,110,0.5f);
+                rightNeutral=r; rightAngles=Vector3.Zero; BlockGrip(false); Player.HandR.Vibrate(0,0.055f,110,0.5f);
                 if(IsSteering && Rig.Wheel.ThrottleActor>=0)
                 {
                     throttle=new WristKnob.Turn(Rig.Wheel.RightShaft,Rig.Wheel.ThrottleRange,1);
@@ -262,8 +262,8 @@ namespace SpaceEngineersVR.Player
                 feedbackTranslation=translation; feedbackRotation=rotation;
                 translation=leftFilter.Update(left.Held && !Adjusting,translation,dt,tuning.Smoothing);
                 rotation=rightFilter.Update((right.Held || SingleLeft && left.Held) && !Adjusting,rotation,dt,tuning.Smoothing);
-                leftAngles=left.Held && !Adjusting ? CockpitStickMath.Rotation(leftNeutral,l,0,twist,1,Rig.Left.Frame):CockpitStickMath.ReturnVisual(leftAngles,dt);
-                rightAngles=right.Held && !Adjusting ? CockpitStickMath.Rotation(rightNeutral,r,0,twist,1,Rig.Right.Frame):CockpitStickMath.ReturnVisual(rightAngles,dt);
+                leftAngles=left.Held && !Adjusting ? CockpitStickMath.SmoothVisual(leftAngles,CockpitStickMath.Rotation(leftNeutral,l,0,twist,1,Rig.Left.Frame),dt):CockpitStickMath.ReturnVisual(leftAngles,dt);
+                rightAngles=right.Held && !Adjusting ? CockpitStickMath.SmoothVisual(rightAngles,CockpitStickMath.Rotation(rightNeutral,r,0,twist,1,Rig.Right.Frame),dt):CockpitStickMath.ReturnVisual(rightAngles,dt);
             }
             SetVisuals();
             Feedback(Player.HandL,left.Held && !Adjusting,SingleLeft ? feedbackRotation:feedbackTranslation,leftDetent,ref leftPulse);
