@@ -530,6 +530,9 @@ namespace SpaceEngineersVR.Diagnostics
                         if(phase==45) PolishRenderTests.BeginHands(size.X,size.Y);
                         Wrappers.MyRender11.DrawGameScene(target,out ao);
                         if(phase==24) StereoExposureTests.RunNative(target,line=>Logger.Info(line));
+                        if(phase==24) StereoParticleTests.RunNative(target,line=>Logger.Info(line));
+                        if(phase==24) StereoFlareTests.RunNative(target,line=>Logger.Info(line));
+                        if(phase==24) StereoSceneTests.RunNative(target,output,line=>Logger.Info(line));
                     }
                     finally { if (ao!=null) new Wrappers.BorrowedRtvTexture(ao).Release(); }
                     // Exercise the installed engine's depth SRV and our spatial shader in a real scene.

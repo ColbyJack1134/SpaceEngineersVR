@@ -28,7 +28,8 @@ namespace SpaceEngineersVR.Diagnostics
             Initialize(game,Path.Combine(output,"data"));
             MarkerTests.Run(log);
             SignalTests.Run(log);
-            using(var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport)) SignalTests.Render(device,output,log);
+            using(var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport))
+            { SignalTests.Render(device,output,log); StereoSceneTests.RenderMarkers(device,output); }
         }
         public static void Navigation(string game,string output,Action<string> log)
         {

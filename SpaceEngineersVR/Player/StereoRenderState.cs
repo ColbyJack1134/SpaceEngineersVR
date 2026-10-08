@@ -15,6 +15,10 @@ namespace SpaceEngineersVR.Player
         public static long Frame { get; private set; }
         public static bool Active { get; private set; }
         public static int View { get; set; }=-1;
+        internal static bool PhysicalEye => Active && View>=0 && View<=1;
+        internal static bool AdvanceScene => !RemoteScene.Active && (!Active || View==0);
+        internal static double PixelSlopeX { get; private set; }
+        internal static Matrix CenterProjection { get; private set; }
         public static MatrixD CenterView { get; private set; }
         public static Matrix ShadowProjection { get; private set; }
         private static int request,remaining;
@@ -26,16 +30,21 @@ namespace SpaceEngineersVR.Player
         {
             Frame++; Active=true; View=-1; CenterView=center;
             float x=0,y=0;
+            PixelSlopeX=0;
+            var raw=Vector4.Zero;
             foreach(EVREye eye in new[] {EVREye.Eye_Left,EVREye.Eye_Right})
             {
                 float l=0,r=0,t=0,b=0;
                 OpenVR.System.GetProjectionRaw(eye,ref l,ref r,ref t,ref b);
+                PixelSlopeX+=(r-l)/4;
+                raw+=new Vector4(l,r,t,b)*.5f;
                 x=Math.Max(x,Math.Max(Math.Abs(l),Math.Abs(r)));
                 y=Math.Max(y,Math.Max(Math.Abs(t),Math.Abs(b)));
             }
             // A centered, symmetric frustum covers both asymmetric eye frusta.
             // Extra angular margin covers eye separation for nearby shadow casters.
             ShadowProjection=ShadowFrustum(x,y,near,far);
+            CenterProjection=(Matrix)VrMath.Projection(raw.X,raw.Y,raw.Z,raw.W,near,far);
             if(Interlocked.Exchange(ref request,0)!=0)
             {
                 while(trace.TryDequeue(out _)) { }

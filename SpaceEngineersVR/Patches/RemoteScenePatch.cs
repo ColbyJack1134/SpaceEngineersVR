@@ -10,8 +10,6 @@ namespace SpaceEngineersVR.Patches
     {
         private static IEnumerable<MethodBase> TargetMethods()
         {
-            foreach(string name in new[] { "UpdateProbe","UpdateCullQuery","FinalizeEnvProbes" })
-                yield return AccessTools.Method(AccessTools.TypeByName("VRage.Render11.LightingStage.EnvironmentProbe.MyEnvironmentProbe"),name);
             yield return AccessTools.Method(AccessTools.TypeByName("VRage.Render11.Render.MyOffscreenRenderer"),"Render");
             yield return AccessTools.Method(AccessTools.TypeByName("VRage.Render11.Culling.Occlusion.MyOcclusionTask"),"DoWork");
         }

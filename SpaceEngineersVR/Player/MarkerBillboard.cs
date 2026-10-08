@@ -18,12 +18,6 @@ namespace SpaceEngineersVR.Player
             return head;
         }
 
-        internal static bool TryCreate(Vector3D position,MatrixD head,MatrixD view,Vector3D? up,bool faceViewer,out MarkerBillboard billboard)
-        {
-            if(!TryCreate(position,head,up,false,out billboard)) return false;
-            if(faceViewer) billboard.FaceViewer(MatrixD.Invert(view).Translation,up);
-            return true;
-        }
         internal static bool TryCreate(Vector3D position,MatrixD head,Vector3D? up,bool faceViewer,out MarkerBillboard billboard)
         {
             if(!TryCreate(position,up.HasValue ? WithUp(head,up.Value):head,out billboard)) return false;
@@ -59,13 +53,14 @@ namespace SpaceEngineersVR.Player
 
         internal static bool TryCreatePixels(Vector3D position,double width,MatrixD view,MatrixD projection,int viewportWidth,out MarkerBillboard board,Vector3D? up=null,bool faceViewer=false)
         {
-            var eye=MatrixD.Invert(view);
+            var eye=StereoRenderState.PhysicalEye ? WorldMarkers.RenderHead : MatrixD.Invert(view);
             if(up.HasValue) eye=WithUp(eye,up.Value);
             if(!TryCreate(position,eye,out board)) return false;
-            if(faceViewer) board.FaceViewer(eye.Translation,up);
-            double depth=-Vector3D.Transform(position,view).Z;
+            if(faceViewer) board.FaceViewer(eye.Translation,up,eye.Right);
+            double depth=-Vector3D.Transform(position,MatrixD.Invert(eye)).Z;
             if(depth<=.05) return false;
-            board.Scale=2*depth*width/(viewportWidth*projection.M11);
+            double slope=StereoRenderState.PhysicalEye ? StereoRenderState.PixelSlopeX : 1/projection.M11;
+            board.Scale=2*depth*width*slope/viewportWidth;
             return true;
         }
 

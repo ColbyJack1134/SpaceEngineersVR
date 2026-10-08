@@ -270,13 +270,13 @@ float4 PS() : SV_Target { return 0; }";
             failed=true;
         }
 
-        private sealed class Includes : CallbackBase,Include
+        internal sealed class Includes : CallbackBase,Include
         {
             private readonly string root,local;
             public Includes(string root,string local) { this.root=root; this.local=local; }
             public Stream Open(IncludeType type,string fileName,Stream parentStream)
             {
-                string path=Path.Combine(local,fileName);
+                string path=Path.Combine(parentStream is FileStream parent ? Path.GetDirectoryName(parent.Name) : local,fileName);
                 return File.OpenRead(type==IncludeType.Local && File.Exists(path) ? path : Path.Combine(root,fileName));
             }
             public void Close(Stream stream) => stream.Dispose();

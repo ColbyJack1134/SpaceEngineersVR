@@ -54,7 +54,7 @@ namespace SpaceEngineersVR.Player
         internal static void Draw(Texture2D target,View value,MatrixD head,MatrixD view,MatrixD projection,bool faceViewer=false,float hitScale=HitScale)
         {
             if(value==null || !WorldMarkers.Project(value.Position,view,projection,out _) ||
-                !MarkerBillboard.TryCreate(value.Position,head,view,value.Up,faceViewer,out var board)) return;
+                !MarkerBillboard.TryCreate(value.Position,head,value.Up,faceViewer,out var board)) return;
             var glyph=SignalPainter.Atlas(value.Icon,value.Color);
             var extent=value.HalfSize/.02f;
             if(board.Project(new RectangleF(-extent.X/2,-extent.Y/2,extent.X,extent.Y),view,projection,ref glyph))
