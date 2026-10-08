@@ -63,7 +63,7 @@ namespace SpaceEngineersVR.Player
             var image=indicator.GuiControlImage;
             HitControl=image;
             Hit=image.Visible && hitOwner!=0 ? new HitView {Owner=hitOwner,Path=image.BackgroundTexture.Center.Texture,
-                Color=image.ColorMask,Size=image.Size,Time=DateTime.UtcNow}:null;
+                Color=image.ColorMask,Size=Sandbox.Graphics.MyGuiManager.GetScreenSizeFromNormalizedSize(image.Size),Time=DateTime.UtcNow}:null;
         }
         internal static void DrawAmmo(Texture2D target,RemoteView.View view)
         {

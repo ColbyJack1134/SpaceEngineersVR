@@ -10,7 +10,7 @@ namespace SpaceEngineersVR.Player
 {
     internal static class SignalFont
     {
-        private sealed class Glyph {public string Path; public Vector4 UV; public float Width,Height,Advance,Bearing;}
+        private sealed class Glyph {public string Path; public Vector4 UV; public float Width,Height,Advance,Bearing,HeightOffset;}
         private sealed class Face
         {
             public readonly Dictionary<char,Glyph> Glyphs=new Dictionary<char,Glyph>();
@@ -51,7 +51,7 @@ namespace SpaceEngineersVR.Player
                     var origin=((string)e.Attribute("origin")).Split(',').Select(float.Parse).ToArray();
                     face.Glyphs[((string)e.Attribute("ch"))[0]]=new Glyph {Path=folder+(string)bitmap.Attribute("name"),
                         UV=new Vector4(origin[0]/bitmapSize[0],origin[1]/bitmapSize[1],size[0]/bitmapSize[0],size[1]/bitmapSize[1]),
-                        Width=size[0],Height=size[1],Advance=(float)e.Attribute("aw"),Bearing=(float)e.Attribute("lsb")};
+                        Width=size[0],Height=size[1],Advance=(float)e.Attribute("aw"),Bearing=(float)e.Attribute("lsb"),HeightOffset=(float?)e.Attribute("ho") ?? 0};
                 }
                 foreach(var e in root.Element(ns+"kernpairs").Elements()) face.Kerning[(string)e.Attribute("left")+(string)e.Attribute("right")]=(float)e.Attribute("adjust");
             }
@@ -81,7 +81,7 @@ namespace SpaceEngineersVR.Player
             }
             lines.Add(line); return lines.ToArray();
         }
-        internal static void Add(List<NativeSprite> output,string text,float x,float y,float height,float width,Vector4 color,int targetWidth,int targetHeight,bool center=false,float stretch=1,string font=null)
+        internal static void Add(List<NativeSprite> output,string text,float x,float y,float height,float width,Vector4 color,int targetWidth,int targetHeight,bool center=false,float stretch=1,string font=null,float spacing=0,bool nativeGui=false)
         {
             Face face;
             if(font==null) face=Load();
@@ -102,8 +102,10 @@ namespace SpaceEngineersVR.Player
             {
                 if(face.Kerning.TryGetValue(previous.ToString()+c,out float adjust)) x+=adjust*scale*stretch;
                 var glyph=Get(face,c);
-                output.Add(new NativeSprite(glyph.Path,new RectangleF(x+glyph.Bearing*scale*stretch,y,glyph.Width*scale*stretch,glyph.Height*scale),color) {UV=glyph.UV,Premultiplied=font!=null});
-                x+=glyph.Advance*scale*stretch; previous=c;
+                // Native font rendering includes the bearing in its vertical glyph offset.
+                float top=y+(nativeGui ? (glyph.Bearing+glyph.HeightOffset+3.8333333f)*scale:0);
+                output.Add(new NativeSprite(glyph.Path,new RectangleF(x+glyph.Bearing*scale*stretch,top,glyph.Width*scale*stretch,glyph.Height*scale),color) {UV=glyph.UV,Premultiplied=font!=null});
+                x+=(glyph.Advance*scale+spacing)*stretch; previous=c;
             }
         }
     }

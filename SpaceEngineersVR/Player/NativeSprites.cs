@@ -30,12 +30,13 @@ namespace SpaceEngineersVR.Player
         public bool Opaque;
         public bool Premultiplied;
         public bool Sharpen;
+        public bool NativeGui;
         public Vector4 TopLeft, TopRight, BottomLeft, BottomRight;
         public Vector4 Clip0,Clip1,Clip2,Clip3;
         public NativeSprite(string path, RectangleF bounds, Vector4 tint)
         {
             Path=path; Bounds=bounds; Tint=tint; Texture=null; UV=new Vector4(0,0,1,1);
-            EncodeSrgb=false; Opaque=false; Premultiplied=false; Sharpen=false; Projected=IgnoreSceneDepth=false; TopLeft=TopRight=BottomLeft=BottomRight=Vector4.Zero;
+            EncodeSrgb=false; Opaque=false; Premultiplied=false; Sharpen=false; NativeGui=false; Projected=IgnoreSceneDepth=false; TopLeft=TopRight=BottomLeft=BottomRight=Vector4.Zero;
             Clip0=Clip1=Clip2=Clip3=Vector4.Zero; Rounded=Vector2.Zero;
         }
     }
@@ -48,6 +49,7 @@ namespace SpaceEngineersVR.Player
             public Texture2D Texture;
             public ShaderResourceView View;
             public long Used;
+            public bool NativeGui;
         }
         [StructLayout(LayoutKind.Sequential)]
         private struct Parameters { public Vector4 TopLeft, TopRight, BottomLeft, BottomRight, Tint, UV, DepthTest, Clip0, Clip1, Clip2, Clip3; }
@@ -119,19 +121,30 @@ float4 PS(P p):SV_TARGET {
             context=new DeviceContext(device);
         }
 
-        private static ShaderResourceView Get(string path)
+        private static ShaderResourceView Get(string path,bool nativeGui=false)
         {
             if (string.IsNullOrEmpty(path)) return null;
-            if (!icons.TryGetValue(path,out var icon))
+            string key=nativeGui ? path+"|native-gui":path;
+            if (!icons.TryGetValue(key,out var icon))
             {
                 Trim();
                 if (icons.Count>=256) return null;
                 string file=Path.IsPathRooted(path) ? path : Path.Combine(MyFileSystem.ContentPath,path);
-                icon=new Icon { Loading=Task.Run(() => {
-                    try { using (var stream=MyFileSystem.OpenRead(file)) return stream == null ? null : GameImage.Load(stream,file); }
+                icon=new Icon { NativeGui=nativeGui,Loading=Task.Run(() => {
+                    try
+                    {
+                        using (var stream=MyFileSystem.OpenRead(file))
+                        {
+                            if(stream==null) return null;
+                            var image=GameImage.Load(stream,file);
+                            try { if(nativeGui) PrepareGui(image); }
+                            catch { image.Dispose(); throw; }
+                            return image;
+                        }
+                    }
                     catch (Exception ex) { Logger.Warning("Native icon unavailable: "+path+" / "+ex.Message); return null; }
                 }) };
-                icons.Add(path,icon);
+                icons.Add(key,icon);
             }
             icon.Used=++serial;
             return icon.View;
@@ -154,7 +167,7 @@ float4 PS(P p):SV_TARGET {
                             var d=image.Description;
                             if (d.Width>2048 || d.Height>2048 || d.ArraySize!=1 || d.Depth>1) continue;
                             icon.Texture=new Texture2D(device,new Texture2DDescription {
-                                Width=d.Width,Height=d.Height,MipLevels=d.MipLevels,ArraySize=1,Format=d.Format,
+                                Width=d.Width,Height=d.Height,MipLevels=d.MipLevels,ArraySize=1,Format=icon.NativeGui ? GuiFormat(d.Format):d.Format,
                                 SampleDescription=new SampleDescription(1,0),Usage=ResourceUsage.Immutable,BindFlags=BindFlags.ShaderResource },image.ToDataBox());
                             icon.View=new ShaderResourceView(device,icon.Texture);
                         }
@@ -167,6 +180,35 @@ float4 PS(P p):SV_TARGET {
                 }
                 Revision++;
                 break;
+            }
+        }
+
+        private static Format GuiFormat(Format format)
+        {
+            switch(format)
+            {
+                case Format.R8G8B8A8_UNorm: return Format.R8G8B8A8_UNorm_SRgb;
+                case Format.B8G8R8A8_UNorm: return Format.B8G8R8A8_UNorm_SRgb;
+                case Format.BC1_UNorm: return Format.BC1_UNorm_SRgb;
+                case Format.BC2_UNorm: return Format.BC2_UNorm_SRgb;
+                case Format.BC3_UNorm: return Format.BC3_UNorm_SRgb;
+                case Format.BC7_UNorm: return Format.BC7_UNorm_SRgb;
+                default: return format;
+            }
+        }
+        private static void PrepareGui(GameImage image)
+        {
+            var format=image.Description.Format;
+            if(format!=Format.R8G8B8A8_UNorm && format!=Format.R8G8B8A8_UNorm_SRgb && format!=Format.B8G8R8A8_UNorm && format!=Format.B8G8R8A8_UNorm_SRgb) return;
+            // Native GUI loading premultiplies raw RGBA in gamma 2.2 before sRGB sampling.
+            for(int bufferIndex=0;bufferIndex<image.PixelBuffer.Count;bufferIndex++)
+            {
+                var buffer=image.PixelBuffer[bufferIndex];
+                var bytes=buffer.GetPixels<byte>();
+                for(int i=0;i<bytes.Length;i+=4)
+                    for(int channel=0;channel<3;channel++)
+                        bytes[i+channel]=(byte)(Math.Pow(Math.Pow(bytes[i+channel]/255d,2.2)*(bytes[i+3]/255d),1/2.2)*255);
+                buffer.SetPixels(bytes);
             }
         }
 
@@ -202,9 +244,15 @@ float4 PS(P p):SV_TARGET {
                 context.PixelShader.SetShaderResource(3,handDepth==null ? null:PhysicalSurface.SceneDepth());
                 foreach (var sprite in sprites)
                 {
-                    var texture=sprite.Texture ?? Get(sprite.Path);
+                    var texture=sprite.Texture ?? Get(sprite.Path,sprite.NativeGui);
                     if (texture==null) continue;
                     var data=new Parameters { Clip0=sprite.Clip0,Clip1=sprite.Clip1,Clip2=sprite.Clip2,Clip3=sprite.Clip3,Tint=sprite.Tint,UV=sprite.UV,DepthTest=new Vector4(sceneDepth==null || sprite.IgnoreSceneDepth ? 0 : 1,sprite.Rounded.X,sprite.Rounded.Y,(sprite.EncodeSrgb ? 1 : 0)+(sprite.Opaque ? 2 : 0)+(handDepth!=null ? 4:0)+(sprite.Premultiplied ? 8:0)+(sprite.Sharpen ? 16:0)) };
+                    if(sprite.NativeGui && sprite.Texture==null)
+                    {
+                        var dimensions=icons[sprite.Path+"|native-gui"].Texture.Description;
+                        data.UV=new Vector4((int)(sprite.UV.X*dimensions.Width)/(float)dimensions.Width,(int)(sprite.UV.Y*dimensions.Height)/(float)dimensions.Height,
+                            (int)(sprite.UV.Z*dimensions.Width)/(float)dimensions.Width,(int)(sprite.UV.W*dimensions.Height)/(float)dimensions.Height);
+                    }
                     if (sprite.Projected)
                     {
                         data.TopLeft=sprite.TopLeft; data.TopRight=sprite.TopRight;

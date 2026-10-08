@@ -219,16 +219,18 @@ namespace SpaceEngineersVR.Diagnostics
                     }
                     using(var rtv=new RenderTargetView(device,feed)) device.ImmediateContext.ClearRenderTargetView(rtv,new SharpDX.Mathematics.Interop.RawColor4(.10f,.14f,.18f,1));
                     var crosshair=ShipCrosshair.Read(new Sandbox.Game.Gui.MyHudCrosshair(),MatrixD.Identity);
-                    crosshair.Owner=7;
-                    RemoteCombat.Hit=new RemoteCombat.HitView {Owner=7,Path=@"Textures\GUI\Indicators\HitIndicator4.png",Color=new Color(117,201,241).ToVector4(),Size=new Vector2(.0375f,.05f),Time=DateTime.UtcNow};
+                    crosshair.NativeWidth=ShipCrosshair.NativeWidth(crosshair.HalfSize,1920); crosshair.Owner=7;
+                    RemoteCombat.Hit=new RemoteCombat.HitView {Owner=7,Path=@"Textures\GUI\Indicators\HitIndicator4.png",Color=new Color(117,201,241).ToVector4(),Size=new Vector2(54),Time=DateTime.UtcNow};
                     var projection=MatrixD.CreatePerspectiveFieldOfView(1,1600f/900,.03,10000);
                     ShipCrosshair.Draw(feed,crosshair,MatrixD.Identity,MatrixD.Identity,projection);
                     SignalTests.WaitIcons();
                     ShipCrosshair.Draw(feed,crosshair,MatrixD.Identity,MatrixD.Identity,projection);
                     UiTests.Save(feed,Path.Combine(output,"ship-hit-confirmation.png"));
                     using(var rtv=new RenderTargetView(device,feed)) device.ImmediateContext.ClearRenderTargetView(rtv,new SharpDX.Mathematics.Interop.RawColor4(.10f,.14f,.18f,1));
-                    ShipCrosshair.Draw(feed,crosshair,MatrixD.Identity,MatrixD.Identity,projection,false,1);
-                    UiTests.Save(feed,Path.Combine(output,"ship-hit-before.png"));
+                    RemoteCombat.Hit.Size=new Vector2(36);
+                    RemoteCombat.Hit.Time=DateTime.UtcNow;
+                    ShipCrosshair.Draw(feed,crosshair,MatrixD.Identity,MatrixD.Identity,projection);
+                    UiTests.Save(feed,Path.Combine(output,"ship-hit-base.png"));
                     RemoteCombat.Reset();
                 }
                 UiTests.Render(canvas,()=>PhysicalSurface.Paint(canvas,WeaponAmmo.Label(WeaponProfile.Launcher,MatrixD.Identity,1,1)));

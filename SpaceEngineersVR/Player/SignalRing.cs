@@ -15,6 +15,14 @@ namespace SpaceEngineersVR.Player
         public int Segments;
         public float Angle,Offset,Progress;
         public bool ShowEmpty;
+        internal static SignalRing Read(MyStatControlCircularProgressBar circle)
+        {
+            var texture=(MyGuiSizedTexture)AccessTools.Field(typeof(MyStatControlCircularProgressBar),"m_texture").GetValue(circle);
+            return new SignalRing {Texture=texture.Texture,FilledTexture=texture.Texture,Size=circle.Size,SegmentSize=circle.SegmentSize,
+                Origin=circle.SegmentOrigin,Segments=circle.NumberOfSegments,Angle=circle.TextureRotationAngle,Offset=circle.TextureRotationOffset,
+                Progress=circle.StatMaxValue>0 ? MathHelper.Clamp(circle.StatCurrent/circle.StatMaxValue,0,1):0,
+                ShowEmpty=circle.ShowEmptySegments,FocusColor=circle.EmptySegmentColorMask,LockColor=circle.FullSegmentColorMask};
+        }
         internal static SignalRing Read(MyStatControlTargetingProgressBar circle)
         {
             var texture=(MyGuiSizedTexture)AccessTools.Field(typeof(MyStatControlCircularProgressBar),"m_texture").GetValue(circle);
@@ -27,7 +35,7 @@ namespace SpaceEngineersVR.Player
                 FocusColor=enemy ? circle.EnemyFocusSegmentColorMask:friendly ? circle.FriendlyFocusSegmentColorMask:circle.NeutralFocusSegmentColorMask,
                 LockColor=enemy ? circle.EnemyLockingSegmentColorMask:friendly ? circle.FriendlyLockingSegmentColorMask:circle.NeutralLockingSegmentColorMask };
         }
-        internal void Add(List<NativeSprite> sprites,MarkerBillboard board,MatrixD view,MatrixD projection)
+        internal void Add(List<NativeSprite> sprites,MarkerBillboard board,MatrixD view,MatrixD projection,bool nativeGui=false)
         {
             if(Size.X<=0 || Segments<=0) return;
             for(int i=0;i<Segments;i++)
@@ -39,11 +47,11 @@ namespace SpaceEngineersVR.Player
                 // Native segment rectangles rotate about the centre of the whole control.
                 float unit=4.5f/Size.X;
                 var bounds=new RectangleF((-Origin.X-Size.X/2)*unit,(Origin.Y-Size.Y/2)*unit,SegmentSize.X*unit,SegmentSize.Y*unit);
-                if(ShowEmpty) AddSegment(sprites,rotated,view,projection,Texture,bounds,new Vector4(0,0,1,1),FocusColor);
+                if(ShowEmpty) AddSegment(sprites,rotated,view,projection,Texture,bounds,new Vector4(0,0,1,1),FocusColor,nativeGui);
                 float fill=MathHelper.Clamp(Progress*Segments-i,0,1);
                 if(fill<=0) continue;
                 bounds.Y+=bounds.Height*(1-fill); bounds.Height*=fill;
-                AddSegment(sprites,rotated,view,projection,FilledTexture,bounds,new Vector4(0,1-fill,1,fill),LockColor);
+                AddSegment(sprites,rotated,view,projection,FilledTexture,bounds,new Vector4(0,1-fill,1,fill),LockColor,nativeGui);
             }
         }
         internal void AddNative(List<NativeSprite> sprites,Vector3D position,MatrixD view,MatrixD projection,int viewportWidth,Vector3D? up=null,bool faceViewer=false)
@@ -51,9 +59,9 @@ namespace SpaceEngineersVR.Player
             if(MarkerBillboard.TryCreatePixels(position,Size.X/4.5,view,projection,viewportWidth,out var board,up,faceViewer))
                 Add(sprites,board,view,projection);
         }
-        private static void AddSegment(List<NativeSprite> sprites,MarkerBillboard board,MatrixD view,MatrixD projection,string texture,RectangleF bounds,Vector4 uv,Vector4 color)
+        private static void AddSegment(List<NativeSprite> sprites,MarkerBillboard board,MatrixD view,MatrixD projection,string texture,RectangleF bounds,Vector4 uv,Vector4 color,bool nativeGui)
         {
-            var sprite=new NativeSprite(texture,default(RectangleF),color.ToLinearRGB()) {UV=uv,Premultiplied=true};
+            var sprite=new NativeSprite(texture,default(RectangleF),color.ToLinearRGB()) {UV=uv,Premultiplied=true,NativeGui=nativeGui};
             if(board.Project(bounds,view,projection,ref sprite)) sprites.Add(sprite);
         }
     }

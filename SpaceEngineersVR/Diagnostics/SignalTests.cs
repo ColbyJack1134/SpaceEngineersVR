@@ -406,13 +406,15 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 var description=scene.Texture.Description; description.Format=SharpDX.DXGI.Format.B8G8R8A8_UNorm_SRgb;
                 using(var eyeTarget=new SharpDX.Direct3D11.Texture2D(device,description))
-                foreach(string scenario in new[] {"forward","look-right","third-person","bright","lead","lead-range","lead-overlap","lead-bright"})
+                foreach(string scenario in new[] {"forward","look-right","third-person","bright","lead","lead-range","lead-overlap","lead-bright","reload","reload-hit","reload-hit-bright","reload-third-person"})
                 {
                     var ship=MatrixD.CreateTranslation(1e12,-2e12,3e12);
                     var head=ship;
                     if(scenario=="look-right") head=MatrixD.CreateRotationY(-.3)*ship;
-                    if(scenario=="third-person") head=MatrixD.CreateTranslation(8,5,18)*ship;
+                    if(scenario.Contains("third-person")) head=MatrixD.CreateTranslation(8,5,18)*ship;
                     var aim=ShipCrosshair.Read(new Sandbox.Game.Gui.MyHudCrosshair(),ship);
+                    aim.NativeWidth=ShipCrosshair.NativeWidth(aim.HalfSize,1920);
+                    if(scenario.StartsWith("reload")) aim.Reload=ShipReloadTests.Fixture(.65f,2);
                     var source=Scene("sparse",ship,DateTime.UtcNow); source.Mode=MyHudMarkerRender.SignalMode.NoNames;
                     NativeLead.View lead=null;
                     if(scenario.StartsWith("lead"))
@@ -433,6 +435,9 @@ namespace SpaceEngineersVR.Diagnostics
                         var view=MatrixD.Invert(MatrixD.CreateTranslation(eye*.032,0,0)*head);
                         Action paint=()=>
                         {
+                            if(scenario.Contains("reload-hit"))
+                                RemoteCombat.Hit=new RemoteCombat.HitView {Owner=aim.Owner,Path=@"Textures\GUI\Indicators\HitIndicator4.png",Color=new VRageMath.Color(117,201,241).ToVector4(),
+                                    Size=new Vector2(54),Time=DateTime.UtcNow};
                             Background(scene,scenario.Contains("bright"));
                             device.ImmediateContext.CopyResource(scene.Texture,eyeTarget);
                             SignalPainter.Draw(eyeTarget,entries,head,view,projection);
@@ -441,6 +446,7 @@ namespace SpaceEngineersVR.Diagnostics
                         };
                         paint(); WaitIcons(); paint();
                         UiTests.Save(eyeTarget,Path.Combine(output,"ship-crosshair-"+scenario+"-"+eye+".png"));
+                        RemoteCombat.Hit=null;
                     }
                 }
             }

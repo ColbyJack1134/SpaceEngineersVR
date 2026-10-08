@@ -21,6 +21,7 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Run(Action<string> log)
         {
             Crosshair(log);
+            ShipReloadTests.Run(log);
             Lead(log);
             Motion(log);
             CharacterFacing(log);
