@@ -121,6 +121,7 @@ namespace SpaceEngineersVR.Plugin
             Player.MenuPointer.Release();
             Player.TouchScreenBridge.Reset();
             Player.ArthurLcdBridge.Reset();
+            Patches.ModHud.Reset();
             Player.CockpitButtons.Reset();
             Player.BodyProximity.Reset();
             Player.TrackedArms.Reset();
@@ -162,6 +163,7 @@ namespace SpaceEngineersVR.Plugin
                     Player.CockpitControls.Reset();
                     Player.TouchScreenBridge.Reset();
                     Player.ArthurLcdBridge.Reset();
+                    Patches.ModHud.Reset();
                     Player.CockpitButtons.Reset();
                     Player.ThirdPersonView.Reset();
                     Player.NativeGloves.Reset();
@@ -271,6 +273,7 @@ namespace SpaceEngineersVR.Plugin
             Player.DesktopWindow.Update();
             Player.TouchScreenBridge.RefreshRegistrations();
             Player.ArthurLcdBridge.RefreshRegistrations();
+            Patches.ModHud.RefreshRegistrations();
             Player.CockpitTouch.BeginFrame();
             Player.CockpitButtons.Update();
             Player.SpatialUi.Update();
@@ -336,6 +339,7 @@ namespace SpaceEngineersVR.Plugin
             Player.NativeGloves.Reset();
             Player.TouchScreenBridge.Reset();
             Player.ArthurLcdBridge.Reset();
+            Patches.ModHud.Reset();
             Player.CockpitButtons.Reset();
             Player.CameraRig.Reset(forgetHeight:true);
             Player.ThirdPersonView.Reset();

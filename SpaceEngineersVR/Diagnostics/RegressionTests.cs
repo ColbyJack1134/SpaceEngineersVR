@@ -88,6 +88,7 @@ namespace SpaceEngineersVR.Diagnostics
             StereoStateTests.Run(log);
             AlignmentTests.Run(log);
             RenderingPatchTests.Run(log);
+            ModHudTests.Run(log);
             ThirdPersonTests.Run(log);
             ControllerFingerTests.Run(log);
             RemoteViewTests.Run(log);
