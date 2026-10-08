@@ -17,10 +17,11 @@ namespace SpaceEngineersVR.Player
             return Math.Sign(value)*(float)Math.Pow(MathHelper.Clamp(Math.Abs(value),0,1),exponent);
         }
         public static Vector3 Response(Vector3 value,float exponent=2) => new Vector3(Response(value.X,exponent),Response(value.Y,exponent),Response(value.Z,exponent));
-        internal static void ApplyTurret(bool ownsRotation,bool ownsTranslation,Vector3 rotation,Vector3 translation,float speed,float curve,ref Vector2 aim,ref float zoom)
+        internal static void ApplyTurret(bool ownsRotation,bool ownsTranslation,Vector3 rotation,Vector3 translation,float speed,float curve,ref Vector2 aim,ref float zoom,float thumbZoom=0)
         {
             if(ownsRotation) aim=new Vector2(Response(rotation.X,curve),Response(rotation.Z,curve))*speed;
             if(ownsTranslation) zoom=translation.Z;
+            zoom=MathHelper.Clamp(zoom+thumbZoom,-1,1);
         }
         internal sealed class Filter
         {

@@ -294,7 +294,8 @@ namespace SpaceEngineersVR.Player
             if(seat==null || IsSteering || !Eligible(seat) || !CockpitRender.Ready) return;
             bool singleLeft=Rig!=null && Rig.Right==null;
             CockpitStickMath.ApplyTurret(right.Consumed || singleLeft && left.Consumed,left.Consumed && !singleLeft,
-                rotation,translation,speed,tuning.RotationCurve,ref aim,ref zoom);
+                rotation,translation,speed,tuning.RotationCurve,ref aim,ref zoom,
+                OwnsRightThumb ? -Controls.Static.ThrustRotate.Position.Y:0);
         }
         public static void ApplyFlight(float speed,ref Vector3 move,ref Vector2 rotate,ref float roll)
         {
