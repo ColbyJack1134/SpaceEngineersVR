@@ -87,7 +87,7 @@ namespace SpaceEngineersVR.Diagnostics
             finally { handle.Free(); }
         }
 
-        private static T[] Read<T>(Device device,Resource resource) where T:struct
+        internal static T[] Read<T>(Device device,Resource resource) where T:struct
         {
             var context=device.ImmediateContext;
             Resource staging;
@@ -96,7 +96,7 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 var d=texture.Description;
                 d.Usage=ResourceUsage.Staging; d.BindFlags=BindFlags.None; d.CpuAccessFlags=CpuAccessFlags.Read;
-                staging=new Texture2D(device,d); count=d.Width*d.Height;
+                staging=new Texture2D(device,d); count=d.Width*d.Height*FormatHelper.SizeOfInBytes(d.Format)/System.Runtime.InteropServices.Marshal.SizeOf<T>();
             }
             else
             {
@@ -112,7 +112,7 @@ namespace SpaceEngineersVR.Diagnostics
                 try
                 {
                     var result=new T[count];
-                    int width=resource is Texture2D t ? t.Description.Width : count;
+                    int width=resource is Texture2D t ? t.Description.Width*FormatHelper.SizeOfInBytes(t.Description.Format)/System.Runtime.InteropServices.Marshal.SizeOf<T>() : count;
                     for(int row=0;row<count/width;row++) Utilities.Read(box.DataPointer+row*box.RowPitch,result,row*width,width);
                     return result;
                 }

@@ -529,6 +529,7 @@ namespace SpaceEngineersVR.Diagnostics
                             CockpitHandPose.GripWrist(Matrix.CreateTranslation(.11f,0,0)),phase==46)) return;
                         if(phase==45) PolishRenderTests.BeginHands(size.X,size.Y);
                         Wrappers.MyRender11.DrawGameScene(target,out ao);
+                        if(phase==24) StereoExposureTests.RunNative(target,line=>Logger.Info(line));
                     }
                     finally { if (ao!=null) new Wrappers.BorrowedRtvTexture(ao).Release(); }
                     // Exercise the installed engine's depth SRV and our spatial shader in a real scene.

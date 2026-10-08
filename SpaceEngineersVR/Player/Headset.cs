@@ -61,6 +61,7 @@ namespace SpaceEngineersVR.Player
                 StereoRenderState.Begin(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale),
                     rig?.ThirdPerson==true ? .005*scale : Math.Max(.03,matrices.NearClipping),matrices.LargeDistanceFarClipping);
                 ThirdPersonView.RecordTrace(rig);
+                StereoExposure.Begin();
                 float left=0,right=0,top=0,bottom=0;
                 var signalLimits=new Vector2(float.MaxValue);
                 foreach(var eye in new[] {EVREye.Eye_Left,EVREye.Eye_Right})
@@ -99,6 +100,7 @@ namespace SpaceEngineersVR.Player
             }
             finally
             {
+                StereoExposure.End();
                 if(leftAmbient!=null) new BorrowedRtvTexture(leftAmbient).Release();
                 if(rightAmbient!=null) new BorrowedRtvTexture(rightAmbient).Release();
                 matrices.Restore(snapshot);

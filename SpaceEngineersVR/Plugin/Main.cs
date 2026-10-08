@@ -113,6 +113,7 @@ namespace SpaceEngineersVR.Plugin
 
         public void Dispose()
         {
+            Player.StereoExposure.Reset();
             Multiplayer.MultiplayerSupport.Stop();
             Player.ThirdPersonView.Reset();
             Player.NativeGloves.Reset();
