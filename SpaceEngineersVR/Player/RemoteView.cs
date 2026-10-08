@@ -45,6 +45,25 @@ namespace SpaceEngineersVR.Player
         public static bool Pointing => Current?.Hover>0 || interaction.DirectHeld;
         internal static bool PointingFor(Controller hand) => hand==Hand && Pointing;
         private static bool left;
+        private static MyCameraBlock pendingCamera;
+        private static readonly CameraSwitch cameraSwitch=new CameraSwitch();
+        internal sealed class CameraSwitch
+        {
+            private object turret,previous;
+            private DateTime until;
+            private Action activate;
+            internal bool Pending => activate!=null;
+            internal void Begin(object from,object to,DateTime now,Action action)
+            { turret=from; previous=to; until=now.AddSeconds(5); activate=action; }
+            internal void Cancel() { turret=previous=null; activate=null; }
+            internal void Update(object controlled,bool available,DateTime now)
+            {
+                if(activate==null) return;
+                if(!available || now>until || controlled!=turret && controlled!=previous) { Cancel(); return; }
+                if(controlled!=previous) return;
+                var action=activate; Cancel(); action();
+            }
+        }
         private static Controller Hand => left ? Player.HandL:Player.HandR;
         internal static bool TryAttachment(Controller hand,out MatrixD wrist,out Vector3D point,out float blend,bool tracking=false) =>
             interaction.TryAttachment(hand,PhysicalTrackingToWorld,tracking,out wrist,out point,out blend) & Current!=null;
@@ -80,6 +99,7 @@ namespace SpaceEngineersVR.Player
             (Active && candidate==seat || (Turret || RemoteGrid || MySession.Static?.CameraController is MyCameraBlock) && Previous==candidate);
         public static void Reset()
         {
+            CancelCameraSwitch();
             if(placementDirty) Save();
             owner=source=null; seat=null; Current=null; SeatedRig=null; OwnsInput=false;
             interaction.Reset(true); recenter=false; rayStart=rayEnd=null; lastHover=0; epoch++;
@@ -93,6 +113,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Exit()
         {
+            CancelCameraSwitch();
             ReleaseInput();
             var controlled=MySession.Static?.ControlledEntity;
             if(RemoteGrid && MySession.Static.CameraController is MyCameraBlock remoteCamera)
@@ -100,8 +121,34 @@ namespace SpaceEngineersVR.Player
             if(ExitControlled(controlled)) controlled.Use();
             else if(MySession.Static?.CameraController is MyCameraBlock camera) camera.CubeGrid.GridSystems.CameraSystem.ResetCamera();
         }
+        private static void CancelCameraSwitch()
+        { pendingCamera=null; cameraSwitch.Cancel(); }
+        internal static bool SwitchToCamera(MyCameraBlock camera)
+        {
+            var controlled=MySession.Static?.ControlledEntity;
+            if(!IsTurret(controlled)) return false;
+            if(!AvailableCamera(camera)) return false;
+            var previous=PreviousOwner(controlled);
+            if(!Live(previous)) return false;
+            Exit();
+            pendingCamera=camera;
+            cameraSwitch.Begin(controlled,previous,DateTime.UtcNow,()=> {
+                CancelCameraSwitch(); ReleaseInput(); camera.RequestSetView();
+            });
+            return true;
+        }
+        private static void UpdateCameraSwitch()
+        {
+            if(pendingCamera==null) return;
+            var session=MySession.Static;
+            bool available=Main.WorldAvailable && session?.LocalCharacter?.IsDead==false && !Main.MenuOpen &&
+                Player.Headset.pose.isTracked && AvailableCamera(pendingCamera);
+            cameraSwitch.Update(session?.ControlledEntity,available,DateTime.UtcNow);
+            if(!cameraSwitch.Pending) pendingCamera=null;
+        }
         public static void UpdateContext()
         {
+            UpdateCameraSwitch();
             var session=MySession.Static;
             var character=session?.LocalCharacter;
             object next=Owner(session?.ControlledEntity,session?.CameraController);

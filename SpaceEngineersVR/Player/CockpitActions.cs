@@ -157,7 +157,13 @@ namespace SpaceEngineersVR.Player
             }
             if(!item.Enabled || (item is MyToolbarItemTerminalGroup group && !group.PlayerHasAccessToAllBlocks(MySession.Static.LocalPlayerId)))
             { EssentialHud.Notify("This switch action is unavailable or access is denied."); return false; }
-            if(view) return desired!=false && toolbar.ActivateItemAtIndex(slot);
+            if(view)
+            {
+                if(desired==false) return false;
+                if(item is MyToolbarItemTerminalBlock cameraItem && cameraItem.Block is MyCameraBlock camera && RemoteView.Turret)
+                    return RemoteView.SwitchToCamera(camera);
+                return toolbar.ActivateItemAtIndex(slot);
+            }
             if(weapon) return controller!=null && toolbar.ActivateItemAtIndex(slot);
             bool stateful=CockpitSwitchState.Read(item,out _);
             if(!stateful && desired==false) return false;

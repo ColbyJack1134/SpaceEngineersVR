@@ -293,10 +293,8 @@ namespace SpaceEngineersVR.Player
         {
             if(seat==null || IsSteering || !Eligible(seat) || !CockpitRender.Ready) return;
             bool singleLeft=Rig!=null && Rig.Right==null;
-            if(right.Consumed || singleLeft && left.Consumed)
-                aim=new Vector2(CockpitStickMath.Response(rotation.X,tuning.RotationCurve),CockpitStickMath.Response(rotation.Z,tuning.RotationCurve))*speed;
-            if(OwnsRightThumb) zoom=-Controls.Static.ThrustRotate.Position.Y;
-            else if(left.Consumed && !singleLeft) zoom=0;
+            CockpitStickMath.ApplyTurret(right.Consumed || singleLeft && left.Consumed,left.Consumed && !singleLeft,
+                rotation,translation,speed,tuning.RotationCurve,ref aim,ref zoom);
         }
         public static void ApplyFlight(float speed,ref Vector3 move,ref Vector2 rotate,ref float roll)
         {

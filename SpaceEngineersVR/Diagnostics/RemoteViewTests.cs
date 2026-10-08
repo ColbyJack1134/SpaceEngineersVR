@@ -84,6 +84,25 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Run(Action<string> log)
         {
             Ammo(log);
+            var transfer=new RemoteView.CameraSwitch();
+            object from=new object(),to=new object();
+            var now=DateTime.UtcNow; int opened=0;
+            transfer.Begin(from,to,now,()=>opened++);
+            for(int i=0;i<120;i++) transfer.Update(from,true,now.AddMilliseconds(i*16));
+            Require(opened==0 && transfer.Pending,"Camera opened before native turret release completed");
+            transfer.Update(to,true,now.AddSeconds(2));
+            transfer.Update(to,true,now.AddSeconds(3));
+            Require(opened==1 && !transfer.Pending,"Camera transfer did not complete exactly once on the previous owner");
+            foreach(int cancellation in new[] {0,1,2,3})
+            {
+                transfer.Begin(from,to,now,()=>opened++);
+                if(cancellation==0) transfer.Cancel();
+                transfer.Update(cancellation==1 ? new object():to,cancellation!=2,
+                    cancellation==3 ? now.AddSeconds(6):now.AddSeconds(1));
+                transfer.Update(to,true,now.AddSeconds(2));
+                Require(opened==1 && !transfer.Pending,"Cancelled, unavailable, timed-out or unrelated ownership activated a queued camera");
+            }
+            log("PASS turret-to-camera transfer waits for native release, activates once and cancels on interruption, owner changes, unavailable camera or timeout");
             var home=Entity<MyCockpit>(); var remote=Entity<MyRemoteControl>();
             var camera=Entity<MyCameraBlock>(); var alternate=Entity<MyCameraBlock>();
             var turret=(MyLargeTurretBase)FormatterServices.GetUninitializedObject(typeof(MyTurretControlBlock).Assembly.GetTypes().First(t=>!t.IsAbstract && typeof(MyLargeTurretBase).IsAssignableFrom(t))); var custom=Entity<MyTurretControlBlock>();

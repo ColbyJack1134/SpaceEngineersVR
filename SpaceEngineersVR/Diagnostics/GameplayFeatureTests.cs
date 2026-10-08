@@ -96,6 +96,17 @@ namespace SpaceEngineersVR.Diagnostics
             Near(aim.X,-10,"Turret pitch"); Near(aim.Y,10,"Turret yaw"); Near(zoom,-1,"Turret zoom");
             RemoteView.Axes(Vector2.Zero,Vector2.UnitX,10,out aim,out zoom);
             Near(aim.Length()+Math.Abs(zoom),0,"Horizontal left stick moved turret");
+            foreach(float tilt in new[] {-.5f,0f,.5f})
+            {
+                var translation=CockpitStickMath.Translation(Matrix.Identity,Matrix.CreateRotationX(tilt),0,true);
+                aim=new Vector2(.2f,.3f); zoom=.7f;
+                CockpitStickMath.ApplyTurret(false,true,Vector3.Zero,translation,10,2,ref aim,ref zoom);
+                Near(zoom,translation.Z,"Physical left forward/back tilt lost turret zoom");
+                Near(aim.X,.2f,"Translation stick changed turret pitch"); Near(aim.Y,.3f,"Translation stick changed turret yaw");
+                CockpitStickMath.ApplyTurret(true,false,new Vector3(.5f,0,-.5f),Vector3.Zero,10,2,ref aim,ref zoom);
+                Near(aim.X,2.5f,"Physical turret pitch"); Near(aim.Y,-2.5f,"Physical turret yaw");
+                Near(zoom,translation.Z,"Right rotation stick competed with turret zoom");
+            }
             foreach(float width in new[] {MenuWindow.MinWidth,1.2f,MenuWindow.MaxWidth})
                 if(RemoteView.ZoomX(width,false)-.027f< -width/2 || RemoteView.ZoomX(width,true)+.027f>-.19f)
                     throw new Exception("Feed zoom controls overlap drag handle or screen edge");
