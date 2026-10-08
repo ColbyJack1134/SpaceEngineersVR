@@ -43,6 +43,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(quickPages.All(p=>p.Length==9) && quickPages.SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(wheel),"Action paging drops or duplicates an entry");
                 var panelKeys=WristPanel.Keys(null,context[0],context[1],context[2],context[3],null,false);
                 Require(panelKeys.Any(k=>k.Action==GameActions.Quick[22])==(context[1] && context[2]),"Ship camera action escaped seated third person");
+                Require(panelKeys.Any(k=>k.Action==GameActions.BlueprintsAction),"Wrist home lost blueprint access");
                 Require(panelKeys.Length<=20 && panelKeys.All(k=>k.Bounds.X>=0 && k.Bounds.Y>=0 && k.Bounds.Right<=1 && k.Bounds.Bottom<=1),"Tablet context overflows the panel");
                 for(int i=0;i<panelKeys.Length;i++) for(int j=i+1;j<panelKeys.Length;j++)
                     Require(panelKeys[i].Bounds.Right<=panelKeys[j].Bounds.X || panelKeys[j].Bounds.Right<=panelKeys[i].Bounds.X || panelKeys[i].Bounds.Bottom<=panelKeys[j].Bounds.Y || panelKeys[j].Bounds.Bottom<=panelKeys[i].Bounds.Y,"Tablet panelKeys overlap");

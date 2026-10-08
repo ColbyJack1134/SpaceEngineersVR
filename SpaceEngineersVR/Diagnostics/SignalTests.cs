@@ -254,15 +254,19 @@ namespace SpaceEngineersVR.Diagnostics
             }
             log("PASS production GPU window clipping: both eyes, rotated aperture, distant quad, header and outside pixels excluded.");
         }
-        internal static void Render(Device device,string output,Action<string> log)
+        internal static void Render(Device device,string output,Action<string> log,bool wristOnly=false)
         {
-            GlyphAlpha(device,output,log);
-            WindowClip(device,output,log);
-            HudProfileTests.Render(device,output,log);
-            SharedWaypointRenders(device,output,log);
+            if(!wristOnly)
+            {
+                GlyphAlpha(device,output,log);
+                WindowClip(device,output,log);
+                HudProfileTests.Render(device,output,log);
+                SharedWaypointRenders(device,output,log);
+            }
             var now=DateTime.UtcNow;
             using(var scene=new OverlayCanvas("Signal production scenarios",1920,1080,1,false,device))
             {
+                if(!wristOnly)
                 foreach(string scenario in new[] {"sparse-dark","sparse-bright","dense-dark","dense-bright","dense-full","dense-ungrouped","close-pair","close-pair-bright","corners","corners-left","corners-right","categories","rings-dark","rings-bright","long-edge","icons","off","gps-only","contacts-only","no-rings-edges"})
                 {
                     var head=MatrixD.Identity; head.Translation=new Vector3D(1e9,2e9,-3e9);
@@ -301,35 +305,53 @@ namespace SpaceEngineersVR.Diagnostics
                     UiTests.Save(scene.Texture,Path.Combine(output,"signals-"+scenario+".png"));
                     log("RENDER "+scenario+": "+source.Markers.Length+" source, "+entries.Length+" indicators, "+entries.Sum(e=>e.Labels.Length)+" label rows");
                 }
-                foreach(string scenario in new[] {"wrist-dark","wrist-bright","wrist-dense","wrist-detailed","wrist-long-edge","wrist-left-eye","wrist-right-eye","wrist-lock","wrist-locking","wrist-locked","wrist-empty","wrist-off"})
+                var configField=AccessTools.Field(typeof(Plugin.Common),"<Config>k__BackingField");
+                var savedConfig=Plugin.Common.Config;
+                var fixtureConfig=new Config.PluginConfig();
+                configField.SetValue(null,fixtureConfig);
+                try
                 {
-                    var head=MatrixD.Identity;
-                    var source=Scene((scenario=="wrist-dense" || scenario=="wrist-detailed") ? "dense":scenario=="wrist-long-edge" ? "long-edge":"sparse",head,now);
-                    source.Mode=scenario=="wrist-detailed" ? MyHudMarkerRender.SignalMode.FullDisplay:MyHudMarkerRender.SignalMode.NoNames;
-                    var panel=new SurfaceView { Id="Signal window fixture",Width=.4f,Height=.225f,Pose=MatrixD.CreateTranslation(0,-.0315,-.64),Style=SurfaceStyle.WristMenu,SignalWindow=true };
-                    if(scenario=="wrist-empty") source=new WorldMarkers.View(new WorldMarkers.Marker[0],now) {Mode=MyHudMarkerRender.SignalMode.DefaultMode};
-                    if(scenario=="wrist-off") source.Mode=MyHudMarkerRender.SignalMode.Off;
-                    if(scenario.StartsWith("wrist-lock"))
+                    foreach(string scenario in new[] {"wrist-dark","wrist-bright","wrist-dense","wrist-detailed","wrist-long-edge","wrist-left-eye","wrist-right-eye","wrist-lock","wrist-locking","wrist-locked","wrist-empty","wrist-off"})
                     {
-                        var ring=Marker("lock-fixture","OffscreenTarget","Enemies",new Vector3D(0,-40,-1200),"");
-                        ring.LockState=scenario=="wrist-lock" ? "Focused":scenario=="wrist-locking" ? "Locking":"Locked";
-                        ring.Ring=NativeSignalProbe.Ring("Enemy",scenario=="wrist-lock" ? 0:scenario=="wrist-locking" ? .5f:1); ring.Cluster=false;
-                        source=new WorldMarkers.View(new[] {ring},now) {Mode=MyHudMarkerRender.SignalMode.NoNames};
+                        if(wristOnly && scenario!="wrist-long-edge" && scenario!="wrist-dark" && scenario!="wrist-off")continue;
+                        var head=MatrixD.Identity;
+                        var source=Scene((scenario=="wrist-dense" || scenario=="wrist-detailed") ? "dense":scenario=="wrist-long-edge" ? "long-edge":"sparse",head,now);
+                        source.Mode=scenario=="wrist-detailed" ? MyHudMarkerRender.SignalMode.FullDisplay:MyHudMarkerRender.SignalMode.NoNames;
+                        var panel=new SurfaceView { Id="Signal window fixture",Width=.4f,Height=.225f,Pose=MatrixD.CreateTranslation(0,-.0315,-.64),Style=SurfaceStyle.WristMenu,SignalWindow=true };
+                        if(scenario=="wrist-empty") source=new WorldMarkers.View(new WorldMarkers.Marker[0],now) {Mode=MyHudMarkerRender.SignalMode.DefaultMode};
+                        if(scenario=="wrist-off") source.Mode=MyHudMarkerRender.SignalMode.Off;
+                        if(scenario.StartsWith("wrist-lock"))
+                        {
+                            var ring=Marker("lock-fixture","OffscreenTarget","Enemies",new Vector3D(0,-40,-1200),"");
+                            ring.LockState=scenario=="wrist-lock" ? "Focused":scenario=="wrist-locking" ? "Locking":"Locked";
+                            ring.Ring=NativeSignalProbe.Ring("Enemy",scenario=="wrist-lock" ? 0:scenario=="wrist-locking" ? .5f:1); ring.Cluster=false;
+                            source=new WorldMarkers.View(new[] {ring},now) {Mode=MyHudMarkerRender.SignalMode.NoNames};
+                        }
+                        fixtureConfig.WaypointMode=scenario=="wrist-off" ? 0:1;
+                        WristSignals.Reset();
+                        panel=WristSignals.Apply(panel,source,head,new SignalLayout.Options(),now);
+                        WristPanel.Show(3); panel.Keys=WristPanel.Keys(null,false,false,false,true,null); WristPanel.Show(0);
+                        var entries=SignalLayout.Build(source,head,new SignalLayout.Options(),now);
+                        var projection=VrMath.Projection(-.43f,.43f,-.242f,.242f,.05);
+                        var eyeView=MatrixD.CreateTranslation(scenario=="wrist-left-eye" ? .032:scenario=="wrist-right-eye" ? -.032:0,0,0);
+                        Background(scene,scenario=="wrist-bright");
+                        SignalPainter.Draw(scene.Texture,WristSignals.OutsideWindow(entries,panel,head),head,eyeView,projection);
+                        PhysicalSurface.Draw(scene.Texture,new[] {panel},eyeView,projection,null);
+                        if(wristOnly)
+                        {
+                            WaitIcons();
+                            Background(scene,false);
+                            SignalPainter.Draw(scene.Texture,WristSignals.OutsideWindow(entries,panel,head),head,eyeView,projection);
+                            PhysicalSurface.Draw(scene.Texture,new[] {panel},eyeView,projection,null);
+                        }
+                        UiTests.Save(scene.Texture,Path.Combine(output,scenario+".png"));
+                        using(var face=new OverlayCanvas("Signal window face",1024,640,1,false,device))
+                        { PhysicalSurface.Paint(face,panel); face.Upload(); UiTests.Save(face.Texture,Path.Combine(output,scenario+"-face.png")); }
                     }
-                    WristSignals.Reset();
-                    panel=WristSignals.Apply(panel,source,head,new SignalLayout.Options(),now);
-                    WristPanel.Show(3); panel.Keys=WristPanel.Keys(null,false,false,false,true,null); WristPanel.Show(0);
-                    var entries=SignalLayout.Build(source,head,new SignalLayout.Options(),now);
-                    var projection=VrMath.Projection(-.43f,.43f,-.242f,.242f,.05);
-                    var eyeView=MatrixD.CreateTranslation(scenario=="wrist-left-eye" ? .032:scenario=="wrist-right-eye" ? -.032:0,0,0);
-                    Background(scene,scenario=="wrist-bright");
-                    SignalPainter.Draw(scene.Texture,WristSignals.OutsideWindow(entries,panel,head),head,eyeView,projection);
-                    PhysicalSurface.Draw(scene.Texture,new[] {panel},eyeView,projection,null);
-                    UiTests.Save(scene.Texture,Path.Combine(output,scenario+".png"));
-                    using(var face=new OverlayCanvas("Signal window face",1024,640,1,false,device))
-                    { PhysicalSurface.Paint(face,panel); face.Upload(); UiTests.Save(face.Texture,Path.Combine(output,scenario+"-face.png")); }
                 }
+                finally { configField.SetValue(null,savedConfig); }
             }
+            if(wristOnly) { WristPanel.Show(0); WristSignals.Reset(); return; }
             foreach(var inspected in new[] {false,true})
             {
                 WristPanel.Show(0);

@@ -37,6 +37,8 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(samples.TryApply(config,true,out _),"Stable headset measurement failed to apply");
                 Require(config.PlayerHeight==1.905f && Math.Abs(config.MeasuredEyeHeight-1.837f)<.001f,"Headset measurement overwrote actual stature or retained spike");
                 Require(!samples.TryApply(config,false,out _),"Lost tracking applied headset calibration");
+                Require(samples.TryApply(config,true,out _,true) && Math.Abs(config.PlayerHeight-1.837f*1.8f/1.69f)<.001f,"Onboarding failed to estimate body height from standing eye height");
+                config.PlayerHeight=1.905f;
                 samples.Clear();
                 Require(!samples.TryApply(config,true,out _),"Empty measurement applied headset calibration");
                 Require(config.PlayerHeight==1.905f && Math.Abs(config.MeasuredEyeHeight-1.837f)<.001f,"Failed measurement changed saved calibration");

@@ -198,8 +198,11 @@ namespace SpaceEngineersVR.Player
         }
 
         public static string CalibrationStatus { get; private set; }="Enter your height above. Stand upright to measure headset height.";
-        public static void StartCalibration(int timeTicks = CalibrationTimeTicks)
+        private static bool estimateCalibrationHeight;
+        public static void StartCalibration(int timeTicks = CalibrationTimeTicks,bool estimateBodyHeight=false)
         {
+            estimateCalibrationHeight=estimateBodyHeight;
+            CalibrationStatus="Measuring standing height…";
             CalibratingTicksLeft = timeTicks;
             PerformanceHud.Notify("Stand upright and look ahead. Measuring for five seconds.",6);
 
@@ -227,7 +230,7 @@ namespace SpaceEngineersVR.Player
 
         public static void FinishCalibration()
         {
-            if(standingMeasurement.TryApply(Common.Config,Headset.pose.isTracked,out float measured))
+            if(standingMeasurement.TryApply(Common.Config,Headset.pose.isTracked,out float measured,estimateCalibrationHeight))
             {
                 if(CalibrationInProgress.armSpan>0) Common.Config.PlayerArmSpan=CalibrationInProgress.armSpan;
                 using(PlayerCalibrationLock.AcquireExclusiveUsing())
@@ -236,7 +239,7 @@ namespace SpaceEngineersVR.Player
                     PlayerCalibration.armSpan=Common.Config.PlayerArmSpan;
                 }
                 ApplyCalibrationOrigin();
-                CalibrationStatus="Headset height: "+(measured*100).ToString("0.0")+" cm. Standing height kept.";
+                CalibrationStatus=estimateCalibrationHeight ? "Height calibrated" : "Headset height: "+(measured*100).ToString("0.0")+" cm. Standing height kept.";
                 PerformanceHud.Notify(CalibrationStatus,5);
             }
             else { CalibrationStatus="Measurement failed. Stand still and check tracking and floor setup."; PerformanceHud.Notify(CalibrationStatus,5); }

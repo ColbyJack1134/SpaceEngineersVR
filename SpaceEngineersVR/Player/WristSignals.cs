@@ -38,10 +38,13 @@ namespace SpaceEngineersVR.Player
         private static int revision=-1;
         private static readonly List<NativeSprite> glyphs=new List<NativeSprite>();
         internal static readonly RectangleF Aperture=new RectangleF(.025f,.15f,.95f,.83f);
+        private static readonly RectangleF SettingsReserved=new RectangleF(.865f,.78f,.135f,.22f);
         internal static void Reset() { content=null; }
         internal static void Keys(List<SurfaceKey> keys)
         {
             keys.Add(WristKnob.Key());
+            keys.Add(new SurfaceKey("HUD settings",.8825f,.80f,.10f,.17778f) {
+                Action=GameActions.HudOptions,Invisible=true,Round=true });
         }
         internal static Candidate[] Candidates(WorldMarkers.View snapshot,SurfaceView panel,Vector3D head,SignalLayout.Options options)
         {
@@ -59,7 +62,11 @@ namespace SpaceEngineersVR.Player
                 if(fraction<=0 || fraction>=1) continue;
                 var hit=h+(t-h)*fraction;
                 var uv=new Vector2((float)(hit.X/panel.Width+.5),(float)(.5-hit.Y/panel.Height));
-                if(Aperture.Contains(uv)) found.Add(new Candidate {Marker=m,UV=uv,IconScale=options.IconScale,TextScale=options.TextScale});
+                // Large world coordinates can move an exact boundary hit by a few micrometres.
+                const float tolerance=.00001f;
+                if(uv.X>=Aperture.X-tolerance && uv.X<=Aperture.Right+tolerance &&
+                    uv.Y>=Aperture.Y-tolerance && uv.Y<=Aperture.Bottom+tolerance)
+                    found.Add(new Candidate {Marker=m,UV=uv,IconScale=options.IconScale,TextScale=options.TextScale});
             }
             return found.OrderBy(c=>c.Marker.Id,StringComparer.Ordinal).ToArray();
         }
@@ -102,7 +109,7 @@ namespace SpaceEngineersVR.Player
                 var padding=new Vector2(radius,radius*panel.Width/panel.Height);
                 c.Reserved=new RectangleF(c.UV-padding,padding*2);
             }
-            view.Candidates=view.Candidates.Where(c=>!SignalLayout.Overlaps(c.Reserved,WristKnob.Reserved)).ToArray();
+            view.Candidates=view.Candidates.Where(c=>!SignalLayout.Overlaps(c.Reserved,WristKnob.Reserved) && !SignalLayout.Overlaps(c.Reserved,SettingsReserved)).ToArray();
         }
         internal static bool Covers(SurfaceView panel,Vector3D position,MatrixD head)
         {
@@ -139,7 +146,7 @@ namespace SpaceEngineersVR.Player
         }
         internal static void Layout(View view)
         {
-            var occupied=new List<RectangleF> {WristKnob.Reserved};
+            var occupied=new List<RectangleF> {WristKnob.Reserved,SettingsReserved};
             foreach(var c in view.Candidates.OrderBy(c=>c.Edge).ThenBy(c=>c.Marker.Id,StringComparer.Ordinal))
             {
                 c.Visible=false;
@@ -166,7 +173,9 @@ namespace SpaceEngineersVR.Player
         }
         internal static void Paint(OverlayCanvas target,SurfaceView panel)
         {
-            target.Clear(Color.FromArgb((int)(255*(panel.Signals?.Tint ?? .15f)),5,12,18));
+            target.Clear(Color.Transparent);
+            using(var tint=new SolidBrush(Color.FromArgb((int)(255*(panel.Signals?.Tint ?? .15f)),5,12,18)))
+                target.Graphics.FillRectangle(tint,0,0,1024,640);
             using(var bar=new SolidBrush(Color.FromArgb(255,9,18,26)))
             using(var rim=new Pen(Color.FromArgb(140,112,166,188),1.5f))
             {
@@ -174,6 +183,21 @@ namespace SpaceEngineersVR.Player
                 target.Graphics.DrawRectangle(rim,1,1,1022,638);
             }
             PhysicalSurface.PaintWristKeys(target,panel);
+            int settings=Array.FindIndex(panel.Keys,k=>k.Action==GameActions.HudOptions);
+            if(settings>=0)
+            {
+                var b=panel.Keys[settings].Bounds;
+                var r=new System.Drawing.RectangleF(b.X*1024,b.Y*640,b.Width*1024,b.Height*640);
+                if(panel.Hovered(settings) || panel.IsPressed(settings))
+                    using(var brush=new SolidBrush(panel.IsPressed(settings) ? Color.FromArgb(40,133,151):Color.FromArgb(55,83,100)))
+                        target.Graphics.FillEllipse(brush,r);
+                PhysicalSurface.DrawSettings(target.Graphics,r);
+            }
+            if(panel.Signals!=null && panel.Signals.Candidates.Length==0)
+                using(var font=new Font("Segoe UI",25,FontStyle.Regular,GraphicsUnit.Pixel))
+                using(var format=new StringFormat {Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center})
+                    target.Graphics.DrawString(Common.Config?.WaypointMode==0 ? "Markers are off":"No visible waypoints",font,Brushes.LightCyan,
+                        new System.Drawing.RectangleF(25,96,974,531),format);
         }
         internal static Candidate[][] Symbols(View view)
         {

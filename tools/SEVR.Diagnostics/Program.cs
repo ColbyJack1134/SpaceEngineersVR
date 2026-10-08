@@ -29,6 +29,8 @@ internal static class Program
             if(args.Length==4 && args[1]=="--export-model") { ModelInspection.Export(game,args[2],args[3]); return 0; }
             if(args.Length==3 && args[1]=="--companion-test") { MultiplayerTests.Companion(args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--multiplayer-test") { MultiplayerTests.Export(game,args[2],Console.WriteLine); return 0; }
+            if(args.Length==3 && args[1]=="--navigation-preview") { UiTests.Navigation(game,args[2],Console.WriteLine); return 0; }
+            if(args.Length==3 && args[1]=="--wrist-menus") { UiTests.WristMenus(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--signals-test") { UiTests.Signals(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--tablet-test") { UiTests.Tablet(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--control-seat-preview") { ControlSeatPreview.Export(game,args[2],Console.WriteLine); return 0; }

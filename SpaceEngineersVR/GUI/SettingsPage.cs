@@ -71,23 +71,17 @@ namespace SpaceEngineersVR.GUI
                 case "Signals":
                     Toggle(-.25f,"Character marker roll",c.CharacterMarkerRoll,v=>c.CharacterMarkerRoll=v);
                     Toggle(-.17f,"Face markers toward viewer",c.FaceMarkersTowardViewer,v=>c.FaceMarkersTowardViewer=v);
-                    Toggle(-.09f,"Wrist edge directions",c.SignalEdges,v=>c.SignalEdges=v);
+                    Toggle(-.09f,"Direction arrows",c.SignalEdges,v=>c.SignalEdges=v);
                     Toggle(-.01f,"Targeting rings",c.SignalRings,v=>c.SignalRings=v);
                     Toggle(.07f,"GPS and objectives",c.ShowGps,v=>c.ShowGps=v);
                     Toggle(.15f,"Contacts",c.ShowContacts,v=>c.ShowContacts=v);
                     Toggle(.23f,"Ore and hacking",c.ShowResources,v=>c.ShowResources=v);
                     Controls.Add(new MyGuiControlButton(new Vector2(-.18f,.34f),text:new StringBuilder("Ranges"),onButtonClick:b=>MyGuiSandbox.AddScreen(new SettingsPage("Signal ranges"))));
                     break;
-                case "HUD & Interface":
-                    Toggle(-.23f,"Show vitals HUD",c.ShowVitals,v=>c.ShowVitals=v);
-                    Toggle(-.14f,"Show HUD with visor open",c.HudWithVisorOpen,v=>c.HudWithVisorOpen=v);
-                    Label(-.04f,"Waypoints");
-                    var modes=new MyGuiControlCombobox(new Vector2(.10f,-.04f),new Vector2(.35f,.04f));
-                    modes.AddItem(0,new StringBuilder("Off")); modes.AddItem(1,new StringBuilder("No names")); modes.AddItem(2,new StringBuilder("Names"));
-                    modes.SelectItemByKey(c.WaypointMode); modes.ItemSelected+=()=>c.WaypointMode=(int)modes.GetSelectedKey(); Controls.Add(modes);
-                    Toggle(.08f,"Block info without grip",c.InspectWithoutGrip,v=>c.InspectWithoutGrip=v);
-                    Link(.18f,"Signals",()=>new SettingsPage("Signals"));
-                    Link(.26f,"All actions",()=>new ActionBrowser());
+                case "HUD visibility":
+                    Toggle(-.23f,"Show HUD with visor open",c.HudWithVisorOpen,v=>c.HudWithVisorOpen=v);
+                    Toggle(-.12f,"Ship crosshair",c.ShipCrosshair,v=>c.ShipCrosshair=v);
+                    Toggle(-.01f,"Block info without grip",c.InspectWithoutGrip,v=>c.InspectWithoutGrip=v);
                     break;
             }
             Controls.Add(new MyGuiControlButton(new Vector2(.18f,.34f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));

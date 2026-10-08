@@ -20,7 +20,7 @@ namespace SpaceEngineersVR.Player
         public ActionChoice Action;
         public float? Knob,Slider;
         public Action<float> Change;
-        public bool Caption;
+        public bool Caption,Horizontal;
         public bool Invisible,DirectOnly,Round;
         public VRageMath.RectangleF Bounds;
         internal bool Contains(Vector2 uv)
@@ -60,7 +60,7 @@ namespace SpaceEngineersVR.Player
         public float[] Levels;
         public int Handle;
         public Vector3? TouchPoint;
-        public string ContentKey => Desktop+"|"+FlightPage+"|"+SeatSettings+"|"+SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+HoverAlt+"|"+PressedAlt+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
+        public string ContentKey => Desktop+"|"+FlightPage+"|"+SeatSettings+"|"+SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+(SignalWindow && Signals?.Candidates.Length==0)+"|"+(SignalWindow ? Plugin.Common.Config?.WaypointMode:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+HoverAlt+"|"+PressedAlt+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Horizontal+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
             "|"+HudSettings?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob+":"+k.Slider))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
         public int KeyAt(Vector2 uv)
@@ -270,7 +270,7 @@ namespace SpaceEngineersVR.Player
             }
             g.FillRectangle(Brushes.White,1020,636,4,4);
         }
-        private static void DrawSettings(Graphics g,System.Drawing.RectangleF r)
+        internal static void DrawSettings(Graphics g,System.Drawing.RectangleF r)
         {
             float size=Math.Min(r.Width,r.Height)*.68f;
             var points=new List<PointF>();
@@ -380,6 +380,15 @@ namespace SpaceEngineersVR.Player
                 if(key.Caption) { g.DrawString(key.Label,labelFont,Brushes.LightCyan,r); continue; }
                 using(var path=Rounded(r,10))
                 using(var brush=new SolidBrush(s.IsPressed(i) ? Color.FromArgb(40,133,151) : s.Hovered(i) ? Color.FromArgb(55,83,100) : Color.FromArgb(31,47,60))) g.FillPath(brush,path);
+                if(key.Horizontal)
+                {
+                    float iconSize=Math.Min(46,r.Height-22);
+                    foreach(string icon in key.Icons) target.Icon(icon,r.X+14,r.Y+(r.Height-iconSize)/2,iconSize,key.Enabled);
+                    using(var left=new StringFormat {Alignment=StringAlignment.Near,LineAlignment=StringAlignment.Center,Trimming=StringTrimming.EllipsisWord})
+                        g.DrawString(key.Label,labelFont,key.Enabled ? Brushes.White:Brushes.Gray,
+                            new System.Drawing.RectangleF(r.X+iconSize+26,r.Y+4,r.Width-iconSize-40,r.Height-8),left);
+                    continue;
+                }
                 var label=key.Icons.Length>0 ? new System.Drawing.RectangleF(r.X+4,r.Bottom-40,r.Width-8,36):r;
                 if(key.Value==null) g.DrawString(key.Label,labelFont,key.Enabled ? Brushes.White:Brushes.Gray,label,format);
                 else
@@ -464,7 +473,7 @@ namespace SpaceEngineersVR.Player
                 }
                 float thickness=s.Style==SurfaceStyle.WristStatus ? .002f : .008f;
                 if(!s.SignalWindow) sprites.Add(Quad(c.Texture,s.Pose,full,new Vector4(.01f,.01f,.001f,.001f),Vector4.One,view,projection,-thickness));
-                for(int edge=0;edge<4;edge++)
+                for(int edge=0;edge<4 && !s.SignalWindow;edge++)
                 {
                     MatrixD side=MatrixD.CreateRotationY(edge<2 ? (edge==0 ? Math.PI/2 : -Math.PI/2) : 0);
                     if(edge>=2) side=MatrixD.CreateRotationX(edge==2 ? Math.PI/2 : -Math.PI/2);
@@ -489,7 +498,7 @@ namespace SpaceEngineersVR.Player
                     float raised=s.IsPressed(index) ? .001f : KeyHeight(s);
                     // Extruded key walls prevent the face from looking like a hovering label.
                     var bounds=new VRageMath.RectangleF((b.X-.5f)*s.Width,(.5f-b.Y)*s.Height,b.Width*s.Width,b.Height*s.Height);
-                    for(int edge=0;edge<4;edge++)
+                    for(int edge=0;edge<4 && !s.SignalWindow;edge++)
                     {
                         MatrixD side=edge<2 ? MatrixD.CreateRotationY(edge==0 ? Math.PI/2 : -Math.PI/2) : MatrixD.CreateRotationX(edge==2 ? Math.PI/2 : -Math.PI/2);
                         side.Translation=edge<2 ? new Vector3D(bounds.X+(edge==0 ? 0 : bounds.Width),bounds.Y-bounds.Height/2,raised/2)

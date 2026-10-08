@@ -46,7 +46,8 @@ namespace SpaceEngineersVR.Config
         public bool AdaptiveArms { get => adaptiveArms; set => SetValue(ref adaptiveArms,value); }
         private bool legacyShipTilt,physicalShipControlsOnly;
         public bool PhysicalShipControlsOnly { get => physicalShipControlsOnly; set => SetValue(ref physicalShipControlsOnly,value); }
-        private bool bodyCalibrated,seatedPlay,fitBodyOnFoot;
+        private bool bodyCalibrated,seatedPlay,fitBodyOnFoot,setupCompleted;
+        public bool SetupCompleted { get => setupCompleted; set => SetValue(ref setupCompleted,value); }
         private float measuredEyeHeight;
         public bool FitBodyOnFoot { get => fitBodyOnFoot; set => SetValue(ref fitBodyOnFoot,value); }
         public float MeasuredEyeHeight { get => measuredEyeHeight; set => SetValue(ref measuredEyeHeight,Bound(value,0,2.5f,0)); }

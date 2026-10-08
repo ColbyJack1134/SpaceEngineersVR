@@ -37,7 +37,7 @@ namespace SpaceEngineersVR.Player
             Add(keys,"Contacts",.515f,.438f,.46f,.052f,()=>c.ShowContacts=!c.ShowContacts,value:c.ShowContacts ? "On":"Off");
             Add(keys,"Ore / hacking",.515f,.496f,.46f,.052f,()=>c.ShowResources=!c.ShowResources,value:c.ShowResources ? "On":"Off");
             Add(keys,"Targeting rings",.515f,.554f,.46f,.052f,()=>c.SignalRings=!c.SignalRings,value:c.SignalRings ? "On":"Off");
-            Add(keys,"Wrist arrows",.515f,.612f,.46f,.052f,()=>c.SignalEdges=!c.SignalEdges,value:c.SignalEdges ? "On":"Off");
+            Add(keys,"Direction arrows",.515f,.612f,.46f,.052f,()=>c.SignalEdges=!c.SignalEdges,value:c.SignalEdges ? "On":"Off");
             Add(keys,"HUD with visor open",.515f,.670f,.46f,.052f,()=>c.HudWithVisorOpen=!c.HudWithVisorOpen,value:c.HudWithVisorOpen ? "On":"Off");
             Add(keys,"Ship crosshair",.515f,.728f,.46f,.052f,()=>c.ShipCrosshair=!c.ShipCrosshair,value:c.ShipCrosshair ? "On":"Off");
             Add(keys,"Marker roll",.515f,.786f,.46f,.052f,()=>c.CharacterMarkerRoll=!c.CharacterMarkerRoll,value:c.CharacterMarkerRoll ? "Character":"Headset");

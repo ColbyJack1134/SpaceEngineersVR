@@ -253,6 +253,7 @@ namespace SpaceEngineersVR.Plugin
         private void CustomUpdate()
         {
             Player.Player.MainUpdate();
+            GUI.FirstRunSetup.Offer();
             Player.RemoteView.UpdateContext();
             Player.InputRouter.Update();
             Player.SeatRecenter.Update();

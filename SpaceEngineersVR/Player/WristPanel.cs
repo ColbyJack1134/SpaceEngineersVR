@@ -8,7 +8,7 @@ namespace SpaceEngineersVR.Player
 {
     internal static class WristPanel
     {
-        private static int tab,page;
+        private static int tab,page,category;
         private static bool editing;
         private static string query="";
         internal static bool SeatOpen { get; private set; }
@@ -17,7 +17,7 @@ namespace SpaceEngineersVR.Player
         internal static void OpenHud() { Show(0); HudOpen=true; WristHud.Open(); }
         internal static bool DesktopOpen { get; private set; }
         internal static void OpenDesktop() { StopEditing(); HudOpen=SeatOpen=false; DesktopOpen=true; SpatialUi.Expand(); }
-        public static void Reset() { StopEditing(); tab=page=0; HudOpen=SeatOpen=DesktopOpen=false; query=""; WristSignals.Reset(); }
+        public static void Reset() { StopEditing(); tab=page=category=0; HudOpen=SeatOpen=DesktopOpen=false; query=""; WristSignals.Reset(); }
         internal static bool Inspecting => tab==3;
         public static void StopEditing() { if(editing) MenuKeyboard.Close(); editing=false; }
         internal static void Show(int selected) { StopEditing(); HudOpen=SeatOpen=DesktopOpen=false; tab=selected; }
@@ -35,8 +35,8 @@ namespace SpaceEngineersVR.Player
             bool showToolbar=selected==1;
             var keys=new List<SurfaceKey>();
             var tabs=new[] {
-                new ActionChoice("Controls",()=>Show(0)),new ActionChoice("Toolbar",()=>Show(1)),
-                new ActionChoice("Search",()=>Show(2)),new ActionChoice("Signals",()=>Show(3)) };
+                new ActionChoice("Quick",()=>Show(0)),new ActionChoice("Toolbar",()=>Show(1)),
+                new ActionChoice("Search",()=>Show(2)),new ActionChoice("Navigation",()=>Show(3)) };
             for(int i=0;i<tabs.Length;i++) keys.Add(new SurfaceKey(tabs[i].Label,.02f+i*.243f,.025f,.231f,.1f) {
                 Action=tabs[i],Active=i==selected });
             if(selected==0 && SeatOpen && !previewToolbar.HasValue)
@@ -69,12 +69,20 @@ namespace SpaceEngineersVR.Player
             }
             else
             {
-                var actions=GameActions.TabletActions(building,seated,thirdPerson,jetpack);
-                if(SeatFit.Eligible(SeatFit.Seat)) actions=actions.Concat(new[] {new ActionChoice("Seat panel",OpenSeat)}).ToArray();
+                var actions=new[] {GameActions.BlueprintsAction,GameActions.InventoryAction,GameActions.TerminalAction,
+                    seated ? (thirdPerson ? GameActions.Quick[22]:SeatAction):GameActions.Quick[3],
+                    GameActions.LightsAction,seated ? GameActions.ParkAction:GameActions.HelmetAction,
+                    seated ? GameActions.PowerAction:GameActions.JetpackAction,GameActions.Dampeners,
+                    seated ? GameActions.RelativeDampeners:GameActions.DetachBootsAction,GameActions.BroadcastAction,
+                    GameActions.Quick.First(a=>a.Label=="Chat"),GameActions.Quick.First(a=>a.Label=="Hotkey keyboard")};
                 for(int i=0;i<actions.Length;i++)
-                    keys.Add(new SurfaceKey(actions[i].Label,.02f+i%4*.245f,.16f+i/4*.20f,.23f,.185f) {
-                        Action=actions[i]==GameActions.HudOptions ? new ActionChoice("HUD",OpenHud):actions[i],Icons=new[] {actions[i].Icon},
-                        Enabled=actions[i].Enabled,Active=Active(actions[i],status) });
+                    keys.Add(new SurfaceKey(actions[i].Label=="Hotkey keyboard" ? "Hotkeys":actions[i].Label,.02f+i%4*.245f,.16f+i/4*.22f,.23f,.20f) {
+                        Action=actions[i],Icons=new[] {actions[i].Icon},Enabled=actions[i].Enabled,Active=Active(actions[i],status) });
+                var utilities=new[] {GameActions.PauseAction,GameActions.HudOptions,GameActions.Options,GameActions.Quick[10]};
+                var names=new[] {"Pause","HUD","Settings","Help"};
+                for(int i=0;i<utilities.Length;i++)
+                    keys.Add(new SurfaceKey(names[i],.02f+i*.245f,.84f,.23f,.12f) {
+                        Action=utilities[i],Icons=new[] {utilities[i].Icon},Horizontal=true });
             }
             return keys.ToArray();
         }
@@ -87,23 +95,44 @@ namespace SpaceEngineersVR.Player
             keys.Add(new SurfaceKey("Play/pause",0,0,1,1) {Action=new ActionChoice("Play/pause",DesktopCapture.PlayPause),Invisible=true});
             return keys.ToArray();
         }
+        private static readonly ActionChoice SeatAction=new ActionChoice("Seat panel",OpenSeat,
+            icon:NativeSprites.Hud("AdminMenu"),enabled:()=>SeatFit.Eligible(SeatFit.Seat));
+        internal static readonly string[] Categories={"All","Suit","Ship","Build","VR"};
+        internal static void SelectCategory(int value) { category=Math.Max(0,Math.Min(Categories.Length-1,value)); page=0; }
+        internal static bool InCategory(ActionChoice action,int value)
+        {
+            if(value==0) return true;
+            if(value==1) return action==GameActions.JetpackAction || action==GameActions.HelmetAction || action==GameActions.LightsAction || action==GameActions.BroadcastAction ||
+                action==GameActions.DetachBootsAction || action==GameActions.Dampeners || action==GameActions.RelativeDampeners || action==GameActions.Quick[3] || action==GameActions.InventoryAction;
+            if(value==2) return action==GameActions.PowerAction || action==GameActions.ParkAction || action==GameActions.Dampeners || action==GameActions.RelativeDampeners ||
+                action==GameActions.TerminalAction || action==GameActions.BroadcastAction || action==GameActions.CockpitBuild || action==GameActions.ExitFeed || action==GameActions.ResetFeed || action.Label.StartsWith("Toolbar ");
+            if(value==3) return GameActions.Building.Contains(action) || action==GameActions.BlueprintsAction || action==GameActions.CockpitBuild;
+            return action.Label.StartsWith("VR:") || action==GameActions.Options || action.Label==GameActions.Options.Label || action==GameActions.HudOptions || action==GameActions.Quick[10] ||
+                action==GameActions.RecenterAction || action==GameActions.PlayPosture || action==GameActions.DesktopFloating || action==GameActions.DesktopWrist;
+        }
         private static void SearchKeys(List<SurfaceKey> keys)
         {
             keys.Add(new SurfaceKey(query.Length==0 ? "Search actions" : query,.02f,.16f,.73f,.13f) {
                 Action=new ActionChoice("Search text",Edit),Active=editing });
             keys.Add(new SurfaceKey("Clear",.775f,.16f,.205f,.13f) {
                 Enabled=query.Length>0,Action=new ActionChoice("Clear search",()=> { query=""; page=0; }) });
-            var choices=GameActions.Search(query);
-            int pages=Math.Max(1,(choices.Length+5)/6); page=Math.Min(page,pages-1);
-            for(int i=0;i<6 && page*6+i<choices.Length;i++)
+            for(int i=0;i<Categories.Length;i++)
             {
-                var action=choices[page*6+i];
-                keys.Add(new SurfaceKey(action.Label,.02f+i%2*.49f,.33f+i/2*.17f,.47f,.15f) {
-                    Action=action,Icons=new[] {action.Icon},Enabled=action.Enabled });
+                int index=i;
+                keys.Add(new SurfaceKey(Categories[i],.02f+i*.194f,.315f,.182f,.075f) {
+                    Active=i==category,Action=new ActionChoice(Categories[i],()=>SelectCategory(index)) });
             }
-            keys.Add(new SurfaceKey("Previous",.02f,.86f,.28f,.115f) { Enabled=page>0,Action=new ActionChoice("Previous",()=> { page--; }) });
-            keys.Add(new SurfaceKey(choices.Length==0 ? "No matches" : (page+1)+" / "+pages,.32f,.86f,.36f,.115f) { Enabled=false });
-            keys.Add(new SurfaceKey("Next",.70f,.86f,.28f,.115f) { Enabled=page+1<pages,Action=new ActionChoice("Next",()=> { page++; }) });
+            var choices=GameActions.Search(query).Where(a=>InCategory(a,category)).ToArray();
+            int pages=Math.Max(1,(choices.Length+3)/4); page=Math.Min(page,pages-1);
+            for(int i=0;i<4 && page*4+i<choices.Length;i++)
+            {
+                var action=choices[page*4+i];
+                keys.Add(new SurfaceKey(action.Label,.02f+i%2*.49f,.43f+i/2*.19f,.47f,.17f) {
+                    Action=action,Icons=new[] {action.Icon},Enabled=action.Enabled,Horizontal=true });
+            }
+            keys.Add(new SurfaceKey("Previous",.02f,.86f,.25f,.115f) { Enabled=page>0,Action=new ActionChoice("Previous",()=> { page--; }) });
+            keys.Add(new SurfaceKey(choices.Length==0 ? "No matches" : (page+1)+" / "+pages,.29f,.86f,.42f,.115f) { Enabled=false });
+            keys.Add(new SurfaceKey("Next",.73f,.86f,.25f,.115f) { Enabled=page+1<pages,Action=new ActionChoice("Next",()=> { page++; }) });
         }
         private static void Page(MyToolbar toolbar,int change)
         {

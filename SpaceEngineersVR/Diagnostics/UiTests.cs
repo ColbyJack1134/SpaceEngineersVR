@@ -30,6 +30,31 @@ namespace SpaceEngineersVR.Diagnostics
             SignalTests.Run(log);
             using(var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport)) SignalTests.Render(device,output,log);
         }
+        public static void Navigation(string game,string output,Action<string> log)
+        {
+            Directory.CreateDirectory(output);
+            Initialize(game,Path.Combine(output,"data"));
+            using(var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport)) SignalTests.Render(device,output,log,true);
+            log("PASS focused Navigation renders.");
+        }
+        public static void WristMenus(string game,string output,Action<string> log)
+        {
+            Directory.CreateDirectory(output);
+            Initialize(game,Path.Combine(output,"data"));
+            StandingMeasurementTests.Run(log);
+            using(var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport))
+            using(var canvas=new OverlayCanvas("Wrist menu",1024,640,1,false,device))
+            {
+                WristPanel.Show(0);
+                var wrist=new SurfaceView {Id="Wrist preview",Style=SurfaceStyle.WristMenu,Width=.4f,Height=.225f,Status=WristFixture()};
+                wrist.Keys=WristPanel.Keys(null,false,false,false,true,wrist.Status,false);
+                WristPreview(device,canvas,wrist,output,"wrist-menu-preview");
+                wrist.Keys=WristPanel.Keys(null,false,true,true,false,wrist.Status,false);
+                WristPreview(device,canvas,wrist,output,"wrist-ship-controls");
+                SignalTests.Render(device,output,log,true);
+            }
+            log("PASS focused wrist menu renders and standing calibration checks.");
+        }
         public static void Tablet(string game,string output,Action<string> log)
         {
             Directory.CreateDirectory(output);

@@ -36,6 +36,9 @@ namespace SpaceEngineersVR.Player
             if (Label.StartsWith("Build shape:")) return "MultiBlockBuilding";
             switch (Label)
             {
+                case "Chat": return "Chat";
+                case "Blueprints": return "BlueprintsScreen";
+                case "HUD": return "SignalMode";
                 case "Inventory": case "Planner / deposit UI": return "OpenInventory";
                 case "Terminal": return "ToggleConnectedGrid";
                 case "G menu / toolbar": return "RadialMenu";
@@ -118,17 +121,7 @@ namespace SpaceEngineersVR.Player
         }
         internal static ActionChoice[] CockpitBuildActions() => new[] { PauseAction,Options,TerminalAction,CockpitBuild,ConfigureToolbarAction,PaletteAction,Building[17],Building[8],PlacementAction,BuildShapeAction,SymmetryAction,SymmetrySetupAction };
         internal static ActionChoice[] ClipboardActions() => new[] { PauseAction,Options,TerminalAction,AlignGravity,Building[21],Building[20],Building[6],Building[7],BlueprintsAction };
-        public static ActionChoice[] TabletActions(bool building,bool seated,bool thirdPerson,bool jetpack)
-        {
-            var actions=new List<ActionChoice> { PauseAction,Options,InventoryAction,TerminalAction,LightsAction,HelmetAction,
-                seated ? PowerAction:JetpackAction,Dampeners,BroadcastAction,HudOptions };
-            if(seated) actions.Add(ParkAction);
-            else { if(jetpack) actions.Add(RelativeDampeners); if(!building) actions.Add(Quick[3]); actions.Add(DetachBootsAction); }
-            if(thirdPerson && seated) actions.Add(Quick[22]);
-            if(building) actions.AddRange(new[] { BuildShapeAction,Building[8],PaletteAction,SymmetryAction });
-            return actions.ToArray();
-        }
-        public static readonly ActionChoice HudOptions=new ActionChoice("HUD",()=>MyGuiSandbox.AddScreen(new GUI.SettingsPage("HUD & Interface")),true);
+        public static readonly ActionChoice HudOptions=new ActionChoice("HUD",()=>MyGuiSandbox.AddScreen(new GUI.MyPluginConfigDialog(3)),true);
         public static bool AlternateTrigger { get; private set; }
         private static ActionChoice Native(string label, MyStringId control) => new ActionChoice(label, () => NativeActions.Pulse(control));
         public static readonly ActionChoice InventoryAction = new ActionChoice("Inventory", () => MySession.Static.ControlledEntity?.ShowInventory(), true);

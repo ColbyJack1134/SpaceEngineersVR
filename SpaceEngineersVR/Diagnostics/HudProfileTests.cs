@@ -50,6 +50,7 @@ namespace SpaceEngineersVR.Diagnostics
             c.SelectHudProfile(2); Require(c.ShowSignalDistances,"Distance visibility leaked across profiles"); c.SelectHudProfile(3);
             Require(c.CharacterMarkerRoll && c.FaceMarkersTowardViewer,"HUD orientation defaults lost");
             Press(c,"Marker roll"); Require(!c.CharacterMarkerRoll && !Panel(c).Keys.Any(k=>k.Label=="Grouping"),"Marker roll selector or grouping removal failed");
+            c.SetupCompleted=true;c.PlayerHeight=1.905f;c.MeasuredEyeHeight=1.837f;
             var serializer=new XmlSerializer(typeof(PluginConfig));
             Press(c,"Face viewer"); Require(!c.FaceMarkersTowardViewer,"Facing toggle ignored");
             using(var text=new StringWriter())
@@ -58,6 +59,7 @@ namespace SpaceEngineersVR.Diagnostics
                 string legacy=text.ToString().Replace("<Vitals>","<Tint>0.15</Tint><VisorOpen>false</VisorOpen><Vitals>");
                 using(var input=new StringReader(legacy)) c=(PluginConfig)serializer.Deserialize(input);
             }
+            Require(c.SetupCompleted && Math.Abs(c.PlayerHeight-1.905f)<.0001f && Math.Abs(c.MeasuredEyeHeight-1.837f)<.0001f,"Setup completion or height references lost after XML round trip");
             c.InitializeHudProfiles(); Require(!c.CharacterMarkerRoll && !c.ShowSignalDistances,"Marker roll or profile distances lost after XML round trip"); Require(c.HudProfiles.Length==5 && c.HudProfileIndex==3 && !c.ShowVitals && c.WaypointMode==2 && c.SignalIconScale==2,"Profile XML round trip lost the active state");
             Require(!c.FaceMarkersTowardViewer,"Explicit marker facing choice lost after XML round trip");
             Require(!c.ShipCrosshair && c.WristSignalTint==.6f && c.HudWithVisorOpen && !c.SignalEdges && !c.ShowContacts,"Legacy profile fields overwrote global XML settings");

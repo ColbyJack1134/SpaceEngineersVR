@@ -60,6 +60,17 @@ namespace SpaceEngineersVR.Diagnostics
                 return drawn;
             }
         }
+        private sealed class MainMenuPreview : SpaceEngineers.Game.GUI.MyGuiScreenMainMenu
+        {
+            internal MainMenuPreview() : base(false) { }
+            public override void RecreateControls(bool constructor)
+            {
+                base.RecreateControls(constructor);
+                Patches.PauseOptionsPatch.Add(this);
+                if(!Controls.OfType<Sandbox.Graphics.GUI.MyGuiControlButton>().Any(b=>b.Name=="SEVR.Options"))
+                    throw new InvalidOperationException("Main menu has no VR settings entry");
+            }
+        }
         private sealed class PausePreview : SpaceEngineers.Game.GUI.MyGuiScreenMainMenu
         {
             internal PausePreview() : base(true) { }
@@ -158,10 +169,13 @@ namespace SpaceEngineersVR.Diagnostics
                 if (renderError!=null) throw new InvalidOperationException(renderError);
                 if (DateTime.UtcNow>deadline) throw new TimeoutException("Native renderer probe timed out in phase "+phase);
                 if(Environment.GetEnvironmentVariable("SEVR_ITEM_GRABS")=="1") { UpdateItemGrabs(); return; }
+                if(phase>=100) { UpdateMenus(); return; }
                 if(phase>=50) { UpdateRig(); return; }
                 if (phase==0)
                 {
                     if (DateTime.UtcNow<next) return;
+                    if(!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")))
+                    { MenuTests.Run(line=>Logger.Info(line)); phase=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="setup" ? 134:100; return; }
                     if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_CAMERA_HUD_ONLY")=="1")
                     {
                         native=MyRenderProxy.CreateRenderEntity("SEVR camera probe",CockpitRig.Find(CockpitLayout.Fighter).Model,MatrixD.Identity,MyMeshDrawTechnique.MESH,
@@ -316,19 +330,14 @@ namespace SpaceEngineersVR.Diagnostics
                     if(phase==33) { options=new GUI.BindingHelp(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options); }
                     if(phase==34 || phase==35)
                     {
-                        var helpLines=(List<string>)HarmonyLib.AccessTools.Field(typeof(GUI.BindingHelp),"lines").GetValue(options);
-                        int cockpitPage=helpLines.FindIndex(line=>line.StartsWith("Grip physical sticks:"))/8;
-                        int blockPage=helpLines.FindIndex(line=>line.StartsWith("Point with the right hand before holding Y:"))/8;
-                        HarmonyLib.AccessTools.Field(typeof(GUI.BindingHelp),"page").SetValue(options,phase==34 ? blockPage:cockpitPage);
-                        options.RecreateControls(false);
+                        ((GUI.BindingHelp)options).SelectTopic(phase==34 ? 1:4);
                     }
                     if(phase==36) { options?.CloseScreenNow(); options=null; }
                     if(phase>=37 && phase<=44)
                     {
                         options?.CloseScreenNow();
-                        options=phase==42 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.BodyOptions() : phase==38 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.FlightOptions() :
-                            phase==43 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.SettingsPage("Signals") : phase==44 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.SettingsPage("Signal ranges") :
-                            (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.SettingsPage(phase==37 ? "Character" : phase==39 ? "Third person" : phase==40 ? "Release glide" : phase==41 ? "HUD & Interface" : "Advanced controls");
+                        options=phase>=42 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.FirstRunSetup(phase-42) :
+                            new GUI.MyPluginConfigDialog(phase==37 ? 0:phase==38 ? 1:phase==39 ? 2:phase==40 ? 4:3);
                         Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
                     }
                     if(phase==45)
@@ -351,7 +360,7 @@ namespace SpaceEngineersVR.Diagnostics
                     }
                     if(phase==49)
                     {
-                        options=new GUI.PhysicalFlightOptions(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
+                        options=new MainMenuPreview(); Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);
                     }
                     if (phase==50)
                     {
@@ -359,7 +368,7 @@ namespace SpaceEngineersVR.Diagnostics
                         if(!rotationPreviewsSaved) throw new InvalidOperationException("Native rotation previews not rendered");
                         ValidateImages();
                         if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_INTERFACE_ONLY")=="1")
-                        { Stop(); Logger.Info("PHYSICAL RENDER SMOKE PASSED: native interface, camera HUD, hand layer and reference cockpit. Rig sweep excluded."); return; }
+                        { phase=100; next=DateTime.UtcNow; return; }
                         rigs=SelectedRigs(); rigIndex=rigStep=0; BeginRig();
                     }
                     return;
@@ -382,7 +391,7 @@ namespace SpaceEngineersVR.Diagnostics
                 if(phase>=33 && phase<=35) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"bindings-native-"+phase+".png"),false,false,false);
                 if(phase==24 || phase==25) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,phase==24 ? "options-native.png" : "rendering-options-native.png"),false,false,false);
                 if(phase>=37 && phase<=44) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"settings-native-"+phase+".png"),false,false,false);
-                if(phase==49) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"physical-sticks-options.png"),false,false,false);
+                if(phase==49) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"main-vr-options.png"),false,false,false);
                 if(phase==47) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"pause-vr-options.png"),false,false,false);
                 pending=Path.Combine(output,name+".png");
                 next=DateTime.UtcNow.AddSeconds(1);
@@ -443,6 +452,41 @@ namespace SpaceEngineersVR.Diagnostics
             }
             pending=Path.Combine(output,prefix+new[] {"native","rest","moved","restored"}[rigStep]+".png");
             next=DateTime.UtcNow.AddSeconds(1);
+        }
+        private static void UpdateMenus()
+        {
+            if(DateTime.UtcNow<next) return;
+            int index=(phase-100)/2;
+            bool menusOnly=!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY"));
+            bool setupOnly=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="setup";
+            if(index>=(setupOnly ? 19:menusOnly ? 22:12))
+            {
+                options?.CloseScreenNow();options=null;Stop();
+                Logger.Info(menusOnly ? "PHYSICAL RENDER SMOKE PASSED: native menu checks and gallery only." :
+                    "PHYSICAL RENDER SMOKE PASSED: native interface, camera HUD, hand layer, reference cockpit and menu gallery. Rig sweep excluded.");return;
+            }
+            if(phase%2==0)
+            {
+                if(index>0 && index<10 && options is GUI.BindingHelp guide)
+                { guide.SelectTopic(index);next=DateTime.UtcNow.AddSeconds(2);phase++;return; }
+                if(index>=13 && index<=16 && options is GUI.MyPluginConfigDialog settings)
+                { settings.SelectPage(new[] {1,2,4,3}[index-13]);next=DateTime.UtcNow.AddSeconds(2);phase++;return; }
+                options?.CloseScreenNow();
+                options=index<10 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.BindingHelp(index) :
+                    index==10 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.HudStateOptions() : new GUI.BindingOptions();
+                if(index>=12 && index<=16) options=new GUI.MyPluginConfigDialog(new[] {0,1,2,4,3}[index-12]);
+                if(index>=17 && index<=19) options=new GUI.FirstRunSetup(index-17);
+                if(index==20) options=new MainMenuPreview();
+                if(index==21) options=new PausePreview();
+                Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);next=DateTime.UtcNow.AddSeconds(2);
+            }
+            else
+            {
+                string name=index<12 ? "menu-gallery-"+index : index<20 ? "settings-native-"+(index+25) : index==20 ? "main-vr-options":"pause-vr-options";
+                MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,name+".png"),false,false,false);
+                next=DateTime.UtcNow.AddSeconds(1);
+            }
+            phase++;
         }
         public static void Render()
         {

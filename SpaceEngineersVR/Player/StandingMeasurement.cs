@@ -21,11 +21,12 @@ namespace SpaceEngineersVR.Player
             height=(ordered[(ordered.Length-1)/2]+ordered[ordered.Length/2])*.5f;
             return true;
         }
-        internal bool TryApply(PluginConfig config,bool tracked,out float height)
+        internal bool TryApply(PluginConfig config,bool tracked,out float height,bool estimateBodyHeight=false)
         {
             height=0;
             if(!tracked || !TryGet(out height)) return false;
             config.MeasuredEyeHeight=height;
+            if(estimateBodyHeight) config.PlayerHeight=VRageMath.MathHelper.Clamp(height*(1.8f/1.69f),1f,2.4f);
             config.SeatedPlay=false;
             config.BodyCalibrated=true;
             return true;

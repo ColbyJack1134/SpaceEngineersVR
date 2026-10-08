@@ -24,9 +24,26 @@ namespace SpaceEngineersVR.Diagnostics
             Require(tabletQuery=="damps" && tabletTarget.Text==tabletQuery,"Standalone keyboard did not append at the query end");
             tabletTarget.KeypressBackspace(true);
             Require(tabletQuery=="damp","Standalone tablet keyboard backspace failed");
-            Require(GUI.MyPluginConfigDialog.CreatePage("Flight") is GUI.FlightOptions &&
-                GUI.MyPluginConfigDialog.CreatePage("Rendering") is GUI.RenderingOptions &&
-                GUI.MyPluginConfigDialog.CreatePage("Controls") is GUI.BindingHelp, "Settings search opens an empty category page");
+            foreach(var route in new[] {new[] {"Flight","Controller flight"},new[] {"Rendering","Reset resolution"},new[] {"Controls","Active bindings"}})
+            {
+                var destination=GUI.MyPluginConfigDialog.CreatePage(route[0]);destination.RecreateControls(true);
+                Require(destination.Controls.OfType<MyGuiControlButton>().Any(b=>b.Text.ToString()==route[1]),"Settings search opens the wrong category: "+route[0]);
+            }
+            var menuScreens=Enumerable.Range(0,5).Select(i=>(MyGuiScreenBase)new GUI.MyPluginConfigDialog(i))
+                .Concat(Enumerable.Range(0,10).Select(i=>(MyGuiScreenBase)new GUI.BindingHelp(i)))
+                .Concat(Enumerable.Range(0,2).Select(i=>(MyGuiScreenBase)new GUI.FirstRunSetup(i)))
+                .Concat(new MyGuiScreenBase[] {new GUI.HudStateOptions(),new GUI.BindingOptions()});
+            foreach(var menu in menuScreens)
+            {
+                menu.RecreateControls(true);
+                var buttons=menu.Controls.OfType<MyGuiControlButton>().ToArray();
+                for(int i=0;i<buttons.Length;i++) for(int j=i+1;j<buttons.Length;j++)
+                {
+                    var a=buttons[i];var b=buttons[j];var gap=new VRageMath.Vector2(Math.Abs(a.Position.X-b.Position.X),Math.Abs(a.Position.Y-b.Position.Y));var extent=(a.Size+b.Size)/2;
+                    Require(gap.X>=extent.X-.001f || gap.Y>=extent.Y-.001f,"Native menu buttons overlap: "+menu.GetFriendlyName()+" / "+a.Text+" / "+b.Text);
+                }
+            }
+            log("PASS native menu layouts: settings routes, ten guide topics, setup without VR, HUD editor and binding pages have non-overlapping buttons.");
             var catalog=ActionCatalog.NativeEntries();
             Require(catalog.Length>=30 && catalog.All(a=>!string.IsNullOrWhiteSpace(a.Label)),"Native action catalog lost system actions");
             log("PASS tablet search: shared native text editing and "+catalog.Length+" native system actions without execution.");
