@@ -56,6 +56,8 @@ namespace SpaceEngineersVR.Patches
     internal static class ToolbarAssignmentInputPatch
     {
         private static bool Prefix(MyGuiScreenToolbarConfigBase __instance) => !GUI.CockpitAssignment.HandleInput(__instance);
+        // Native grid clicks can replace the assignment selection after Update.
+        internal static void Postfix(MyGuiScreenToolbarConfigBase __instance) => GUI.CockpitAssignment.Update(__instance);
     }
     [HarmonyPatch(typeof(MyToolbarItemTerminalBlock),nameof(MyToolbarItemTerminalBlock.PossibleActions))]
     internal static class CockpitViewAssignmentPatch

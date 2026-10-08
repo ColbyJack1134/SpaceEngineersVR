@@ -38,6 +38,7 @@ namespace SpaceEngineersVR.Diagnostics
         private readonly Player.CockpitAssignmentToolbar grouped;
         private readonly MyToolbar physical;
         private readonly int selected;
+        private readonly NativeIntegrationTests.Item occupied;
         private static int Count => Player.CockpitLayout.Count(Player.CockpitLayout.ControlSeat);
         public override string GetFriendlyName() => "SEVR assignment preview";
         private static void Set(object instance,string field,object value) => AccessTools.Field(instance.GetType(),field).SetValue(instance,value);
@@ -60,6 +61,7 @@ namespace SpaceEngineersVR.Diagnostics
                 target=grouped.Toolbar;
             }
             selected=ordinary ? 10:grouped.Layout.DisplayIndex(58);
+            if(ordinary) { occupied=new NativeIntegrationTests.Item(); target.SetItemAtIndex(selected,occupied); }
             source=ordinary ? null:new MyToolbar(MyToolbarType.Ship,9,3);
             target.SwitchToPage(selected/target.SlotCount);
             MyToolbarComponent.CurrentToolbar=target;
@@ -82,16 +84,35 @@ namespace SpaceEngineersVR.Diagnostics
             Controls.Add(new MyGuiControlLabel(new Vector2(0,-.23f),text:ordinary ? "Toolbar assignment":"Cockpit assignment",originAlign:MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER));
             assignment=new CockpitAssignment(owner,target,source,target.SlotCount*target.PageCount,selected,switches:!ordinary,layout:grouped?.Layout); assignment.Update();
             FillArtwork();
+            if(ordinary) VerifyInputSelection();
         }
         private void FillArtwork()
         {
             string[] art={"GridPowerOn","Dampeners","Handbrake","Light","ToggleConnectors","GridPowerOn","Dampeners","Light","Handbrake"};
             foreach(var grid in Controls.OfType<MyGuiControlGrid>().Concat(new[] {toolbar.ToolbarGrid}))
                 for(int i=0;i<Math.Min(9,grid.MaxItemCount);i++)
-                    grid.SetItemAt(i,ordinary && target.CurrentPage==1 && i==1 ? null:new MyGuiGridItem(Player.NativeSprites.Hud(art[i]),null,"Action",null));
+                    grid.SetItemAt(i,ordinary && target.CurrentPage==1 && i==1 && target.GetItemAtIndex(selected)==null ? null:new MyGuiGridItem(Player.NativeSprites.Hud(art[i]),null,"Action",null));
+        }
+        private void VerifyInputSelection()
+        {
+            var input=AccessTools.Method(typeof(MyGuiScreenToolbarConfigBase),nameof(MyGuiScreenToolbarConfigBase.HandleInput));
+            var postfix=AccessTools.Method(typeof(Patches.ToolbarAssignmentInputPatch),nameof(Patches.ToolbarAssignmentInputPatch.Postfix));
+            if(!Harmony.GetPatchInfo(input).Postfixes.Any(p=>p.PatchMethod==postfix))
+                throw new Exception("Assignment selection is not restored after native input");
+            var select=AccessTools.Method(typeof(MyGuiControlGrid),"SelectMouseOverItem");
+            foreach(int? hovered in new int?[] {null,0,8})
+            {
+                select.Invoke(toolbar.ToolbarGrid,new object[] {hovered});
+                Patches.ToolbarAssignmentInputPatch.Postfix(owner);
+                if(toolbar.ToolbarGrid.SelectedIndex!=selected%target.SlotCount || occupied.Count!=0 ||
+                    !ReferenceEquals(target.GetItemAtIndex(selected),occupied) || target.SelectedSlot.HasValue)
+                    throw new Exception("Native input changed the occupied assignment destination or activated equipment");
+            }
+            Plugin.Logger.Info("PASS native occupied assignment: input clears/changes grid selection, assignment highlight restored without activation or removal.");
         }
         internal void VerifyAndPage()
         {
+            if(ordinary) target.SetItemAtIndex(selected,null);
             VerifyDoubleClick();
             if(ordinary)
             {

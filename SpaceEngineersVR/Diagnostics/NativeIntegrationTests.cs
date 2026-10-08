@@ -24,7 +24,7 @@ namespace SpaceEngineersVR.Diagnostics
     // native sprite output; the optional source-built mod fixture stays outside distribution.
     internal static class NativeIntegrationTests
     {
-        private sealed class Item : MyToolbarItem
+        internal sealed class Item : MyToolbarItem
         {
             public int Count;
             public Item() { SetEnabled(true); WantsToBeActivated=true; }
