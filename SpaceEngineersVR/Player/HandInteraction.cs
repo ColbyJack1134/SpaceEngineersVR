@@ -305,6 +305,12 @@ namespace SpaceEngineersVR.Player
                 "; use=" + (detector.UseObject?.GetType().Name ?? "none") +
                 "; target=" + (detector.UseObject?.Owner?.DisplayName ?? "none"));
         }
+        internal static bool TryRightInteractionRay(out LineD ray)
+        {
+            detectionHand=Player.HandR;
+            try { return TryInteractionRay(out ray); }
+            finally { detectionHand=null; }
+        }
         internal static IMyUseObject CaptureRightTarget()
         {
             detectionHand=Player.HandR;

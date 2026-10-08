@@ -51,7 +51,7 @@ namespace SpaceEngineersVR.Player
                 case "Pause": case "Pause / save / exit": return "PauseIcon";
                 case "VR options": return "AdminMenu";
                 case "Controller help": return "HelpScreen";
-                case "Add to build planner": return "MultiBlockBuilding";
+                case "Add missing components": return "MultiBlockBuilding";
                 case "Withdraw planner": return "Backpack";
                 case "Landing gear / park": return "Handbrake";
                 case "Power": return "GridPowerOn";
@@ -164,8 +164,8 @@ namespace SpaceEngineersVR.Player
             PauseAction,
             new ActionChoice("VR options", () => Common.Plugin.OpenConfigDialog(), true),
             new ActionChoice("Controller help", () => MyGuiSandbox.AddScreen(new GUI.BindingHelp()), true),
-            new ActionChoice("Add to build planner", AddToPlanner),
-            Native("Withdraw planner", MyControlsSpace.BUILD_PLANNER),
+            new ActionChoice("Add missing components", AddToPlanner,searchTerms:"add build planner unfinished block"),
+            BuildPlannerActions.Shortcuts[0],
             new ActionChoice("Planner / deposit UI", () => MySession.Static.ControlledEntity?.ShowInventory(), true),
             ParkAction,
             ParkAction,
@@ -261,11 +261,9 @@ namespace SpaceEngineersVR.Player
         }
         public static void AddToPlanner()
         {
-            var block = MyCubeBuilder.Static?.CurrentBlockDefinition;
-            if (block == null)
-                EssentialHud.Notify("Select a block before adding it to the build planner");
-            else if(MySession.Static.LocalCharacter?.AddToBuildPlanner(block) != true)
-                EssentialHud.Notify("Could not add this block to the build planner");
+            var action=BuildPlannerActions.CaptureMissing(MySession.Static?.LocalCharacter);
+            if(action==null) EssentialHud.Notify("Point at an unfinished block");
+            else Execute(action);
         }
 
         public static void HandleButtons()

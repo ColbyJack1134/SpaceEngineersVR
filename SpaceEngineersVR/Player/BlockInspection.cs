@@ -65,9 +65,11 @@ namespace SpaceEngineersVR.Player
             Current=new SurfaceView { Id="Block inspection",Style=SurfaceStyle.BlockInfo,Title=title,Text=text,
                 Block=data,Icons=definition.Icons ?? new string[0],Width=.30f,Height=Height(data.Components.Length),Pose=CockpitTouch.LabelPose(head,finger.Translation,.30f) };
         }
-        private static MySlimBlock Target(LineD ray)
+        private static MySlimBlock Target(LineD ray) => Target(ray,out _);
+        internal static MySlimBlock Target(LineD ray,out Vector3D point)
         {
             var hit=MyEntities.GetIntersectionWithLine(ref ray,MySession.Static.LocalCharacter,null,ignoreChildren:false,ignoreFloatingObjects:false);
+            point=hit.HasValue ? hit.Value.IntersectionPointInWorldSpace:ray.To;
             return hit.HasValue ? BlockForHit(hit.Value.UserObject,hit.Value.Entity):null;
         }
         internal static MySlimBlock BlockForHit(object geometry,VRage.ModAPI.IMyEntity entity)

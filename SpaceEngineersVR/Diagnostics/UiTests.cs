@@ -55,6 +55,30 @@ namespace SpaceEngineersVR.Diagnostics
             }
             log("PASS focused wrist menu renders and standing calibration checks.");
         }
+        public static void BuildPlanner(string game,string output,Action<string> log)
+        {
+            Directory.CreateDirectory(output);
+            Initialize(game,Path.Combine(output,"data"));
+            BuildPlannerTests.Run(log);
+            using(var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport))
+            using(var wheel=new OverlayCanvas("Planner wheel",1024,1024,1,false,device))
+            {
+                var inventory=BlockActions.Choices(BuildPlannerTests.InventoryFixture().SupportedActions,false,_=>true,_=>{})
+                    .Concat(BuildPlannerActions.InventoryChoices(()=>true,_=>{})).ToArray();
+                foreach(var fixture in new[] {
+                    Tuple.Create("inventory",inventory,Array.FindIndex(inventory,c=>c.Label=="Withdraw 10x / keep")),
+                    Tuple.Create("unfinished",new[] {new ActionChoice("Add missing components",()=>{},icon:NativeSprites.Hud("MultiBlockBuilding"))},0)})
+                {
+                    var pages=BlockActions.Pages(fixture.Item2,BlockVariants.Pages(Array.Empty<ActionChoice>(),GameActions.WheelActions(false,false,false)));
+                    var page=pages[0];
+                    var model=new ToolbarWheel.View {Title="Block actions 1 / "+pages.Length,Group=1,Pages=pages.Length,Selected=fixture.Item3,
+                        Labels=page.Select(c=>c?.Label ?? "").ToArray(),Icons=page.Select(c=>c==null ? Array.Empty<string>():new[] {c.Icon}).ToArray(),
+                        Enabled=page.Select(c=>c!=null).ToArray(),SubIcons=new string[9],ItemText=new string[9]};
+                    Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"wheel-"+fixture.Item1+".png"));
+                }
+            }
+            log("PASS focused production build planner wheel renders.");
+        }
         public static void Tablet(string game,string output,Action<string> log)
         {
             Directory.CreateDirectory(output);

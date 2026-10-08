@@ -150,8 +150,10 @@ namespace SpaceEngineersVR.Player
             if(quick)
             {
                 var variants=PlacementControls.Mode==InputMode.Building ? BlockVariants.Choices() : Array.Empty<ActionChoice>(); variantPages=(variants.Length+8)/9;
+                var block=PlacementControls.ClipboardActive ? Array.Empty<ActionChoice>():BlockActions.Capture(PlacementControls.OwnsTools);
+                quickChoices=quickChoices.Select(choice=>choice==GameActions.Quick[11] || choice==GameActions.Quick[12] ?
+                    block.FirstOrDefault(c=>c.Label==choice.Label) ?? choice:choice).ToArray();
                 quickPages=BlockVariants.Pages(variants,quickChoices);
-                var block=PlacementControls.OwnsTools ? Array.Empty<ActionChoice>():BlockActions.Capture();
                 blockPages=(block.Length+8)/9;
                 quickPages=BlockActions.Pages(block,quickPages);
                 quickChoices=quickPages[0];

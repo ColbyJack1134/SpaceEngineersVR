@@ -38,6 +38,7 @@ namespace SpaceEngineersVR.Player
         private static IEnumerable<ActionChoice> Entries()
         {
             foreach(var action in GameActions.Quick.Concat(GameActions.Building).Concat(GameActions.Developer)
+                .Concat(BuildPlannerActions.Shortcuts)
                 .Concat(new[] {GameActions.HudOptions,GameActions.UnequipAction,GameActions.RecenterAction,GameActions.DesktopFloating,GameActions.DesktopWrist})
                 .GroupBy(a=>a.Label).Select(g=>g.First())) yield return action;
             foreach(string category in new[] {"Character","Flight","Third person","HUD & Interface","Rendering","Controls"})
