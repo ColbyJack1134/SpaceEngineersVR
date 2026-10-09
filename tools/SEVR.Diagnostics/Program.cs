@@ -55,6 +55,7 @@ internal static class Program
             string data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"SEVRPrototype","Reports","regression-data");
             UiTests.Initialize(game,data);
         }
+        if(selfTest) RegressionTests.InitializeRenderer(game);
         if (uiTest) UiTests.Run(game,Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"SEVRPrototype","Reports","ui-preview"),Console.WriteLine);
         if (selfTest) RegressionTests.Run(Console.WriteLine);
         bool compatible = CompatibilityProbe.Run(Console.WriteLine);

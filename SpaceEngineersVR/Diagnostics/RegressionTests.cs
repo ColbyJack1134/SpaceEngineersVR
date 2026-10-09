@@ -11,6 +11,14 @@ namespace SpaceEngineersVR.Diagnostics
 {
     public static class RegressionTests
     {
+        public static void InitializeRenderer(string game)
+        {
+            if(VRage.MyVRage.Platform!=null) return;
+            if(VRage.Utils.MyLog.Default==null) VRage.Utils.MyLog.Default=new VRage.Utils.MyLog();
+            var platform=Assembly.LoadFrom(System.IO.Path.Combine(game,"VRage.Platform.Windows.dll")).GetType("VRage.Platform.Windows.MyVRageWindows");
+            string data=System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"SEVRPrototype","Reports","renderer-data");
+            platform.GetMethod("Init").Invoke(null,new object[] {"SEVR.Diagnostics",VRage.Utils.MyLog.Default,data,false,false});
+        }
         private static void Near(double actual,double expected,string name,double epsilon=0.00001)
         {
             if (double.IsNaN(actual) || Math.Abs(actual-expected)>epsilon) throw new Exception(name+": "+actual+" != "+expected);
@@ -92,6 +100,7 @@ namespace SpaceEngineersVR.Diagnostics
             ModHudTests.Run(log);
             ToolContactTests.Run(log);
             MotionToolTests.Run(log);
+            CockpitMaterialTests.Run(log);
             ThirdPersonTests.Run(log);
             ControllerFingerTests.Run(log);
             RemoteViewTests.Run(log);

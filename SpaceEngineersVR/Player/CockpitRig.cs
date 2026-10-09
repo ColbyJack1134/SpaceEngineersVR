@@ -324,7 +324,12 @@ namespace SpaceEngineersVR.Player
             if(actors.Skip(1).Any(a=>a.Indices.Count==0)) throw new InvalidDataException("Cockpit rig has an empty actor: "+Subtype);
             // Native runtime meshes use 16-bit indices.
             if(actors.Any(a=>a.Positions.Count>ushort.MaxValue+1)) throw new InvalidDataException("Cockpit actor exceeds native index range: "+Subtype);
-            return new CockpitGeometry(actors,triangles);
+            var materials=((List<MyMeshPartInfo>)tags["MeshParts"]).Where(p=>p.m_MaterialDesc!=null)
+                .GroupBy(p=>p.m_MaterialDesc.MaterialName).ToDictionary(g=>g.Key,g=>g.First().m_MaterialDesc);
+            foreach(var button in Buttons.Where(b=>b.TemplateSubtype!=null))
+                foreach(var material in Find(button.TemplateSubtype).Geometry(content).Materials)
+                    if(!materials.ContainsKey(material.Key)) materials.Add(material.Key,material.Value);
+            return new CockpitGeometry(actors,triangles,materials);
         }
         private static void Append(MyModelData target,MyModelData source)
         {

@@ -9,6 +9,7 @@ using Sandbox.Game.Entities;
 using Sandbox.Game.EntityComponents.Renders;
 using SpaceEngineersVR.Plugin;
 using VRage.FileSystem;
+using VRage.Utils;
 using VRage.Render.Scene;
 using VRageMath;
 using VRageRender;
@@ -32,9 +33,9 @@ namespace SpaceEngineersVR.Player
             public int ReadyCount;
             public volatile string Error;
             public volatile string NativeStatus="No native proxy verification";
-            public Verification(uint interior,CockpitGeometry geometry,string[] materials)
+            public Verification(uint interior,CockpitGeometry geometry,string[] materials,string subtype=null)
             { Interior=interior; Verified=new bool[geometry.Parts.Length]; Poses=new MatrixD?[geometry.Parts.Length]; Materials=materials;
-                ActorMaterials=geometry.Parts.Select(p=>p.Sections.Select(s=>s.MaterialName).Distinct().ToArray()).ToArray(); }
+                ActorMaterials=geometry.Parts.Select(p=>p.Sections.Select(s=>subtype==null ? s.MaterialName:CockpitMaterials.Name(subtype,s.MaterialName)).Distinct().ToArray()).ToArray(); }
         }
         private static Verification verification;
         private static CockpitGeometry geometry;
@@ -43,6 +44,7 @@ namespace SpaceEngineersVR.Player
         private static readonly RenderRecovery recovery=new RenderRecovery("Cockpit controls");
         private static bool failed => recovery.Failed;
         private static Vector3? appliedColor;
+        private static MyStringHash? appliedSkin;
         private static DateTime deadline;
         private static volatile bool remoteInterior;
         public static bool Ready => verification!=null && verification.NativeHidden && Volatile.Read(ref verification.ReadyCount)==verification.Verified.Length && verification.Error==null;
@@ -59,7 +61,7 @@ namespace SpaceEngineersVR.Player
                 foreach(string material in previous.Materials)
                     MyRenderProxy.UpdateModelProperties(previous.Interior,material,RenderFlags.Visible,RenderFlags.Visible|Hidden,null,null);
             }
-            owner=null; activeRig=null; remoteInterior=false; recovery.Clear(); appliedColor=null; feedback.Clear(); screenTextures.Clear();
+            owner=null; activeRig=null; remoteInterior=false; recovery.Clear(); appliedColor=null; appliedSkin=null; feedback.Clear(); screenTextures.Clear();
         }
         public static void Update(MyCockpit cockpit,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3))
         {
@@ -74,6 +76,7 @@ namespace SpaceEngineersVR.Player
             if(remote!=remoteInterior) { remoteInterior=remote; cockpit.UpdateCockpitModel(); }
             UpdateScene(CockpitRig.Find(cockpit.BlockDefinition.Id.SubtypeName),model,cockpit.WorldMatrix,left,right,leftHeld,rightHeld,leftOffset,rightOffset,colorMask:cockpit.SlimBlock.ColorMaskHSV);
             if(verification!=null) verification.Exterior=render.ExteriorRenderId;
+            SyncSkin(cockpit);
             SyncScreens(cockpit);
         }
         internal static void RemoteVisibility(System.Collections.Generic.List<Action> restore)
@@ -112,7 +115,7 @@ namespace SpaceEngineersVR.Player
                     foreach(string templateSubtype in activeRig.Buttons.Select(b=>b.TemplateSubtype).Where(s=>s!=null).Distinct())
                         MyRenderProxy.PreloadModel(CockpitRig.Find(templateSubtype).Model,forceOldPipeline:true);
                     geometry=activeRig.Geometry(MyFileSystem.ContentPath);
-                    verification=new Verification(interior,geometry,activeRig.Pieces.Select(p=>p.Material).Distinct().ToArray());
+                    verification=new Verification(interior,geometry,activeRig.Pieces.Select(p=>p.Material).Distinct().ToArray(),activeRig.Subtype);
                     deadline=DateTime.UtcNow.AddSeconds(8);
                     // This also converts the instance to the engine's supported per-material pipeline.
                     foreach(string material in verification.Materials)
@@ -137,8 +140,15 @@ namespace SpaceEngineersVR.Player
                             var data=message.ModelData; var source=geometry.Parts[i];
                             data.Positions.AddRange(source.Positions); data.Indices.AddRange(source.Indices);
                             data.Normals.AddRange(source.Normals); data.Tangents.AddRange(source.Tangents);
-                            data.TexCoords.AddRange(source.TexCoords); data.Sections.AddRange(source.Sections); data.AABB=source.AABB;
+                            data.TexCoords.AddRange(source.TexCoords);
+                            foreach(var section in source.Sections)
+                            {
+                                var replacement=section; replacement.MaterialName=CockpitMaterials.Name(activeRig.Subtype,section.MaterialName);
+                                data.Sections.Add(replacement);
+                            }
+                            data.AABB=source.AABB;
                             message.ReplacedModel=null;
+                            CockpitMaterials.Prepare(Name(i),activeRig.Subtype,geometry);
                             MyRenderProxy.AddRuntimeModel(Name(i),message);
                             actors[i]=MyRenderProxy.CreateRenderEntity(Name(i),Name(i),world,MyMeshDrawTechnique.MESH,
                                 RenderFlags.Visible|RenderFlags.ForceOldPipeline|RenderFlags.CastShadows,(CullingOptions)0,Color.White,paint);
@@ -147,7 +157,7 @@ namespace SpaceEngineersVR.Player
                         Volatile.Write(ref check.Actors,actors);
                         appliedColor=paint;
                         for(int i=0;i<actors.Length;i++) foreach(var section in geometry.Parts[i].Sections)
-                            MyRenderProxy.UpdateModelProperties(actors[i],section.MaterialName,RenderFlags.Visible,RenderFlags.Visible,null,null);
+                            MyRenderProxy.UpdateModelProperties(actors[i],CockpitMaterials.Name(activeRig.Subtype,section.MaterialName),RenderFlags.Visible,RenderFlags.Visible,null,null);
                     }
                     finally { FeatureTiming.End(FeatureTiming.Area.CockpitActors,started); }
                 }
@@ -213,6 +223,24 @@ namespace SpaceEngineersVR.Player
             }
         }
         private static readonly System.Collections.Generic.Dictionary<string,string> screenTextures=new System.Collections.Generic.Dictionary<string,string>();
+        private static void SyncSkin(MyCockpit cockpit) => SyncSkin(cockpit.SlimBlock.SkinSubtypeId,cockpit.Render.TextureChanges,cockpit.Render.MetalnessColorable);
+        internal static void SyncSkin(MyStringHash skin,System.Collections.Generic.Dictionary<MyStringId,VRageRender.Messages.MyTextureChange> textures,bool metalnessColorable)
+        {
+            var check=verification;
+            if(check==null || check.Actors.Length!=check.Verified.Length || appliedSkin==skin) return;
+            var changes=CockpitMaterials.Skin(activeRig.Subtype,geometry.Parts.SelectMany(p=>p.Sections).Select(s=>s.MaterialName),textures);
+            for(int i=0;i<check.Actors.Length;i++)
+            {
+                uint actor=check.Actors[i]; if(actor==uint.MaxValue) continue;
+                MyRenderProxy.ChangeMaterialTexture(actor,(System.Collections.Generic.Dictionary<MyStringId,VRageRender.Messages.MyTextureChange>)null);
+                if(changes.Count!=0) MyRenderProxy.ChangeMaterialTexture(actor,changes);
+                foreach(string material in check.ActorMaterials[i])
+                    MyRenderProxy.UpdateModelProperties(actor,material,metalnessColorable ? RenderFlags.MetalnessColorable:0,
+                        metalnessColorable ? 0:RenderFlags.MetalnessColorable,null,null);
+            }
+            appliedSkin=skin;
+            screenTextures.Clear();
+        }
         internal static int MovingScreenActor(CockpitRig rig,string material) => rig?.Wheel==null ? -1 :
             rig.Pieces.Where(p=>p.Actor==rig.Wheel.Actor && p.Material==material).Select(p=>p.Actor).DefaultIfEmpty(-1).First();
         internal static void PreserveScreenVisibility(uint id,string material,ref RenderFlags add,ref RenderFlags remove)
@@ -228,7 +256,7 @@ namespace SpaceEngineersVR.Player
             if(!Ready) return;
             int actor=MovingScreenActor(activeRig,material);
             if(actor<0 || screenTextures.TryGetValue(material,out string previous) && previous==path) return;
-            MyRenderProxy.ChangeMaterialTexture(verification.Actors[actor],material,path);
+            MyRenderProxy.ChangeMaterialTexture(verification.Actors[actor],CockpitMaterials.Name(activeRig.Subtype,material),path);
             screenTextures[material]=path;
         }
         private static void SyncScreens(MyCockpit cockpit)
@@ -262,7 +290,7 @@ namespace SpaceEngineersVR.Player
             uint id=check.Actors[actor];
             if(feedback.TryGetValue(id,out int previous) && previous==state) return;
             feedback[id]=state;
-            foreach(var material in geometry.Parts[actor].Sections.Select(s=>s.MaterialName).Distinct()) ApplyFeedback(id,material,state);
+            foreach(var material in geometry.Parts[actor].Sections.Select(s=>s.MaterialName).Distinct()) ApplyFeedback(id,CockpitMaterials.Name(activeRig.Subtype,material),state);
         }
         private static void UpdatePose(Verification check,int index,MatrixD pose)
         {

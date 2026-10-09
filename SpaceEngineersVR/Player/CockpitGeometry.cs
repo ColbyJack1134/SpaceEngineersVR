@@ -15,7 +15,9 @@ namespace SpaceEngineersVR.Player
     {
         public readonly MyModelData[] Parts;
         public readonly int NativeTriangles;
-        internal CockpitGeometry(MyModelData[] parts,int triangles) { Parts=parts; NativeTriangles=triangles; }
+        internal readonly Dictionary<string,MyMaterialDescriptor> Materials;
+        internal CockpitGeometry(MyModelData[] parts,int triangles,Dictionary<string,MyMaterialDescriptor> materials=null)
+        { Parts=parts; NativeTriangles=triangles; Materials=materials; }
 
         // Index 0 receives every triangle outside the measured pieces.
         internal static MyModelData[] Partition(Dictionary<string,object> tags,string name,int triangles,Vector3[] centers,int[] counts,int[] first=null,int[] moving=null)
