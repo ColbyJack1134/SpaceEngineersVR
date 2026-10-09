@@ -30,7 +30,7 @@ namespace SpaceEngineersVR.Multiplayer
             using(var stream=new MemoryStream())
             using(var writer=new BinaryWriter(stream))
             {
-                writer.Write(3); writer.Write(record.Revision); writer.Write(record.Toolbar ?? "");
+                writer.Write(6); writer.Write(record.Revision); writer.Write(record.Toolbar ?? "");
                 writer.Write(record.Covers.Length); foreach(bool value in record.Covers) writer.Write(value);
                 writer.Write(record.Flight!=null); record.Flight?.Write(writer);
                 writer.Write(record.LayoutVersion);
@@ -46,12 +46,12 @@ namespace SpaceEngineersVR.Multiplayer
             using(var reader=new BinaryReader(stream))
             {
                 int version=reader.ReadInt32();
-                if(stream.Length>Limit || version<1 || version>3) throw new InvalidDataException("Unsupported cockpit storage.");
+                if(stream.Length>Limit || version<1 || version>6) throw new InvalidDataException("Unsupported cockpit storage.");
                 var result=new Record {Revision=reader.ReadInt64(),Toolbar=reader.ReadString()};
                 int count=reader.ReadInt32();
                 if(count<0 || count>MaximumControls || result.Revision<0) throw new InvalidDataException("Invalid cockpit storage.");
                 result.Covers=new bool[count]; for(int i=0;i<count;i++) result.Covers[i]=reader.ReadBoolean();
-                if(version>=2 && reader.ReadBoolean()) result.Flight=FlightTuning.Read(reader);
+                if(version>=2 && reader.ReadBoolean()) result.Flight=FlightTuning.Read(reader,version);
                 result.LayoutVersion=version>=3 ? reader.ReadInt32():0;
                 if(result.LayoutVersion<0 || result.LayoutVersion>CurrentLayout) throw new InvalidDataException("Unsupported cockpit layout.");
                 if(stream.Position!=stream.Length) throw new InvalidDataException("Invalid cockpit storage length.");

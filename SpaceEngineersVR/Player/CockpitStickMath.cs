@@ -47,6 +47,23 @@ namespace SpaceEngineersVR.Player
             rotate=new Vector2(command.X,command.Y)*speed;
             roll=FlightAxes.Roll(command.Z,true,speed,rollSensitivity);
         }
+        internal static void ApplySteering(Multiplayer.FlightTuning tuning,bool flight,bool owned,bool held,bool rightHeld,bool barTiltEnabled,
+            float steering,float throttle,Vector2 barTilt,Vector2 thumb,float speed,float rollSensitivity,ref Vector3 move,ref Vector2 rotate,ref float roll)
+        {
+            if(!owned) return;
+            float command=held ? Response(steering,tuning.TranslationCurve):0;
+            if(!flight) {move.X=command; return;}
+            move.X=0;
+            rotate.Y=held ? speed*Response(steering*tuning.Rotation,tuning.RotationCurve):0;
+            if(rightHeld || barTiltEnabled)
+            {
+                float pitch=(held && barTiltEnabled ? barTilt.X:0)-(rightHeld ? thumb.Y:0);
+                float bank=(held && barTiltEnabled ? barTilt.Y:0)+(rightHeld ? thumb.X:0);
+                rotate.X=speed*Response(pitch*tuning.PitchSensitivity,tuning.RotationCurve);
+                roll=FlightAxes.Roll(Response(bank*tuning.RollSensitivity,tuning.RotationCurve),true,speed,rollSensitivity);
+            }
+            if(rightHeld && throttle>0) move.Z=-Math.Max(-move.Z,throttle);
+        }
         public static Vector3 Translation(Matrix neutral,Matrix current,float deadzone,bool twist,float sensitivity=1,Matrix? frame=null,float twistDeadzone=-1)
         {
             Vector3 tilt=Rotation(neutral,current,deadzone,twist,sensitivity,frame,twistDeadzone);
@@ -65,6 +82,20 @@ namespace SpaceEngineersVR.Player
             Vector2 tilt=Tilt(lean*sensitivity/TiltRange,deadzone);
             float yaw=-(float)Math.Atan2(heading.X,heading.Z);
             return new Vector3(tilt.X,twist ? Axis(yaw*sensitivity/TwistRange,twistDeadzone<0 ? deadzone:twistDeadzone) : 0,tilt.Y);
+        }
+        internal static Vector3 CommandVisual(Vector3 command,float curve,bool translation)
+        {
+            var value=Response(command,curve);
+            return translation ? new Vector3(-value.Z,value.Y,value.X):value;
+        }
+        internal static void ApplyYoke(Multiplayer.FlightTuning tuning,bool owned,bool held,bool rightHeld,float steering,float pitch,
+            Vector2 thumb,float speed,float rollSensitivity,ref Vector3 move,ref Vector2 rotate,ref float roll)
+        {
+            if(!owned) return;
+            move.X=0;
+            rotate.X=held ? speed*Response(pitch*tuning.PitchSensitivity,tuning.RotationCurve):0;
+            rotate.Y=rightHeld ? speed*Response(thumb.X*tuning.Rotation,tuning.RotationCurve):0;
+            roll=FlightAxes.Roll(held ? Response(steering*tuning.RollSensitivity,tuning.RotationCurve):0,true,speed,rollSensitivity);
         }
         internal static Vector3 SmoothVisual(Vector3 value,Vector3 target,float seconds)
         {

@@ -268,7 +268,11 @@ namespace SpaceEngineersVR.Diagnostics
             var toolbar=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=new List<MyObjectBuilder_Toolbar.Slot> {
                 new MyObjectBuilder_Toolbar.Slot {Index=0,Data=new MyObjectBuilder_ToolbarItemTerminalBlock {BlockEntityId=21,_Action="OnOff"}},
                 new MyObjectBuilder_Toolbar.Slot {Index=40,Data=new MyObjectBuilder_ToolbarItemTerminalGroup {BlockEntityId=22,GroupName="Ship lights",_Action="OnOff"}} }};
-            var record=new CockpitMemory.Record {Revision=9,Toolbar=CockpitMemory.Toolbar(toolbar),Covers=new[] {true,false,true},Flight=new FlightTuning {Rotation=1.3f,Translation=.6f,TwistDeadzone=.12f}};
+            var record=new CockpitMemory.Record {Revision=9,Toolbar=CockpitMemory.Toolbar(toolbar),Covers=new[] {true,false,true},
+                Flight=new FlightTuning {Rotation=1.3f,Translation=.6f,TwistDeadzone=.12f,FlightMode=true,BarTiltEnabled=true,
+                    ThrottleSensitivity=1.25f,PitchSensitivity=.75f,RollSensitivity=1.5f,BarPitchTravel=.035f,BarPitchDeadzone=.012f,
+                    BarRollTravel=MathHelper.ToRadians(7),BarRollDeadzone=MathHelper.ToRadians(3),WheelMotion=true,
+                    WheelPitchTravel=.03f,WheelPitchDeadzone=.008f,WheelRollTravel=MathHelper.ToRadians(40)}};
             Require(CockpitMemory.ValidToolbar(record.Toolbar,42) && !CockpitMemory.ValidToolbar(record.Toolbar,9),"Toolbar bounds validation failed");
             var component=new MyModStorageComponent(); component.SetValue(CockpitMemory.Key,CockpitMemory.Encode(record));
             var serialized=(MyObjectBuilder_ModStorageComponent)component.Serialize(true);

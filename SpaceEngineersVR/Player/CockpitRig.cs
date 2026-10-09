@@ -34,20 +34,32 @@ namespace SpaceEngineersVR.Player
             public readonly Vector3 Pivot,Axis,LeftContact,RightContact;
             public readonly int Actor,ThrottleActor;
             public readonly float Range,ThrottleRange;
-            public readonly Vector3 RightShaft;
+            public readonly Vector3 LeftShaft,RightShaft,TiltPivot;
             private readonly Matrix leftPalm,rightPalm;
-            public Steering(Vector3 pivot,Vector3 axis,Vector3 leftContact,Vector3 rightContact,Vector3 leftShaft,Vector3 rightShaft,int actor,float range,int throttleActor=-1,float throttleRange=.9599311f,float gripPitch=0)
+            public Steering(Vector3 pivot,Vector3 axis,Vector3 leftContact,Vector3 rightContact,Vector3 leftShaft,Vector3 rightShaft,int actor,float range,int throttleActor=-1,float throttleRange=MathHelper.Pi/6,float gripPitch=0,Vector3? tiltPivot=null)
             {
                 Pivot=pivot; Axis=Vector3.Normalize(axis); LeftContact=leftContact; RightContact=rightContact; Actor=actor; Range=range;
-                ThrottleActor=throttleActor; ThrottleRange=throttleRange; RightShaft=Vector3.Normalize(rightShaft);
+                TiltPivot=tiltPivot ?? pivot; ThrottleActor=throttleActor; ThrottleRange=throttleRange; LeftShaft=Vector3.Normalize(leftShaft); RightShaft=Vector3.Normalize(rightShaft);
                 leftPalm=CockpitStickMath.GripPalm(true,leftContact,Vector3.Normalize(leftShaft))*CockpitStickMath.Around(leftContact,Matrix.CreateRotationX(gripPitch));
                 rightPalm=CockpitStickMath.GripPalm(false,rightContact,throttleActor>=0 ? -RightShaft:RightShaft)*CockpitStickMath.Around(rightContact,Matrix.CreateRotationX(gripPitch));
             }
             internal Matrix Visual(float value) => CockpitStickMath.Around(Pivot,Matrix.CreateFromAxisAngle(Axis,MathHelper.Clamp(value,-1,1)*Range));
+            internal Matrix Visual(float value,Vector2 tilt)
+            {
+                // Keep the stem foot fixed; feedback travel is smaller than the tracked hand gesture.
+                float pitch=MathHelper.Clamp(tilt.X/.05f,-1,1)*MathHelper.ToRadians(5);
+                float roll=MathHelper.Clamp(tilt.Y*.5f,-MathHelper.ToRadians(5),MathHelper.ToRadians(5));
+                return CockpitStickMath.Around(TiltPivot,Matrix.CreateRotationX(-pitch)*Matrix.CreateRotationZ(-roll))*Visual(value);
+            }
+            internal Matrix YokeVisual(float roll,float pitch) => Visual(roll)*
+                CockpitStickMath.Around(Pivot,Matrix.CreateRotationX(-MathHelper.Clamp(pitch,-1,1)*MathHelper.ToRadians(5)));
+            internal Matrix YokePalm(bool left,float roll,float pitch) => (left ? leftPalm:rightPalm)*YokeVisual(roll,pitch);
             internal Matrix ThrottleVisual(float value) => ThrottleActor<0 ? Matrix.Identity :
                 CockpitStickMath.Around(RightContact,Matrix.CreateFromAxisAngle(RightShaft,MathHelper.Clamp(value,0,1)*ThrottleRange));
             internal Matrix Palm(bool left,float value,float throttle=0) =>
                 (left ? leftPalm:rightPalm*ThrottleVisual(throttle))*Visual(value);
+            internal Matrix Palm(bool left,float value,float throttle,Vector2 tilt) =>
+                (left ? leftPalm:rightPalm*ThrottleVisual(throttle))*Visual(value,tilt);
             internal Vector3 Contact(bool left,float value) => Vector3.Transform(left ? LeftContact:RightContact,Visual(value));
         }
         internal sealed class Piece

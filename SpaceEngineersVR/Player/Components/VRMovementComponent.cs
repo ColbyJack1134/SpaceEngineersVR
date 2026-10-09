@@ -197,7 +197,12 @@ namespace SpaceEngineersVR.Player.Components
             else virtualStickHeld = false;
 
             CockpitControls.ApplyFlight(RotationSpeed,ref move,ref rotate,ref roll);
-            move=DriveInput.Update(ship,move,!ThirdPersonView.Manipulating && PrimaryPressed,
+            if(CockpitControls.VehicleFlight)
+            {
+                if(!ThirdPersonView.Manipulating && PrimaryPressed && ship.Toolbar?.SelectedItem==null)
+                    move.Z=-System.Math.Max(-move.Z,MathHelper.Clamp(controls.PointerPressure.Position.X,0,1));
+            }
+            else move=DriveInput.Update(ship,move,!ThirdPersonView.Manipulating && PrimaryPressed ? MathHelper.Clamp(controls.PointerPressure.Position.X,0,1):0,
                 ThirdPersonView.Manipulating || CockpitControls.Adjusting ? 0:CockpitControls.Throttle);
             ApplyMoveAndRotation(move, rotate, roll);
         }

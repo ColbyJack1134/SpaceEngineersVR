@@ -488,11 +488,36 @@ namespace SpaceEngineersVR.Diagnostics
                         Save(face.Texture,Path.Combine(output,"seat-face-"+subtype+".png"));
                     }
                 }
+                foreach(string state in new[] {"near","hover","pressed"})
+                {
+                    var seatView=new SurfaceView {Id="Seat",Title="SEAT",Keys=SeatPanel.Keys(true),Width=.108f,Height=.120f,
+                        Pose=MatrixD.CreateTranslation(0,0,-.6),Levels=new[] {1f,1f,0f,0f,1f},Hover=state=="near" ? -1:11,Pressed=state=="pressed" ? 11:-1};
+                    scene.Clear(System.Drawing.Color.FromArgb(255,7,12,18)); scene.Upload();
+                    PhysicalSurface.Draw(scene.Texture,new[] {seatView},MatrixD.Identity,projection,null);
+                    Save(scene.Texture,Path.Combine(output,"seat-proximity-"+state+"-3d.png"));
+                    Render(canvas,()=>PhysicalSurface.Paint(canvas,seatView));
+                    using(var face=new OverlayCanvas("seat proximity "+state,600,(int)(600*seatView.Height/seatView.Width),1,false,device))
+                    using(var tex=new ShaderResourceView(device,canvas.Texture))
+                    {
+                        face.Clear(System.Drawing.Color.Black); face.Upload();
+                        NativeSprites.Draw(face.Texture,new[] {new NativeSprite(null,new VRageMath.RectangleF(0,0,face.Width,face.Height),Vector4.One) {Texture=tex}});
+                        Save(face.Texture,Path.Combine(output,"seat-proximity-"+state+"-face.png"));
+                    }
+                }
                 foreach(bool personal in new[] {false,true})
                 {
                     var settings=FlightSettings.View("flight-preview",MatrixD.Identity,.40f,.225f,
                         FlightSettings.Layout(new Multiplayer.FlightTuning(),personal,false,false,"Fighter Cockpit Flight Settings"),"Fighter Cockpit Flight Settings");
                     WristPreview(device,canvas,settings,output,personal ? "flight-grip":"flight-tuning");
+                }
+                foreach(string subtype in new[] {"RoverCockpit","BuggyCockpit","SpeederCockpit","SpeederCockpitCompact"})
+                for(int page=0;page<4;page++)
+                {
+                    bool saddle=subtype.StartsWith("Speeder"),personal=page==3;
+                    string title=(saddle ? "Saddle":"Vehicle")+" Controls";
+                    var settings=FlightSettings.View("vehicle-preview",MatrixD.Identity,.40f,.225f,
+                        FlightSettings.Layout(new Multiplayer.FlightTuning {FlightMode=true,BarTiltEnabled=true,WheelMotion=true},personal,false,false,title,false,subtype,page),title);
+                    WristPreview(device,canvas,settings,output,"vehicle-"+subtype+"-"+page);
                 }
                 var foreground=FlightSettings.View("flight-foreground",MatrixD.CreateTranslation(0,0,-.6),.55f,.31f,
                     FlightSettings.Layout(new Multiplayer.FlightTuning(),false,false,false,"Fighter Cockpit Flight Settings"),"Fighter Cockpit Flight Settings");

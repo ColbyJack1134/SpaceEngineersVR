@@ -425,7 +425,7 @@ namespace SpaceEngineersVR.Diagnostics
             if(rigStep==1 || rigStep==2)
             {
                 bool moved=rigStep==2;
-                Matrix left=moved && rig.Wheel!=null ? rig.Wheel.Visual(.7f) : moved && rig.Left!=null ? rig.Left.Visual(new Vector3(.5f,.4f,.6f)) : Matrix.Identity;
+                Matrix left=moved && rig.Wheel!=null ? (rig.Wheel.ThrottleActor>=0 ? rig.Wheel.Visual(.7f,new Vector2(.05f,MathHelper.ToRadians(10))):rig.Wheel.YokeVisual(-.5f,1)) : moved && rig.Left!=null ? rig.Left.Visual(new Vector3(.5f,.4f,.6f)) : Matrix.Identity;
                 Matrix right=moved && rig.Right!=null ? rig.Right.Visual(new Vector3(-.5f,.4f,-.6f)) : Matrix.Identity;
                 CockpitRender.UpdateScene(rig,native,MatrixD.Identity,left,right,moved,moved,switchPreview:moved ? 1f:0f,coverPreview:moved ? 1f:0f,
                     colorMask:neutralPaint,nativeRest:!moved,barPreview:moved ? 1f:0f,buttonPreview:moved,throttlePreview:moved ? 1f:0f);
@@ -610,6 +610,17 @@ namespace SpaceEngineersVR.Diagnostics
                         settings.WindowPose=window.Pose;
                         SpatialUi.DrawFloating(physicalTarget,MatrixD.Identity,camera.ProjectionMatrix,new[] {settings});
                         UiTests.Save(physicalTarget,Path.Combine(output,"flight-settings-native-cockpit.png"));
+                        foreach(string vehicleSubtype in new[] {"SpeederCockpit","RoverCockpit"})
+                        for(int page=0;page<4;page++)
+                        {
+                            texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
+                            string title=vehicleSubtype=="SpeederCockpit" ? "Saddle Controls":"Vehicle Controls";
+                            var vehicle=FlightSettings.View("vehicle-native-"+page,window.Pose,.55f,.31f,
+                                FlightSettings.Layout(new Multiplayer.FlightTuning {FlightMode=true,BarTiltEnabled=true,WheelMotion=true},page==3,false,false,title,false,vehicleSubtype,page),title);
+                            vehicle.WindowPose=window.Pose;
+                            SpatialUi.DrawFloating(physicalTarget,MatrixD.Identity,camera.ProjectionMatrix,new[] {vehicle});
+                            UiTests.Save(physicalTarget,Path.Combine(output,"vehicle-settings-native-"+vehicleSubtype+"-"+page+".png"));
+                        }
                     }
                     if(phase==45 || phase==46)
                     {

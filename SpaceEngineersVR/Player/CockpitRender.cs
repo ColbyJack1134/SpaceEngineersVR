@@ -275,7 +275,7 @@ namespace SpaceEngineersVR.Player
         {
             if(block==owner && Ready && index>=0 && index<owner.BlockDefinition.ScreenAreas.Count &&
                 MovingScreenActor(activeRig,owner.BlockDefinition.ScreenAreas[index].Name)>=0)
-                return (MatrixD)activeRig.Wheel.Visual(CockpitControls.SteeringPosition)*block.WorldMatrix;
+                return (MatrixD)CockpitControls.SteeringVisual*block.WorldMatrix;
             return block.WorldMatrix;
         }
         private static void UpdateRigStick(Verification check,CockpitRig.Stick stick,Matrix visual,Vector3 offset,bool held,MatrixD world)

@@ -59,7 +59,6 @@ namespace SpaceEngineersVR.Player
         public SurfaceStyle Style;
         public float[] Levels;
         public int Handle;
-        public Vector3? TouchPoint;
         public string ContentKey => Desktop+"|"+FlightPage+"|"+SeatSettings+"|"+SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+(SignalWindow && Signals?.Candidates.Length==0)+"|"+(SignalWindow ? Plugin.Common.Config?.WaypointMode:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+HoverAlt+"|"+PressedAlt+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Horizontal+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
             "|"+HudSettings?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob+":"+k.Slider))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
@@ -508,12 +507,6 @@ namespace SpaceEngineersVR.Player
                     }
                     sprites.Add(Quad(c.Texture,s.Pose,new VRageMath.RectangleF((b.X-.5f)*s.Width,(.5f-b.Y)*s.Height,b.Width*s.Width,b.Height*s.Height),
                         new Vector4(b.X,b.Y,b.Width,b.Height),Vector4.One,view,projection,raised));
-                }
-                if(s.TouchPoint.HasValue)
-                {
-                    var p=s.TouchPoint.Value;
-                    sprites.Add(Quad(c.Texture,s.Pose,new VRageMath.RectangleF(p.X-.003f,p.Y+.003f,.006f,.006f),new Vector4(1022f/1024,638f/640,0,0),
-                        new Vector4(.2f,.9f,1,1),view,projection,p.Z));
                 }
             }
             NativeSprites.Draw(target,sprites,depth,handDepth);

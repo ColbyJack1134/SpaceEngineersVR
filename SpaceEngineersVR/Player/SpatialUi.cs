@@ -39,7 +39,6 @@ namespace SpaceEngineersVR.Player
         private static SurfaceKey heldKey;
         private static DateTime lastUpdate;
         public static bool Pointing { get; private set; }
-        private static Vector3D touchPoint;
 
         public static MatrixD DeviceWorld(Matrix tracking)
         {
@@ -89,7 +88,6 @@ namespace SpaceEngineersVR.Player
             else if(!ThirdPersonView.Active && TrackedArms.TryFreePointPose(Player.HandR,out var fingerPoint)) world=fingerPoint;
             Vector3D tip=world.Translation;
             Pointing=new[] { wrist,wristMenu,seat,flightView }.Any(s=>s!=null && Vector3D.Distance(s.Pose.Translation,tip)<.4);
-            touchPoint=tip;
             RayTargeted=false;
             int previousHover=wristHover;
             string previousSurface=wristHoverSurface;
@@ -279,18 +277,11 @@ namespace SpaceEngineersVR.Player
                 seat.Hover=seatHover; seat.Pressed=seatPressed;
                 output.Add(seat);
             }
-            var point=touchPoint;
             if(!ThirdPersonView.Active) output.AddRange(CockpitButtons.Views);
             if(!ThirdPersonView.Active) output.AddRange(CockpitTouch.Labels());
             if(!ThirdPersonView.Active) output.AddRange(HandInteraction.Labels());
             if(BlockInspection.Current!=null) output.Add(BlockInspection.Current);
             var ammo=WeaponAmmo.View(); if(ammo!=null) output.Add(ammo);
-            foreach(var s in output)
-            {
-                Vector3 local=PhysicalSurface.Point(s,point);
-                if(s.Style!=SurfaceStyle.WristStatus && s.Style!=SurfaceStyle.WristMenu && wristTouch.Surface==null && s.Pressed<0 && local.Z>-.035f && local.Z<.16f && s.KeyAt(PhysicalSurface.UV(s,local))>=0)
-                    s.TouchPoint=new Vector3(local.X,local.Y,Math.Max(.014f,local.Z));
-            }
             current=output.ToArray();
         }
         internal static SurfaceView[] WristViews(MatrixD mount,float fold,float scale,EssentialHud.View status,SurfaceKey[] keys)

@@ -34,7 +34,7 @@ $logPath = $null
 try {
     $deadline = $started.AddSeconds(550)
     while ((Get-Date) -lt $deadline -and !$process.HasExited) {
-        $log = Get-ChildItem (Join-Path $PrototypeRoot 'GameData\SpaceEngineersVR_*.log') |
+        $log = Get-ChildItem -LiteralPath (Join-Path $PrototypeRoot 'GameData') -Filter 'SpaceEngineersVR_*.log' -File |
             Where-Object { $_.CreationTime -ge $started } | Sort-Object CreationTime -Descending | Select-Object -First 1
         if ($log) {
             $logPath = $log.FullName
