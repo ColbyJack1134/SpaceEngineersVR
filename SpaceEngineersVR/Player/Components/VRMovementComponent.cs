@@ -197,7 +197,8 @@ namespace SpaceEngineersVR.Player.Components
             else virtualStickHeld = false;
 
             CockpitControls.ApplyFlight(RotationSpeed,ref move,ref rotate,ref roll);
-            DriveInput.Update(ship,move);
+            move=DriveInput.Update(ship,move,!ThirdPersonView.Manipulating && PrimaryPressed,
+                ThirdPersonView.Manipulating || CockpitControls.Adjusting ? 0:CockpitControls.Throttle);
             ApplyMoveAndRotation(move, rotate, roll);
         }
 
@@ -283,6 +284,9 @@ namespace SpaceEngineersVR.Player.Components
             hadControllerMovement = UsingControllerMovement;
         }
 
+        private static bool PrimaryPressed => !HelmetHud.ProtectsRight && !FloatingWindows.OwnsInput && Controls.Static.Primary.IsPressed &&
+            !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Player.HandR);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void ControlCommonFunctions()
         {
@@ -295,9 +299,8 @@ namespace SpaceEngineersVR.Player.Components
                 !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Player.HandL) && !FloatingWindows.OwnsInput && Player.HandL.pose.isTracked;
             stickSecondary.Update(stickAction && controls.LeftTriggerPressure.Active && controls.LeftTriggerPressure.CanPress,
                 controls.LeftTriggerPressure.RawPosition.X>.55f);
-            bool primaryPressed=!HelmetHud.ProtectsRight && !FloatingWindows.OwnsInput && controls.Primary.IsPressed && !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Player.HandR);
+            bool primaryPressed=PrimaryPressed;
             bool ship=controlledEntity is MyShipController;
-            DriveInput.Throttle(ship && primaryPressed);
             bool gripSecondary=FlightAxes.SecondaryGrip(InputRouter.Flying,ship,CockpitControls.RotationOwned,CockpitControls.NearGrip(Player.HandR),controls.ThrustRotate.RawPosition,turret);
             // Right grip is also the roll modifier, so ships take secondary from a short tap without stick input.
             bool uiOwnsRight=SpatialUi.OwnsRight || CockpitTouch.OwnsRight || HandInteraction.OwnsRight || FloatingWindows.OwnsInput || TouchScreenBridge.OwnsInput || ArthurLcdBridge.Owns(Player.HandR);

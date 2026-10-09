@@ -92,6 +92,7 @@ namespace SpaceEngineersVR.Diagnostics
             if (gate.Held) throw new Exception("Input reactivation must require a physical release");
             log("PASS input ownership: startup, held press, context/tracking reset, inactive set, release and rearm");
             LocomotionInputTests.Run(log);
+            DriveInputTests.Run(log);
             InteractionRayTests.Run(log);
             PointerIntentTests.Run(log);
             StereoStateTests.Run(log);
