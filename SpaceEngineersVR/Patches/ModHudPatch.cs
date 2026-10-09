@@ -23,6 +23,7 @@ namespace SpaceEngineersVR.Patches
         private sealed class RichPool
         {
             internal readonly FieldInfo Triangles,FlatTriangles,Pool,FlatPool;
+            internal bool Valid => Triangles!=null && FlatTriangles!=null && Pool!=null && FlatPool!=null;
             internal RichPool(Type type)
             {
                 Triangles=Field(type,"triangleList",false); FlatTriangles=Field(type,"flatTriangleList",false);
@@ -32,7 +33,7 @@ namespace SpaceEngineersVR.Patches
             {
                 var field=AccessTools.Field(type,name);
                 if(field==null || (pool ? field.FieldType!=typeof(List<MyTriangleBillboard>[]):!typeof(IList).IsAssignableFrom(field.FieldType)))
-                    throw new MissingFieldException(type.FullName,name);
+                    return null;
                 return field;
             }
             internal void Place(object instance)
@@ -72,8 +73,8 @@ namespace SpaceEngineersVR.Patches
             try
             {
                 var methods=new[] {"ModHUDMessage","ModBillboardHUDMessage","ModBillboardTriHUDMessage"}
-                    .Select(name=>assembly.GetType("UIFun.Messagesv2."+name,true).GetMethod("Draw",BindingFlags.Public|BindingFlags.Instance|BindingFlags.DeclaredOnly,null,Type.EmptyTypes,null)).ToArray();
-                if(methods.Any(method=>method==null)) throw new MissingMethodException("Text HUD API drawing contract changed");
+                    .Select(name=>assembly.GetType("UIFun.Messagesv2."+name,false)?.GetMethod("Draw",BindingFlags.Public|BindingFlags.Instance|BindingFlags.DeclaredOnly,null,Type.EmptyTypes,null)).ToArray();
+                if(methods.Any(method=>method==null)) return;
                 foreach(var method in methods) Patch(method,nameof(Begin),finalizer:nameof(End));
                 Logger.Info("Text HUD API VR billboard adapter attached to "+assembly.GetName().Name);
             }
@@ -85,9 +86,10 @@ namespace SpaceEngineersVR.Patches
             int start=patched.Count;
             try
             {
-                var pools=new RichPool(type);
                 var method=type.GetMethod("UpdateBillboards",BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.DeclaredOnly,null,Type.EmptyTypes,null);
-                if(method==null) throw new MissingMethodException(type.FullName,"UpdateBillboards");
+                if(method==null) return;
+                var pools=new RichPool(type);
+                if(!pools.Valid) return;
                 richPools.Add(type,pools);
                 Patch(method,postfix:nameof(RichUpdated));
                 Logger.Info("Rich HUD Framework VR billboard adapter attached to "+type.Assembly.GetName().Name);

@@ -97,9 +97,9 @@ namespace SpaceEngineersVR.Player
             ItemGrabVisual.Update(current,profile,supportPoint,hover,Supported);
 
         }
-        private static MatrixD? LocalToolRay(MyCharacter character) => character==MySession.Static?.LocalCharacter &&
+        private static MatrixD? LocalToolRay(MyCharacter character) => Patches.MotionToolPatch.Eligible(character) && character==MySession.Static?.LocalCharacter &&
             ToolEquipped && TrackedArms.TryFreePointPose(Player.HandR,out var ray) ? ray:(MatrixD?)null;
-        private static MatrixD? LocalPose(MyCharacter character) => TryPose(character,out var pose,out _) ? pose:(MatrixD?)null;
+        private static MatrixD? LocalPose(MyCharacter character) => Patches.MotionToolPatch.Eligible(character) && TryPose(character,out var pose,out _) ? pose:(MatrixD?)null;
         public static bool TryPose(MyCharacter character,out MatrixD model,out Vector3D muzzle)
         {
             model=MatrixD.Identity; muzzle=Vector3D.Zero;

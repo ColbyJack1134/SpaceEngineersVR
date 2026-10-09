@@ -52,18 +52,17 @@ namespace SpaceEngineersVR.Player
             public Screen(object value)
             {
                 Value=value; var t=value.GetType();
-                Block=(IMyTerminalBlock)Property(t,"Block").GetValue(value);
+                Block=Property(t,"Block").GetValue(value) as IMyTerminalBlock;
                 Index=(int)Property(t,"Index").GetValue(value);
                 Enabled=Property(t,"Enabled"); Coords=Property(t,"Coords"); Aiming=Property(t,"IsPlayerAiming");
                 OnScreen=Property(t,"IsOnScreen"); Intersection=Property(t,"Intersection"); Cursor=Property(t,"CursorPosition"); Distance=Property(t,"InteractiveDistance");
                 Mouse1=Field(t,"Mouse1"); Mouse2=Field(t,"Mouse2"); Mouse3=Field(t,"Mouse3");
                 Update=Method(t,"UpdateAtSimulation"); Coordinates=Method(t,"UpdateScreenCoord");
-                ButtonUpdate=Method(Mouse1.FieldType,"Update");
-                if(Intersection.GetSetMethod(true)==null || Aiming.GetSetMethod(true)==null) throw new MissingMethodException("TouchScreenAPI setters");
+                ButtonUpdate=OptionalLcdContract.Method(Mouse1.FieldType,"Update",typeof(bool),typeof(bool));
             }
             public SurfaceView Plane()
             {
-                object coords=Coords.GetValue(Value); var t=coords.GetType();
+                object coords=Coords.GetValue(Value); if(coords==null) return null; var t=Coords.PropertyType;
                 return PlaneFor((Vector3)Field(t,"TopLeft").GetValue(coords),(Vector3)Field(t,"BottomLeft").GetValue(coords),
                     (Vector3)Field(t,"BottomRight").GetValue(coords),CockpitRender.SurfaceWorld(Block,Index));
             }
@@ -74,9 +73,32 @@ namespace SpaceEngineersVR.Player
                 ButtonUpdate.Invoke(Mouse3.GetValue(Value),new object[] { false,active });
             }
         }
-        private static PropertyInfo Property(Type t,string name) => AccessTools.Property(t,name) ?? throw new MissingMemberException(t.FullName,name);
-        private static FieldInfo Field(Type t,string name) => AccessTools.Field(t,name) ?? throw new MissingFieldException(t.FullName,name);
-        private static MethodInfo Method(Type t,string name) => AccessTools.Method(t,name) ?? throw new MissingMethodException(t.FullName,name);
+        private static PropertyInfo Property(Type t,string name) => OptionalLcdContract.Property(t,name);
+        private static FieldInfo Field(Type t,string name) => OptionalLcdContract.Field(t,name);
+        private static MethodInfo Method(Type t,string name) => OptionalLcdContract.Method(t,name);
+        internal static bool ScreenSupported(Type t)
+        {
+            var coords=Property(t,"Coords"); var button=Field(t,"Mouse1");
+            return OptionalLcdContract.Reads(t,"Block",typeof(IMyCubeBlock)) && OptionalLcdContract.Reads(t,"Index",typeof(int)) &&
+                OptionalLcdContract.Reads(t,"Enabled",typeof(bool)) && OptionalLcdContract.Reads(t,"IsOnScreen",typeof(bool)) &&
+                OptionalLcdContract.Reads(t,"CursorPosition",typeof(Vector2)) && OptionalLcdContract.Reads(t,"InteractiveDistance",typeof(float)) &&
+                OptionalLcdContract.Reads(t,"IsPlayerAiming",typeof(bool),write:true) && OptionalLcdContract.Reads(t,"Intersection",typeof(Vector3D),write:true) &&
+                coords?.GetGetMethod(true)?.IsStatic==false && new[] {"TopLeft","BottomLeft","BottomRight"}.All(n=>OptionalLcdContract.HasField(coords.PropertyType,n,typeof(Vector3))) &&
+                button!=null && !button.IsStatic && new[] {"Mouse2","Mouse3"}.All(n=>OptionalLcdContract.HasField(t,n,button.FieldType)) &&
+                OptionalLcdContract.Calls(button.FieldType,"Update",typeof(void),false,typeof(bool),typeof(bool)) &&
+                OptionalLcdContract.Calls(t,"UpdateAtSimulation",typeof(void),false) &&
+                OptionalLcdContract.Calls(t,"UpdateScreenCoord",typeof(Vector2),false) && OptionalLcdContract.Calls(t,"UpdateMouseButtons",typeof(void),false);
+        }
+        internal static bool ContractSupported(Type t,Type screen,Type input)
+        {
+            var instance=Field(t,"Instance"); var touchMan=Field(t,"TouchMan");
+            if(instance==null || !instance.IsStatic || !t.IsAssignableFrom(instance.FieldType) || touchMan==null || touchMan.IsStatic || !ScreenSupported(screen)) return false;
+            var managerType=touchMan.FieldType; var current=Field(managerType,"CurrentScreen");
+            return OptionalLcdContract.Reads(t,"ModEnabled",typeof(bool)) && OptionalLcdContract.HasField(managerType,"Screens",typeof(IEnumerable)) &&
+                current!=null && !current.IsStatic && !current.IsInitOnly && current.FieldType.IsAssignableFrom(screen) &&
+                OptionalLcdContract.Calls(managerType,"UpdateAtSimulation",typeof(void),false) &&
+                OptionalLcdContract.Calls(input,"SetPlayerUseBlacklistState",typeof(void),true,typeof(bool));
+        }
         internal static SurfaceView PlaneFor(Vector3 tl,Vector3 bl,Vector3 br,MatrixD world)
         {
             Vector3 right=br-bl,up=tl-bl;
@@ -126,7 +148,7 @@ namespace SpaceEngineersVR.Player
             CancelInput(); rightPose.Reset(); leftPose.Reset(); OwnsInput=Pointing=down=secondaryDown=false;
             selected=owner=null; screens.Clear(); manager=session=null; api=null;
             if(registered && MyAPIGateway.Utilities!=null) MyAPIGateway.Utilities.UnregisterMessageHandler(Channel,Message);
-            registered=false; failed=false; retry=DateTime.MinValue;
+            Unpatch(); registered=false; failed=false; retry=DateTime.MinValue;
         }
         private static void Discover()
         {
@@ -136,27 +158,49 @@ namespace SpaceEngineersVR.Player
             if(api==null) MyAPIGateway.Utilities.SendModMessage(Channel,"ApiRequestTouch");
             // The game can retain an unloaded world's mod assembly. Select a live
             // session, rather than stopping at the first assembly with this type.
-            var t=AppDomain.CurrentDomain.GetAssemblies().Reverse().Select(a=>a.GetType("Lima.Touch.TouchSession",false))
-                .FirstOrDefault(a=>a!=null && Field(a,"Instance").GetValue(null)!=null);
-            if(t==null) return;
-            var next=Field(t,"Instance").GetValue(null);
-            if(next==null || ReferenceEquals(session,next)) return;
-            if(updateManager!=null)
+            foreach(var assembly in AppDomain.CurrentDomain.GetAssemblies().Reverse())
             {
-                Common.Plugin.Harmony.Unpatch(updateManager,AccessTools.Method(typeof(TouchScreenBridge),nameof(ManagerPrefix)));
-                Common.Plugin.Harmony.Unpatch(updateButtons,AccessTools.Method(typeof(TouchScreenBridge),nameof(ButtonsPrefix)));
+                var t=assembly.GetType("Lima.Touch.TouchSession",false);
+                if(t!=null && Attach(t)) break;
             }
-            manager=Field(t,"TouchMan").GetValue(next); enabledProperty=Property(t,"ModEnabled");
-            listField=Field(manager.GetType(),"Screens"); currentField=Field(manager.GetType(),"CurrentScreen");
-            var screenType=t.Assembly.GetType("Lima.Touch.TouchScreen",true);
-            updateManager=Method(manager.GetType(),"UpdateAtSimulation"); updateButtons=Method(screenType,"UpdateMouseButtons");
-            Common.Plugin.Harmony.Patch(updateManager,prefix:new HarmonyMethod(typeof(TouchScreenBridge),nameof(ManagerPrefix)));
-            Common.Plugin.Harmony.Patch(updateButtons,prefix:new HarmonyMethod(typeof(TouchScreenBridge),nameof(ButtonsPrefix)));
-            // The mod may have suppressed desktop firing before this adapter attached.
-            var inputUtils=t.Assembly.GetType("Lima.Utils.InputUtils",true);
-            Method(inputUtils,"SetPlayerUseBlacklistState").Invoke(null,new object[] { false });
-            session=next; selected=null; screens.Clear(); CancelInput();
-            Logger.Info("TouchScreenAPI VR adapter attached to "+t.Assembly.GetName().Name);
+        }
+        internal static bool Attach(Type t)
+        {
+            var screen=t.Assembly.GetType("Lima.Touch.TouchScreen",false);
+            var input=t.Assembly.GetType("Lima.Utils.InputUtils",false);
+            if(!ContractSupported(t,screen,input)) return false;
+            var next=Field(t,"Instance").GetValue(null);
+            if(next==null) return false;
+            if(ReferenceEquals(session,next)) return true;
+            var nextManager=Field(t,"TouchMan").GetValue(next);
+            if(nextManager==null) return false;
+            var managerType=Field(t,"TouchMan").FieldType;
+            var managerMethod=Method(managerType,"UpdateAtSimulation");
+            var buttonMethod=Method(screen,"UpdateMouseButtons");
+            Unpatch();
+            try
+            {
+                updateManager=managerMethod; updateButtons=buttonMethod;
+                Common.Plugin.Harmony.Patch(updateManager,prefix:new HarmonyMethod(typeof(TouchScreenBridge),nameof(ManagerPrefix)));
+                Common.Plugin.Harmony.Patch(updateButtons,prefix:new HarmonyMethod(typeof(TouchScreenBridge),nameof(ButtonsPrefix)));
+                OptionalLcdContract.Method(input,"SetPlayerUseBlacklistState",typeof(bool)).Invoke(null,new object[] { false });
+                manager=nextManager; enabledProperty=Property(t,"ModEnabled");
+                listField=Field(managerType,"Screens"); currentField=Field(managerType,"CurrentScreen");
+                session=next; selected=null; screens.Clear(); CancelInput();
+                Logger.Info("TouchScreenAPI VR adapter attached to "+t.Assembly.GetName().Name);
+                return true;
+            }
+            catch
+            {
+                Unpatch(); manager=session=selected=null; screens.Clear(); CancelInput();
+                throw;
+            }
+        }
+        private static void Unpatch()
+        {
+            if(updateManager!=null) Common.Plugin.Harmony.Unpatch(updateManager,AccessTools.Method(typeof(TouchScreenBridge),nameof(ManagerPrefix)));
+            if(updateButtons!=null) Common.Plugin.Harmony.Unpatch(updateButtons,AccessTools.Method(typeof(TouchScreenBridge),nameof(ButtonsPrefix)));
+            updateManager=updateButtons=null;
         }
         internal static void RefreshRegistrations()
         {
@@ -167,7 +211,7 @@ namespace SpaceEngineersVR.Player
                 if(manager==null) return;
                 var list=((IEnumerable)listField.GetValue(manager)).Cast<object>().ToArray();
                 foreach(var stale in screens.Keys.Where(k=>!list.Contains(k)).ToArray()) screens.Remove(stale);
-                foreach(var value in list) if(!screens.ContainsKey(value)) screens.Add(value,new Screen(value));
+                foreach(var value in list) if(value!=null && !screens.ContainsKey(value) && ScreenSupported(value.GetType())) screens.Add(value,new Screen(value));
             }
             catch(Exception ex) { failed=true; screens.Clear(); Logger.Warning(ex,"TouchScreenAPI registration refresh disabled"); }
         }
@@ -297,7 +341,7 @@ namespace SpaceEngineersVR.Player
         private static bool ManagerPrefix(object __instance)
         {
             if(!Main.VrActive) return true;
-            if(!ReferenceEquals(__instance,manager)) return false;
+            if(!ReferenceEquals(__instance,manager)) return true;
             try
             {
                 currentField.SetValue(manager,failed ? null : selected);
@@ -313,11 +357,9 @@ namespace SpaceEngineersVR.Player
         private static bool ButtonsPrefix(object __instance)
         {
             if(!Main.VrActive) return true;
-            if(screens.TryGetValue(__instance,out var screen))
-            {
-                bool active=!failed && ReferenceEquals(__instance,selected) && InputRouter.Gameplay && !Main.MenuOpen;
-                screen.Buttons(active,active && down,active && secondaryDown);
-            }
+            if(!screens.TryGetValue(__instance,out var screen)) return true;
+            bool active=!failed && ReferenceEquals(__instance,selected) && InputRouter.Gameplay && !Main.MenuOpen;
+            screen.Buttons(active,active && down,active && secondaryDown);
             return false;
         }
         public static void Draw()
@@ -331,4 +373,52 @@ namespace SpaceEngineersVR.Player
                 MySimpleObjectDraw.DrawLine(rayOrigin,hitPoint,MyStringId.GetOrCompute("Square"),ref color,.002f);
         }
     }
+    internal static class OptionalLcdContract
+    {
+        private const BindingFlags Declared=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static|BindingFlags.DeclaredOnly;
+        internal static PropertyInfo Property(Type type,string name)
+        {
+            for(var t=type;t!=null;t=t.BaseType)
+            {
+                var matches=t.GetProperties(Declared).Where(p=>p.Name==name && p.GetIndexParameters().Length==0).ToArray();
+                if(matches.Length!=0) return matches.Length==1 ? matches[0]:null;
+            }
+            return null;
+        }
+        internal static FieldInfo Field(Type type,string name)
+        {
+            for(var t=type;t!=null;t=t.BaseType)
+            {
+                var field=t.GetField(name,Declared); if(field!=null) return field;
+            }
+            return null;
+        }
+        internal static MethodInfo Method(Type type,string name,params Type[] parameters)
+        {
+            for(var t=type;t!=null;t=t.BaseType)
+            {
+                var matches=t.GetMethods(Declared).Where(m=>m.Name==name && !m.ContainsGenericParameters &&
+                    m.GetParameters().Select(p=>p.ParameterType).SequenceEqual(parameters)).ToArray();
+                if(matches.Length!=0) return matches.Length==1 ? matches[0]:null;
+            }
+            return null;
+        }
+        internal static bool Reads(Type type,string name,Type value,bool write=false,bool isStatic=false)
+        {
+            var p=Property(type,name); var getter=p?.GetGetMethod(true); var setter=p?.GetSetMethod(true);
+            return getter!=null && getter.IsStatic==isStatic && value.IsAssignableFrom(p.PropertyType) &&
+                (!write || setter!=null && setter.IsStatic==isStatic);
+        }
+        internal static bool HasField(Type type,string name,Type value)
+        {
+            var field=Field(type,name);
+            return field!=null && !field.IsStatic && value.IsAssignableFrom(field.FieldType);
+        }
+        internal static bool Calls(Type type,string name,Type result,bool isStatic,params Type[] parameters)
+        {
+            var method=Method(type,name,parameters);
+            return method!=null && method.IsStatic==isStatic && method.ReturnType==result;
+        }
+    }
+
 }

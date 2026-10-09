@@ -1,4 +1,9 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Reflection.Emit;
+using System.Runtime.ExceptionServices;
 using HarmonyLib;
 using SpaceEngineersVR.Patches;
 using VRageMath;
@@ -10,6 +15,7 @@ namespace SpaceEngineersVR.Diagnostics
     {
         internal static void Run(Action<string> log)
         {
+            Registration(log);
             var origin=new Vector3D(80000,120000,-300000);
             var forward=Vector3D.Forward;
             foreach(var billboard in new MyBillboard[] {Quad(origin),Triangle(origin)})
@@ -39,6 +45,42 @@ namespace SpaceEngineersVR.Diagnostics
             }
             finally { field.SetValue(null,previous); }
             log("PASS mod HUD provenance: unscoped native quads/triangles unchanged, known HUD view rays/depth, hidden HUD, distant/custom views and exception cleanup");
+        }
+        private static void Registration(Action<string> log)
+        {
+            var assembly=AppDomain.CurrentDomain.DefineDynamicAssembly(new AssemblyName("SEVR.HudContract.Tests"),AssemblyBuilderAccess.Run);
+            var module=assembly.DefineDynamicModule("Contracts");
+            var types=new List<Type>();
+            bool accessException=false;
+            EventHandler<FirstChanceExceptionEventArgs> observe=(sender,args)=> { if(args.Exception is MemberAccessException) accessException=true; };
+            var attempted=(ISet<Type>)AccessTools.Field(typeof(ModHud),"attempted").GetValue(null);
+            var pools=(IDictionary)AccessTools.Field(typeof(ModHud),"richPools").GetValue(null);
+            AppDomain.CurrentDomain.FirstChanceException+=observe;
+            try
+            {
+                for(int shape=0;shape<3;shape++)
+                {
+                    var builder=module.DefineType("Billboards"+shape,TypeAttributes.Public);
+                    foreach(string field in new[] {"triangleList","flatTriangleList"})
+                        builder.DefineField(field,typeof(List<object>),FieldAttributes.Private);
+                    builder.DefineField("triPoolBack",shape==2 ? typeof(object):typeof(List<MyTriangleBillboard>[]),FieldAttributes.Private);
+                    if(shape!=1) builder.DefineField("flatTriPoolBack",typeof(List<MyTriangleBillboard>[]),FieldAttributes.Private);
+                    if(shape!=0) builder.DefineMethod("UpdateBillboards",MethodAttributes.Private,typeof(void),Type.EmptyTypes).GetILGenerator().Emit(OpCodes.Ret);
+                    var type=builder.CreateType(); types.Add(type);
+                    AccessTools.Method(typeof(ModHud),"AttachRich").Invoke(null,new object[] {type});
+                    Require(attempted.Contains(type) && !pools.Contains(type),"Unsupported Rich HUD contract registered");
+                }
+                var root=module.DefineType("TextRoot",TypeAttributes.Public).CreateType(); types.Add(root);
+                AccessTools.Method(typeof(ModHud),"AttachText").Invoke(null,new object[] {assembly,root});
+                Require(attempted.Contains(root),"Unsupported Text HUD contract was retried");
+                Require(!accessException,"Optional HUD discovery raised an exception that disables the plugin in Pulsar");
+            }
+            finally
+            {
+                AppDomain.CurrentDomain.FirstChanceException-=observe;
+                foreach(var type in types) attempted.Remove(type);
+            }
+            log("PASS mod HUD discovery: client copies, missing/wrong pool fields and unsupported Text HUD skipped without first-chance member exceptions");
         }
         private static MyBillboard Quad(Vector3D origin) => new MyBillboard {
             CustomViewProjection=-1,Color=Vector4.One,

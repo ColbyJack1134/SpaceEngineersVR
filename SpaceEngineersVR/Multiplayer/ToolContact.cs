@@ -37,7 +37,7 @@ namespace SpaceEngineersVR.Multiplayer
             var line=new LineD(ray.Translation,ray.Translation+ray.Forward*reach);
             var hit=MyEntities.GetIntersectionWithLine(ref line,owner,tool,ignoreChildren:false,ignoreFloatingObjects:false);
             block=null; entity=null; point=line.To;
-            if(!hit.HasValue) return false;
+            if(!hit.HasValue || hit.Value.Entity==null) return false;
             block=Block(hit.Value.UserObject,hit.Value.Entity);
             entity=hit.Value.Entity.GetTopMostParent() as MyEntity; point=hit.Value.IntersectionPointInWorldSpace;
             return true;

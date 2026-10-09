@@ -56,7 +56,7 @@ namespace SpaceEngineersVR.Multiplayer
             {
                 var probe=volume.Probe(i);
                 var sample=MyEntities.GetIntersectionWithLine(ref probe,state.Tool.Owner,state.Tool,ignoreFloatingObjects:false);
-                if(!sample.HasValue || !(sample.Value.Entity.GetTopMostParent() is MyVoxelBase voxel)) continue;
+                if(!sample.HasValue || !(sample.Value.Entity?.GetTopMostParent() is MyVoxelBase voxel)) continue;
                 var samplePoint=sample.Value.IntersectionPointInWorldSpace;
                 double score=Vector3D.DistanceSquared(samplePoint,volume.Start);
                 var approach=samplePoint-grip;
@@ -80,7 +80,7 @@ namespace SpaceEngineersVR.Multiplayer
             var line=new LineD(origin,endpoint);
             var hit=MyEntities.GetIntersectionWithLine(ref line,state.Tool.Owner,state.Tool,ignoreFloatingObjects:false);
             if(!hit.HasValue) return;
-            var entity=hit.Value.Entity.GetTopMostParent() as VRage.Game.Entity.MyEntity;
+            var entity=hit.Value.Entity?.GetTopMostParent() as VRage.Game.Entity.MyEntity;
             if(entity==null || entity.Physics==null || !entity.Physics.Enabled) return;
             var point=hit.Value.IntersectionPointInWorldSpace+ray.Forward*.005;
             state.Hits[entity.EntityId]=new MyDrillSensorBase.DetectionInfo(entity,point);

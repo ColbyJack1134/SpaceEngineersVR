@@ -90,6 +90,8 @@ namespace SpaceEngineersVR.Diagnostics
             AlignmentTests.Run(log);
             RenderingPatchTests.Run(log);
             ModHudTests.Run(log);
+            ToolContactTests.Run(log);
+            MotionToolTests.Run(log);
             ThirdPersonTests.Run(log);
             ControllerFingerTests.Run(log);
             RemoteViewTests.Run(log);
@@ -315,6 +317,7 @@ namespace SpaceEngineersVR.Diagnostics
             CockpitRigTests.Run(log);
             CockpitAssignmentTests.Run(log);
             ArthurLcdTests.Run(log);
+            OptionalLcdTests.Run(log);
             CockpitSteeringTests.Run(log);
             CockpitStateTests.Run(log);
             AnalogControlTests.Run(log);

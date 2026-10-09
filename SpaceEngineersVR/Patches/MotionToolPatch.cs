@@ -35,7 +35,7 @@ namespace SpaceEngineersVR.Patches
         private static readonly PropertyInfo Graphical = AccessTools.Property(typeof(MyCharacterWeaponPositionComponent),"GraphicalPositionWorld");
         private static bool disabled;
 
-        public static bool Eligible(MyCharacter character) => Main.VrActive && InputRouter.TrackedItems && character!=null && !character.IsDead && !character.IsSitting && !character.IsOnLadder &&
+        public static bool Eligible(MyCharacter character) => !disabled && Main.VrActive && InputRouter.TrackedItems && character!=null && !character.IsDead && !character.IsSitting && !character.IsOnLadder &&
             character == MySession.Static?.LocalCharacter && MySession.Static.ControlledEntity == character;
 
         internal static void Refresh(MyCharacter character) { if (character?.WeaponPosition!=null) Postfix(character.WeaponPosition); }
@@ -43,7 +43,7 @@ namespace SpaceEngineersVR.Patches
         [HarmonyPostfix]
         private static void Postfix(MyCharacterWeaponPositionComponent __instance)
         {
-            if (disabled || !Eligible(__instance.Character)) return;
+            if (!Eligible(__instance.Character)) return;
             try
             {
                 MatrixD hand;

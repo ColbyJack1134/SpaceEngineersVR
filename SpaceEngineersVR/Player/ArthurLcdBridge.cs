@@ -22,7 +22,7 @@ namespace SpaceEngineersVR.Player
         private static readonly LcdInput rightInput=new LcdInput(),leftInput=new LcdInput();
         private static readonly List<MethodBase> patched=new List<MethodBase>();
         private static Type moduleType;
-        private static MethodInfo intersection,localMatrix,clickState;
+        private static MethodInfo intersection,localMatrix,clickState,inputBlocked,mouseScroll;
         private static FieldInfo modules,pendingModules;
         private static object selected,owner,nativeModule;
         private static Controller hand;
@@ -39,22 +39,47 @@ namespace SpaceEngineersVR.Player
         internal static bool Owns(Controller controller) => controller!=null && Input(controller).Reserved;
         internal static string Status => selected==null ? OwnsInput ? "release":"idle" : (hand==Player.HandR ? "right":"left")+"/"+(near ? "near":"ray")+"/"+(selectedInput.Primary ? "primary":selectedInput.Secondary ? "secondary":OwnsInput ? "reserved":"hover");
         internal static bool Ready => moduleType!=null && !failed;
-        private static object Member(object value,string name) => CockpitRender.Member(value,name);
-        private static MethodInfo Method(Type type,string name) => AccessTools.Method(type,name) ?? throw new MissingMethodException(type.FullName,name);
+        private static object Member(object value,string name)
+        {
+            if(value==null) return null;
+            switch(CockpitRender.Find(value.GetType(),name))
+            {
+                case FieldInfo field: return field.GetValue(value);
+                case PropertyInfo property: return property.GetValue(value);
+                default: return null;
+            }
+        }
+        private static MethodInfo Method(Type type,string name,params Type[] parameters) => OptionalLcdContract.Method(type,name,parameters);
+        internal static bool ContractSupported(Type type,Type script,Type geometry,Type inputBlock,Type eye,Type control)
+        {
+            if(type==null || script==null || geometry==null || inputBlock==null || eye==null || control==null) return false;
+            return OptionalLcdContract.HasField(type,"_modules",typeof(IEnumerable)) && OptionalLcdContract.HasField(type,"_pendingModules",typeof(IEnumerable)) &&
+                OptionalLcdContract.Reads(script,"Block",typeof(IMyCubeBlock)) && OptionalLcdContract.Reads(script,"LastRunTick",typeof(long)) &&
+                OptionalLcdContract.Reads(script,"RotationOrSurfaceIndex",typeof(int)) &&
+                OptionalLcdContract.Calls(type,"Update",typeof(void),false) &&
+                OptionalLcdContract.Calls(type,"UpdateClickState",typeof(void),false,control,eye,eye) &&
+                OptionalLcdContract.Calls(type,"TryGetCameraRay",typeof(bool),true,typeof(Vector3D).MakeByRefType(),typeof(Vector3D).MakeByRefType()) &&
+                OptionalLcdContract.Calls(geometry,"TryGetScreenPointIntersection",typeof(bool),true,script,typeof(Vector3D),typeof(Vector3D),typeof(Vector2).MakeByRefType()) &&
+                OptionalLcdContract.Calls(geometry,"TryGetScreenLocalMatrix",typeof(bool),true,script,typeof(Matrix).MakeByRefType()) &&
+                new[] {"HoldingClick","HoldingRightClick","HoldingMiddleClick","HoldingBackClick","HoldingForwardClick"}.All(n=>OptionalLcdContract.Reads(type,n,typeof(bool),isStatic:true)) &&
+                OptionalLcdContract.Calls(type,"UpdateScrollState",typeof(void),true,eye) && OptionalLcdContract.Calls(eye,"MouseScroll",typeof(void),false,typeof(int)) &&
+                OptionalLcdContract.Calls(inputBlock,"Update",typeof(void),false) && OptionalLcdContract.Calls(inputBlock,"SetInputBlocked",typeof(void),false,typeof(bool));
+        }
         private static void Patch(MethodBase method,string prefix=null,string postfix=null,string transpiler=null,string finalizer=null)
         {
+            patched.Add(method);
             Common.Plugin.Harmony.Patch(method,prefix==null ? null:new HarmonyMethod(typeof(ArthurLcdBridge),prefix),
                 postfix==null ? null:new HarmonyMethod(typeof(ArthurLcdBridge),postfix),
                 transpiler==null ? null:new HarmonyMethod(typeof(ArthurLcdBridge),transpiler),
                 finalizer==null ? null:new HarmonyMethod(typeof(ArthurLcdBridge),finalizer));
-            patched.Add(method);
         }
         internal static void RefreshRegistrations()
         {
             if(failed || moduleType!=null || DateTime.UtcNow<retry || MySession.Static==null) return;
             retry=DateTime.UtcNow.AddSeconds(1);
             var type=AppDomain.CurrentDomain.GetAssemblies().Reverse().Where(a=>
-                a.GetType("LcdMod.Client.LcdModClientComponent",false) is Type client && AccessTools.Property(client,"Instance")?.GetValue(null)!=null)
+                a.GetType("LcdMod.Client.LcdModClientComponent",false) is Type client &&
+                OptionalLcdContract.Reads(client,"Instance",client,isStatic:true) && OptionalLcdContract.Property(client,"Instance").GetValue(null)!=null)
                 .Select(a=>a.GetType("LcdMod.Client.Modules.EyeTracking.EyeTrackingModule",false)).FirstOrDefault(t=>t!=null);
             if(type!=null) Attach(type);
         }
@@ -63,20 +88,23 @@ namespace SpaceEngineersVR.Player
             try
             {
                 var assembly=type.Assembly;
-                var script=assembly.GetType("LcdMod.Client.SurfaceScripts.Abstract.SurfaceScriptBase",true);
-                var geometry=assembly.GetType("LcdMod.Client.ScreenAreas.ScreenAreaGeometry",true);
-                intersection=AccessTools.Method(geometry,"TryGetScreenPointIntersection",new[] {script,typeof(Vector3D),typeof(Vector3D),typeof(Vector2).MakeByRefType()});
-                localMatrix=AccessTools.Method(geometry,"TryGetScreenLocalMatrix",new[] {script,typeof(Matrix).MakeByRefType()});
-                modules=AccessTools.Field(type,"_modules"); pendingModules=AccessTools.Field(type,"_pendingModules");
-                clickState=Method(type,"UpdateClickState");
-                if(intersection==null || localMatrix==null || modules==null || pendingModules==null) throw new MissingMemberException("Arthur LCD interaction interface");
+                var script=assembly.GetType("LcdMod.Client.SurfaceScripts.Abstract.SurfaceScriptBase",false);
+                var geometry=assembly.GetType("LcdMod.Client.ScreenAreas.ScreenAreaGeometry",false);
+                var inputBlock=assembly.GetType("LcdMod.Client.Modules.InputBlock.InputBlockModule",false);
+                var eye=assembly.GetType("LcdMod.Client.Utility.IEyeTracking",false);
+                var control=assembly.GetType("LcdMod.Client.Gui.ControlsTemplates.ControlTemplate",false);
+                if(!ContractSupported(type,script,geometry,inputBlock,eye,control)) return;
+                intersection=Method(geometry,"TryGetScreenPointIntersection",script,typeof(Vector3D),typeof(Vector3D),typeof(Vector2).MakeByRefType());
+                localMatrix=Method(geometry,"TryGetScreenLocalMatrix",script,typeof(Matrix).MakeByRefType());
+                modules=OptionalLcdContract.Field(type,"_modules"); pendingModules=OptionalLcdContract.Field(type,"_pendingModules");
+                clickState=Method(type,"UpdateClickState",control,eye,eye);
+                inputBlocked=Method(inputBlock,"SetInputBlocked",typeof(bool)); mouseScroll=Method(eye,"MouseScroll",typeof(int));
                 Patch(Method(type,"Update"),nameof(UpdatePrefix),nameof(UpdatePostfix),nameof(UpdateTranspiler),nameof(UpdateFinalizer));
-                Patch(Method(type,"TryGetCameraRay"),nameof(CameraPrefix));
+                Patch(Method(type,"TryGetCameraRay",typeof(Vector3D).MakeByRefType(),typeof(Vector3D).MakeByRefType()),nameof(CameraPrefix));
                 Patch(intersection,nameof(IntersectionPrefix));
                 foreach(string name in new[] {"HoldingClick","HoldingRightClick","HoldingMiddleClick","HoldingBackClick","HoldingForwardClick"})
-                    Patch(AccessTools.PropertyGetter(type,name) ?? throw new MissingMemberException(name),nameof(ButtonPrefix));
-                Patch(Method(type,"UpdateScrollState"),nameof(ScrollPrefix));
-                var inputBlock=assembly.GetType("LcdMod.Client.Modules.InputBlock.InputBlockModule",true);
+                    Patch(OptionalLcdContract.Property(type,name).GetGetMethod(true),nameof(ButtonPrefix));
+                Patch(Method(type,"UpdateScrollState",eye),nameof(ScrollPrefix));
                 Patch(Method(inputBlock,"Update"),nameof(InputBlockPrefix));
                 moduleType=type;
                 ResetInput();
@@ -204,8 +232,8 @@ namespace SpaceEngineersVR.Player
         private static object FindNativeModule()
         {
             if(moduleType==null) return null;
-            var client=moduleType.Assembly.GetType("LcdMod.Client.LcdModClientComponent",true);
-            var instance=AccessTools.Property(client,"Instance")?.GetValue(null);
+            var client=moduleType.Assembly.GetType("LcdMod.Client.LcdModClientComponent",false);
+            var instance=OptionalLcdContract.Reads(client,"Instance",client,isStatic:true) ? OptionalLcdContract.Property(client,"Instance").GetValue(null):null;
             var session=instance==null ? null:Member(instance,"_session");
             return session==null ? null:(Member(session,"RegisteredModules") as IEnumerable)?.Cast<object>().FirstOrDefault(moduleType.IsInstanceOfType);
         }
@@ -289,7 +317,7 @@ namespace SpaceEngineersVR.Player
         private static bool InputBlockPrefix(object __instance)
         {
             if(!Main.VrActive) return true;
-            Method(__instance.GetType(),"SetInputBlocked").Invoke(__instance,new object[] {false});
+            inputBlocked.Invoke(__instance,new object[] {false});
             return false;
         }
         private static bool ScrollPrefix(object __0)
@@ -297,7 +325,7 @@ namespace SpaceEngineersVR.Player
             if(!Main.VrActive) return true;
             if(!dispatch || !Allowed || !ReferenceEquals(__0,selected) || selected==null || selectedInput==null) return false;
             int value=selectedInput.TakeScroll();
-            if(value!=0) Method(selected.GetType(),"MouseScroll").Invoke(selected,new object[] {value});
+            if(value!=0) mouseScroll.Invoke(selected,new object[] {value});
             return false;
         }
         internal static void Draw()
