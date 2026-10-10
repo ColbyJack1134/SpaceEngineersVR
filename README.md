@@ -2,7 +2,7 @@
 
 ## Space Engineers 1 VR Plugin
 
-Still pre-release but fully playable. The goal of this plugin is to be able to fully play Space Engineers in VR with [VTOL VR](https://store.steampowered.com/app/667970/VTOL_VR/) inspired interactable cockpits and in game joysticks.
+Still pre-release but fully playable. The goal of this plugin is to be able to fully play Space Engineers in VR with [VTOL VR](https://store.steampowered.com/app/667970/VTOL_VR/) inspired interactable cockpits and in-game joysticks.
 
 Features:
 - Stereo VR rendering, 6DOF tracking, motion controls, and roomscale
