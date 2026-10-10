@@ -17,6 +17,7 @@ namespace SpaceEngineersVR.Player
                 !TryMount(seat.BlockDefinition.Id.SubtypeName,out var local,out float width,out float height)) return null;
             var key=Alignment.SeatKey("seat");
             return new SurfaceView { Id="Seat",Pose=Alignment.Apply(key,local*seat.WorldMatrix),
+                Mount=SeatPanelMount.Find(seat.BlockDefinition.Id.SubtypeName)?.Faces,MountScale=Alignment.Scale(key),
                 Width=width*Alignment.Scale(key),Height=height*Alignment.Scale(key),Title="SEAT",
                 Handle=CockpitControls.Adjusting ? 1 : 0,Keys=Keys(CockpitControls.CanAdjust,CockpitControls.Adjusting),Levels=States() };
         }
@@ -96,6 +97,8 @@ namespace SpaceEngineersVR.Player
         internal static bool TryMount(string subtype,out MatrixD local,out float width,out float height)
         {
             local=MatrixD.Identity; width=height=0;
+            var revised=SeatPanelMount.Find(subtype);
+            if(revised!=null) { local=revised.Pose; width=revised.Width; height=revised.Height; return true; }
             var rig=CockpitRig.Find(subtype);
             if(rig==null) return false;
             local=rig.SeatMount; width=.108f; height=.120f;

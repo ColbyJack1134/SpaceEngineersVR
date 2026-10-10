@@ -474,9 +474,9 @@ namespace SpaceEngineersVR.Diagnostics
                 device.ImmediateContext.ClearDepthStencilView(dsv,DepthStencilClearFlags.Depth,0,0);
                 PhysicalSurface.Draw(scene.Texture,new[] { hotkeys },MatrixD.Identity,projection,srv);
                 Save(scene.Texture,Path.Combine(output,"keyboard-hotkeys-3d.png"));
-                foreach(string subtype in new[] { CockpitLayout.Fighter,"OpenCockpitLarge" })
+                foreach(string subtype in new[] { CockpitLayout.Fighter,"OpenCockpitLarge","SmallBlockCapCockpit","SmallBlockFlushCockpit","LargeBlockCockpitSeat","OpenCockpitSmall" })
                 {
-                    SeatPanel.TryMount(subtype,out _,out float width,out float height);
+                    SeatPanel.TryMount(subtype,out var mount,out float width,out float height);
                     var panel=new SurfaceView { Id="Seat",Title="SEAT",Keys=SeatPanel.Keys(subtype==CockpitLayout.Fighter),Levels=new[] {1f,1f,0f,0f,1f},Width=width,Height=height };
                     Render(canvas,()=>PhysicalSurface.Paint(canvas,panel));
                     Save(canvas.Texture,Path.Combine(output,"seat-"+subtype+".png"));
@@ -487,6 +487,11 @@ namespace SpaceEngineersVR.Diagnostics
                         NativeSprites.Draw(face.Texture,new[] {new NativeSprite(null,new VRageMath.RectangleF(0,0,face.Width,face.Height),Vector4.One) {Texture=tex}});
                         Save(face.Texture,Path.Combine(output,"seat-face-"+subtype+".png"));
                     }
+                    panel.Pose=mount; panel.Mount=SeatPanelMount.Find(subtype)?.Faces;
+                    var mountView=MatrixD.CreateLookAt(mount.Translation+mount.Backward*.35+mount.Right*.12,mount.Translation,mount.Up);
+                    scene.Clear(System.Drawing.Color.FromArgb(255,7,12,18)); scene.Upload();
+                    PhysicalSurface.Draw(scene.Texture,new[] {panel},mountView,projection,null);
+                    Save(scene.Texture,Path.Combine(output,"seat-mount-"+subtype+".png"));
                 }
                 foreach(string state in new[] {"near","hover","pressed"})
                 {
@@ -561,7 +566,7 @@ namespace SpaceEngineersVR.Diagnostics
                     PhysicalSurface.Paint(canvas,new SurfaceView { Id="Seat",Width=width,Height=height,Keys=SeatPanel.Keys(true,unlocked),Handle=unlocked ? 1 : 0 }); canvas.Upload();
                     Save(canvas.Texture,Path.Combine(output,"stick-placement-"+(unlocked ? "unlocked" : "locked")+".png"));
                 }
-                foreach(string subtype in new[] { CockpitLayout.Fighter,"OpenCockpitLarge" })
+                foreach(string subtype in new[] { CockpitLayout.Fighter,"OpenCockpitLarge","SmallBlockCapCockpit","SmallBlockFlushCockpit","LargeBlockCockpitSeat","OpenCockpitSmall" })
                 {
                     foreach(int index in new[] {0,CockpitLayout.Count(subtype)-1})
                     {

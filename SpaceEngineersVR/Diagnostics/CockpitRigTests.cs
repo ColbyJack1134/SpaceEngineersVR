@@ -21,7 +21,7 @@ namespace SpaceEngineersVR.Diagnostics
             foreach(var rig in CockpitRig.All)
             {
                 if(!SeatPanel.TryMount(rig.Subtype,out var mount,out float width,out float height) ||
-                    !mount.IsValid() || Math.Abs(width-.108f)>.00001f || Math.Abs(height-.12f)>.00001f)
+                    !mount.IsValid() || Math.Abs(width-(rig.Subtype=="OpenCockpitSmall" ? .072f:.108f))>.00001f || Math.Abs(height-(rig.Subtype=="OpenCockpitSmall" ? .080f:.120f))>.00001f)
                     throw new Exception("Cockpit seat panel differs from the common module: "+rig.Subtype);
                 if(rig.ActorCount==0) continue;
                 var mesh=rig.Geometry(content);

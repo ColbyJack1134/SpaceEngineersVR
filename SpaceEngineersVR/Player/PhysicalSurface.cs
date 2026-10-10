@@ -51,6 +51,8 @@ namespace SpaceEngineersVR.Player
         internal int WindowHover;
         internal SurfaceView At(MatrixD pose) { var copy=(SurfaceView)MemberwiseClone(); copy.Pose=pose; return copy; }
         public float Width,Height;
+        internal Vector3D[] Mount;
+        internal float MountScale=1;
         public SurfaceKey[] Keys=new SurfaceKey[0];
         public int Hover=-1,Pressed=-1,HoverAlt=-1,PressedAlt=-1;
         public bool LeftHand;
@@ -442,6 +444,17 @@ namespace SpaceEngineersVR.Player
                     c.Content=content; c.Revision=NativeSprites.Revision; c.Status=s.Status;
                 }
                 var full=new VRageMath.RectangleF(-s.Width/2,s.Height/2,s.Width,s.Height);
+                if(s.Mount!=null)
+                {
+                    var transform=s.Pose*view*projection;
+                    for(int i=0;i<s.Mount.Length;i+=4)
+                        sprites.Add(new NativeSprite(null,default(VRageMath.RectangleF),Vector4.One) {
+                            Projected=true,Texture=c.Texture,UV=new Vector4(.01f,.01f,.001f,.001f),
+                            TopLeft=(Vector4)Vector4D.Transform(new Vector4D(s.Mount[i]*s.MountScale,1),transform),
+                            TopRight=(Vector4)Vector4D.Transform(new Vector4D(s.Mount[i+1]*s.MountScale,1),transform),
+                            BottomLeft=(Vector4)Vector4D.Transform(new Vector4D(s.Mount[i+3]*s.MountScale,1),transform),
+                            BottomRight=(Vector4)Vector4D.Transform(new Vector4D(s.Mount[i+2]*s.MountScale,1),transform) });
+                }
                 if(s.Style==SurfaceStyle.Pointer)
                 {
                     Vector3D toward=MatrixD.Invert(view).Translation-s.Pose.Translation;
