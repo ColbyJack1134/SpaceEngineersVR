@@ -2,19 +2,21 @@
 
 ## Space Engineers 1 VR Plugin
 
-Still pre-release but fully playable. So far only keymappings for Quest controllers. Steam Frame and others coming soon.
+Still pre-release but fully playable. The goal of this plugin is to be able to fully play Space Engineers in VR with VTOL VR inspired interactable cockpits and in game joysticks.
 
 Features:
-- Stereo VR rendering, 6DOF tracking, motion controls and roomscale
-- Interactive vanilla and DLC cockpits using existing model controls (pre-Warfare 3)
-- Grab and operate in-game joysticks, steering wheels, handlebars and throttles with motion controllers
+- Stereo VR rendering, 6DOF tracking, motion controls, and roomscale
+- Interactive vanilla and DLC cockpits using existing model controls (Up to Prosperity update)
+- Grab and operate in-game joysticks, steering wheels, handlebars, and throttles with motion controllers
 - Player tools and weapons with two-handed support
-- VR building, painting, symmetry and blueprint placement
-- Third-person and spectator views with hand-controlled camera movement
-- Wrist HUD and tablet, radial menus, floating game menus and VR keyboard
+- VR building with support for painting, symmetry, blueprints, planets, and 3rd person building
+- 3rd person and spectator views with hand-controlled camera movement
+- Wrist HUD and tablet, radial menus, floating game menus, and VR keyboard
 - Interactive LCDs, including Arthur and TouchScreenAPI support
-- Camera, turret and remote-grid controls
+- Camera, turret, and remote-grid VR support using picture-in-picture
 - Multiplayer support with an optional flatscreen host companion
+
+If you run into any bugs or problems feel free to create a new [issue](https://github.com/ColbyJack1134/SpaceEngineersVR/issues) on GitHub.
 
 ## Installation:
 
