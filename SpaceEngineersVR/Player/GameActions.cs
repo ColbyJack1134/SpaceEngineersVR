@@ -334,7 +334,7 @@ namespace SpaceEngineersVR.Player
             if (c.Helmet.HasPressed) Execute(HelmetAction);
             if (c.Jetpack.HasPressed && !ToolbarWheel.QuickPending)
             {
-                if(InputRouter.Mode==InputMode.Building && c.Secondary.IsPressed) Building[8].Run();
+                if(InputRouter.Mode==InputMode.Building && PlacementControls.Adjusting) Building[8].Run();
                 else Execute(JetpackAction);
             }
             if (c.Lights.HasPressed) Execute(LightsAction);
