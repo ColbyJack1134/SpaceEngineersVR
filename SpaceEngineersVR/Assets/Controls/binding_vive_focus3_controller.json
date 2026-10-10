@@ -4,32 +4,34 @@
   "app_key": "steam.app.244850",
   "bindings": {
     "/actions/common": {
+      "skeleton": [
+        {
+          "output": "/actions/common/in/LeftHand",
+          "path": "/user/hand/left/input/skeleton/left"
+        },
+        {
+          "output": "/actions/common/in/RightHand",
+          "path": "/user/hand/right/input/skeleton/right"
+        }
+      ],
       "sources": [
         {
           "inputs": {
-            "value": {
+            "pull": {
               "output": "/actions/common/in/LeftGripPressure"
             }
           },
-          "mode": "scalar_constant",
-          "path": "/user/hand/left/input/grip",
-          "parameters": {
-            "on/x": "1",
-            "off/x": "0"
-          }
+          "mode": "trigger",
+          "path": "/user/hand/left/input/grip"
         },
         {
           "inputs": {
-            "value": {
+            "pull": {
               "output": "/actions/common/in/RightGripPressure"
             }
           },
-          "mode": "scalar_constant",
-          "path": "/user/hand/right/input/grip",
-          "parameters": {
-            "on/x": "1",
-            "off/x": "0"
-          }
+          "mode": "trigger",
+          "path": "/user/hand/right/input/grip"
         },
         {
           "inputs": {
@@ -128,15 +130,6 @@
               "output": "/actions/common/in/QuickMenu"
             }
           }
-        },
-        {
-          "path": "/user/hand/left/input/application_menu",
-          "mode": "button",
-          "inputs": {
-            "click": {
-              "output": "/actions/common/in/Terminal"
-            }
-          }
         }
       ]
     },
@@ -166,16 +159,12 @@
         },
         {
           "inputs": {
-            "value": {
+            "pull": {
               "output": "/actions/flying/in/ThrustDown"
             }
           },
-          "mode": "scalar_constant",
-          "path": "/user/hand/left/input/grip",
-          "parameters": {
-            "on/x": "1",
-            "off/x": "0"
-          }
+          "mode": "trigger",
+          "path": "/user/hand/left/input/grip"
         },
         {
           "inputs": {
@@ -294,9 +283,9 @@
     }
   },
   "category": "steamvr_input",
-  "controller_type": "vive_cosmos_controller",
+  "controller_type": "vive_focus3_controller",
   "description": "Default motion-controller bindings.",
-  "name": "SEVR Vive Cosmos",
+  "name": "SEVR Vive Focus",
   "options": {},
   "simulated_actions": []
 }

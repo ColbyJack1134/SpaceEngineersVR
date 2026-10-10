@@ -83,15 +83,6 @@
         {
           "inputs": {
             "click": {
-              "output": "/actions/common/in/terminal"
-            }
-          },
-          "mode": "button",
-          "path": "/user/hand/left/input/application_menu"
-        },
-        {
-          "inputs": {
-            "click": {
               "output": "/actions/common/in/jetpack"
             }
           },
@@ -288,7 +279,7 @@
   "category": "steamvr_input",
   "controller_type": "oculus_touch",
   "description": "Thumbstick locomotion, hand-aimed tools, and right-grip virtual stick in cockpits.",
-  "name": "SEVR Quest 3 prototype",
+  "name": "SEVR Oculus Touch",
   "options": {},
   "simulated_actions": []
 }

@@ -3,10 +3,6 @@
   "minimum_required_version": 1,
   "default_bindings": [
     {
-      "controller_type": "generic",
-      "binding_url": "binding_generic.json"
-    },
-    {
       "controller_type": "vive_controller",
       "binding_url": "binding_vive_controller.json"
     },
@@ -23,10 +19,6 @@
       "binding_url": "binding_holographic_controller.json"
     },
     {
-      "controller_type": "gamepad",
-      "binding_url": "binding_gamepad.json"
-    },
-    {
       "controller_type": "knuckles",
       "binding_url": "binding_knuckles.json"
     },
@@ -37,6 +29,18 @@
     {
       "controller_type": "hpmotioncontroller",
       "binding_url": "binding_hpmotioncontroller.json"
+    },
+    {
+      "controller_type": "frame_controller",
+      "binding_url": "binding_frame_controller.json"
+    },
+    {
+      "controller_type": "pico_controller",
+      "binding_url": "binding_pico_controller.json"
+    },
+    {
+      "controller_type": "vive_focus3_controller",
+      "binding_url": "binding_vive_focus3_controller.json"
     }
   ],
   "actions": [

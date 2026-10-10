@@ -1,6 +1,291 @@
 {
-  "bindings": {},
+  "action_manifest_version": 1,
+  "alias_info": {},
+  "app_key": "steam.app.244850",
+  "bindings": {
+    "/actions/common": {
+      "skeleton": [
+        {
+          "output": "/actions/common/in/LeftHand",
+          "path": "/user/hand/left/input/skeleton/left"
+        },
+        {
+          "output": "/actions/common/in/RightHand",
+          "path": "/user/hand/right/input/skeleton/right"
+        }
+      ],
+      "sources": [
+        {
+          "inputs": {
+            "pull": {
+              "output": "/actions/common/in/LeftGripPressure"
+            }
+          },
+          "mode": "trigger",
+          "path": "/user/hand/left/input/grip"
+        },
+        {
+          "inputs": {
+            "pull": {
+              "output": "/actions/common/in/RightGripPressure"
+            }
+          },
+          "mode": "trigger",
+          "path": "/user/hand/right/input/grip"
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/Interact"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/right/input/a"
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/Primary"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/right/input/trigger",
+          "parameters": {
+            "click_activate_threshold": "0.25",
+            "click_deactivate_threshold": "0.20"
+          }
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/LeftClick"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/left/input/trigger",
+          "parameters": {
+            "click_activate_threshold": "0.25",
+            "click_deactivate_threshold": "0.20"
+          }
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/Secondary"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/right/input/grip"
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/Unequip"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/right/input/b"
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/Jetpack"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/left/input/a"
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/Recenter"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/right/input/trackpad"
+        },
+        {
+          "inputs": {
+            "pull": {
+              "output": "/actions/common/in/PointerPressure"
+            }
+          },
+          "mode": "trigger",
+          "path": "/user/hand/right/input/trigger"
+        },
+        {
+          "inputs": {
+            "pull": {
+              "output": "/actions/common/in/LeftTriggerPressure"
+            }
+          },
+          "mode": "trigger",
+          "path": "/user/hand/left/input/trigger"
+        },
+        {
+          "path": "/user/hand/left/input/b",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/QuickMenu"
+            }
+          }
+        }
+      ]
+    },
+    "/actions/feedback": {
+      "haptics": [
+        {
+          "output": "/actions/feedback/out/lefthaptic",
+          "path": "/user/hand/left/output/haptic"
+        },
+        {
+          "output": "/actions/feedback/out/righthaptic",
+          "path": "/user/hand/right/output/haptic"
+        }
+      ],
+      "sources": []
+    },
+    "/actions/flying": {
+      "sources": [
+        {
+          "inputs": {
+            "pull": {
+              "output": "/actions/flying/in/ThrustUp"
+            }
+          },
+          "mode": "trigger",
+          "path": "/user/hand/left/input/trigger"
+        },
+        {
+          "inputs": {
+            "pull": {
+              "output": "/actions/flying/in/ThrustDown"
+            }
+          },
+          "mode": "trigger",
+          "path": "/user/hand/left/input/grip"
+        },
+        {
+          "inputs": {
+            "position": {
+              "output": "/actions/flying/in/ThrustLRFB"
+            },
+            "click": {
+              "output": "/actions/flying/in/SeatTerminal"
+            }
+          },
+          "mode": "trackpad",
+          "path": "/user/hand/left/input/trackpad"
+        },
+        {
+          "inputs": {
+            "position": {
+              "output": "/actions/flying/in/ThrustRotate"
+            }
+          },
+          "mode": "trackpad",
+          "path": "/user/hand/right/input/trackpad"
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/flying/in/ThrustRoll"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/right/input/grip"
+        }
+      ]
+    },
+    "/actions/walking": {
+      "sources": [
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/walking/in/CrouchOrClimbDown"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/left/input/grip"
+        },
+        {
+          "inputs": {
+            "position": {
+              "output": "/actions/walking/in/WalkLongitudinal"
+            },
+            "click": {
+              "output": "/actions/walking/in/JumpOrClimbUp"
+            }
+          },
+          "mode": "trackpad",
+          "path": "/user/hand/left/input/trackpad"
+        },
+        {
+          "inputs": {
+            "position": {
+              "output": "/actions/walking/in/WalkRotate"
+            }
+          },
+          "mode": "trackpad",
+          "path": "/user/hand/right/input/trackpad"
+        }
+      ]
+    },
+    "/actions/menu": {
+      "sources": [
+        {
+          "path": "/user/hand/right/input/trackpad",
+          "mode": "trackpad",
+          "inputs": {
+            "position": {
+              "output": "/actions/menu/in/Navigate"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/trackpad",
+          "mode": "trackpad",
+          "inputs": {
+            "position": {
+              "output": "/actions/menu/in/Page"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/b",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/menu/in/KeyboardFallback"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/trigger",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/menu/in/WheelNextPage"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/grip",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/menu/in/WheelPreviousPage"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "category": "steamvr_input",
   "controller_type": "knuckles_ev1",
-  "name": "Space Engineers VR knuckles EV1 bindings",
-  "description": ""
+  "description": "Default motion-controller bindings.",
+  "name": "SEVR Knuckles EV1",
+  "options": {},
+  "simulated_actions": []
 }

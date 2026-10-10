@@ -1,6 +1,308 @@
 {
-  "bindings": {},
+  "action_manifest_version": 1,
+  "alias_info": {},
+  "app_key": "steam.app.244850",
+  "bindings": {
+    "/actions/common": {
+      "sources": [
+        {
+          "inputs": {
+            "value": {
+              "output": "/actions/common/in/LeftGripPressure"
+            }
+          },
+          "mode": "scalar_constant",
+          "path": "/user/hand/left/input/grip",
+          "parameters": {
+            "on/x": "1",
+            "off/x": "0"
+          }
+        },
+        {
+          "inputs": {
+            "value": {
+              "output": "/actions/common/in/RightGripPressure"
+            }
+          },
+          "mode": "scalar_constant",
+          "path": "/user/hand/right/input/grip",
+          "parameters": {
+            "on/x": "1",
+            "off/x": "0"
+          }
+        },
+        {
+          "path": "/user/hand/right/input/trackpad",
+          "mode": "dpad",
+          "inputs": {
+            "south": {
+              "output": "/actions/common/in/Interact"
+            },
+            "north": {
+              "output": "/actions/common/in/Unequip"
+            }
+          },
+          "parameters": {
+            "sub_mode": "click",
+            "deadzone_pct": "50",
+            "overlap_pct": "0",
+            "sticky": "false"
+          }
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/Primary"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/right/input/trigger",
+          "parameters": {
+            "click_activate_threshold": "0.25",
+            "click_deactivate_threshold": "0.20"
+          }
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/LeftClick"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/left/input/trigger",
+          "parameters": {
+            "click_activate_threshold": "0.25",
+            "click_deactivate_threshold": "0.20"
+          }
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/Secondary"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/right/input/grip"
+        },
+        {
+          "path": "/user/hand/left/input/trackpad",
+          "mode": "dpad",
+          "inputs": {
+            "south": {
+              "output": "/actions/common/in/Jetpack"
+            },
+            "north": {
+              "output": "/actions/common/in/QuickMenu"
+            }
+          },
+          "parameters": {
+            "sub_mode": "click",
+            "deadzone_pct": "50",
+            "overlap_pct": "0",
+            "sticky": "false"
+          }
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/Recenter"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/right/input/joystick"
+        },
+        {
+          "inputs": {
+            "pull": {
+              "output": "/actions/common/in/PointerPressure"
+            }
+          },
+          "mode": "trigger",
+          "path": "/user/hand/right/input/trigger"
+        },
+        {
+          "inputs": {
+            "pull": {
+              "output": "/actions/common/in/LeftTriggerPressure"
+            }
+          },
+          "mode": "trigger",
+          "path": "/user/hand/left/input/trigger"
+        },
+        {
+          "path": "/user/hand/left/input/application_menu",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/Terminal"
+            }
+          }
+        }
+      ]
+    },
+    "/actions/feedback": {
+      "haptics": [
+        {
+          "output": "/actions/feedback/out/lefthaptic",
+          "path": "/user/hand/left/output/haptic"
+        },
+        {
+          "output": "/actions/feedback/out/righthaptic",
+          "path": "/user/hand/right/output/haptic"
+        }
+      ],
+      "sources": []
+    },
+    "/actions/flying": {
+      "sources": [
+        {
+          "inputs": {
+            "pull": {
+              "output": "/actions/flying/in/ThrustUp"
+            }
+          },
+          "mode": "trigger",
+          "path": "/user/hand/left/input/trigger"
+        },
+        {
+          "inputs": {
+            "value": {
+              "output": "/actions/flying/in/ThrustDown"
+            }
+          },
+          "mode": "scalar_constant",
+          "path": "/user/hand/left/input/grip",
+          "parameters": {
+            "on/x": "1",
+            "off/x": "0"
+          }
+        },
+        {
+          "inputs": {
+            "position": {
+              "output": "/actions/flying/in/ThrustLRFB"
+            },
+            "click": {
+              "output": "/actions/flying/in/SeatTerminal"
+            }
+          },
+          "mode": "joystick",
+          "path": "/user/hand/left/input/joystick"
+        },
+        {
+          "inputs": {
+            "position": {
+              "output": "/actions/flying/in/ThrustRotate"
+            }
+          },
+          "mode": "joystick",
+          "path": "/user/hand/right/input/joystick"
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/flying/in/ThrustRoll"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/right/input/grip"
+        }
+      ]
+    },
+    "/actions/walking": {
+      "sources": [
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/walking/in/CrouchOrClimbDown"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/left/input/grip"
+        },
+        {
+          "inputs": {
+            "position": {
+              "output": "/actions/walking/in/WalkLongitudinal"
+            },
+            "click": {
+              "output": "/actions/walking/in/JumpOrClimbUp"
+            }
+          },
+          "mode": "joystick",
+          "path": "/user/hand/left/input/joystick"
+        },
+        {
+          "inputs": {
+            "position": {
+              "output": "/actions/walking/in/WalkRotate"
+            }
+          },
+          "mode": "joystick",
+          "path": "/user/hand/right/input/joystick"
+        }
+      ]
+    },
+    "/actions/menu": {
+      "sources": [
+        {
+          "path": "/user/hand/right/input/joystick",
+          "mode": "joystick",
+          "inputs": {
+            "position": {
+              "output": "/actions/menu/in/Navigate"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/joystick",
+          "mode": "joystick",
+          "inputs": {
+            "position": {
+              "output": "/actions/menu/in/Page"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/trackpad",
+          "mode": "dpad",
+          "inputs": {
+            "north": {
+              "output": "/actions/menu/in/KeyboardFallback"
+            }
+          },
+          "parameters": {
+            "sub_mode": "click",
+            "deadzone_pct": "50",
+            "overlap_pct": "0",
+            "sticky": "false"
+          }
+        },
+        {
+          "path": "/user/hand/left/input/trigger",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/menu/in/WheelNextPage"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/grip",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/menu/in/WheelPreviousPage"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "category": "steamvr_input",
   "controller_type": "holographic_controller",
-  "name": "Space Engineers VR holographic bindings",
-  "description": ""
+  "description": "Default motion-controller bindings.",
+  "name": "SEVR Windows Mixed Reality",
+  "options": {},
+  "simulated_actions": []
 }

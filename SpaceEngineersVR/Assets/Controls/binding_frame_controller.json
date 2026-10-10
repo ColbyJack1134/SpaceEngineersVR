@@ -4,32 +4,34 @@
   "app_key": "steam.app.244850",
   "bindings": {
     "/actions/common": {
+      "skeleton": [
+        {
+          "output": "/actions/common/in/LeftHand",
+          "path": "/user/hand/left/input/skeleton/left"
+        },
+        {
+          "output": "/actions/common/in/RightHand",
+          "path": "/user/hand/right/input/skeleton/right"
+        }
+      ],
       "sources": [
         {
           "inputs": {
-            "value": {
+            "pull": {
               "output": "/actions/common/in/LeftGripPressure"
             }
           },
-          "mode": "scalar_constant",
-          "path": "/user/hand/left/input/grip",
-          "parameters": {
-            "on/x": "1",
-            "off/x": "0"
-          }
+          "mode": "trigger",
+          "path": "/user/hand/left/input/grip"
         },
         {
           "inputs": {
-            "value": {
+            "pull": {
               "output": "/actions/common/in/RightGripPressure"
             }
           },
-          "mode": "scalar_constant",
-          "path": "/user/hand/right/input/grip",
-          "parameters": {
-            "on/x": "1",
-            "off/x": "0"
-          }
+          "mode": "trigger",
+          "path": "/user/hand/right/input/grip"
         },
         {
           "inputs": {
@@ -91,7 +93,7 @@
             }
           },
           "mode": "button",
-          "path": "/user/hand/left/input/x"
+          "path": "/user/hand/left/input/dpad_down"
         },
         {
           "inputs": {
@@ -100,7 +102,7 @@
             }
           },
           "mode": "button",
-          "path": "/user/hand/right/input/joystick"
+          "path": "/user/hand/right/input/thumbstick"
         },
         {
           "inputs": {
@@ -121,7 +123,7 @@
           "path": "/user/hand/left/input/trigger"
         },
         {
-          "path": "/user/hand/left/input/y",
+          "path": "/user/hand/left/input/dpad_up",
           "mode": "button",
           "inputs": {
             "click": {
@@ -130,7 +132,7 @@
           }
         },
         {
-          "path": "/user/hand/left/input/application_menu",
+          "path": "/user/hand/left/input/view",
           "mode": "button",
           "inputs": {
             "click": {
@@ -166,16 +168,12 @@
         },
         {
           "inputs": {
-            "value": {
+            "pull": {
               "output": "/actions/flying/in/ThrustDown"
             }
           },
-          "mode": "scalar_constant",
-          "path": "/user/hand/left/input/grip",
-          "parameters": {
-            "on/x": "1",
-            "off/x": "0"
-          }
+          "mode": "trigger",
+          "path": "/user/hand/left/input/grip"
         },
         {
           "inputs": {
@@ -187,7 +185,7 @@
             }
           },
           "mode": "joystick",
-          "path": "/user/hand/left/input/joystick"
+          "path": "/user/hand/left/input/thumbstick"
         },
         {
           "inputs": {
@@ -196,7 +194,7 @@
             }
           },
           "mode": "joystick",
-          "path": "/user/hand/right/input/joystick"
+          "path": "/user/hand/right/input/thumbstick"
         },
         {
           "inputs": {
@@ -230,7 +228,7 @@
             }
           },
           "mode": "joystick",
-          "path": "/user/hand/left/input/joystick"
+          "path": "/user/hand/left/input/thumbstick"
         },
         {
           "inputs": {
@@ -239,14 +237,14 @@
             }
           },
           "mode": "joystick",
-          "path": "/user/hand/right/input/joystick"
+          "path": "/user/hand/right/input/thumbstick"
         }
       ]
     },
     "/actions/menu": {
       "sources": [
         {
-          "path": "/user/hand/right/input/joystick",
+          "path": "/user/hand/right/input/thumbstick",
           "mode": "joystick",
           "inputs": {
             "position": {
@@ -255,7 +253,7 @@
           }
         },
         {
-          "path": "/user/hand/left/input/joystick",
+          "path": "/user/hand/left/input/thumbstick",
           "mode": "joystick",
           "inputs": {
             "position": {
@@ -264,7 +262,7 @@
           }
         },
         {
-          "path": "/user/hand/left/input/y",
+          "path": "/user/hand/left/input/dpad_up",
           "mode": "button",
           "inputs": {
             "click": {
@@ -294,9 +292,9 @@
     }
   },
   "category": "steamvr_input",
-  "controller_type": "vive_cosmos_controller",
-  "description": "Default motion-controller bindings.",
-  "name": "SEVR Vive Cosmos",
+  "controller_type": "frame_controller",
+  "description": "Touch-style controls: left D-pad up is Y; left D-pad down is X.",
+  "name": "SEVR Steam Frame",
   "options": {},
   "simulated_actions": []
 }
