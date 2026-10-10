@@ -55,9 +55,8 @@ namespace SpaceEngineersVR.Multiplayer
             for(int i=0;i<7;i++)
             {
                 var probe=volume.Probe(i);
-                var sample=MyEntities.GetIntersectionWithLine(ref probe,state.Tool.Owner,state.Tool,ignoreFloatingObjects:false);
-                if(!sample.HasValue || !(sample.Value.Entity?.GetTopMostParent() is MyVoxelBase voxel)) continue;
-                var samplePoint=sample.Value.IntersectionPointInWorldSpace;
+                if(!ToolContact.PhysicsCast(state.Tool.Owner,state.Tool,probe,out var sample) || !(sample.Entity is MyVoxelBase voxel)) continue;
+                var samplePoint=sample.DetectionPoint;
                 double score=Vector3D.DistanceSquared(samplePoint,volume.Start);
                 var approach=samplePoint-grip;
                 if(volume.Contains(samplePoint) && score<best && approach.LengthSquared()>1e-10 &&
@@ -78,12 +77,9 @@ namespace SpaceEngineersVR.Multiplayer
             if(HeldItemPose.Supported(state.Tool.Owner)) return;
             if(!HeldItemPose.Clear(state.Tool.Owner,grip,origin)) { state.Near=true; return; }
             var line=new LineD(origin,endpoint);
-            var hit=MyEntities.GetIntersectionWithLine(ref line,state.Tool.Owner,state.Tool,ignoreFloatingObjects:false);
-            if(!hit.HasValue) return;
-            var entity=hit.Value.Entity?.GetTopMostParent() as VRage.Game.Entity.MyEntity;
-            if(entity==null || entity.Physics==null || !entity.Physics.Enabled) return;
-            var point=hit.Value.IntersectionPointInWorldSpace+ray.Forward*.005;
-            state.Hits[entity.EntityId]=new MyDrillSensorBase.DetectionInfo(entity,point);
+            if(!ToolContact.PhysicsCast(state.Tool.Owner,state.Tool,line,out var hit)) return;
+            var point=hit.DetectionPoint+ray.Forward*.005;
+            state.Hits[hit.Entity.EntityId]=new MyDrillSensorBase.DetectionInfo(hit.Entity,point,hit.ItemId);
             front.SetValue(sensor,point);
         }
     }

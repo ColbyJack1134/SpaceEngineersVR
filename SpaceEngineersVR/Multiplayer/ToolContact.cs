@@ -31,6 +31,34 @@ namespace SpaceEngineersVR.Multiplayer
         private static readonly FieldInfo rayLength=AccessTools.Field(typeof(MyDrillSensorRayCast),"m_rayLength"),
             center=AccessTools.Field(typeof(MyDrillSensorBase),"m_center"),front=AccessTools.Field(typeof(MyDrillSensorBase),"m_frontPoint"),
             environmentItem=AccessTools.Field(typeof(MyCasterComponent),"m_environmentItem");
+        [System.ThreadStatic] private static List<MyPhysics.HitInfo> physicsHits;
+        internal static bool PhysicsCast(MyEntity owner,MyEntity tool,LineD line,out MyDrillSensorBase.DetectionInfo result)
+        {
+            if(physicsHits==null) physicsHits=new List<MyPhysics.HitInfo>();
+            physicsHits.Clear();
+            MyPhysics.CastRay(line.From,line.To,physicsHits,24);
+            result=default(MyDrillSensorBase.DetectionInfo);
+            double best=double.MaxValue;
+            foreach(var hit in physicsHits)
+            {
+                var raw=hit.HkHitInfo.GetHitEntity();
+                var entity=raw?.GetTopMostParent() as MyEntity;
+                if(entity==null || ReferenceEquals(entity,owner) || ReferenceEquals(entity,tool)) continue;
+                double distance=Vector3D.DistanceSquared(line.From,hit.Position);
+                if(distance>=best) continue;
+                var point=hit.Position;
+                if(entity is MyCubeGrid) point-=hit.HkHitInfo.Normal*.005f;
+                if(raw is MyEnvironmentSector sector)
+                {
+                    int item=sector.GetItemFromShapeKey(hit.HkHitInfo.GetShapeKey(0));
+                    if(item<0 || sector.DataView?.Items==null || item>=sector.DataView.Items.Count || sector.DataView.Items[item].ModelIndex<0) continue;
+                    result=new MyDrillSensorBase.DetectionInfo(sector,point,item);
+                }
+                else result=new MyDrillSensorBase.DetectionInfo(entity,point);
+                best=distance;
+            }
+            return result.Entity!=null;
+        }
         internal static float Reach(MyCasterComponent sensor) => (float)rayLength.GetValue(sensor.Caster);
         internal static bool Cast(MyCharacter owner,MyEntity tool,MatrixD ray,double reach,out MySlimBlock block,out MyEntity entity,out Vector3D point)
         {
@@ -56,6 +84,8 @@ namespace SpaceEngineersVR.Multiplayer
             { Set(sensor,null,from); state.Near=true; return; }
             if(FindNear(owner,tool,volume,out var selected,out var selectedHit))
             { Set(sensor,selected,selectedHit); state.Near=true; }
+            else if(tool is MyAngleGrinder && FindTreeNear(owner,tool,volume,grip,out var tree))
+            { state.Near=true; SetTarget(sensor,null,tree.Entity,tree.DetectionPoint,tree.ItemId); }
             else if(HeldItemPose.Supported(owner)) { Set(sensor,null,from); }
             else if(!HeldItemPose.Clear(owner,grip,from)) { Set(sensor,null,from); state.Near=true; }
             else
@@ -65,21 +95,42 @@ namespace SpaceEngineersVR.Multiplayer
                 center.SetValue(sensor.Caster,ray.Translation); front.SetValue(sensor.Caster,ray.Translation+ray.Forward*reach);
                 sensor.SetPointOfReference(ray.Translation);
                 if(!HeldItemPose.Clear(owner,grip,ray.Translation)) { Set(sensor,null,ray.Translation); return; }
-                // Native tool raycasts complete asynchronously; reject stale targets from a previous aim.
-                Cast(owner,tool,ray,reach,out var block,out var entity,out var point);
-                Set(sensor,block,point);
-                if(entity!=null) foreach(var field in otherHits)
-                    if(field.FieldType.IsInstanceOfType(entity) && !(entity is MyEnvironmentSector)) field.SetValue(sensor,entity);
-                if(entity is MyEnvironmentSector sector)
-                {
-                    var hit=MyPhysics.CastRay(ray.Translation,point+ray.Forward*.01,24);
-                    if(hit.HasValue && hit.Value.HkHitInfo.GetHitEntity()==sector)
-                    {
-                        otherHits[3].SetValue(sensor,sector);
-                        environmentItem.SetValue(sensor,sector.GetItemFromShapeKey(hit.Value.HkHitInfo.GetShapeKey(0)));
-                    }
-                }
+                CastTarget(owner,tool,ray,reach,out var block,out var entity,out var point,out var item);
+                SetTarget(sensor,block,entity,point,item);
             }
+        }
+        internal static void CastTarget(MyCharacter owner,MyEntity tool,MatrixD ray,double reach,
+            out MySlimBlock block,out MyEntity entity,out Vector3D point,out int item)
+        {
+            bool mesh=Cast(owner,tool,ray,reach,out block,out entity,out point);
+            item=0;
+            var line=new LineD(ray.Translation,ray.Translation+ray.Forward*reach);
+            if(PhysicsCast(owner,tool,line,out var hit) && !(hit.Entity is MyCubeGrid) &&
+                (!mesh || ReferenceEquals(entity,hit.Entity) || Vector3D.DistanceSquared(ray.Translation,hit.DetectionPoint)<=Vector3D.DistanceSquared(ray.Translation,point)+.0001))
+            { block=null; entity=hit.Entity; point=hit.DetectionPoint; item=hit.ItemId; }
+            else if(entity is MyEnvironmentSector) entity=null;
+        }
+        internal static bool FindTreeNear(MyCharacter owner,MyEntity tool,ToolVolume volume,Vector3D grip,out MyDrillSensorBase.DetectionInfo tree)
+        {
+            tree=default(MyDrillSensorBase.DetectionInfo); double best=double.MaxValue;
+            for(int i=0;i<7;i++)
+            {
+                if(!PhysicsCast(owner,tool,volume.Probe(i),out var hit) || !(hit.Entity is MyEnvironmentSector) || !volume.Contains(hit.DetectionPoint)) continue;
+                var approach=hit.DetectionPoint-grip;
+                double score=Vector3D.DistanceSquared(hit.DetectionPoint,volume.Start);
+                if(score>=best || approach.LengthSquared()<1e-10 ||
+                    !HeldItemPose.Clear(owner,grip,hit.DetectionPoint-Vector3D.Normalize(approach)*.005)) continue;
+                tree=hit; best=score;
+            }
+            return tree.Entity!=null;
+        }
+        internal static void SetTarget(MyCasterComponent sensor,MySlimBlock block,MyEntity entity,Vector3D point,int item)
+        {
+            Set(sensor,block,point);
+            if(entity is MyEnvironmentSector)
+            { otherHits[3].SetValue(sensor,entity); environmentItem.SetValue(sensor,item); }
+            else if(entity!=null) foreach(var field in otherHits)
+                if(field.FieldType.IsInstanceOfType(entity)) field.SetValue(sensor,entity);
         }
         internal static bool FindNear(MyCharacter owner,MyEntity tool,ToolVolume volume,out MySlimBlock selected,out Vector3D selectedHit)
         {

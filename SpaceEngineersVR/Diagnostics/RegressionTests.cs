@@ -100,6 +100,7 @@ namespace SpaceEngineersVR.Diagnostics
             RenderingPatchTests.Run(log);
             ModHudTests.Run(log);
             ToolContactTests.Run(log);
+            HudLifecycleTests.Run(log);
             VRage.ObjectBuilders.MyObjectBuilderType.RegisterFromAssembly(typeof(VRage.Game.MyDefinitionId).Assembly);
             VRage.ObjectBuilders.MyObjectBuilderType.RegisterFromAssembly(Assembly.Load("SpaceEngineers.ObjectBuilders"));
             TargetingTests.Run(log);

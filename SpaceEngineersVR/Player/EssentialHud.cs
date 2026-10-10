@@ -86,16 +86,19 @@ namespace SpaceEngineersVR.Player
         }
         private static void UpdateCore()
         {
-            if (!Main.WorldAvailable || MySession.Static?.LocalCharacter == null) { snapshot = null; return; }
+            var session=MySession.Static;
+            var character=session?.LocalCharacter;
+            var controlled=session?.ControlledEntity;
+            if (!Main.WorldAvailable || character==null || character.IsDead || controlled?.Entity==null)
+            { snapshot = null; return; }
             if (DateTime.UtcNow < nextSample) return;
             nextSample = DateTime.UtcNow.AddMilliseconds(100);
-            var character = MySession.Static.LocalCharacter;
             var toolbar = MyToolbarComponent.CurrentToolbar;
             var item = toolbar?.SelectedSlot.HasValue == true ? toolbar.GetItemAtSlot(toolbar.SelectedSlot.Value) : null;
             var block = MyCubeBuilder.Static?.IsActivated == true ? MyCubeBuilder.Static.CurrentBlockDefinition : null;
             var weapon = character.CurrentWeapon;
-            bool piloting = MySession.Static.ControlledEntity is MyShipController;
-            var ship=MySession.Static.ControlledEntity as MyShipController;
+            bool piloting = controlled is MyShipController;
+            var ship=controlled as MyShipController;
             if(ship!=null && (ship!=shipOwner || DateTime.UtcNow>=nextShipSample))
             {
                 shipOwner=ship; nextShipSample=DateTime.UtcNow.AddSeconds(.5);
@@ -132,7 +135,7 @@ namespace SpaceEngineersVR.Player
             view.ShipHydrogen=hydrogen; view.ShipBattery=battery; view.ShipLoad=Percent("controlled_power_usage");
             view.ShipHydrogenLevel=hydrogenLevel; view.ShipBatteryLevel=batteryLevel; view.ShipLoadLevel=Level("controlled_power_usage");
             view.ShipEndurance=Stat("controlled_estimated_time_remaining_energy")?.GetValueString() ?? "--";
-            view.Broadcasting=On("player_broadcasting"); view.Flashlight=piloting ? MySession.Static.ControlledEntity.EnabledLights:On("player_flashlight"); view.Magboots=character.IsMagneticBootsActive;
+            view.Broadcasting=On("player_broadcasting"); view.Flashlight=piloting ? controlled.EnabledLights:On("player_flashlight"); view.Magboots=character.IsMagneticBootsActive;
             view.ShipPower=On("controlled_reactors"); view.ShipBroadcasting=On("controlled_broadcasting"); view.ShipPark=On("controlled_handbreak");
             view.ShipMass=ship?.CubeGrid.IsStatic==true ? "Station" : (Stat("controlled_mass")?.CurrentValue.ToString("N0") ?? "--")+" kg";
             view.OxygenBottles=Stat("player_oxygen_bottles")?.CurrentValue.ToString("0"); view.HydrogenBottles=Stat("player_hydrogen_bottles")?.CurrentValue.ToString("0");
@@ -142,8 +145,8 @@ namespace SpaceEngineersVR.Player
             view.EnvironmentOxygen=float.IsNaN(oxygen) ? null : oxygen<.1f ? "None" : oxygen<.8f ? "Low" : "High";
             view.Temperature=float.IsNaN(temperature) ? null : temperature<.125f ? "Freeze" : temperature<.375f ? "Cold" :
                 temperature<.625f ? "Warm" : temperature<.875f ? "Hot" : "Inferno";
-            view.FoodEnabled=MySession.Static.Settings.FoodConsumptionRate>0;
-            view.RadiationEnabled=MySession.Static.Settings.EnableRadiation;
+            view.FoodEnabled=session.Settings.FoodConsumptionRate>0;
+            view.RadiationEnabled=session.Settings.EnableRadiation;
             view.Food=Stat("player_food")?.GetValueString(); view.FoodLevel=Level("player_food");
             view.Radiation=Stat("player_radiation")?.GetValueString(); view.RadiationLevel=Level("player_radiation");
             view.RadiationImmunity=On("player_radiation_immunity");
@@ -157,7 +160,7 @@ namespace SpaceEngineersVR.Player
             {
                 Vector3 gravity=Sandbox.Game.GameSystems.MyGravityProviderSystem.CalculateTotalGravityInPoint(character.PositionComp.GetPosition());
                 if (gravity.LengthSquared()>0.001f)
-                    view.Down=Vector3D.TransformNormal(Vector3D.Normalize(gravity),MatrixD.Transpose(MySession.Static.ControlledEntity.Entity.WorldMatrix.GetOrientation()));
+                    view.Down=Vector3D.TransformNormal(Vector3D.Normalize(gravity),MatrixD.Transpose(controlled.Entity.WorldMatrix.GetOrientation()));
             }
             if (!view.SameAs(snapshot)) snapshot=view;
         }
