@@ -31,3 +31,14 @@ Flatscreen multiplayer hosts and clients can install the optional `SpaceEngineer
 ## Controls
 
 [Controls guide](CONTROLS.md). Also available in game.
+
+Controls guide made for Quest 3. Touch controllers (All quests and Rift S) are fully supported. Full Steam Frame support coming soon once mine arrives.
+
+Other bindings provided but untested:
+- Index Controllers
+- HTC Vive (pro, cosmos, focus)
+- PICO controllers
+- WMR controllers
+- HP Reverb G2
+- Legacy Knuckles
+- Steam Frame Controllers
