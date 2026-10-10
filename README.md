@@ -26,7 +26,7 @@ If you run into any bugs or problems feel free to create a new [issue](https://g
 4. In your Pulsar Legacy profile, click **+**, search for **SpaceEngineersVR**, and enable `SpaceEngineersVR.dll`.
 5. Launch Pulsar Legacy with SteamVR running.
 
-Set **Model Quality** to **High** to avoid mesh artifacts.
+Set **Model Quality** to **High** to avoid artifacts with your in-game hand model.
 
 Flatscreen multiplayer hosts and clients can install the optional `SpaceEngineersVR.FlatscreenCompanion.dll` plugin.
 
