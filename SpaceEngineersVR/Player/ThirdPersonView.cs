@@ -117,7 +117,9 @@ namespace SpaceEngineersVR.Player
             lock(sync)
             {
                 var before=follow.Reference(Mode);
+                var previous=Mode;
                 Common.Config.ThirdPersonMode=mode;
+                SpectatorView.ChangeMode(previous,Mode);
                 if(Active) { view.ChangeReference(before,follow.Reference(Mode)); epoch--; }
             }
             if(Active)
@@ -141,13 +143,10 @@ namespace SpaceEngineersVR.Player
             var up=Target.Physics?.Gravity ?? Vector3.Zero;
             Vector3D vertical=up.LengthSquared()>.01 ? -(Vector3D)Vector3.Normalize(up) : head.Up;
             Matrix tracking=Player.Headset.deviceToPlayer;
-            var orientation=Mode==ObserverMode.Ship ? head.GetOrientation() : VrMath.Level(head,vertical).GetOrientation();
-            var facing=VrMath.Level(tracking,Vector3D.Up);
-            var center=tracking.Translation+facing.Forward*1.15-facing.Up*.2;
             lock(sync)
             {
                 follow.Reset(subject.WorldMatrix,vertical);
-                view.Fit(Target.PositionComp.LocalAABB.Size.Length(),orientation*MatrixD.Transpose(follow.Reference(Mode)),center);
+                view.FitTarget(Target.PositionComp.LocalAABB.Size.Length(),head,vertical,tracking,follow.Reference(Mode),Mode==ObserverMode.Ship);
                 epoch--;
             }
             TrackedArms.Reset(); CockpitControls.Release(); SpatialUi.ReleaseInput();
@@ -236,23 +235,14 @@ namespace SpaceEngineersVR.Player
             {
                 if(epoch!=packet.Epoch || Current?.Epoch!=packet.Epoch) return packet;
                 long now=Stopwatch.GetTimestamp();
-                double seconds=renderTime==0 ? 1d/90 : (double)(now-renderTime)/Stopwatch.Frequency;
-                renderTime=now;
-                var config=Common.Config;
-                view.PanSensitivity=config.ThirdPersonPanSensitivity; view.ZoomSensitivity=config.ThirdPersonZoomSensitivity;
-                view.RotationSensitivity=config.ThirdPersonRotationSensitivity; view.PanGlide=config.ThirdPersonPanGlide;
-                view.ZoomGlide=config.ThirdPersonZoomGlide; view.RotationGlide=config.ThirdPersonRotationGlide;
-                if(!Player.Headset.renderPose.isTracked || !Player.HandL.renderPose.isTracked || !Player.HandR.renderPose.isTracked)
-                    view.Cancel();
-                else view.Move(VrMath.Affine(Player.HandL.RenderGripTracking*packet.OriginInverse),
-                    VrMath.Affine(Player.HandR.RenderGripTracking*packet.OriginInverse),seconds);
+                var rendered=view.RenderFrame(packet,now,ref renderTime);
                 // Keep the subject paired with its native scene batch; late-update only the view offset.
                 var scene=packet.Observer;
                 renderTrace[0]=(double)Mode; renderTrace[1]=view.Hands; renderTrace[2]=view.UnitsPerMeter;
                 renderTrace[3]=(now-inputTime)*1000d/Stopwatch.Frequency;
                 renderTrace[4]=(now-scene.Timestamp)*1000d/Stopwatch.Frequency;
                 renderTrace[5]=view.LastTranslation; renderTrace[6]=view.LastRotation;
-                return new CameraRig.Frame(view.Anchor(scene.Target,scene.Reference),packet.OriginInverse,packet.Epoch,view.UnitsPerMeter,true,scene);
+                return rendered;
             }
         }
         public static void RecordTrace(CameraRig.Frame packet)

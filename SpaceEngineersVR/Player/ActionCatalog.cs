@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using HarmonyLib;
+using SpaceEngineersVR.Plugin;
 using Sandbox.Game.Screens.Helpers;
 using Sandbox.Game.Screens.Helpers.RadialMenuActions;
 using Sandbox.Game.World;
@@ -23,6 +24,29 @@ namespace SpaceEngineersVR.Player
         private static object owner;
         private static MyToolbar toolbar;
         private static DateTime refresh;
+        private static Config.PluginConfig historyConfig;
+        private static ActionHistory history=new ActionHistory();
+        private static ActionHistory History
+        {
+            get
+            {
+                var config=Common.Config;
+                if(!ReferenceEquals(historyConfig,config))
+                { historyConfig=config; history=new ActionHistory(config?.RecentSearchActions); }
+                return history;
+            }
+        }
+        internal static void Record(ActionChoice action)
+        {
+            var recent=History;
+            recent.Record(action.HistoryKey);
+            if(historyConfig!=null) historyConfig.RecentSearchActions=recent.Keys;
+        }
+        internal static ActionChoice[] Recent()
+        {
+            Search("");
+            return History.Recent(current,9);
+        }
         internal static ActionChoice[] Search(string query)
         {
             var active=MySession.Static?.ControlledEntity;
@@ -33,13 +57,14 @@ namespace SpaceEngineersVR.Player
                 current=Entries().ToArray();
             }
             var words=(query ?? "").Split(new[] {' '},StringSplitOptions.RemoveEmptyEntries);
+            if(words.Length==0) return History.Order(current);
             return current.Where(a=>words.All(word=>(a.Label+" "+a.SearchTerms).IndexOf(word,StringComparison.OrdinalIgnoreCase)>=0)).ToArray();
         }
         private static IEnumerable<ActionChoice> Entries()
         {
             foreach(var action in GameActions.Quick.Concat(GameActions.Building).Concat(GameActions.Developer)
                 .Concat(BuildPlannerActions.Shortcuts)
-                .Concat(new[] {GameActions.HudOptions,GameActions.UnequipAction,GameActions.RecenterAction,GameActions.DesktopFloating,GameActions.DesktopWrist})
+                .Concat(new[] {GameActions.HudOptions,GameActions.UnequipAction,GameActions.RecenterAction,GameActions.DesktopFloating,GameActions.DesktopWrist,GameActions.CycleSymmetryAction,GameActions.ExitSymmetryAction,SpectatorView.EnterAction})
                 .GroupBy(a=>a.Label).Select(g=>g.First())) yield return action;
             foreach(string category in new[] {"Character","Flight","Third person","HUD & Interface","Rendering","Controls"})
             {
@@ -47,6 +72,8 @@ namespace SpaceEngineersVR.Player
                 yield return new ActionChoice("VR: "+title,()=>Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(GUI.MyPluginConfigDialog.CreatePage(title)),true,searchTerms:"settings options controls");
             }
             if(MySession.Static==null) yield break;
+            if(SymmetrySetupControls.Active) foreach(var action in SymmetrySetupControls.Actions().Skip(1).Take(5)) yield return action;
+            if(SpectatorView.Active) foreach(var action in SpectatorView.Actions()) yield return action;
             // Native suicide asks for confirmation and honors campaign respawn rules.
             yield return new ActionChoice("Respawn",()=>NativeActions.Pulse(Sandbox.Game.MyControlsSpace.SUICIDE),searchTerms:"suicide kill die stuck");
             if(native==null) native=NativeEntries();

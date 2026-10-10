@@ -25,6 +25,13 @@ namespace SpaceEngineersVR.Player
             { Anchor=anchor; OriginInverse=originInverse; Epoch=epoch; UnitsPerMeter=unitsPerMeter; ThirdPerson=thirdPerson; Observer=observer; }
             public MatrixD TrackingToWorld => (MatrixD)OriginInverse*MatrixD.CreateScale(UnitsPerMeter)*Anchor;
         }
+        internal static void ApplyObserverCamera(VRage.Game.Utils.MyCamera camera,Frame observer)
+        {
+            camera.CameraSpring.Enabled=false;
+            camera.CameraShake.ShakeEnabled=false;
+            camera.SetViewMatrix(VrMath.EyeView(MatrixD.Invert(observer.Anchor),Player.Headset.pose.deviceToAbsolute.matrix,
+                observer.OriginInverse,Matrix.Identity,observer.UnitsPerMeter),smooth:false);
+        }
         private static Frame frame;
         private static int epoch;
         private static MyCharacter owner;
@@ -38,7 +45,8 @@ namespace SpaceEngineersVR.Player
         private static readonly System.Reflection.FieldInfo bagField=AccessTools.Field(typeof(MyCharacter),"m_enableBag");
         private static readonly System.Reflection.FieldInfo headField=AccessTools.Field(typeof(MyCharacter),"m_headRenderingEnabled");
         private static readonly Action<MyCharacter> refreshDepth=AccessTools.MethodDelegate<Action<MyCharacter>>(AccessTools.Method(typeof(MyCharacter),"UpdateNearFlag"));
-        public static Frame Current => ThirdPersonView.Current ?? RemoteView.SeatedRig ?? Volatile.Read(ref frame);
+        internal static bool Detached => ThirdPersonView.Active || SpectatorView.Active;
+        public static Frame Current => SpectatorView.Current ?? ThirdPersonView.Current ?? RemoteView.SeatedRig ?? Volatile.Read(ref frame);
         public static void Reset(bool forgetHeight=false)
         {
             epoch++;
@@ -57,7 +65,7 @@ namespace SpaceEngineersVR.Player
             Place(owner,BodyFrame(owner));
         }
         public static MatrixD Anchor => anchor;
-        public static bool Owns(MyCharacter character) => owner==character && Current!=null;
+        public static bool Owns(MyCharacter character) => !SpectatorView.Active && owner==character && Current!=null;
         private static MatrixD BodyFrame(MyCharacter character)
         {
             // WorldMatrix includes the engine's changing foot-IK offset. Roomscale
@@ -145,6 +153,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Publish()
         {
+            if(SpectatorView.Active) { SpectatorView.Publish(); return; }
             var character=MySession.Static?.LocalCharacter;
             if(character==null || (MySession.Static.ControlledEntity!=character && !RemoteView.CharacterAnchor) || character.IsSitting || character.IsDead)
             { Reset(); return; }

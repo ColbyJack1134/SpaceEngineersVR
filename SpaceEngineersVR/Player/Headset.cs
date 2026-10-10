@@ -43,7 +43,7 @@ namespace SpaceEngineersVR.Player
             var rig=RenderFrameBridge.ForCurrentOwner(CameraRig.Current);
             var markers=ReferenceEquals(rig,RenderFrameBridge.Current) ? RenderFrameBridge.Markers : null;
             var crosshair=ReferenceEquals(rig,RenderFrameBridge.Current) ? RenderFrameBridge.Crosshair : null;
-            rig=ThirdPersonView.RenderFrame(rig);
+            rig=SpectatorView.Active ? SpectatorView.RenderFrame(rig):ThirdPersonView.RenderFrame(rig);
             Matrix originInverse=rig?.OriginInverse ?? Player.RenderPlayerToAbsolute.inverted;
             double scale=rig?.UnitsPerMeter ?? 1;
             if(rig!=null) gameView=MatrixD.Invert(rig.Anchor);
@@ -162,6 +162,8 @@ namespace SpaceEngineersVR.Player
             FloatingKeyboard.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),eye);
             ToolbarWheel.DrawWorld((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,
                 rig?.TrackingToWorld ?? (MatrixD)originInverse*MatrixD.Invert(gameView));
+            NativeGizmos.Draw(target.Instance,RenderFrameBridge.Symmetry,RenderFrameBridge.Planets);
+            TargetFeedback.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),GridSelection.Active ? RenderFrameBridge.Selection:null,view,projection,PhysicalSurface.SceneDepth());
             GpuTiming.End(uiArea);
             var input = new Texture_t { eColorSpace=EColorSpace.Auto, eType=ETextureType.DirectX, handle=target.GetResource().NativePointer };
             var error = OpenVR.Compositor.Submit(eye,ref input,ref bounds,EVRSubmitFlags.Submit_Default);
@@ -172,6 +174,7 @@ namespace SpaceEngineersVR.Player
 
         public void ReleaseTextures()
         {
+            TargetFeedback.Dispose();
             NativeHandLayer.Reset();
             leftTexture?.Release(); rightTexture?.Release();
             leftTexture = rightTexture = null;

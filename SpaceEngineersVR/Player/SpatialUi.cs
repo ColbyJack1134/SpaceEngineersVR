@@ -46,7 +46,7 @@ namespace SpaceEngineersVR.Player
                 return (MatrixD)VrMath.Affine(tracking*Player.PlayerToAbsolute.inverted)*SeatFit.Seat.GetHeadMatrix(true,true);
             return CameraRig.DeviceWorld(tracking);
         }
-        private static MatrixD SurfacePose(Matrix tracking) => ThirdPersonView.Active || !Main.WorldAvailable ? (MatrixD)tracking:DeviceWorld(tracking);
+        private static MatrixD SurfacePose(Matrix tracking) => CameraRig.Detached || !Main.WorldAvailable ? (MatrixD)tracking:DeviceWorld(tracking);
         public static void Expand() { expanded=true; }
         public static void Collapse() { if(FlightSettings.IsOpen && FlightSettings.OnWrist) FlightSettings.Close(); expanded=false; wristTouch.Reset(); heldKey=null; wristHover=wristPressed=-1; WristPanel.StopEditing(); }
         public static bool CollapseIfOpen() { if(!expanded || WristPanel.DesktopOpen && !DesktopPointed) return false; Collapse(); return true; }
@@ -54,7 +54,7 @@ namespace SpaceEngineersVR.Player
         internal static bool DesktopRevealed => WristPanel.DesktopOpen && (DateTime.UtcNow-desktopSeen).TotalSeconds<1;
         private static bool DesktopPointed => (DateTime.UtcNow-desktopSeen).TotalSeconds<.15;
         internal static SurfaceKey[] WristKeys() => FlightSettings.IsOpen && FlightSettings.OnWrist ? FlightSettings.Keys():WristPanel.Keys(Sandbox.Game.Screens.Helpers.MyToolbarComponent.CurrentToolbar,
-            PlacementControls.OwnsTools,MySession.Static?.ControlledEntity is Sandbox.Game.Entities.MyShipController,ThirdPersonView.Active,
+            PlacementControls.OwnsTools,MySession.Static?.ControlledEntity is Sandbox.Game.Entities.MyShipController,CameraRig.Detached,
             MySession.Static?.LocalCharacter?.JetpackComp?.TurnedOn==true,EssentialHud.Current);
         public static void ReleaseInput()
         {
@@ -84,8 +84,8 @@ namespace SpaceEngineersVR.Player
             Matrix aim=Player.HandR.AimTracking;
             MatrixD world=SurfacePose(aim);
             world.Translation+=world.Forward*.025;
-            if(ThirdPersonView.Active && MenuHands.TryPointPose(Player.HandR.GripTracking,out var trackedPoint)) world=trackedPoint;
-            else if(!ThirdPersonView.Active && TrackedArms.TryFreePointPose(Player.HandR,out var fingerPoint)) world=fingerPoint;
+            if(CameraRig.Detached && MenuHands.TryPointPose(Player.HandR.GripTracking,out var trackedPoint)) world=trackedPoint;
+            else if(!CameraRig.Detached && TrackedArms.TryFreePointPose(Player.HandR,out var fingerPoint)) world=fingerPoint;
             Vector3D tip=world.Translation;
             Pointing=new[] { wrist,wristMenu,seat,flightView }.Any(s=>s!=null && Vector3D.Distance(s.Pose.Translation,tip)<.4);
             RayTargeted=false;
@@ -129,7 +129,7 @@ namespace SpaceEngineersVR.Player
                         if(!expanded) WristPanel.StopEditing();
                     }
                     else if(clicked<target.Keys.Length && target.Keys[clicked].Action!=null)
-                    { var action=target.Keys[clicked].Action; GameActions.Execute(action); }
+                    { var key=target.Keys[clicked]; GameActions.Execute(key.Action,Player.HandR,key.SearchResult); }
                 }
             }
             if(seat!=null && !Main.MenuOpen)
@@ -241,7 +241,7 @@ namespace SpaceEngineersVR.Player
                 WristPanel.Reset(); wristOwner=owner; fold=0; wristTouch.Reset();
             }
             MatrixD mount;
-            if(!(ThirdPersonView.Active ? MenuHands.TryWristMount(Player.HandL.GripTracking,out mount):TrackedArms.TryWristScreen(out mount)))
+            if(!(CameraRig.Detached ? MenuHands.TryWristMount(Player.HandL.GripTracking,out mount):TrackedArms.TryWristScreen(out mount)))
             {
                 Matrix tracking=Matrix.CreateRotationX(-MathHelper.PiOver2)*Matrix.CreateTranslation(0,.04f,.09f)*Player.HandL.GripTracking;
                 mount=SurfacePose(tracking);
@@ -251,7 +251,7 @@ namespace SpaceEngineersVR.Player
             wrist=panels[0]; wristMenu=panels.Length>1 ? panels[1] : null;
             foreach(var panel in panels)
             {
-                panel.TrackingSpace=ThirdPersonView.Active;
+                panel.TrackingSpace=CameraRig.Detached;
                 if(panel.TrackingSpace) panel.HandLocal=panel.Pose*MatrixD.Invert(Player.HandL.GripTracking);
                 if(panel.Id==wristHoverSurface) { panel.Hover=wristHover; panel.Pressed=wristPressed; }
                 if(wristTouch.Committed && wristTouch.Surface==panel.Id && heldKey!=null)
@@ -271,15 +271,15 @@ namespace SpaceEngineersVR.Player
                 {flightView.Keys=HoldKey(flightView.Keys,heldKey,out int held); flightView.Hover=flightView.Pressed=held;}
                 output.Add(flightView);
             }
-            seat=ThirdPersonView.Active || FlightSettings.IsOpen ? null:SeatPanel.View();
+            seat=CameraRig.Detached || FlightSettings.IsOpen ? null:SeatPanel.View();
             if(seat!=null)
             {
                 seat.Hover=seatHover; seat.Pressed=seatPressed;
                 output.Add(seat);
             }
-            if(!ThirdPersonView.Active) output.AddRange(CockpitButtons.Views);
-            if(!ThirdPersonView.Active) output.AddRange(CockpitTouch.Labels());
-            if(!ThirdPersonView.Active) output.AddRange(HandInteraction.Labels());
+            if(!CameraRig.Detached) output.AddRange(CockpitButtons.Views);
+            if(!CameraRig.Detached) output.AddRange(CockpitTouch.Labels());
+            if(!CameraRig.Detached) output.AddRange(HandInteraction.Labels());
             if(BlockInspection.Current!=null) output.Add(BlockInspection.Current);
             var ammo=WeaponAmmo.View(); if(ammo!=null) output.Add(ammo);
             current=output.ToArray();

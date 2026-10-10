@@ -68,6 +68,7 @@ namespace SpaceEngineersVR.Multiplayer
         internal static void Log(string text) => MyLog.Default.WriteLine("SEVR multiplayer: "+text);
         internal static void Reset()
         {
+            DampenerRequests.Reset();
             if(network!=null)
             {
                 network.UnregisterSecureMessageHandler(PoseChannel,Receive);
@@ -111,6 +112,7 @@ namespace SpaceEngineersVR.Multiplayer
                 network.RegisterSecureMessageHandler(StateChannel,Receive);
                 Log("Session connected; "+(network.IsServer ? "host persistence active":"awaiting host support"));
             }
+            DampenerRequests.Update();
             double now=Now;
             if(now>=nextPlayers)
             {

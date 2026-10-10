@@ -13,7 +13,8 @@ namespace SpaceEngineersVR.Player
 {
     internal static class ToolbarWheel
     {
-        internal const string ControlsHint="Hold B · A: assign / G menu · Empty slot: assign · Release B confirms\nLeft stick selects · Left / right trigger: page · Center cancels";
+        internal const string ControlsHint="Hold B · A: assign / G menu · Empty slot: assign · Release B confirms\nEither stick selects · Left / right trigger: page · Center cancels";
+        internal static string QuickControlsHint(bool pages) => "Hold Y · Either stick selects · X: inventory · Release Y confirms · B: cancel"+(pages ? "\nLeft / right trigger: previous / next page":"");
         internal enum SlotResult { Ignored, Assigned, Activated, Unavailable }
         internal sealed class View
         {
@@ -48,6 +49,7 @@ namespace SpaceEngineersVR.Player
         private static object owner;
         private static MyToolbar toolbar;
         private static int group, selection = -1;
+        private static readonly RadialNavigation navigation=new RadialNavigation();
         private static Matrix pose;
 
         public static void Update()
@@ -70,12 +72,13 @@ namespace SpaceEngineersVR.Player
                     !Player.HandL.pose.isTracked ||
                     !ReferenceEquals(owner, MySession.Static?.ControlledEntity) || MySession.Static?.LocalCharacter?.IsDead != false)
                 { Close(); return; }
+                var stick=navigation.Update(controls.MenuPage.Position,controls.MenuNavigate.Position,group==0 ? 0:1);
                 if(group==1 && controls.Unequip.HasPressed) { Close(); return; }
                 if(group==1 && controls.Jetpack.HasPressed)
                 { Close(); GameActions.Execute(GameActions.InventoryAction); return; }
                 if (group==0 && controls.Interact.HasPressed)
                 {
-                    int slot=group==0 ? RadialMath.Sector(controls.MenuPage.Position,toolbar?.SlotCount ?? 9) : -1;
+                    int slot=group==0 ? RadialMath.Sector(stick,toolbar?.SlotCount ?? 9) : -1;
                     var target=toolbar;
                     Close();
                     if (InputRouter.Gameplay && ReferenceEquals(target,MyToolbarComponent.CurrentToolbar))
@@ -84,7 +87,7 @@ namespace SpaceEngineersVR.Player
                 }
                 if (!(group==0 ? controls.Unequip.RawPressed : controls.QuickMenu.RawPressed))
                 {
-                    int chosen = RadialMath.Sector(group==0 ? controls.MenuPage.Position : controls.MenuNavigate.Position, group == 0 ? toolbar?.SlotCount ?? 9 : 9);
+                    int chosen = RadialMath.Sector(stick, group == 0 ? toolbar?.SlotCount ?? 9 : 9);
                     int chosenGroup = group;
                     var choices=quickChoices;
                     var chosenToolbar = toolbar;
@@ -119,11 +122,11 @@ namespace SpaceEngineersVR.Player
                         quickChoices=quickPages[quickPage];
                     }
                     selection=-1;
-                    (group==0 ? controls.MenuPage:controls.MenuNavigate).BlockUntilRelease();
+                    controls.MenuPage.BlockUntilRelease(); controls.MenuNavigate.BlockUntilRelease(); navigation.Reset(); stick=Vector2.Zero;
                     nextSnapshot=DateTime.MinValue;
                 }
-                int next=RadialMath.Sector(group==0 ? controls.MenuPage.Position:controls.MenuNavigate.Position,group==0 ? toolbar?.SlotCount ?? 9:9);
-                if (next!=selection) { selection=next; nextSnapshot=DateTime.MinValue; (group==0 ? Player.HandL:Player.HandR).Vibrate(0,0.025f,90,0.2f); }
+                int next=RadialMath.Sector(stick,group==0 ? toolbar?.SlotCount ?? 9:9);
+                if (next!=selection) { selection=next; nextSnapshot=DateTime.MinValue; (navigation.Owner==0 ? Player.HandL:Player.HandR).Vibrate(0,0.025f,90,0.2f); }
                 Publish();
                 return;
             }
@@ -143,23 +146,31 @@ namespace SpaceEngineersVR.Player
             if(action==ToolbarGesture.Action.Unequip) { GameActions.Unequip(); InputRouter.Update(); return; }
             Open(false);
         }
+        internal static ActionChoice[][] WithRecents(ActionChoice[][] pages,ActionChoice[] recent)
+        {
+            var last=new ActionChoice[9];
+            Array.Copy(recent,last,Math.Min(9,recent.Length));
+            return pages.Concat(new[] {last}).ToArray();
+        }
         private static void Open(bool quick)
         {
             quickChoices=quick ? GameActions.WheelActions(PlacementControls.OwnsTools,InputRouter.Mode==InputMode.Piloting,ThirdPersonView.Active,InputRouter.Mode==InputMode.Jetpack || MySession.Static?.LocalCharacter?.JetpackComp?.TurnedOn==true):null;
             quickPage=variantPages=blockPages=0; quickPages=null;
             if(quick)
             {
-                var variants=PlacementControls.Mode==InputMode.Building ? BlockVariants.Choices() : Array.Empty<ActionChoice>(); variantPages=(variants.Length+8)/9;
-                var block=PlacementControls.ClipboardActive ? Array.Empty<ActionChoice>():BlockActions.Capture(PlacementControls.OwnsTools);
+                bool symmetry=SymmetrySetupControls.Active;
+                var variants=!symmetry && PlacementControls.Mode==InputMode.Building ? BlockVariants.Choices() : Array.Empty<ActionChoice>(); variantPages=(variants.Length+8)/9;
+                var block=symmetry || PlacementControls.ClipboardActive ? Array.Empty<ActionChoice>():BlockActions.Capture(PlacementControls.OwnsTools);
                 quickChoices=quickChoices.Select(choice=>choice==GameActions.Quick[11] || choice==GameActions.Quick[12] ?
                     block.FirstOrDefault(c=>c.Label==choice.Label) ?? choice:choice).ToArray();
                 quickPages=BlockVariants.Pages(variants,quickChoices);
                 blockPages=(block.Length+8)/9;
                 quickPages=BlockActions.Pages(block,quickPages);
+                quickPages=WithRecents(quickPages,ActionCatalog.Recent());
                 quickChoices=quickPages[0];
             }
             owner=MySession.Static.ControlledEntity; toolbar=MyToolbarComponent.CurrentToolbar;
-            group=quick ? 1:0; selection=-1;
+            group=quick ? 1:0; selection=-1; navigation.Reset();
             pose=HandPose((quick ? Player.HandL:Player.HandR).GripTracking,Player.Headset.pose.deviceToAbsolute.matrix);
             InputRouter.RadialOpen=true; InputRouter.Update(); nextSnapshot=DateTime.MinValue; Publish();
         }
@@ -211,15 +222,15 @@ namespace SpaceEngineersVR.Player
             }
             var next = new View { Pose = pose, Labels = labels, Enabled = enabled, Selected = selection, Icons = icons, SubIcons = subIcons, ItemText = itemText,
                 Title = group == 0 ? "Toolbar " + ((toolbar?.CurrentPage ?? 0) + 1) + "/" + (toolbar?.PageCount ?? 0)
-                    : quickPages?.Length>1 ? (quickPage<blockPages ? "Block actions " : variantPages>0 ? "Building " : "Quick actions ")+(quickPage+1)+" / "+quickPages.Length : "Quick actions",
+                    : quickPage==quickPages.Length-1 ? "Recent searches" : SymmetrySetupControls.Active ? "Symmetry setup" : quickPages?.Length>1 ? (quickPage<blockPages ? "Block actions " : variantPages>0 ? "Building " : "Quick actions ")+(quickPage+1)+" / "+quickPages.Length : "Quick actions",
                 Variants=group==1 && quickPage>=blockPages && quickPage<blockPages+variantPages,Group=group,Page=group==0 ? toolbar?.CurrentPage ?? 0 : quickPage,Pages=group==0 ? toolbar?.PageCount ?? 1 : quickPages?.Length ?? 1,
-                Hint = group==0 ? ControlsHint : "Hold Y · Right stick selects · X: inventory · Release Y confirms · B: cancel"+(quickPages?.Length>1 ? "\nLeft / right trigger: previous / next page" : "") };
+                Hint = group==0 ? ControlsHint : QuickControlsHint(quickPages?.Length>1) };
             if (!next.SameAs(view)) view=next;
         }
 
         public static void Close(bool resume = true)
         {
-            gesture.Reset(); quickGesture.Reset(); selection = -1; view = null;
+            gesture.Reset(); quickGesture.Reset(); navigation.Reset(); selection = -1; view = null;
             quickChoices=null; quickPages=null;
             InputRouter.RadialOpen = false;
             InputRouter.Reset();

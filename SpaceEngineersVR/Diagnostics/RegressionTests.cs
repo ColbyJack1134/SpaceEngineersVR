@@ -100,6 +100,9 @@ namespace SpaceEngineersVR.Diagnostics
             RenderingPatchTests.Run(log);
             ModHudTests.Run(log);
             ToolContactTests.Run(log);
+            VRage.ObjectBuilders.MyObjectBuilderType.RegisterFromAssembly(typeof(VRage.Game.MyDefinitionId).Assembly);
+            VRage.ObjectBuilders.MyObjectBuilderType.RegisterFromAssembly(Assembly.Load("SpaceEngineers.ObjectBuilders"));
+            TargetingTests.Run(log);
             MotionToolTests.Run(log);
             CockpitMaterialTests.Run(log);
             ThirdPersonTests.Run(log);
@@ -127,6 +130,19 @@ namespace SpaceEngineersVR.Diagnostics
                 RadialMath.Sector(new Vector2(0.2f, 0.2f), 9) != -1)
                 throw new Exception("Radial neutral/invalid input must cancel");
             log("PASS radial selection: native slot counts, full-circle wrap, neutral and invalid cancellation");
+            var navigation=new Player.Control.RadialNavigation();
+            foreach(int preferred in new[] {0,1})
+            {
+                navigation.Reset();
+                if(navigation.Update(Vector2.UnitX,Vector2.UnitY,preferred)!=(preferred==0 ? Vector2.UnitX:Vector2.UnitY)) throw new Exception("Radial simultaneous input tie changed");
+                if(navigation.Update(Vector2.UnitX,-Vector2.UnitY,preferred)!=(preferred==0 ? Vector2.UnitX:-Vector2.UnitY)) throw new Exception("Second radial stick stole navigation");
+                if(navigation.Update(Vector2.Zero,Vector2.Zero,preferred)!=Vector2.Zero || navigation.Owner!=-1) throw new Exception("Radial center did not cancel ownership");
+                if(navigation.Update(preferred==0 ? Vector2.Zero:Vector2.UnitX,preferred==1 ? Vector2.Zero:Vector2.UnitY,preferred)==Vector2.Zero || navigation.Owner==preferred) throw new Exception("Either radial stick cannot acquire navigation");
+                if(navigation.Update(new Vector2(float.NaN,0),new Vector2(float.PositiveInfinity,0),preferred)!=Vector2.Zero) throw new Exception("Invalid radial owner survived");
+                navigation.Reset();
+                if(navigation.Update(Vector2.Zero,Vector2.Zero,preferred)!=Vector2.Zero) throw new Exception("Radial reset retained selection");
+            }
+            log("PASS either-stick radial navigation: exclusive ownership, simultaneous tie, centered cancellation, other-stick takeover and reset/invalid input");
 
             var actions = new Player.Control.ActionFrame();
             var actionId = VRage.Utils.MyStringId.GetOrCompute("SEVR regression action");
@@ -334,8 +350,6 @@ namespace SpaceEngineersVR.Diagnostics
             AnalogControlTests.Run(log);
             CockpitProbeTests.Run(log);
 
-            VRage.ObjectBuilders.MyObjectBuilderType.RegisterFromAssembly(typeof(VRage.Game.MyDefinitionId).Assembly);
-            VRage.ObjectBuilders.MyObjectBuilderType.RegisterFromAssembly(Assembly.Load("SpaceEngineers.ObjectBuilders"));
             var harmony=new Harmony("SpaceEngineersVR.BootstrapTests");
             try
             {

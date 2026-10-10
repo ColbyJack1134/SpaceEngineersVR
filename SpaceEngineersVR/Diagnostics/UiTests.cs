@@ -212,7 +212,7 @@ namespace SpaceEngineersVR.Diagnostics
                         {
                             var items=pages[page];
                             model.Title="Quick actions "+(page+1)+" / "+pages.Length; model.Group=1; model.Page=page; model.Pages=pages.Length;
-                            model.Hint="Hold Y · Right stick selects · Release Y confirms\nLeft / right trigger: previous / next page";
+                            model.Hint="Hold Y · Either stick selects · Release Y confirms\nLeft / right trigger: previous / next page";
                             model.Labels=items.Select(c=>c?.Label ?? "").ToArray(); model.Icons=items.Select(c=>c==null ? Array.Empty<string>() : new[] {c.Icon}).ToArray();
                             model.Enabled=items.Select(c=>c!=null).ToArray();
                             Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"wheel-"+entry.Item1+"-"+page+".png"));
@@ -228,7 +228,7 @@ namespace SpaceEngineersVR.Diagnostics
                     {
                         var choices=buildingPages[p]; model.Title="Building "+(p+1)+" / "+buildingPages.Length;
                         model.Variants=p<(variants.Length+8)/9; model.Group=1; model.Page=p; model.Pages=buildingPages.Length; model.Selected=p==0 ? 0:-1;
-                        model.Hint="Hold Y · Right stick selects · Release Y confirms\nLeft / right trigger: previous / next page";
+                        model.Hint="Hold Y · Either stick selects · Release Y confirms\nLeft / right trigger: previous / next page";
                         model.Labels=choices.Select(c=>c?.Label ?? "").ToArray(); model.Icons=choices.Select(c=>c==null ? new string[0]:new[] {c.Icon}).ToArray();
                         model.Enabled=choices.Select(c=>c!=null).ToArray();
                         Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"wheel-variants-"+p+".png"));

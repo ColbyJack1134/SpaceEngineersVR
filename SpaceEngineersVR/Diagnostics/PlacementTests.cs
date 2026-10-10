@@ -15,6 +15,7 @@ namespace SpaceEngineersVR.Diagnostics
 {
     internal static class PlacementTests
     {
+        private static bool SkipSphere() => false;
         private static void Require(bool value,string message) { if (!value) throw new Exception(message); }
         public static void Run(Action<string> log)
         {
@@ -141,7 +142,36 @@ namespace SpaceEngineersVR.Diagnostics
             var native=PatchProcessor.GetOriginalInstructions(AccessTools.Method(typeof(MyCubeBuilder),"HandleAdminAndCreativeInput")).ToList();
             Require(native.Any(i=>i.operand is System.Reflection.MethodInfo m && m.Name=="get_CreativeMode") &&
                 native.Any(i=>i.operand is System.Reflection.MethodInfo m && m.Name=="CreativeToolsEnabled"),"Installed Creative permission path changed");
-            Require(AccessTools.Method(typeof(MyGridClipboard),"GetPasteMatrix")?.ReturnType==typeof(VRageMath.MatrixD),"Native clipboard pose signature changed");
+            foreach(var type in new[] {typeof(MyGridClipboard),AccessTools.TypeByName("Sandbox.Game.Entities.MyVoxelClipboard"),AccessTools.TypeByName("Sandbox.Game.Entities.MyFloatingObjectClipboard")})
+            {
+                Require(AccessTools.Method(type,"GetPasteMatrix")?.ReturnType==typeof(MatrixD),"Native clipboard pose signature changed");
+                foreach(string movement in new[] {"MoveEntityFurther","MoveEntityCloser"})
+                    Require(PatchProcessor.GetOriginalInstructions(AccessTools.Method(type,movement)).Count(i=>i.opcode==System.Reflection.Emit.OpCodes.Ldc_R4 && i.operand is float factor && factor==1.1f)==1,"Native clipboard distance arithmetic changed");
+            }
+            Require(PlacementControls.ToolMode(InputMode.Spectator,true,false)==InputMode.Clipboard &&
+                PlacementControls.ToolMode(InputMode.Spectator,false,false)==InputMode.Spectator &&
+                PlacementControls.ToolMode(InputMode.Radial,true,false)==InputMode.Radial,"Clipboard overlay took camera or UI ownership");
+            var planetHarmony=new Harmony("SEVR.NativePlanetFixture");
+            try
+            {
+                planetHarmony.CreateClassProcessor(typeof(Patches.PlanetPreviewSpherePatch)).Patch();
+                var sphere=AccessTools.Method(typeof(VRageRender.MyRenderProxy),nameof(VRageRender.MyRenderProxy.DebugDrawSphere),new[] {typeof(Vector3D),typeof(float),typeof(Color),typeof(float),typeof(bool),typeof(bool),typeof(bool),typeof(bool)});
+                planetHarmony.Patch(sphere,prefix:new HarmonyMethod(typeof(PlacementTests),nameof(SkipSphere)) {priority=Priority.Last});
+                foreach(bool valid in new[] {true,false})
+                {
+                    var center=new Vector3D(1e9,-1e9,1e9);
+                    var spheres=PlanetRenderTests.Capture(center,65000,valid);
+                    Require(spheres.Length==1 && spheres[0].Position==center && Math.Abs(spheres[0].Radius-71500)<.1 &&
+                        spheres[0].Color==(valid ? Color.Green:Color.Red) && spheres[0].DepthRead && !spheres[0].Smooth,"Planet preview differs from the installed game's placement sphere");
+                    var unchanged=PlanetPreview.Current;
+                    sphere.Invoke(null,new object[] {Vector3D.Zero,1f,Color.White,1f,true,false,true,false});
+                    PlanetPreview.Commit(); Require(PlanetPreview.Current.Length==unchanged.Length,"Unrelated developer spheres entered planet capture");
+                }
+                PlanetPreview.Begin(); Require(PlanetPreview.Current.Length==0,"Planet preview retained a prior frame");
+            }
+            finally { PlanetPreview.Capturing=false; PlanetPreview.Begin(); planetHarmony.UnpatchAll(planetHarmony.Id); }
+            Require(AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),"ProcessDebugMessages",new[] {typeof(System.Collections.Generic.List<VRageRender.Messages.MyRenderMessageBase>)} )?.ReturnType==typeof(bool),"Native gameplay gizmo processor signature changed");
+            log("PASS native planet preview capture: exact position/radius/validity art at billion-metre origins, unrelated debug exclusion and frame clearing; grid/voxel/item clipboards share installed pose and distance APIs");
             Require(PatchProcessor.GetOriginalInstructions(AccessTools.Method(typeof(NativeActions),nameof(NativeActions.Reset)))
                 .Any(i=>i.operand is System.Reflection.MethodInfo m && m.DeclaringType==typeof(MyCubeBuilder) && m.Name=="InputLost"),"VR transition omitted native stroke cancellation");
             foreach(var type in new[] {typeof(Sandbox.Game.Entities.MyCockpit),typeof(Sandbox.Game.Entities.Character.MyCharacter)})

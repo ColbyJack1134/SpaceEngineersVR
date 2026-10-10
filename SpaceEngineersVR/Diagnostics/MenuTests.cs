@@ -78,6 +78,22 @@ namespace SpaceEngineersVR.Diagnostics
             MenuKeyboard.TextTarget(blueprint).InsertChar(true,'a');
             Require(blueprintQuery=="a","Blueprint search event lost");
             Require(MenuKeyboard.TextTarget(other)==null,"Non-toolbar menus acquired unsolicited text focus");
+            ActionCatalog.Search("");
+            var historyField=AccessTools.Field(typeof(ActionCatalog),"history"); var previousHistory=historyField.GetValue(null);
+            try
+            {
+                historyField.SetValue(null,new ActionHistory(new[] {"Auto dampeners","Blueprints"}));
+                var recentActions=new GUI.ActionBrowser(); recentActions.RecreateControls(true);
+                var recentRows=recentActions.Controls.OfType<MyGuiControlButton>().Where(b=>b.Position.Y<.25f).OrderBy(b=>b.Position.Y).ToArray();
+                Require(recentRows[0].Text=="Auto dampeners" && recentRows[1].Text=="Blueprints","Empty native Search did not show recently used actions first");
+                MenuKeyboard.TextTarget(recentActions).Text="blueprints";
+                Require(recentActions.Controls.OfType<MyGuiControlButton>().Where(b=>b.Position.Y<.25f).All(b=>b.Text.IndexOf("blueprint",StringComparison.OrdinalIgnoreCase)>=0),"Recent actions leaked into a typed query");
+                recentActions.RecreateControls(false);
+                Require(MenuKeyboard.TextTarget(recentActions).Text=="blueprints","Native Search rebuild lost the displayed query");
+                recentActions.CloseScreenNow();
+            }
+            finally { historyField.SetValue(null,previousHistory); }
+            log("PASS empty native action Search uses recent choices; typed queries and rebuilds retain filtering");
             var actions=new GUI.ActionBrowser(); actions.RecreateControls(true);
             var actionText=MenuKeyboard.TextTarget(actions);
             Require(actionText!=null,"Actions keyboard cannot find search");

@@ -36,10 +36,12 @@ namespace SpaceEngineersVR.Patches
     {
         private static IEnumerable<System.Reflection.MethodBase> TargetMethods()
         {
-            var type=typeof(Sandbox.Game.Entities.Cube.MyGridClipboard);
-            yield return AccessTools.Method(type,"MoveEntityFurther");
-            yield return AccessTools.Method(type,"MoveEntityCloser");
+            foreach(var type in new[] {typeof(Sandbox.Game.Entities.Cube.MyGridClipboard),AccessTools.TypeByName("Sandbox.Game.Entities.MyVoxelClipboard"),AccessTools.TypeByName("Sandbox.Game.Entities.MyFloatingObjectClipboard")})
+            {
+                yield return AccessTools.Method(type,"MoveEntityFurther");
+                yield return AccessTools.Method(type,"MoveEntityCloser");
+            }
         }
-        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) => BuildDistancePatch.DistanceFactors(instructions,1,"blueprint");
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) => BuildDistancePatch.DistanceFactors(instructions,1,"clipboard");
     }
 }

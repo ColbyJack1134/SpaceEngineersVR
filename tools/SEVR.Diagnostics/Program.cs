@@ -35,6 +35,7 @@ internal static class Program
             if(args.Length==3 && args[1]=="--planner-preview") { UiTests.BuildPlanner(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--signals-test") { UiTests.Signals(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--tablet-test") { UiTests.Tablet(game,args[2],Console.WriteLine); return 0; }
+            if(args.Length==3 && args[1]=="--targeting-preview") { TargetingPreview.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--control-seat-preview") { ControlSeatPreview.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--compare-physical-rigs") { PhysicalImageComparison.VerifyRigs(args[2],Console.WriteLine); return 0; }
             if((args.Length==2 || args.Length==3) && args[1]=="--benchmark-geometry") { GeometryBenchmark.Run(game,Console.WriteLine,args.Length==3 ? args[2] : null); return 0; }

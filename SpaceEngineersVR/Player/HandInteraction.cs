@@ -271,7 +271,7 @@ namespace SpaceEngineersVR.Player
         {
             var c=Controls.Static;
             var character=MySession.Static?.LocalCharacter;
-            bool allowed=!disabled && (InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Building) && !InputRouter.Flying &&
+            bool allowed=!GridSelection.Owns(Player.HandL) && !disabled && (InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Building) && !InputRouter.Flying &&
                 MySession.Static?.ControlledEntity==character && character!=null && !character.IsDead && !character.IsSitting &&
                 !ThirdPersonView.Active && Player.HandL.pose.isTracked && !PlacementControls.OwnsTools && !HelmetHud.Consumes(Player.HandL) &&
                 !Owns(Player.HandL) && !CockpitTouch.Owns(Player.HandL) && !TouchScreenBridge.PointingFor(Player.HandL) && !ArthurLcdBridge.PointingFor(Player.HandL) && !FloatingWindows.PointingFor(Player.HandL) &&
@@ -342,7 +342,7 @@ namespace SpaceEngineersVR.Player
                         MyStringId.GetOrCompute("Square"),ref lineColor,0.025f);
                     bool show = hand == Player.HandL ? LeftAiming :
                         !LeftAiming && rayVisible && !SpatialUi.RayTargeted && !SpatialUi.OwnsRight && !CockpitTouch.OwnsRight && !HoldingRight && !TouchScreenBridge.Pointing && !ArthurLcdBridge.PointingFor(Player.HandR);
-                    if (show && !WeaponHandling.HideUseRay && TryInteractionRay(out LineD ray))
+                    if (show && !GridSelection.Owns(hand) && !WeaponHandling.HideUseRay && TryInteractionRay(out LineD ray))
                     {
                         var aim=MatrixD.CreateWorld(ray.From,ray.Direction,Vector3D.CalculatePerpendicularVector(ray.Direction));
                         var end=ray.From+ray.Direction*ObstacleDistance(aim,(float)ray.Length);

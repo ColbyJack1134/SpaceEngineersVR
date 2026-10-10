@@ -18,6 +18,7 @@ namespace SpaceEngineersVR.Player
         public string[] Icons=new string[0];
         public string SubIcon,Text,Value;
         public ActionChoice Action;
+        internal bool SearchResult;
         public float? Knob,Slider;
         public Action<float> Change;
         public bool Caption,Horizontal;

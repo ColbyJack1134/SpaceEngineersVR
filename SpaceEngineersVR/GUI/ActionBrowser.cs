@@ -23,6 +23,7 @@ namespace SpaceEngineersVR.GUI
         {
             base.RecreateControls(constructor); rows.Clear(); AddCaption("Actions");
             var search=new MyGuiControlSearchBox { Position=new Vector2(0,-.28f),Size=new Vector2(.61f,.045f) };
+            search.TextBox.Text=query;
             search.OnTextChanged+=text=> { query=text; page=0; Refresh(); }; Controls.Add(search);
             pageLabel=new MyGuiControlLabel(new Vector2(-.07f,.28f)); Controls.Add(pageLabel);
             Controls.Add(new MyGuiControlButton(new Vector2(-.25f,.28f),size:new Vector2(.18f,.05f),text:new StringBuilder("Previous"),onButtonClick:b=> { page=Math.Max(0,page-1); Refresh(); }));
@@ -40,7 +41,7 @@ namespace SpaceEngineersVR.GUI
             {
                 var action=choices[page*7+i];
                 var button=new MyGuiControlButton(new Vector2(0,-.19f+i*.065f),size:new Vector2(.61f,.055f),text:new StringBuilder(action.Label),onButtonClick:b=> {
-                    CloseScreenNow(); GameActions.Schedule(action);
+                    var hand=MenuPointer.Hand; CloseScreenNow(); GameActions.Schedule(action,hand,fromSearch:true);
                 });
                 button.Enabled=action.Enabled; Controls.Add(button); rows.Add(button);
             }

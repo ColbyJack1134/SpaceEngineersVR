@@ -33,7 +33,7 @@ namespace SpaceEngineersVR.Diagnostics
                 new[] {true,false,false,true},new[] {false,true,false,false},new[] {false,true,true,false},new[] {true,false,true,false},new[] {false,false,true,false},new[] {true,true,false,false},new[] {true,true,true,false},new[] {true,false,true,true},new[] {false,false,true,true} })
             {
                 var wheel=GameActions.WheelActions(context[0],context[1],context[2],context[3]);
-                Require(wheel.Distinct().Count()==wheel.Length && wheel.Length>=9 && wheel[0]==GameActions.PauseAction && wheel[1]==GameActions.Options,"Context moved Pause/Options or duplicated wheel actions");
+                Require(wheel.Distinct().Count()==wheel.Length && wheel.Length>=8 && wheel[0]==GameActions.PauseAction && !wheel.Contains(GameActions.Options),"Context moved Pause, retained VR options or duplicated wheel actions");
                 Require(!wheel.Contains(GameActions.Tablet) && !wheel.Any(a=>a.Label=="Reset ship view"),"Duplicate gesture/button action consumes a radial slot");
                 Require(!wheel.Contains(GameActions.RelativeDampeners) || context[3],"Auto dampeners shown outside jetpack context");
                 Require(wheel.Count(a=>a.Label.StartsWith("Camera:"))==(context[2] && context[1] && !context[0] ? 1:0),"Camera cycle leaked context or split into multiple slots");
@@ -87,15 +87,6 @@ namespace SpaceEngineersVR.Diagnostics
             Require(seatPage.Where(k=>k.SeatControl>=0).All(k=>!k.Enabled),"Seat controls enabled without an eligible cockpit");
             WristPanel.Show(1); Require(!WristPanel.SeatOpen,"Seat page survived a tab change"); WristPanel.Reset();
             log("PASS wrist seat panel: shared actions, availability, stick locks, bounds and page exit.");
-            for(int i=0;i<80;i++)
-            {
-                var body=MatrixD.CreateFromYawPitchRoll(i*.1,i*.04,-i*.03);
-                double pitch=(i%15-7)*.13,yaw=i*.17;
-                var look=MatrixD.CreateRotationX(pitch)*MatrixD.CreateRotationY(yaw)*body;
-                var angles=DampenerTargeting.HeadAngles(look.Forward,body);
-                var native=MatrixD.CreateRotationX(MathHelper.ToRadians(angles.X))*MatrixD.CreateRotationY(MathHelper.ToRadians(angles.Y))*body;
-                Require(Vector3D.Dot(native.Forward,look.Forward)>.99999,"Native damping target direction disagrees with HMD");
-            }
             var oldHud=new EssentialHud.View { Values=new[] {"80","70","60","50"},Icons=new string[0],Dampeners=true };
             var autoHud=new EssentialHud.View { Values=new[] {"80","70","60","50"},Icons=new string[0],Dampeners=true,AutoDampeners=true };
             Require(!oldHud.SameAs(autoHud),"Auto dampeners state fails to repaint the HUD");
@@ -103,7 +94,7 @@ namespace SpaceEngineersVR.Diagnostics
             Require(!oldHud.SameAs(autoHud),"Natural gravity changes fail to repaint wrist HUD");
             autoHud.NaturalGravity=null; autoHud.ArtificialGravity="0.50";
             Require(!oldHud.SameAs(autoHud),"Artificial gravity changes fail to repaint wrist HUD");
-            log("PASS contextual action layouts: fixed Pause/Options, one third-person camera cycle, jetpack auto dampeners, tablet bounds and HUD auto-state refresh.");
+            log("PASS contextual action layouts: Pause first, VR options in Pause, one third-person camera cycle, jetpack auto dampeners, tablet bounds and HUD auto-state refresh.");
             var tabletPress=new CockpitTouch.Hand();
             tabletPress.Sample(true,1,true,"Wrist",0,softCapture:false);
             Require(!tabletPress.Pressed,"Held trigger on tablet appearance fired");

@@ -16,6 +16,26 @@ namespace SpaceEngineersVR.Patches
         private static Exception Finalizer(Exception __exception,BuildOrientationHud.Capture __state)
         { __state?.Dispose(); return __exception; }
     }
+    [HarmonyPatch]
+    internal static class PlanetRotationHintPatch
+    {
+        private static readonly System.Reflection.MethodInfo orientation=AccessTools.Method(AccessTools.TypeByName("Sandbox.Game.Entities.MyVoxelClipboard"),"GetFirstOrientationMatrix");
+        private static System.Reflection.MethodBase TargetMethod() => AccessTools.Method(AccessTools.TypeByName("Sandbox.Game.Entities.MyVoxelClipboard"),"CalculateRotationHints");
+        private static bool Prefix(object __instance,MyBlockBuilderRotationHints hints,bool isRotating,bool ___m_planetMode,VRageMath.Vector3D ___m_pastePosition)
+        {
+            if(!Main.VrActive || !___m_planetMode) return true;
+            // Planets have no preview entity to supply the ordinary native rotation hint.
+            Calculate(__instance,hints,___m_pastePosition,!Sandbox.Game.Gui.MyHud.MinimalHud && !Sandbox.Game.Gui.MyHud.CutsceneHud &&
+                Sandbox.MySandboxGame.Config.RotationHints && !VRage.Input.MyInput.Static.IsJoystickLastUsed,isRotating);
+            return false;
+        }
+        internal static void Calculate(object clipboard,MyBlockBuilderRotationHints hints,VRageMath.Vector3D position,bool draw,bool rotating)
+        {
+            var matrix=(VRageMath.MatrixD)orientation.Invoke(clipboard,null);
+            matrix.Translation=position;
+            hints.CalculateRotationHints(matrix,draw,rotating);
+        }
+    }
     [HarmonyPatch(typeof(MyRenderProxy),nameof(MyRenderProxy.AddBillboard))]
     internal static class BuildHintBillboardPatch
     {

@@ -7,6 +7,15 @@ using VRage.Utils;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatch(typeof(Sandbox.Game.Screens.Helpers.RadialMenuActions.MyActionToggleDampeners),"ExecuteAction")]
+    internal static class DampenerTogglePatch
+    {
+        private static void Prefix()
+        {
+            if(!Plugin.Main.VrActive) return;
+            DampenerTargeting.Cancel(); GridSelection.CancelDampeners();
+        }
+    }
     [HarmonyPatch(typeof(MyControllerHelper), nameof(MyControllerHelper.IsControl),
         new[] { typeof(MyStringId), typeof(MyStringId), typeof(MyControlStateType), typeof(bool), typeof(bool) })]
     internal static class NativeActionPatch
@@ -15,6 +24,10 @@ namespace SpaceEngineersVR.Patches
         private static void Postfix(MyStringId context, MyStringId controlId, MyControlStateType type, ref bool __result)
         {
             if (context != MyControllerHelper.CX_GUI) __result |= NativeActions.Read(controlId, type);
+            if(Plugin.Main.VrActive && InputRouter.Gameplay && type==MyControlStateType.NEW_PRESSED && __result && controlId==Sandbox.Game.MyControlsSpace.DAMPING_RELATIVE)
+            { DampenerTargeting.Activate(); __result=false; }
+            if(Plugin.Main.VrActive && __result && controlId==Sandbox.Game.MyControlsSpace.DAMPING)
+            { DampenerTargeting.Cancel(); GridSelection.CancelDampeners(); }
         }
     }
 

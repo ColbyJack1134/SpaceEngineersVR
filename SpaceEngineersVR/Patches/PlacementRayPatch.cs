@@ -74,9 +74,14 @@ namespace SpaceEngineersVR.Patches
         private static bool Prefix(MyCubeBuilder __instance) => !Plugin.Main.VrActive || !__instance.IsBuildToolActive();
     }
 
-    [HarmonyPatch(typeof(MyGridClipboard), "GetPasteMatrix")]
+    [HarmonyPatch]
     internal static class ClipboardPosePatch
     {
+        private static System.Collections.Generic.IEnumerable<System.Reflection.MethodBase> TargetMethods()
+        {
+            foreach(var type in new[] {typeof(MyGridClipboard),AccessTools.TypeByName("Sandbox.Game.Entities.MyVoxelClipboard"),AccessTools.TypeByName("Sandbox.Game.Entities.MyFloatingObjectClipboard")})
+                yield return AccessTools.Method(type,"GetPasteMatrix");
+        }
         [HarmonyPostfix]
         private static void Postfix(ref MatrixD __result)
         {

@@ -142,7 +142,7 @@ namespace SpaceEngineersVR.Diagnostics
         {
             RemoteHud.Install(harmony);
             if(LeadIndicatorTests.Enabled) LeadIndicatorTests.Install(harmony);
-            harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),LeadIndicatorTests.Enabled ? "Present":"DrawScene"),new HarmonyMethod(typeof(PhysicalRendererProbe),nameof(Render)));
+            harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),LeadIndicatorTests.Enabled || Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions" ? "Present":"DrawScene"),new HarmonyMethod(typeof(PhysicalRendererProbe),nameof(Render)));
             Active=true; phase=0; next=DateTime.UtcNow.AddSeconds(10); deadline=DateTime.UtcNow.AddSeconds(520);
             Directory.CreateDirectory(output);
             foreach (string file in new[] {"native-left.png","rest-left.png","rest-right.png","articulated-left.png","articulated-right.png","restored-left.png","regrab-left.png"})
@@ -175,7 +175,11 @@ namespace SpaceEngineersVR.Diagnostics
                 {
                     if (DateTime.UtcNow<next) return;
                     if(!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")))
-                    { MenuTests.Run(line=>Logger.Info(line)); phase=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="setup" ? 134:100; return; }
+                    {
+                        MenuTests.Run(line=>Logger.Info(line));
+                        if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions") BuildOrientationTests.RunNative(line=>Logger.Info(line));
+                        phase=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions" ? 144:Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="setup" ? 134:100; return;
+                    }
                     if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_CAMERA_HUD_ONLY")=="1")
                     {
                         native=MyRenderProxy.CreateRenderEntity("SEVR camera probe",CockpitRig.Find(CockpitLayout.Fighter).Model,MatrixD.Identity,MyMeshDrawTechnique.MESH,
@@ -453,15 +457,20 @@ namespace SpaceEngineersVR.Diagnostics
             pending=Path.Combine(output,prefix+new[] {"native","rest","moved","restored"}[rigStep]+".png");
             next=DateTime.UtcNow.AddSeconds(1);
         }
+        private static object recentHistory;
+        private static bool symmetryPreviewsSaved;
         private static void UpdateMenus()
         {
             if(DateTime.UtcNow<next) return;
             int index=(phase-100)/2;
             bool menusOnly=!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY"));
             bool setupOnly=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="setup";
-            if(index>=(setupOnly ? 19:menusOnly ? 22:12))
+            if(index>=(setupOnly ? 19:menusOnly ? 24:12))
             {
-                options?.CloseScreenNow();options=null;Stop();
+                if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions" && (!symmetryPreviewsSaved || !rotationPreviewsSaved))
+                    throw new InvalidOperationException("Native gameplay gizmo and placement indicator fixtures were not rendered");
+                options?.CloseScreenNow();options=null;
+                Stop();
                 Logger.Info(menusOnly ? "PHYSICAL RENDER SMOKE PASSED: native menu checks and gallery only." :
                     "PHYSICAL RENDER SMOKE PASSED: native interface, camera HUD, hand layer, reference cockpit and menu gallery. Rig sweep excluded.");return;
             }
@@ -478,11 +487,24 @@ namespace SpaceEngineersVR.Diagnostics
                 if(index>=17 && index<=19) options=new GUI.FirstRunSetup(index-17);
                 if(index==20) options=new MainMenuPreview();
                 if(index==21) options=new PausePreview();
+                if(index==22)
+                {
+                    ActionCatalog.Search("");
+                    var history=AccessTools.Field(typeof(ActionCatalog),"history");
+                    recentHistory=history.GetValue(null);
+                    history.SetValue(null,new ActionHistory(new[] {"Auto dampeners","Blueprints","Symmetry planes"}));
+                    options=new GUI.ActionBrowser();
+                }
+                if(index==23)
+                {
+                    options=new GUI.ActionBrowser(); options.RecreateControls(true);
+                    MenuKeyboard.TextTarget(options).Text="symmetry";
+                }
                 Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);next=DateTime.UtcNow.AddSeconds(2);
             }
             else
             {
-                string name=index<12 ? "menu-gallery-"+index : index<20 ? "settings-native-"+(index+25) : index==20 ? "main-vr-options":"pause-vr-options";
+                string name=index==22 ? "actions-recent-native":index==23 ? "actions-filtered-native":index<12 ? "menu-gallery-"+index : index<20 ? "settings-native-"+(index+25) : index==20 ? "main-vr-options":"pause-vr-options";
                 MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,name+".png"),false,false,false);
                 next=DateTime.UtcNow.AddSeconds(1);
             }
@@ -490,6 +512,11 @@ namespace SpaceEngineersVR.Diagnostics
         }
         public static void Render()
         {
+            if(Active && phase>=144 && (!symmetryPreviewsSaved || !rotationPreviewsSaved))
+            {
+                try { SymmetryRenderTests.Render(output); PlanetRenderTests.Render(output); symmetryPreviewsSaved=true; }
+                catch(Exception ex) { renderError=ex.ToString(); }
+            }
             if(Active && LeadIndicatorTests.Enabled)
             {
                 try { LeadIndicatorTests.Render(); }
@@ -712,23 +739,27 @@ namespace SpaceEngineersVR.Diagnostics
                 NativeSprites.Poll();
                 using(var canvas=new OverlayCanvas("native rotation preview",384,384,1,false))
                 {
-                    for(int i=0;i<BuildOrientationTests.Previews.Count;i++)
+                    for(int i=0;i<BuildOrientationTests.Previews.Count+1;i++)
                     {
-                        BuildOrientationHud.Paint(canvas,BuildOrientationTests.Previews[i]); canvas.Upload();
+                        BuildOrientationHud.Paint(canvas,i<BuildOrientationTests.Previews.Count ? BuildOrientationTests.Previews[i]:BuildOrientationTests.PlanetIndicator); canvas.Upload();
                         if(NativeSprites.Pending) return;
-                        UiTests.Save(canvas.Texture,Path.Combine(output,"native-rotation-"+i+".png"));
+                        UiTests.Save(canvas.Texture,Path.Combine(output,i<BuildOrientationTests.Previews.Count ? "native-rotation-"+i+".png":"planet-adjust-native.png"));
                     }
-                    using(var scene=new OverlayCanvas("rotation eye preview",1024,768,1,false))
-                    using(var texture=new ShaderResourceView(canvas.Texture.Device,canvas.Texture))
+                    foreach(bool planet in new[] {false,true})
                     {
-                        foreach(int eye in new[] {-1,1})
+                        BuildOrientationHud.Paint(canvas,planet ? BuildOrientationTests.PlanetIndicator:BuildOrientationTests.Previews[2]); canvas.Upload();
+                        using(var scene=new OverlayCanvas("rotation eye preview",1024,768,1,false))
+                        using(var texture=new ShaderResourceView(canvas.Texture.Device,canvas.Texture))
                         {
-                            scene.Clear(System.Drawing.Color.FromArgb(255,12,20,28)); scene.Upload();
-                            float half=BuildOrientationHud.Width/2;
-                            var projection=VrMath.Projection(eye<0 ? -1.1f : -.9f,eye<0 ? .9f : 1.1f,-1,1,.03);
-                            NativeSprites.Draw(scene.Texture,new[] { PhysicalSurface.Quad(texture,BuildOrientationHud.Mount,
-                                new RectangleF(-half,half,2*half,2*half),new Vector4(0,0,1,1),Vector4.One,MatrixD.CreateTranslation(-eye*.032,0,0),projection) });
-                            UiTests.Save(scene.Texture,Path.Combine(output,"rotation-eye-"+eye+".png"));
+                            foreach(int eye in new[] {-1,1})
+                            {
+                                scene.Clear(System.Drawing.Color.FromArgb(255,12,20,28)); scene.Upload();
+                                float half=BuildOrientationHud.Width/2;
+                                var projection=VrMath.Projection(eye<0 ? -1.1f : -.9f,eye<0 ? .9f : 1.1f,-1,1,.03);
+                                NativeSprites.Draw(scene.Texture,new[] { PhysicalSurface.Quad(texture,BuildOrientationHud.Mount,
+                                    new RectangleF(-half,half,2*half,2*half),new Vector4(0,0,1,1),Vector4.One,MatrixD.CreateTranslation(-eye*.032,0,0),projection) });
+                                UiTests.Save(scene.Texture,Path.Combine(output,planet ? "planet-adjust-eye-"+(eye<0 ? "left":"right")+".png":"rotation-eye-"+eye+".png"));
+                            }
                         }
                     }
                 }
@@ -771,6 +802,7 @@ namespace SpaceEngineersVR.Diagnostics
         }
         internal static void Stop()
         {
+            if(recentHistory!=null) { AccessTools.Field(typeof(ActionCatalog),"history").SetValue(null,recentHistory); recentHistory=null; }
             options?.CloseScreenNow(); options=null;
             if(assignment!=null) { assignment.Finish(); assignment=null; }
             NativeGloves.Reset(); CockpitRender.Reset();

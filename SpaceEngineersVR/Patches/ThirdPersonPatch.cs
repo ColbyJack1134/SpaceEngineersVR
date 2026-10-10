@@ -33,8 +33,7 @@ namespace SpaceEngineersVR.Patches
             ThirdPersonView.Publish();
             var frame=ThirdPersonView.Current;
             if(frame==null) return true;
-            currentCamera.SetViewMatrix(VrMath.EyeView(MatrixD.Invert(frame.Anchor),Player.Player.Headset.pose.deviceToAbsolute.matrix,
-                frame.OriginInverse,Matrix.Identity,frame.UnitsPerMeter),smooth:false);
+            CameraRig.ApplyObserverCamera(currentCamera,frame);
             var character=__instance is MyCockpit cockpit ? cockpit.Pilot : __instance as MyCharacter;
             character?.EnableHead(true);
             return false;

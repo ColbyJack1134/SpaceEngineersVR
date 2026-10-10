@@ -20,6 +20,7 @@ namespace SpaceEngineersVR.Player
     {
         private readonly string label;
         private readonly Func<string> labelProvider;
+        public readonly string HistoryKey;
         public string Label => labelProvider?.Invoke() ?? label;
         public readonly Action Run;
         public readonly bool OpensMenu;
@@ -28,11 +29,12 @@ namespace SpaceEngineersVR.Player
         public readonly string SearchTerms;
         public bool Enabled => enabled?.Invoke() ?? true;
         public string Icon => icon ?? NativeSprites.Hud(IconName());
-        public ActionChoice(string label, Action run, bool opensMenu = false,string icon=null,Func<bool> enabled=null,string searchTerms=null) { SearchTerms=searchTerms; this.label=label; Run=run; OpensMenu=opensMenu; this.icon=icon; this.enabled=enabled; }
-        public ActionChoice(Func<string> label,Action run,Func<bool> enabled=null) { labelProvider=label; Run=run; this.enabled=enabled; }
+        public ActionChoice(string label, Action run, bool opensMenu = false,string icon=null,Func<bool> enabled=null,string searchTerms=null) { HistoryKey=label; SearchTerms=searchTerms; this.label=label; Run=run; OpensMenu=opensMenu; this.icon=icon; this.enabled=enabled; }
+        public ActionChoice(Func<string> label,Action run,Func<bool> enabled=null,string historyKey=null) { HistoryKey=historyKey; labelProvider=label; Run=run; this.enabled=enabled; }
         private string IconName()
         {
             if (Label.StartsWith("Yaw") || Label.StartsWith("Pitch") || Label.StartsWith("Roll") || Label.StartsWith("Camera:")) return "BlockRotate";
+            if (Label.StartsWith("Offset:")) return "SwitchSymmetryAxis";
             if (Label.StartsWith("Build shape:")) return "MultiBlockBuilding";
             switch (Label)
             {
@@ -67,6 +69,17 @@ namespace SpaceEngineersVR.Player
                 case "Color / skin palette": case "Paint tool": case "Pick color": return "ColorPicker";
                 case "Symmetry on / off": return "Symmetry";
                 case "Symmetry planes": return "SymmetrySetup";
+                case "Cycle plane": return "SwitchSymmetryAxis";
+                case "Exit symmetry setup": return "CloseSymmetrySetup";
+                case "Spectator": case "Free spectator": case "Fixed spectator": return "CameraSpectator";
+                case "Move character here": return "MoveCloser";
+                case "Return to character": return "PlayerHelmetOn";
+                case "Follow character": return "CameraSpectator";
+                case "Bring view to character": return "SwitchCamera";
+                case "Faster": case "Next player": return "ValueIncrease";
+                case "Slower": case "Previous player": return "ValueDecrease";
+                case "Select follow target": case "Unlock target": case "Tracking mode": return "SignalMode";
+                case "Save tracked view 1": case "Recall tracked view 1": return "CameraSpectator";
                 case "Placement mode": return "PlacementMode";
                 case "Align mount point": return "Autorotate";
                 default: return "RadialMenu";
@@ -78,6 +91,9 @@ namespace SpaceEngineersVR.Player
     {
         private static ActionChoice pending;
         private static object pendingOwner;
+        private static Controller pendingHand;
+        private static bool pendingSearch;
+        internal static Controller InvocationHand { get; set; }
         private static DateTime pendingUntil;
         internal static ActionChoice[] Search(string query) => ActionCatalog.Search(query);
         public static readonly ActionChoice UnequipAction=new ActionChoice("Unequip / cancel preview",Unequip);
@@ -86,41 +102,54 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice RelativeDampeners=new ActionChoice("Auto dampeners",DampenerTargeting.Activate);
         public static readonly ActionChoice Dampeners=Native("Dampeners",MyControlsSpace.DAMPING);
         public static readonly ActionChoice ResetFeed=new ActionChoice("Reset camera screen",RemoteView.Recenter);
-        public static readonly ActionChoice ExitFeed=new ActionChoice(()=>RemoteView.RemoteGrid ? "Exit remote control":"Exit camera control",RemoteView.Exit);
-        public static readonly ActionChoice Inspect=new ActionChoice(()=>Common.Config?.InspectWithoutGrip==true ? "Block info: automatic" : "Block info: hold grip",()=>Common.Config.InspectWithoutGrip=!Common.Config.InspectWithoutGrip);
-        public static readonly ActionChoice PlayPosture=new ActionChoice(()=>Common.Config?.SeatedPlay==true ? "Switch to standing play":"Switch to seated play",()=>BodyFit.SetSeated(!Common.Config.SeatedPlay));
+        public static readonly ActionChoice ExitFeed=new ActionChoice(()=>RemoteView.RemoteGrid ? "Exit remote control":"Exit camera control",RemoteView.Exit,historyKey:"Exit feed");
+        public static readonly ActionChoice Inspect=new ActionChoice(()=>Common.Config?.InspectWithoutGrip==true ? "Block info: automatic" : "Block info: hold grip",()=>Common.Config.InspectWithoutGrip=!Common.Config.InspectWithoutGrip,historyKey:"Block info");
+        public static readonly ActionChoice PlayPosture=new ActionChoice(()=>Common.Config?.SeatedPlay==true ? "Switch to standing play":"Switch to seated play",()=>BodyFit.SetSeated(!Common.Config.SeatedPlay),historyKey:"Play posture");
         public static readonly ActionChoice Tablet=new ActionChoice("Tablet",SpatialUi.Expand);
         public static readonly ActionChoice DesktopFloating=new ActionChoice("Desktop floating",DesktopWindow.Open,searchTerms:"monitor screen mirror video window");
         public static readonly ActionChoice DesktopWrist=new ActionChoice("Desktop wrist",WristPanel.OpenDesktop,searchTerms:"monitor screen mirror video tablet");
         public static readonly ActionChoice Options=new ActionChoice("VR options",()=>Common.Plugin.OpenConfigDialog(),true);
-        public static void Schedule(ActionChoice action)
+        public static void Schedule(ActionChoice action,Controller hand=null,bool fromSearch=false)
         {
             foreach(var screen in MyScreenManager.Screens.ToArray())
                 if(screen.GetType().Namespace=="SpaceEngineersVR.GUI") screen.CloseScreenNow();
-            pending=action; pendingOwner=MySession.Static?.ControlledEntity; pendingUntil=DateTime.UtcNow.AddSeconds(2);
+            pending=action; pendingHand=hand; pendingSearch=fromSearch; pendingOwner=MySession.Static?.ControlledEntity; pendingUntil=DateTime.UtcNow.AddSeconds(2);
         }
         public static void RunScheduled()
         {
             if(pending==null) return;
             if(DateTime.UtcNow>pendingUntil || !ReferenceEquals(pendingOwner,MySession.Static?.ControlledEntity))
-            { pending=null; pendingOwner=null; return; }
+            { pending=null; pendingOwner=null; pendingHand=null; pendingSearch=false; return; }
             if(!InputRouter.Gameplay || Main.MenuOpen) return;
-            var action=pending; pending=null; pendingOwner=null; Execute(action);
+            var action=pending; var hand=pendingHand; var fromSearch=pendingSearch;
+            pending=null; pendingOwner=null; pendingHand=null; pendingSearch=false;
+            Execute(action,hand,fromSearch);
         }
-        public static readonly ActionChoice CockpitBuild=new ActionChoice(()=>CockpitBuilding.Label,CockpitBuilding.Toggle);
+        public static readonly ActionChoice CockpitBuild=new ActionChoice(()=>CockpitBuilding.Label,CockpitBuilding.Toggle,historyKey:"Cockpit building");
         public static ActionChoice[] WheelActions(bool building,bool seated,bool thirdPerson,bool jetpack=false)
         {
-            if(RemoteView.Active) return new[] { PauseAction,Options,TerminalAction,ExitFeed,ResetFeed,ConfigureToolbarAction,Native("Previous camera",MyControlsSpace.SWITCH_LEFT),Native("Next camera",MyControlsSpace.SWITCH_RIGHT),Inspect };
+            if(SpectatorView.Active) return PlacementControls.ClipboardActive ? ClipboardActions(PlacementControls.GridClipboardActive):SpectatorView.Actions();
+            if(RemoteView.Active) return RemoteWheelActions();
             if(building && seated) return CockpitBuildActions();
-            if(thirdPerson && seated) return new[] { PauseAction,Options,TerminalAction,Quick[22],LightsAction,Dampeners,PowerAction,ParkAction,BroadcastAction,CockpitBuild };
-            if(building && PlacementControls.ClipboardActive) return ClipboardActions();
-            if(building) return new[] { PauseAction,Options,TerminalAction,Building[17],PlacementAction,Building[8],Building[9],Building[10],PaletteAction,BuildShapeAction,BlueprintsAction };
-            if(seated) return new[] { PauseAction,Options,TerminalAction,LightsAction,Dampeners,PowerAction,ParkAction,HelmetAction,BroadcastAction,CockpitBuild };
-            if(jetpack) return new[] { PauseAction,Options,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,BroadcastAction,BlueprintsAction };
-            return new[] { PauseAction,Options,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],Quick[12],BlueprintsAction };
+            if(thirdPerson && seated) return new[] { PauseAction,TerminalAction,Quick[22],LightsAction,Dampeners,PowerAction,ParkAction,BroadcastAction,CockpitBuild };
+            if(building && PlacementControls.ClipboardActive) return ClipboardActions(PlacementControls.GridClipboardActive);
+            if(building) return BuildingWheelActions();
+            if(seated) return new[] { PauseAction,TerminalAction,LightsAction,Dampeners,PowerAction,ParkAction,HelmetAction,BroadcastAction,CockpitBuild };
+            if(jetpack) return new[] { PauseAction,BlueprintsAction,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,BroadcastAction };
+            return new[] { PauseAction,BlueprintsAction,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],Quick[12] };
         }
-        internal static ActionChoice[] CockpitBuildActions() => new[] { PauseAction,Options,TerminalAction,CockpitBuild,ConfigureToolbarAction,PaletteAction,Building[17],Building[8],PlacementAction,BuildShapeAction,SymmetryAction,SymmetrySetupAction };
-        internal static ActionChoice[] ClipboardActions() => new[] { PauseAction,Options,TerminalAction,AlignGravity,Building[21],Building[20],Building[6],Building[7],BlueprintsAction };
+        internal static ActionChoice[] BuildingWheelActions(bool? symmetrySetup=null)
+        {
+            bool setup=symmetrySetup ?? (MySession.Static!=null && MyCubeBuilder.Static?.IsSymmetrySetupMode()==true);
+            if(setup) return SymmetrySetupControls.Actions();
+            return new[] {PauseAction,BlueprintsAction,TerminalAction,Building[17],PlacementAction,Building[8],PaletteAction,SymmetryAction,SymmetrySetupAction,
+                BuildShapeAction,Building[9],Building[10]};
+        }
+        internal static ActionChoice[] CockpitBuildActions() => new[] { PauseAction,TerminalAction,CockpitBuild,ConfigureToolbarAction,PaletteAction,Building[17],Building[8],PlacementAction,BuildShapeAction,SymmetryAction,SymmetrySetupAction };
+        internal static ActionChoice[] RemoteWheelActions() => new[] { PauseAction,TerminalAction,ExitFeed,ResetFeed,ConfigureToolbarAction,Native("Previous camera",MyControlsSpace.SWITCH_LEFT),Native("Next camera",MyControlsSpace.SWITCH_RIGHT),Inspect };
+        internal static ActionChoice[] ClipboardActions(bool grid=true) => grid ?
+            new[] { PauseAction,TerminalAction,AlignGravity,Building[21],Building[20],Building[6],Building[7],BlueprintsAction } :
+            new[] { PauseAction,TerminalAction,Building[20],Building[6],Building[7],BlueprintsAction };
         public static readonly ActionChoice HudOptions=new ActionChoice("HUD",()=>MyGuiSandbox.AddScreen(new GUI.MyPluginConfigDialog(3)),true);
         public static bool AlternateTrigger { get; private set; }
         private static ActionChoice Native(string label, MyStringId control) => new ActionChoice(label, () => NativeActions.Pulse(control));
@@ -145,11 +174,15 @@ namespace SpaceEngineersVR.Player
         });
         public static readonly ActionChoice PaletteAction = new ActionChoice("Color / skin palette", () => new MyActionColorPicker().ExecuteAction(), true);
         public static readonly ActionChoice PaintAction = new ActionChoice("Paint tool", () => new MyActionColorTool().ExecuteAction());
-        public static readonly ActionChoice SymmetryAction = new ActionChoice("Symmetry on / off", () => new MyActionToggleSymmetry().ExecuteAction());
-        public static readonly ActionChoice SymmetrySetupAction = new ActionChoice("Symmetry planes", () => new MyActionSymmetrySetup().ExecuteAction());
+        private static bool SymmetryAllowed => MySession.Static!=null && (MySession.Static.CreativeMode || MySession.Static.CreativeToolsEnabled(Sandbox.Game.Multiplayer.Sync.MyId));
+        private static bool SymmetrySetup => MySession.Static!=null && MyCubeBuilder.Static?.IsSymmetrySetupMode()==true;
+        public static readonly ActionChoice SymmetryAction = new ActionChoice("Symmetry on / off", () => new MyActionToggleSymmetry().ExecuteAction(),enabled:()=>SymmetryAllowed);
+        public static readonly ActionChoice CycleSymmetryAction=new ActionChoice("Cycle plane",()=>NativeActions.Pulse(MyControlsSpace.SYMMETRY_SWITCH),enabled:()=>SymmetryAllowed && SymmetrySetup);
+        public static readonly ActionChoice ExitSymmetryAction=new ActionChoice("Exit symmetry setup",()=>NativeActions.Pulse(MyControlsSpace.SYMMETRY_SETUP_CANCEL),enabled:()=>SymmetrySetup);
+        public static readonly ActionChoice SymmetrySetupAction = new ActionChoice("Symmetry planes", () => new MyActionSymmetrySetup().ExecuteAction(),enabled:()=>SymmetryAllowed);
         public static readonly ActionChoice PlacementAction = new ActionChoice("Placement mode", () => new MyActionPlacementMode().ExecuteAction());
         public static readonly ActionChoice BuildShapeAction = new ActionChoice(()=>PlacementControls.ShapeLabel,PlacementControls.CycleShape,
-            ()=>PlacementControls.Creative && MyCubeBuilder.Static?.IsActivated==true && MyCubeBuilder.Static.IsBuildToolActive());
+            ()=>PlacementControls.Creative && MyCubeBuilder.Static?.IsActivated==true && MyCubeBuilder.Static.IsBuildToolActive(),historyKey:"Build shape");
         public static readonly ActionChoice BlueprintsAction = new ActionChoice("Blueprints", () => new MyActionBlueprintScreen().ExecuteAction(), true);
 
         public static readonly ActionChoice[] Quick = {
@@ -175,7 +208,7 @@ namespace SpaceEngineersVR.Player
             BlueprintsAction,
             new ActionChoice("Switch view",ThirdPersonView.Toggle),
             new ActionChoice("Reset view",ThirdPersonView.ResetView),
-            new ActionChoice(()=>ThirdPersonView.ModeLabel,ThirdPersonView.CycleMode),
+            new ActionChoice(()=>ThirdPersonView.ModeLabel,ThirdPersonView.CycleMode,historyKey:"Camera mode"),
             BroadcastAction,
             DetachBootsAction,
             RelativeDampeners,
@@ -189,7 +222,7 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice[] Developer = {
             new ActionChoice("Developer options", () => MyGuiSandbox.AddScreen(new GUI.DeveloperOptions()), true),
             new ActionChoice("Capture arm pose", Diagnostics.ArmPoseCapture.Request),
-            new ActionChoice(()=>PerformanceHud.Enabled ? "Hide performance" : "Show performance", PerformanceHud.Toggle)
+            new ActionChoice(()=>PerformanceHud.Enabled ? "Hide performance" : "Show performance", PerformanceHud.Toggle,historyKey:"Performance HUD")
         };
         public static readonly ActionChoice[] Building = {
             Native("Yaw +", MyControlsSpace.CUBE_ROTATE_VERTICAL_POSITIVE),
@@ -218,11 +251,13 @@ namespace SpaceEngineersVR.Player
             BuildShapeAction
         };
 
-        public static void Execute(ActionChoice choice)
+        public static void Execute(ActionChoice choice,Controller hand=null,bool fromSearch=false)
         {
             if(!choice.Enabled) return;
             if(MenuKeyboard.Standalone) MenuKeyboard.Close();
-            choice.Run();
+            var previousHand=InvocationHand; InvocationHand=hand ?? previousHand;
+            try { choice.Run(); } finally { InvocationHand=previousHand; }
+            if(fromSearch) ActionCatalog.Record(choice);
             if (choice.OpensMenu || VRGUIManager.IsAnyDialogOpen()) Main.MenuOpen = true;
             InputRouter.Update();
         }
@@ -235,7 +270,7 @@ namespace SpaceEngineersVR.Player
         private static readonly Control.JumpHold jumpHold=new Control.JumpHold();
         private static readonly Control.DoubleTap dampenerTap=new Control.DoubleTap();
         internal static void ResetJumpHold() { jumpHold.Reset(); dampenerTap.Reset(); }
-        public static void Reset() { AlternateTrigger=false; ResetJumpHold(); }
+        public static void Reset() { AlternateTrigger=false; ResetJumpHold(); GridSelection.Clear(); DampenerTargeting.Cancel(); }
         public static void ToolbarConfig() => ToolbarConfig(-1);
         public static void AssignToolbarSlot(int slot)
         {
@@ -318,7 +353,8 @@ namespace SpaceEngineersVR.Player
             if (c.SymmetrySetup.HasPressed) Execute(SymmetrySetupAction);
             if (c.PlacementMode.HasPressed) Execute(PlacementAction);
             if (c.ToggleSignals.HasPressed) new MyActionToggleSignals().ExecuteAction();
-            if (c.ToggleView.HasPressed) ThirdPersonView.Toggle();
+            if (c.ToggleView.HasPressed && !SpectatorView.Active) ThirdPersonView.Toggle();
+            if(c.SpectatorMode.HasPressed && !SpectatorView.Active) SpectatorView.Enter();
             if (c.CutGrid.HasPressed) new MyActionCutGrid().ExecuteAction();
             if (c.CopyGrid.HasPressed) new MyActionCopyGrid().ExecuteAction();
             if (c.PasteGrid.HasPressed) new MyActionPasteGrid().ExecuteAction();

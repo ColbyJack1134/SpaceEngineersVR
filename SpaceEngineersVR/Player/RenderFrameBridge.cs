@@ -5,7 +5,7 @@ namespace SpaceEngineersVR.Player
 {
     internal static class RenderFrameBridge
     {
-        private sealed class Packet { public CameraRig.Frame Rig; public RemoteView.View Remote; public SurfaceView[] Surfaces; public WorldMarkers.View Markers; public ShipCrosshair.View Crosshair; }
+        private sealed class Packet { public CameraRig.Frame Rig; public RemoteView.View Remote; public SurfaceView[] Surfaces; public WorldMarkers.View Markers; public ShipCrosshair.View Crosshair; public TargetFeedback.View Selection; public SymmetryPlanes.View[] Symmetry; public VRageRender.Messages.MyRenderMessageDebugDrawSphere[] Planets; }
         private static readonly ConditionalWeakTable<object, Packet> packets = new ConditionalWeakTable<object, Packet>();
         private static readonly List<Packet> pending=new List<Packet>();
         private static WorldMarkers.View latestMarkers;
@@ -14,6 +14,9 @@ namespace SpaceEngineersVR.Player
         public static RemoteView.View Remote { get; private set; }
         public static WorldMarkers.View Markers { get; private set; }
         public static ShipCrosshair.View Crosshair { get; private set; }
+        internal static TargetFeedback.View Selection { get; private set; }
+        internal static SymmetryPlanes.View[] Symmetry { get; private set; }
+        internal static VRageRender.Messages.MyRenderMessageDebugDrawSphere[] Planets { get; private set; }
         public static CameraRig.Frame ForCurrentOwner(CameraRig.Frame current)
         {
             // During respawn/ejection, keep validated eye height until the new batch arrives.
@@ -39,6 +42,9 @@ namespace SpaceEngineersVR.Player
             {
                 packet.Markers=latestMarkers;
                 packet.Surfaces=surfaces;
+                packet.Selection=GridSelection.Feedback;
+                packet.Planets=PlacementControls.ClipboardActive ? PlanetPreview.Current:null;
+                packet.Symmetry=SymmetryPlanes.Current.Length>0 && Sandbox.Game.Entities.MyCubeBuilder.Static?.IsActivated==true ? SymmetryPlanes.Current:null;
             }
             pending.Clear();
         }
@@ -50,6 +56,9 @@ namespace SpaceEngineersVR.Player
             Surfaces=packet?.Surfaces;
             Markers=packet?.Markers;
             Crosshair=packet?.Crosshair;
+            Selection=packet?.Selection;
+            Symmetry=packet?.Symmetry;
+            Planets=packet?.Planets;
         }
     }
 }

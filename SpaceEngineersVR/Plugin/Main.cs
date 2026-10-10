@@ -259,6 +259,7 @@ namespace SpaceEngineersVR.Plugin
             Player.Player.MainUpdate();
             GUI.FirstRunSetup.Offer();
             Player.RemoteView.UpdateContext();
+            Player.SpectatorView.UpdateContext();
             Player.InputRouter.Update();
             Player.SeatRecenter.Update();
             Player.Controls.Static.Poll(Player.InputRouter.Mode);
@@ -281,12 +282,14 @@ namespace SpaceEngineersVR.Plugin
             Player.ArthurLcdBridge.Update();
             Player.HandInteraction.UpdateTouch();
             Player.ThirdPersonView.Update();
+            Player.SpectatorView.UpdateGestures();
             Player.BlockInspection.Update();
+            Player.DampenerTargeting.Update();
+            Player.GridSelection.Update();
             Player.ToolbarWheel.Update();
             Player.GameActions.RunScheduled();
             Player.CockpitControls.Update();
             Player.PlacementControls.Update();
-            Player.DampenerTargeting.Update();
             Player.CameraRig.Publish();
             Player.WeaponHandling.Update();
             if(Player.WeaponHandling.ToolEquipped) Patches.MotionToolPatch.Refresh(MySession.Static.LocalCharacter);
@@ -322,6 +325,8 @@ namespace SpaceEngineersVR.Plugin
         {
             Multiplayer.MultiplayerRuntime.Reset();
             Player.GameActions.Reset();
+            Player.SpectatorView.Reset();
+            Player.PlanetPreview.Begin();
             Player.RemoteView.Reset();
             Player.DesktopWindow.Reset();
             Player.BlockInspection.Reset();

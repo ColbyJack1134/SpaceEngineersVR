@@ -40,7 +40,7 @@ namespace SpaceEngineersVR.Player
         internal static void Update()
         {
             if(!Main.WorldAvailable) { Reset(); failed=false; return; }
-            if(!ThirdPersonView.Active) return;
+            if(!CameraRig.Detached) return;
             if(failed) return;
             try
             {

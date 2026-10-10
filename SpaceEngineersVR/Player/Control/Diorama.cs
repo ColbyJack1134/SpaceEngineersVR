@@ -1,4 +1,6 @@
 using System;
+using System.Diagnostics;
+using SpaceEngineersVR.Plugin;
 using VRageMath;
 
 namespace SpaceEngineersVR.Player.Control
@@ -37,6 +39,39 @@ namespace SpaceEngineersVR.Player.Control
         {
             UnitsPerMeter=MathHelper.Clamp(diameter/.8,1,MaxScale);
             Orientation=orientation.GetOrientation(); Center=center;
+            Cancel();
+        }
+        internal CameraRig.Frame RenderFrame(CameraRig.Frame packet,long now,ref long renderTime)
+        {
+            double seconds=renderTime==0 ? 1d/90 : (double)(now-renderTime)/Stopwatch.Frequency;
+            renderTime=now; Configure(Common.Config);
+            if(!Player.Headset.renderPose.isTracked || !Player.HandL.renderPose.isTracked || !Player.HandR.renderPose.isTracked) Cancel();
+            else Move(VrMath.Affine(Player.HandL.RenderGripTracking*packet.OriginInverse),
+                VrMath.Affine(Player.HandR.RenderGripTracking*packet.OriginInverse),seconds);
+            return new CameraRig.Frame(Anchor(packet.Observer.Target,packet.Observer.Reference),packet.OriginInverse,
+                packet.Epoch,UnitsPerMeter,true,packet.Observer);
+        }
+        internal void FitTarget(double diameter,MatrixD head,Vector3D vertical,Matrix tracking,MatrixD reference,bool fullRotation)
+        {
+            var orientation=fullRotation ? head.GetOrientation() : VrMath.Level(head,vertical).GetOrientation();
+            var facing=VrMath.Level(tracking,Vector3D.Up);
+            Fit(diameter,orientation*MatrixD.Transpose(reference),tracking.Translation+facing.Forward*1.15-facing.Up*.2);
+        }
+        internal void SetAnchor(MatrixD anchor,Vector3D target,MatrixD reference)
+        {
+            Orientation=anchor.GetOrientation()*MatrixD.Transpose(reference);
+            Center=Vector3D.TransformNormal(target-anchor.Translation,MatrixD.Transpose(anchor.GetOrientation()))/UnitsPerMeter;
+            Cancel();
+        }
+        internal void Configure(Config.PluginConfig config)
+        {
+            PanSensitivity=config.ThirdPersonPanSensitivity; ZoomSensitivity=config.ThirdPersonZoomSensitivity;
+            RotationSensitivity=config.ThirdPersonRotationSensitivity; PanGlide=config.ThirdPersonPanGlide;
+            ZoomGlide=config.ThirdPersonZoomGlide; RotationGlide=config.ThirdPersonRotationGlide;
+        }
+        internal void ChangeScale(double factor,Vector3D pivot)
+        {
+            Center=(Center-pivot)*Scale(-Math.Log(factor))+pivot;
             Cancel();
         }
         public void Cancel()

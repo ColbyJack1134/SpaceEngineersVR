@@ -14,7 +14,12 @@ namespace SpaceEngineersVR.Player
         private static readonly ActionFrame frame = new ActionFrame();
         private static IMyControllableEntity owner;
         private static bool wheelJumpHeld;
-        public static void Pulse(MyStringId action) => frame.Queue(action);
+        public static void Pulse(MyStringId action)
+        {
+            if(action==MyControlsSpace.DAMPING_RELATIVE) { DampenerTargeting.Activate(); return; }
+            if(action==MyControlsSpace.DAMPING) { DampenerTargeting.Cancel(); GridSelection.CancelDampeners(); }
+            frame.Queue(action);
+        }
         public static void Update()
         {
             bool enabled = InputRouter.Gameplay && !Main.MenuOpen;

@@ -63,7 +63,7 @@ namespace SpaceEngineersVR.Player
                 left=pair.Left; right=pair.Right;
                 Restore(character);
                 bool seated=SeatFit.Eligible(SeatFit.Seat) && SeatFit.Seat.Pilot==character;
-                if(disabled || !Main.VrActive || ThirdPersonView.Character ||
+                if(disabled || !Main.VrActive || ThirdPersonView.Character || SpectatorView.Active ||
                     character!=MySession.Static?.LocalCharacter || (!seated && ((MySession.Static.ControlledEntity!=character && !RemoteView.CharacterAnchor) ||
                     character.IsSitting || !CameraRig.Owns(character))) || character.IsDead || (!InputRouter.Gameplay && InputRouter.Mode!=InputMode.Menu && InputRouter.Mode!=InputMode.Radial) ||
                     !Player.Headset.pose.isTracked)
@@ -154,7 +154,7 @@ namespace SpaceEngineersVR.Player
             return pose;
         }
         internal static float Trigger(Controller hand) => CockpitTouch.HoldingBar(hand) || LadderClimb.Holding(hand) ? 1 : (hand==Player.HandL ? Controls.Static.LeftTriggerPressure:Controls.Static.PointerPressure).RawPosition.X;
-        private static bool RequiresPointing(Controller hand) => Main.MenuOpen || MenuKeyboard.IsOpen || CockpitTouch.Attached(hand) ||
+        private static bool RequiresPointing(Controller hand) => GridSelection.Owns(hand) || Main.MenuOpen || MenuKeyboard.IsOpen || CockpitTouch.Attached(hand) ||
             TouchScreenBridge.PoseFor(hand) || ArthurLcdBridge.PoseFor(hand) || FloatingWindows.PointingFor(hand) || HandInteraction.PointingFor(hand) ||
             (hand==Player.HandL ? CockpitTouch.LeftPointing:CockpitTouch.RightPointing || SpatialUi.Pointing || BlockInspection.Current!=null);
         private static bool FreeFingers(MyCharacter character,Controller hand) => !ThirdPersonView.Active && character.CurrentWeapon==null &&

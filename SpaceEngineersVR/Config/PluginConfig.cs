@@ -36,6 +36,9 @@ namespace SpaceEngineersVR.Config
             propertyChanged(this, new PropertyChangedEventArgs(propName));
         }
 
+        private string[] recentSearchActions=Array.Empty<string>();
+        public string[] RecentSearchActions { get => recentSearchActions; set => SetValue(ref recentSearchActions,value ?? Array.Empty<string>()); }
+
         private bool enableKeyboardAndMouseControls = true;
         private bool enableCharacterRendering = true;
 

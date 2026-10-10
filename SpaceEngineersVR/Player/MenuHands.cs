@@ -215,10 +215,10 @@ float4 PS(P p):SV_TARGET {
                 var hands = new[] { Player.HandL, Player.HandR };
                 var meshes = new Mesh[2];
                 for (int h = 0; h < 2; h++) if (hands[h].renderPose.isTracked) meshes[h] = GetModel(hands[h]);
-                if(menu && !MenuKeyboard.Standalone) Components.VRGUIManager.DrawStereo(texture,eye,ThirdPersonView.Active ? null:NativeHandLayer.Depth);
+                if(menu && !MenuKeyboard.Standalone) Components.VRGUIManager.DrawStereo(texture,eye,CameraRig.Detached ? null:NativeHandLayer.Depth);
                 using (var target = new RenderTargetView(gpu, texture))
                     DrawEye(target, eye, size, hands, meshes, false,menu);
-                if(ThirdPersonView.Active && !NativeGloves.Shown(true))
+                if(CameraRig.Detached && !NativeGloves.Shown(true))
                 {
                     Matrix view=Matrix.Invert(OpenVR.System.GetEyeToHeadTransform(eye).ToMatrix()*Player.Headset.renderPose.deviceToAbsolute.matrix);
                     float l=0,r=0,t=0,b=0; OpenVR.System.GetProjectionRaw(eye,ref l,ref r,ref t,ref b);
@@ -241,7 +241,7 @@ float4 PS(P p):SV_TARGET {
             context.VertexShader.Set(vertexShader); context.PixelShader.Set(pixelShader);
             context.VertexShader.SetConstantBuffer(0,constants); context.PixelShader.SetConstantBuffer(0,constants); context.PixelShader.SetSampler(0,sampler);
         }
-        internal static Texture2D PreviewGlove(SharpDX.Direct3D11.Device device,bool left,float curl,Vector3 color,float tablet=-1,bool palm=false,Action<SurfaceView[],MatrixD> preview=null,float pointer=0,float zoom=1,Vector3? tipView=null)
+        internal static Texture2D PreviewGlove(SharpDX.Direct3D11.Device device,bool left,float curl,Vector3 color,float tablet=-1,bool palm=false,Action<SurfaceView[],MatrixD> preview=null,float pointer=0,float zoom=1,Vector3? tipView=null,bool selection=false,bool selected=false)
         {
             Init(device); var size=new Vector2I(960,720); Resize(size);
             var mesh=Glove(GloveGeometry.DefaultModel,left,true);
@@ -274,6 +274,16 @@ float4 PS(P p):SV_TARGET {
                 Matrix tip=mesh.PointFrame*CockpitHandPose.GripWrist(Matrix.Identity);
                 DrawMesh(box,Matrix.CreateScale(0.002f,0.002f,pointer)*Matrix.CreateTranslation(0,0,-pointer*0.5f)*tip,view*projection,left ? PhysicalSurface.LeftLaser : new Vector4(0.2f,0.9f,1,1));
             }
+            MatrixD? wristFinger=null;
+            if(selection && tablet>=0)
+            {
+                var mount=(MatrixD)mesh.WristMount*CockpitHandPose.GripWrist(Matrix.Identity);
+                var panel=SpatialUi.WristPose(mount,1,.225f,-1);
+                var tip=MatrixD.CreateWorld(panel.Translation+panel.Backward*.14+panel.Right*.045,-panel.Backward,panel.Up);
+                var other=Glove(GloveGeometry.DefaultModel,!left,true);
+                DrawMesh(other,(Matrix)(MatrixD.Invert(other.PointFrame)*tip),view*projection,new Vector4(color,1),curl);
+                wristFinger=tip;
+            }
             using(var commands=context.FinishCommandList(false)) gpu.ImmediateContext.ExecuteCommandList(commands,true);
             if(tablet>=0)
             {
@@ -282,6 +292,14 @@ float4 PS(P p):SV_TARGET {
                 var panels=SpatialUi.WristViews(mount,tablet,1,status,SpatialUi.WristKeys());
                 preview?.Invoke(panels,MatrixD.Invert(view));
                 PhysicalSurface.Draw(eyes[0],panels,view,projection,Depth);
+            }
+            if(selection)
+            {
+                MatrixD finger=wristFinger ?? (MatrixD)mesh.PointFrame*CockpitHandPose.GripWrist(Matrix.Identity);
+                var hit=finger.Translation+finger.Forward*.35;
+                var feedback=new TargetFeedback.View(finger,hit,1,selected ? (MatrixD?)MatrixD.CreateTranslation(hit):null,
+                    new BoundingBoxD(new Vector3D(-.05),new Vector3D(.05)));
+                TargetFeedback.Draw(eyes[0],feedback,view,projection,Depth);
             }
             return eyes[0];
         }
@@ -331,10 +349,10 @@ float4 PS(P p):SV_TARGET {
             var tip=(hand==Player.HandL ? state.LeftPoint:state.RightPoint).Translation;
             if(FloatingKeyboard.TryAttachment(hand,out var keyboardWrist,out var keyboardPoint,out float keyboardBlend,tracking:true))
                 return CockpitHandPose.Blend(pose,CockpitHandPose.Attach(keyboardWrist,Matrix.Identity,tip,keyboardPoint),keyboardBlend);
-            if(ThirdPersonView.Active && FloatingWindows.TryAttachment(hand,out var remoteWrist,out var remotePoint,out float remoteBlend,tracking:true))
+            if(CameraRig.Detached && FloatingWindows.TryAttachment(hand,out var remoteWrist,out var remotePoint,out float remoteBlend,tracking:true))
                 return CockpitHandPose.Blend(pose,CockpitHandPose.Attach(remoteWrist,Matrix.Identity,tip,remotePoint),remoteBlend);
             if(hand==Player.HandL) return pose;
-            if(!ThirdPersonView.Active || !SpatialUi.TryWristAttachment(out var captured,out var contact,out float blend,render:true)) return pose;
+            if(!CameraRig.Detached || !SpatialUi.TryWristAttachment(out var captured,out var contact,out float blend,render:true)) return pose;
             var attached=CockpitHandPose.Attach(captured,Matrix.Identity,SpatialUi.PinchingKnob ? state.PinchPoint:state.RightPoint.Translation,contact);
             return CockpitHandPose.Blend(pose,attached,blend);
         }
@@ -359,7 +377,7 @@ float4 PS(P p):SV_TARGET {
                         var c=Controls.Static;
                         if(Main.WorldAvailable) pose=(Matrix)AttachWrist(pose,hand);
                         float curl=h==0 ? Math.Max(c.LeftTriggerPressure.RawPosition.X,c.LeftGripPressure.RawPosition.X):Math.Max(c.PointerPressure.RawPosition.X,c.RightGripPressure.RawPosition.X);
-                        DrawMesh(meshes[h],pose,vp,CharacterColor,h==1 && SpatialUi.PinchingKnob ? 1:pointer ? 0:MathHelper.Clamp(curl,0,1));
+                        DrawMesh(meshes[h],pose,vp,CharacterColor,h==1 && SpatialUi.PinchingKnob ? 1:pointer || GridSelection.Owns(hand) ? 0:MathHelper.Clamp(curl,0,1));
                     }
                     else DrawMesh(box,Matrix.CreateScale(0.035f,0.075f,0.04f)*raw,vp,new Vector4(0.6f,0.7f,0.8f,1));
                 }

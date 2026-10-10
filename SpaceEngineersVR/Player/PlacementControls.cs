@@ -13,8 +13,11 @@ namespace SpaceEngineersVR.Player
 {
     internal static class PlacementControls
     {
+        internal static bool GridClipboardActive => MyClipboardComponent.Static?.Clipboard?.IsActive==true;
         public static bool ClipboardActive => MyClipboardComponent.Static?.IsActive == true;
-        internal static InputMode Mode => CockpitBuilding.Active && InputRouter.Mode==InputMode.Piloting ? InputMode.Building : InputRouter.Mode;
+        internal static InputMode Mode => ToolMode(InputRouter.Mode,ClipboardActive,CockpitBuilding.Active);
+        internal static InputMode ToolMode(InputMode mode,bool clipboard,bool cockpitBuilding) =>
+            mode==InputMode.Spectator && clipboard ? InputMode.Clipboard : cockpitBuilding && mode==InputMode.Piloting ? InputMode.Building : mode;
         public static bool OwnsTools => Mode==InputMode.Building || Mode==InputMode.Clipboard;
         public static bool Painting { get; private set; }
         internal static bool Observer => Main.VrActive && !RemoteView.Active && ThirdPersonView.Active && (ThirdPersonView.Character || CockpitBuilding.Active);
@@ -56,7 +59,7 @@ namespace SpaceEngineersVR.Player
                 c.Primary.BlockUntilRelease();
                 NativeActions.Pulse(MyControlsSpace.CUBE_COLOR_CHANGE);
             }
-            bool tools=OwnsTools && !Main.MenuOpen;
+            bool tools=OwnsTools && !Main.MenuOpen && !SymmetrySetupControls.Active;
             Vector2 left=InputRouter.Flying ? c.ThrustLRFB.Position:c.WalkLongitudinal.Position;
             Vector2 right=InputRouter.Flying ? c.ThrustRotate.Position:c.WalkRotate.Position;
             // Grip chords (roll, remove, paint, size, view grab) are not taps.
@@ -86,7 +89,7 @@ namespace SpaceEngineersVR.Player
         private static void Axis(int index,float value,VRage.Utils.MyStringId positive,VRage.Utils.MyStringId negative)
         {
             var clipboard=MyClipboardComponent.Static?.Clipboard;
-            bool continuous=Mode==InputMode.Clipboard ? index==3 || clipboard!=null && (clipboard.EnableStationRotation && !clipboard.IsSnapped || clipboard.EnablePreciseRotationWhenSnapped) :
+            bool continuous=Mode==InputMode.Clipboard ? index==3 || GridClipboardActive && clipboard!=null && (clipboard.EnableStationRotation && !clipboard.IsSnapped || clipboard.EnablePreciseRotationWhenSnapped) :
                 Sandbox.Game.Entities.MyCubeBuilder.Static?.DynamicMode==true;
             if(index==3 && continuous) distanceFactor=DistanceStep(value,elapsed);
             if(AxisDue(ref repeat[index],value,continuous,DateTime.UtcNow))
@@ -165,10 +168,10 @@ namespace SpaceEngineersVR.Player
         {
             if (!ClipboardActive) NativeActions.Pulse(MyControlsSpace.PASTE_OBJECT);
         }
-        public static void FreeRotation() { if (ClipboardActive) NativeActions.Pulse(MyControlsSpace.FREE_ROTATION); }
+        public static void FreeRotation() { if (GridClipboardActive) NativeActions.Pulse(MyControlsSpace.FREE_ROTATION); }
         public static void AlignGravity()
         {
-            if(!ClipboardActive) return;
+            if(!GridClipboardActive) return;
             var clipboard=MyClipboardComponent.Static.Clipboard;
             clipboard.EnableStationRotation=true;
             clipboard.AlignClipboardToGravity();

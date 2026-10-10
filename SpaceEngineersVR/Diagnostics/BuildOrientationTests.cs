@@ -41,6 +41,7 @@ namespace SpaceEngineersVR.Diagnostics
             log("PASS build orientation HUD: both asymmetric eye frusta, rotate-mode-only visibility and stale/hidden cleanup.");
         }
         internal static readonly System.Collections.Generic.List<BuildOrientationHud.View> Previews=new System.Collections.Generic.List<BuildOrientationHud.View>();
+        internal static BuildOrientationHud.View PlanetIndicator { get; private set; }
         private static void LoadMaterials()
         {
             // These normally load with a world; the isolated menu scene needs
@@ -58,6 +59,7 @@ namespace SpaceEngineersVR.Diagnostics
             hints.RotationUpAxis,hints.RotationUpDirection,hints.RotationForwardAxis,hints.RotationForwardDirection };
         internal static void RunNative(Action<string> log)
         {
+            Previews.Clear(); PlanetIndicator=null;
             LoadMaterials();
             var property=AccessTools.Property(typeof(MySector),nameof(MySector.MainCamera));
             var old=MySector.MainCamera;
@@ -94,6 +96,28 @@ namespace SpaceEngineersVR.Diagnostics
                     hidden.CalculateRotationHints(MatrixD.Identity,false,true,true);
                     Require(Axes(drawn).SequenceEqual(Axes(hidden)),"Fixed/one-axis rotation changed when drawing suppressed");
                 }
+                var voxel=AccessTools.TypeByName("Sandbox.Game.Entities.MyVoxelClipboard");
+                var clipboard=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(voxel);
+                var orientation=MatrixD.CreateFromYawPitchRoll(.42,.26,-.14);
+                AccessTools.Field(voxel,"m_pasteDirForward").SetValue(clipboard,(Vector3)orientation.Forward);
+                AccessTools.Field(voxel,"m_pasteDirUp").SetValue(clipboard,(Vector3)orientation.Up);
+                var planetHints=new MyBlockBuilderRotationHints();
+                using(var capture=BuildOrientationHud.Begin(true))
+                {
+                    Patches.PlanetRotationHintPatch.Calculate(clipboard,planetHints,new Vector3D(1e9,1e9,-1e9),true,false);
+                    PlanetIndicator=capture.Complete();
+                    Require(PlanetIndicator?.Sprites.Length>=8,"Planet adjustment lost native cube/arrow art");
+                }
+                var expected=new MyBlockBuilderRotationHints(); orientation.Translation=new Vector3D(1e9,1e9,-1e9);
+                using(var capture=BuildOrientationHud.Begin(true))
+                {
+                    expected.CalculateRotationHints(orientation,true);
+                    var reference=capture.Complete();
+                    Require(Axes(expected).SequenceEqual(Axes(planetHints)) && reference.Sprites.Length==PlanetIndicator.Sprites.Length &&
+                        reference.Sprites.Zip(PlanetIndicator.Sprites,(a,b)=>a.Path==b.Path && a.Tint==b.Tint && Vector4.Distance(a.TopLeft,b.TopLeft)<1e-5f).All(equal=>equal),
+                        "Planet indicator differs from the shared native rotation hints");
+                }
+                log("PASS native planet adjustment indicator: shared native orientation/cube/arrow art and axes at billion-metre coordinates; existing rotate/HUD/stale visibility gates retained");
                 log("PASS native rotation hints: captured native cube/arrow geometry stays inside VR texture; draw=false retains all six axis/direction results, including fixed/one-axis clipboard mode, across 12 native orientations. No world loaded.");
             }
             finally { sizesField.SetValue(definitions,previousSizes); property.SetValue(null,old,null); }

@@ -7,7 +7,7 @@ using VRage.Game.ModAPI;
 
 namespace SpaceEngineersVR.Player
 {
-    public enum InputMode { Blocked, Menu, Walking, Building, Jetpack, Piloting, Radial, Clipboard, Turret }
+    public enum InputMode { Blocked, Menu, Walking, Building, Jetpack, Piloting, Radial, Clipboard, Turret, Spectator }
 
     public static class InputRouter
     {
@@ -16,11 +16,11 @@ namespace SpaceEngineersVR.Player
         public static InputMode Mode { get; private set; } = InputMode.Blocked;
         public static bool RadialOpen { get; set; }
         public static bool CockpitInteraction => Mode==InputMode.Piloting || Mode==InputMode.Turret && RemoteView.HomeSeat!=null;
-        public static bool Flying => RemoteView.Turret || MySession.Static?.ControlledEntity is MyShipController ||
+        public static bool Flying => SpectatorView.Active || RemoteView.Turret || MySession.Static?.ControlledEntity is MyShipController ||
             (MySession.Static?.LocalCharacter is IMyCharacter character && character.EnabledThrusts);
         public static bool Gameplay => Mode == InputMode.Walking || Mode == InputMode.Building ||
-            Mode == InputMode.Jetpack || Mode == InputMode.Piloting || Mode == InputMode.Turret || Mode == InputMode.Clipboard;
-        internal static bool TrackedItems => !ThirdPersonView.Character && AllowsTrackedItems(Mode,Main.MenuOpen);
+            Mode == InputMode.Jetpack || Mode == InputMode.Piloting || Mode == InputMode.Turret || Mode == InputMode.Clipboard || Mode == InputMode.Spectator;
+        internal static bool TrackedItems => !ThirdPersonView.Character && !SpectatorView.Active && AllowsTrackedItems(Mode,Main.MenuOpen);
         internal static bool AllowsTrackedItems(InputMode mode,bool menuOpen) => !menuOpen &&
             (mode==InputMode.Walking || mode==InputMode.Building || mode==InputMode.Jetpack ||
              mode==InputMode.Clipboard || mode==InputMode.Radial);
@@ -28,7 +28,7 @@ namespace SpaceEngineersVR.Player
         public static void Update()
         {
             var character = MySession.Static?.LocalCharacter;
-            object nextOwner = Main.MenuOpen ? (object)VRGUIManager.TopScreen : MySession.Static?.ControlledEntity;
+            object nextOwner = Main.MenuOpen ? (object)VRGUIManager.TopScreen : SpectatorView.Active ? (object)MySession.Static.CameraController:MySession.Static?.ControlledEntity;
             InputMode next;
             if (!Player.Headset.pose.isTracked ||
                 !Valve.VR.OpenVR.System.IsInputAvailable()) next = InputMode.Blocked;
@@ -37,6 +37,7 @@ namespace SpaceEngineersVR.Player
                 !Player.HandL.pose.isTracked || !Player.HandR.pose.isTracked) next = InputMode.Blocked;
             else if (!RemoteView.Live(MySession.Static.ControlledEntity)) next = InputMode.Blocked;
             else if (RadialOpen) next = InputMode.Radial;
+            else if(SpectatorView.Active) next=InputMode.Spectator;
             else if (RemoteView.Turret) next = InputMode.Turret;
             else if (MySession.Static.ControlledEntity is MyShipController) next = InputMode.Piloting;
             else if (MySession.Static.ControlledEntity != character) next = InputMode.Blocked;

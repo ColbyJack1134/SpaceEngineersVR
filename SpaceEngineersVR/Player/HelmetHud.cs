@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using Sandbox.Game.World;
+using Sandbox.Engine.Utils;
 using SpaceEngineersVR.Player.Control;
 using SpaceEngineersVR.Plugin;
 using VRageMath;
@@ -85,7 +86,7 @@ namespace SpaceEngineersVR.Player
             if(c.PointerPressure.RawPosition.X<=.025f && !c.Primary.RawPressed) rightConsumed=false;
             bool gun=character?.CurrentWeapon is Sandbox.Game.Weapons.MyAutomaticRifleGun;
             if(gun) rightConsumed=false;
-            bool active=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && Player.Headset.pose.isTracked;
+            bool active=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && !SpectatorView.Manipulating && Player.Headset.pose.isTracked;
             bool guard=InputRouter.Gameplay && !Main.MenuOpen && Player.Headset.pose.isTracked;
             rightGesture.Update(active && Player.HandR.pose.isTracked && c.Primary.Active,
                 Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,c.Primary.RawPressed,triggerAllowed:!gun);
@@ -93,15 +94,15 @@ namespace SpaceEngineersVR.Player
             bool nearRight=guard && Player.HandR.pose.isTracked && (rightGesture.Inside || NearHead(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix));
             Reveal=active && Markers && (Mode==2 || (nearLeft || nearRight && !gun) && DateTime.UtcNow>=revealPauseUntil);
             bool visorPressed=visorGesture.Update(active && Player.HandR.pose.isTracked && c.Secondary.Active,
-                rightGesture.Inside,c.Secondary.RawPressed,ThirdPersonView.Active,
-                ThirdPersonView.Active && c.LeftGripPressure.RawPosition.X>.025f && c.RightGripPressure.RawPosition.X>.025f,DateTime.UtcNow);
+                rightGesture.Inside,c.Secondary.RawPressed,CameraRig.Detached,
+                CameraRig.Detached && c.LeftGripPressure.RawPosition.X>.025f && c.RightGripPressure.RawPosition.X>.025f,DateTime.UtcNow);
             float grip=c.LeftGripPressure.RawPosition.X;
             if(grip<=.025f) ViewGestureHeld=false;
             leftGrip.Update(active && Player.HandL.pose.isTracked && c.LeftGripPressure.Active,grip>.55f);
             if(leftGrip.Pressed && InputRouter.Gameplay && !CockpitControls.Held(Player.HandL) &&
                 !CockpitTouch.Owns(Player.HandL) && NearTemple(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,true))
             {
-                ViewGestureHeld=true; ThirdPersonView.Toggle(); Player.HandL.Vibrate(0,.035f,120,.25f);
+                ViewGestureHeld=true; if(SpectatorView.Active) SpectatorView.Exit(); else ThirdPersonView.Toggle(); Player.HandL.Vibrate(0,.035f,120,.25f);
             }
             if(ViewGestureHeld) { c.LeftGripPressure.BlockUntilRelease(); c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); }
             leftTrigger.Update(active && Player.HandL.pose.isTracked && c.LeftTriggerPressure.Active,leftPressure>.55f);
@@ -109,7 +110,7 @@ namespace SpaceEngineersVR.Player
                 !CockpitControls.Held(Player.HandL) && !CockpitTouch.Owns(Player.HandL) &&
                 !WeaponHandling.ConsumesLeftGrip && NearTemple(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,true))
             {
-                MySession.Static?.LocalCharacter?.SwitchLights();
+                if(SpectatorView.Active) MySpectatorCameraController.Static.SwitchLight(); else MySession.Static?.LocalCharacter?.SwitchLights();
                 leftConsumed=true;
                 Player.HandL.Vibrate(0,.035f,120,.25f);
             }

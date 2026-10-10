@@ -128,7 +128,7 @@ namespace SpaceEngineersVR.Player
             {
                 var action=choices[page*4+i];
                 keys.Add(new SurfaceKey(action.Label,.02f+i%2*.49f,.43f+i/2*.19f,.47f,.17f) {
-                    Action=action,Icons=new[] {action.Icon},Enabled=action.Enabled,Horizontal=true });
+                    Action=action,SearchResult=true,Icons=new[] {action.Icon},Enabled=action.Enabled,Horizontal=true });
             }
             keys.Add(new SurfaceKey("Previous",.02f,.86f,.25f,.115f) { Enabled=page>0,Action=new ActionChoice("Previous",()=> { page--; }) });
             keys.Add(new SurfaceKey(choices.Length==0 ? "No matches" : (page+1)+" / "+pages,.29f,.86f,.42f,.115f) { Enabled=false });

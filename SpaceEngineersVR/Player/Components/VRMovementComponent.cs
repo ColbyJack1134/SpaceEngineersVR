@@ -54,6 +54,7 @@ namespace SpaceEngineersVR.Player.Components
             }
             try
             {
+                if(SpectatorView.Active) { StopInput(); SpectatorView.Move(); return; }
                 if (!ReferenceEquals(inputOwner, MySession.Static.ControlledEntity)) StopInput();
                 inputOwner = MySession.Static.ControlledEntity;
                 DriveInput.Stop();
@@ -86,6 +87,7 @@ namespace SpaceEngineersVR.Player.Components
 
         public override void UpdateAfterSimulation()
         {
+            if(SpectatorView.Active) { SpectatorView.Publish(); return; }
             if (SeatFit.Eligible(SeatFit.Seat) && SeatFit.Seat.Pilot==Character)
             {
                 TrackedArms.Update(Character);
