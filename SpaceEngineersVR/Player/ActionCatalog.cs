@@ -60,12 +60,14 @@ namespace SpaceEngineersVR.Player
             if(words.Length==0) return History.Order(current);
             return current.Where(a=>words.All(word=>(a.Label+" "+a.SearchTerms).IndexOf(word,StringComparison.OrdinalIgnoreCase)>=0)).ToArray();
         }
-        private static IEnumerable<ActionChoice> Entries()
-        {
-            foreach(var action in GameActions.Quick.Concat(GameActions.Building).Concat(GameActions.Developer)
+        internal static ActionChoice[] CommonEntries(bool spectator) => GameActions.Quick.Concat(GameActions.Building).Concat(GameActions.Developer)
                 .Concat(BuildPlannerActions.Shortcuts)
                 .Concat(new[] {GameActions.HudOptions,GameActions.UnequipAction,GameActions.RecenterAction,GameActions.DesktopFloating,GameActions.DesktopWrist,GameActions.CycleSymmetryAction,GameActions.ExitSymmetryAction,SpectatorView.EnterAction})
-                .GroupBy(a=>a.Label).Select(g=>g.First())) yield return action;
+                .Concat(spectator ? SpectatorView.Actions():Array.Empty<ActionChoice>())
+                .GroupBy(a=>a.HistoryKey ?? a.Label).Select(g=>g.Last()).ToArray();
+        private static IEnumerable<ActionChoice> Entries()
+        {
+            foreach(var action in CommonEntries(SpectatorView.Active)) yield return action;
             foreach(string category in new[] {"Character","Flight","Third person","HUD & Interface","Rendering","Controls"})
             {
                 string title=category;
@@ -73,7 +75,6 @@ namespace SpaceEngineersVR.Player
             }
             if(MySession.Static==null) yield break;
             if(SymmetrySetupControls.Active) foreach(var action in SymmetrySetupControls.Actions().Skip(1).Take(5)) yield return action;
-            if(SpectatorView.Active) foreach(var action in SpectatorView.Actions()) yield return action;
             // Native suicide asks for confirmation and honors campaign respawn rules.
             yield return new ActionChoice("Respawn",()=>NativeActions.Pulse(Sandbox.Game.MyControlsSpace.SUICIDE),searchTerms:"suicide kill die stuck");
             if(native==null) native=NativeEntries();

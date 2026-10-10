@@ -325,7 +325,7 @@ namespace SpaceEngineersVR.Plugin
         {
             Multiplayer.MultiplayerRuntime.Reset();
             Player.GameActions.Reset();
-            Player.SpectatorView.Reset();
+            Player.SpectatorView.Reset(forgetTracked:true);
             Player.PlanetPreview.Begin();
             Player.RemoteView.Reset();
             Player.DesktopWindow.Reset();

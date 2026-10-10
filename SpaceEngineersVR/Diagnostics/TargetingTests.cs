@@ -98,6 +98,35 @@ namespace SpaceEngineersVR.Diagnostics
             var filledPages=ToolbarWheel.WithRecents(new[] {choices},Enumerable.Range(0,15).Select(i=>new ActionChoice("Recent"+i,()=>{})).ToArray());
             Require(filledPages[1].Length==9 && filledPages[1][8].Label=="Recent8","Recent wheel did not fit one page");
             log("PASS recent wheel resolves current Search identities, excludes unused actions, retains an empty final page and limits to nine entries");
+            var spectatorEntries=ActionCatalog.CommonEntries(true);
+            Require(spectatorEntries.Count(a=>a.HistoryKey=="Pause")==1 && spectatorEntries.Count(a=>a.HistoryKey=="Camera mode")==1 &&
+                spectatorEntries.Count(a=>a.HistoryKey=="Reset view")==1,"Spectator catalog contains duplicate common actions");
+            Require(spectatorEntries.Single(a=>a.HistoryKey=="Reset view").Run==(Action)SpectatorView.ResetView &&
+                ActionCatalog.CommonEntries(false).Single(a=>a.HistoryKey=="Reset view").Run==(Action)ThirdPersonView.ResetView,
+                "Search resolved reset to the wrong camera context");
+            var spectatorHistory=new ActionHistory(new[] {"Reset view","Pause","Camera mode"});
+            Require(spectatorHistory.Recent(spectatorEntries,9).Length==3,"Duplicate spectator actions consumed recent wheel slots");
+            log("PASS spectator Search and recents resolve one action per identity with the current camera reset");
+            var savedView=(Diorama)AccessTools.Field(typeof(SpectatorView),"view").GetValue(null);
+            var slotTools=(Sandbox.Game.SessionComponents.MySessionComponentSpectatorTools)FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.SessionComponents.MySessionComponentSpectatorTools));
+            var otherTools=(Sandbox.Game.SessionComponents.MySessionComponentSpectatorTools)FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.SessionComponents.MySessionComponentSpectatorTools));
+            try
+            {
+                savedView.Fit(8000,MatrixD.Identity,Vector3D.Zero);
+                SpectatorView.SaveTrackedScale(slotTools);
+                savedView.ChangeScale(.1,Vector3D.Zero);
+                SpectatorView.RestoreTrackedScale(otherTools);
+                Require(Math.Abs(savedView.UnitsPerMeter-1000)<1e-6,"Tracked scale leaked to another session component");
+                SpectatorView.Reset();
+                SpectatorView.RestoreTrackedScale(slotTools);
+                Require(Math.Abs(savedView.UnitsPerMeter-10000)<1e-6,"Tracked scale was lost after leaving spectator");
+                savedView.ChangeScale(.1,Vector3D.Zero);
+                SpectatorView.Reset(forgetTracked:true);
+                SpectatorView.RestoreTrackedScale(slotTools);
+                Require(Math.Abs(savedView.UnitsPerMeter-1000)<1e-6,"World reset retained a previous tracked scale");
+            }
+            finally { SpectatorView.Reset(forgetTracked:true); savedView.Fit(.8,MatrixD.Identity,Vector3D.Zero); }
+            log("PASS saved spectator scale restores after zoom and camera exit, excludes other sessions and clears on world reset");
             var origin=new Vector3D(1e8,-2e8,3e8);
             var ray=new LineD(origin,origin+new Vector3D(.6,0,-.8)*1000);
             var packet=DampenerRequests.Packet(17,23,41,ray);

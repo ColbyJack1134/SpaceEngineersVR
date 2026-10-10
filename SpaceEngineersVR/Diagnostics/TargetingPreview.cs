@@ -29,9 +29,10 @@ namespace SpaceEngineersVR.Diagnostics
                     Tuple.Create("planet-clipboard",GameActions.ClipboardActions(false)),
                     Tuple.Create("remote",GameActions.RemoteWheelActions()),
                     Tuple.Create("spectator",SpectatorView.Actions()),
+                    Tuple.Create("recent-spectator",new ActionHistory(new[] {"Reset view","Pause","Camera mode"}).Recent(ActionCatalog.CommonEntries(true),9)),
                     Tuple.Create("recent-searches",new ActionHistory(new[] {"Auto dampeners","Blueprints","Spectator","Recenter"}).Recent(ActionCatalog.Search(""),9))})
                 {
-                    var pages=fixture.Item1=="recent-searches" ? ToolbarWheel.WithRecents(Array.Empty<ActionChoice[]>(),fixture.Item2) :
+                    var pages=fixture.Item1.StartsWith("recent-") ? ToolbarWheel.WithRecents(Array.Empty<ActionChoice[]>(),fixture.Item2) :
                         ToolbarWheel.WithRecents(BlockVariants.Pages(Array.Empty<ActionChoice>(),fixture.Item2),Array.Empty<ActionChoice>());
                     for(int page=0;page<pages.Length;page++)
                     {

@@ -27,6 +27,8 @@ namespace SpaceEngineersVR.Player
         private static readonly Diorama view=new Diorama();
         private static readonly ObserverFollow follow=new ObserverFollow();
         private static MyEntity followed;
+        private static MySessionComponentSpectatorTools savedTools;
+        private static double savedScale;
         private static ObserverMode Mode => (ObserverMode)(Common.Config?.ThirdPersonMode ?? 0);
         private static MyEntity FollowTarget
         {
@@ -252,7 +254,19 @@ namespace SpaceEngineersVR.Player
             var target=FollowTarget;
             if(target==null) return;
             Lock(target);
-            MyAPIGateway.SpectatorTools?.SaveTrackedSlot(0);
+            var tools=MySession.Static.GetComponent<MySessionComponentSpectatorTools>();
+            if(tools==null) return;
+            tools.SaveTrackedSlot(0);
+            SaveTrackedScale(tools);
+        }
+        internal static void SaveTrackedScale(MySessionComponentSpectatorTools tools)
+        {
+            lock(sync) { savedTools=tools; savedScale=view.UnitsPerMeter; }
+        }
+        internal static void RestoreTrackedScale(MySessionComponentSpectatorTools tools)
+        {
+            lock(sync)
+                if(savedTools!=null && ReferenceEquals(savedTools,tools)) view.ChangeScale(savedScale/view.UnitsPerMeter,Vector3D.Zero);
         }
         private static void RecallTrackedView()
         {
@@ -260,6 +274,7 @@ namespace SpaceEngineersVR.Player
             if(tools==null) return;
             tools.SelectTrackedSlot(0);
             if(FollowTarget==null) { Publish(); return; }
+            RestoreTrackedScale(tools);
             var mode=tools.GetMode();
             try
             {
@@ -308,9 +323,13 @@ namespace SpaceEngineersVR.Player
             MySpectatorCameraController.Static.SetTarget(eye.Translation+eye.Forward,eye.Up);
             originInverse=Matrix.Invert(Player.Headset.pose.deviceToAbsolute.matrix); ResetNavigation(); Publish();
         }
-        internal static void Reset()
+        internal static void Reset(bool forgetTracked=false)
         {
-            lock(sync) { Volatile.Write(ref frame,null); camera=null; followed=null; view.Cancel(); consumed=false; renderTime=0; epoch++; }
+            lock(sync)
+            {
+                Volatile.Write(ref frame,null); camera=null; followed=null; view.Cancel(); consumed=false; renderTime=0; epoch++;
+                if(forgetTracked) { savedTools=null; savedScale=0; }
+            }
         }
     }
 }
