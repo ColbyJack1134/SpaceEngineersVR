@@ -18,6 +18,11 @@ namespace SpaceEngineersVR.Multiplayer
             frame.Translation=Vector3D.Transform(profile.Kind==ItemKind.Grinder ? new Vector3D(.059738,-.016757,-.165594):new Vector3D(0,0,-.61),model);
             return new ToolVolume {Frame=frame,Length=profile.Kind==ItemKind.Drill ? .15:0,Radius=profile.Kind==ItemKind.Grinder ? .108:.10,HalfHeight=.018,Disc=profile.Kind==ItemKind.Grinder};
         }
+        internal static ToolVolume DrillShaft(MatrixD model)
+        {
+            var frame=model; frame.Translation=Vector3D.Transform(new Vector3D(0,0,-.45),model);
+            return new ToolVolume {Frame=frame,Length=.14,Radius=.035};
+        }
         internal LineD Probe(int index)
         {
             Vector3D center=(Start+End)*.5, direction;

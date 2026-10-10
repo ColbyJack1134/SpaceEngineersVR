@@ -41,6 +41,17 @@ namespace SpaceEngineersVR.Multiplayer
         }
         internal static MatrixD Working(MatrixD model,WeaponProfile profile) => MatrixD.CreateWorld(Vector3D.Transform(profile.Muzzle,model),
             Vector3D.TransformNormal(profile.Direction,model),model.Up);
+        internal static MatrixD ToolAim(MyCharacter owner,MatrixD model,WeaponProfile profile)
+        {
+            if(Supported(owner)) return Working(model,profile);
+            return TryToolRay(owner,out var finger) ? finger:profile.Kind==ItemKind.Drill ? model:Working(model,profile);
+        }
+        internal static double ToolReach(MyCharacter owner,MatrixD model,WeaponProfile profile,MatrixD ray,double nativeReach)
+        {
+            if(!Supported(owner)) return nativeReach;
+            var grip=Vector3D.Transform(profile.Primary,model);
+            return Math.Max(0,nativeReach-Math.Max(0,Vector3D.Dot(ray.Translation-grip,ray.Forward)));
+        }
         internal static bool Clear(MyCharacter character,Vector3D from,Vector3D to,bool ignoreCharacters=false)
         {
             if(Vector3D.DistanceSquared(from,to)<.000001) return true;
@@ -92,7 +103,7 @@ namespace SpaceEngineersVR.Multiplayer
         {
             var owner=HeldItemPose.Owner(__instance);
             if(HeldItemPose.TryGet(owner,out var model,out var profile))
-                __result=(Vector3)(profile.Tool && HeldItemPose.TryToolRay(owner,out var ray) ? ray.Forward:HeldItemPose.Working(model,profile).Forward);
+                __result=(Vector3)(profile.Tool ? HeldItemPose.ToolAim(owner,model,profile).Forward:HeldItemPose.Working(model,profile).Forward);
         }
     }
     [HarmonyPatch(typeof(MyCharacter),nameof(MyCharacter.UpdateShootDirection))]

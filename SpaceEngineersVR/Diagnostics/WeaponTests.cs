@@ -151,6 +151,11 @@ namespace SpaceEngineersVR.Diagnostics
                 {
                     var v=ToolVolume.For(profile,MatrixD.Identity);
                     values["volume"]=new[] {v.Start.X,v.Start.Y,v.Start.Z,v.End.X,v.End.Y,v.End.Z,v.Radius,v.HalfHeight,v.Disc ? 1d:0d};
+                    if(profile.Kind==ItemKind.Drill)
+                    {
+                        var shaft=ToolVolume.DrillShaft(MatrixD.Identity);
+                        values["shaft"]=new[] {shaft.Start.X,shaft.Start.Y,shaft.Start.Z,shaft.End.X,shaft.End.Y,shaft.End.Z,shaft.Radius};
+                    }
                 }
                 using(var file=File.Create(Path.Combine(output,profile.Item+"-grab.json")))
                     new DataContractJsonSerializer(values.GetType(),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,values);

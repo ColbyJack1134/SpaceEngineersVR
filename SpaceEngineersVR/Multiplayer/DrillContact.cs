@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using Sandbox.Game.Entities;
+using Sandbox.Game.Entities.Cube;
 using Sandbox.Game.Weapons;
 using Sandbox.Game.Weapons.Guns;
 using VRageMath;
@@ -16,6 +17,7 @@ namespace SpaceEngineersVR.Multiplayer
             internal MyHandDrill Tool;
             internal MyDrillBase Core;
             internal bool Near;
+            internal MySlimBlock Block;
             internal double At;
             internal readonly Dictionary<long,MyDrillSensorBase.DetectionInfo> Hits=new Dictionary<long,MyDrillSensorBase.DetectionInfo>();
         }
@@ -35,14 +37,15 @@ namespace SpaceEngineersVR.Multiplayer
         }
         internal static void Read(MyDrillSensorBase sensor,ref Dictionary<long,MyDrillSensorBase.DetectionInfo> result)
         {
-            if(!states.TryGetValue(sensor,out var state) || !HeldItemPose.TryGet(state.Tool.Owner,out var model,out var profile)) return;
-            state.Hits.Clear(); result=state.Hits; state.Near=false; state.At=MultiplayerRuntime.Now;
+            if(!states.TryGetValue(sensor,out var state)) return;
+            if(!HeldItemPose.TryGet(state.Tool.Owner,out var model,out var profile)) { state.Block=null; state.Near=false; return; }
+            state.Hits.Clear(); result=state.Hits; state.Near=false; state.Block=null; state.At=MultiplayerRuntime.Now;
             var working=HeldItemPose.Working(model,profile);
-            var ray=HeldItemPose.TryToolRay(state.Tool.Owner,out var finger) ? finger:model;
+            var ray=HeldItemPose.ToolAim(state.Tool.Owner,model,profile);
             var origin=ray.Translation;
             center.SetValue(sensor,origin);
             // Preserve native reach and cutting radius; proximity moves the cutting center to the bit.
-            var endpoint=origin+ray.Forward*2.2;
+            var endpoint=origin+ray.Forward*HeldItemPose.ToolReach(state.Tool.Owner,model,profile,ray,2.2);
             front.SetValue(sensor,endpoint);
             var grip=Vector3D.Transform(profile.Primary,model);
             if(!HeldItemPose.Clear(state.Tool.Owner,state.Tool.Owner.GetHeadMatrix(true,true).Translation,grip)) return;
@@ -52,20 +55,27 @@ namespace SpaceEngineersVR.Multiplayer
             VRage.Game.Entity.MyEntity closest=blockNear ? block.CubeGrid:null;
             Vector3D contact=near;
             double best=blockNear ? Vector3D.DistanceSquared(near,volume.Start):double.MaxValue;
-            for(int i=0;i<7;i++)
+            var shaft=ToolVolume.DrillShaft(model);
+            if(ToolContact.FindNear(state.Tool.Owner,state.Tool,shaft,out var shaftBlock,out var shaftPoint))
             {
-                var probe=volume.Probe(i);
+                double score=Vector3D.DistanceSquared(shaftPoint,volume.Start);
+                if(score<best) { block=shaftBlock; closest=block.CubeGrid; contact=shaftPoint; best=score; blockNear=true; }
+            }
+            for(int i=0;i<14;i++)
+            {
+                var active=i<7 ? volume:shaft;
+                var probe=active.Probe(i%7);
                 if(!ToolContact.PhysicsCast(state.Tool.Owner,state.Tool,probe,out var sample) || !(sample.Entity is MyVoxelBase voxel)) continue;
                 var samplePoint=sample.DetectionPoint;
                 double score=Vector3D.DistanceSquared(samplePoint,volume.Start);
                 var approach=samplePoint-grip;
-                if(volume.Contains(samplePoint) && score<best && approach.LengthSquared()>1e-10 &&
+                if(active.Contains(samplePoint) && score<best && approach.LengthSquared()>1e-10 &&
                     HeldItemPose.Clear(state.Tool.Owner,grip,samplePoint-Vector3D.Normalize(approach)*.005))
                 { closest=voxel; contact=samplePoint; best=score; blockNear=false; }
             }
             if(closest!=null)
             {
-                state.Near=true;
+                state.Near=true; state.Block=blockNear ? block:null;
                 var direction=blockNear ? Vector3D.Transform((Vector3)block.Position*block.CubeGrid.GridSize,block.CubeGrid.WorldMatrix)-contact:working.Forward;
                 if(direction.LengthSquared()<1e-10) direction=working.Forward;
                 contact+=Vector3D.Normalize(direction)*.005;
@@ -74,13 +84,56 @@ namespace SpaceEngineersVR.Multiplayer
                 state.Hits[closest.EntityId]=new MyDrillSensorBase.DetectionInfo(closest,contact);
                 front.SetValue(sensor,contact); return;
             }
-            if(HeldItemPose.Supported(state.Tool.Owner)) return;
-            if(!HeldItemPose.Clear(state.Tool.Owner,grip,origin)) { state.Near=true; return; }
-            var line=new LineD(origin,endpoint);
-            if(!ToolContact.PhysicsCast(state.Tool.Owner,state.Tool,line,out var hit)) return;
-            var point=hit.DetectionPoint+ray.Forward*.005;
-            state.Hits[hit.Entity.EntityId]=new MyDrillSensorBase.DetectionInfo(hit.Entity,point,hit.ItemId);
+            bool supported=HeldItemPose.Supported(state.Tool.Owner);
+            if(!supported && !HeldItemPose.Clear(state.Tool.Owner,grip,origin)) { state.Near=true; return; }
+            VRage.Game.Entity.MyEntity entity; Vector3D point; int item;
+            if(supported)
+            {
+                ToolContact.CastTarget(state.Tool.Owner,state.Tool,ray,Vector3D.Distance(origin,endpoint),out var target,out entity,out point,out item,true);
+                if(entity==null || !ToolContact.Accessible(state.Tool.Owner,state.Tool,grip,point,target,entity,item)) return;
+                state.Block=target;
+                cutPose.Translation=point+ray.Forward*.005-cutPose.Forward*state.Core.CutOut.CenterOffset;
+                state.Core.CutOut.UpdatePosition(ref cutPose);
+            }
+            else
+            {
+                var line=new LineD(origin,endpoint);
+                if(!ToolContact.PhysicsCast(state.Tool.Owner,state.Tool,line,out var hit)) return;
+                entity=hit.Entity; point=hit.DetectionPoint; item=hit.ItemId;
+            }
+            point+=ray.Forward*.005;
+            state.Hits[entity.EntityId]=new MyDrillSensorBase.DetectionInfo(entity,point,item);
             front.SetValue(sensor,point);
+        }
+        internal static bool Selected(MyDrillBase core,MyCubeGrid grid,out Vector3D at,out Vector3D direction,out bool valid)
+        {
+            at=default(Vector3D); direction=Vector3D.Forward; valid=false;
+            if(!states.TryGetValue(core.Sensor,out var state) || state.Block==null) return false;
+            var block=state.Block;
+            if(block.CubeGrid!=grid || MultiplayerRuntime.Now-state.At>=.2 || grid.GetCubeBlock(block.Position)!=block ||
+                !HeldItemPose.TryGet(state.Tool.Owner,out var model,out var profile)) return true;
+            valid=true;
+            var local=Vector3D.Transform((Vector3)block.Position*grid.GridSize,grid.WorldMatrix);
+            at=local; direction=HeldItemPose.Working(model,profile).Forward; return true;
+        }
+    }
+    [HarmonyPatch(typeof(MyDrillBase),"TryDrillBlocks")]
+    internal static class HeldDrillBlockPatch
+    {
+        private static readonly FieldInfo center=AccessTools.Field(typeof(MyDrillSensorBase),"m_center"),front=AccessTools.Field(typeof(MyDrillSensorBase),"m_frontPoint");
+        private static bool Prefix(MyDrillBase __instance,MyCubeGrid grid,ref bool __result,out Vector3D[] __state)
+        {
+            __state=null;
+            if(!DrillContact.Selected(__instance,grid,out var at,out var direction,out var valid)) return true;
+            if(!valid) { __result=false; return false; }
+            var sensor=__instance.Sensor;
+            __state=new[] {(Vector3D)center.GetValue(sensor),(Vector3D)front.GetValue(sensor)};
+            center.SetValue(sensor,at); front.SetValue(sensor,at+direction*.01); return true;
+        }
+        private static void Finalizer(MyDrillBase __instance,Vector3D[] __state)
+        {
+            if(__state==null) return;
+            center.SetValue(__instance.Sensor,__state[0]); front.SetValue(__instance.Sensor,__state[1]);
         }
     }
     [HarmonyPatch(typeof(MyDrillSensorBase),"get_CachedEntitiesInRange")]
