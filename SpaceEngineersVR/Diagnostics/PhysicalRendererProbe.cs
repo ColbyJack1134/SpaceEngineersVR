@@ -465,7 +465,7 @@ namespace SpaceEngineersVR.Diagnostics
             int index=(phase-100)/2;
             bool menusOnly=!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY"));
             bool setupOnly=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="setup";
-            if(index>=(setupOnly ? 19:menusOnly ? 24:12))
+            if(index>=(setupOnly ? 19:menusOnly ? 29:12))
             {
                 if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions" && (!symmetryPreviewsSaved || !rotationPreviewsSaved))
                     throw new InvalidOperationException("Native gameplay gizmo and placement indicator fixtures were not rendered");
@@ -476,13 +476,24 @@ namespace SpaceEngineersVR.Diagnostics
             }
             if(phase%2==0)
             {
-                if(index>0 && index<10 && options is GUI.BindingHelp guide)
+                if(index>0 && index<GUI.BindingHelp.TopicCount && options is GUI.BindingHelp guide)
                 { guide.SelectTopic(index);next=DateTime.UtcNow.AddSeconds(2);phase++;return; }
+                if((index==9 || index>=24) && options is GUI.BindingHelp scrolledGuide)
+                {
+                    scrolledGuide.SelectTopic(index==9 ? 0:new[] {1,4,4,5,8}[index-24]);
+                    scrolledGuide.ScrollTo(index==25 ? .45f:1);
+                    next=DateTime.UtcNow.AddSeconds(2);phase++;return;
+                }
                 if(index>=13 && index<=16 && options is GUI.MyPluginConfigDialog settings)
                 { settings.SelectPage(new[] {1,2,4,3}[index-13]);next=DateTime.UtcNow.AddSeconds(2);phase++;return; }
                 options?.CloseScreenNow();
-                options=index<10 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.BindingHelp(index) :
+                options=index<GUI.BindingHelp.TopicCount ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.BindingHelp(index) :
                     index==10 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.HudStateOptions() : new GUI.BindingOptions();
+                if(index>=24)
+                {
+                    var scrolled=new GUI.BindingHelp(new[] {1,4,4,5,8}[index-24]);
+                    options=scrolled; options.RecreateControls(true); scrolled.ScrollTo(index==25 ? .45f:1);
+                }
                 if(index>=12 && index<=16) options=new GUI.MyPluginConfigDialog(new[] {0,1,2,4,3}[index-12]);
                 if(index>=17 && index<=19) options=new GUI.FirstRunSetup(index-17);
                 if(index==20) options=new MainMenuPreview();
@@ -504,7 +515,8 @@ namespace SpaceEngineersVR.Diagnostics
             }
             else
             {
-                string name=index==22 ? "actions-recent-native":index==23 ? "actions-filtered-native":index<12 ? "menu-gallery-"+index : index<20 ? "settings-native-"+(index+25) : index==20 ? "main-vr-options":"pause-vr-options";
+                if(index>=24 && options is GUI.BindingHelp scrolled) scrolled.ScrollTo(index==25 ? .45f:1);
+                string name=index>=24 ? "guide-scrolled-"+index:index==9 ? "guide-common-bottom":index==22 ? "actions-recent-native":index==23 ? "actions-filtered-native":index<12 ? "menu-gallery-"+index : index<20 ? "settings-native-"+(index+25) : index==20 ? "main-vr-options":"pause-vr-options";
                 MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,name+".png"),false,false,false);
                 next=DateTime.UtcNow.AddSeconds(1);
             }

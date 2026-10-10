@@ -24,18 +24,37 @@ namespace SpaceEngineersVR.Diagnostics
             Require(tabletQuery=="damps" && tabletTarget.Text==tabletQuery,"Standalone keyboard did not append at the query end");
             tabletTarget.KeypressBackspace(true);
             Require(tabletQuery=="damp","Standalone tablet keyboard backspace failed");
-            foreach(var route in new[] {new[] {"Flight","Controller flight"},new[] {"Rendering","Reset resolution"},new[] {"Controls","Active bindings"}})
+            foreach(var route in new[] {new[] {"Flight","Controller flight"},new[] {"Rendering","Reset resolution"},new[] {"Controls","Rebind in SteamVR"}})
             {
                 var destination=GUI.MyPluginConfigDialog.CreatePage(route[0]);destination.RecreateControls(true);
                 Require(destination.Controls.OfType<MyGuiControlButton>().Any(b=>b.Text.ToString()==route[1]),"Settings search opens the wrong category: "+route[0]);
             }
+            foreach(string path in GUI.BindingHelp.ImagePaths)
+            {
+                Require(System.IO.File.Exists(path),"Help illustration missing: "+path);
+                using(var reader=new System.IO.BinaryReader(System.IO.File.OpenRead(path)))
+                {
+                    Require(reader.ReadUInt32()==0x20534444,"Help texture is not DDS: "+path);
+                    reader.BaseStream.Position=12;
+                    uint height=reader.ReadUInt32(),width=reader.ReadUInt32();
+                    Require(width==1600 && height>0 && height%4==0,"Help texture has invalid dimensions: "+path);
+                }
+            }
             var menuScreens=Enumerable.Range(0,5).Select(i=>(MyGuiScreenBase)new GUI.MyPluginConfigDialog(i))
-                .Concat(Enumerable.Range(0,10).Select(i=>(MyGuiScreenBase)new GUI.BindingHelp(i)))
+                .Concat(Enumerable.Range(0,GUI.BindingHelp.TopicCount).Select(i=>(MyGuiScreenBase)new GUI.BindingHelp(i)))
                 .Concat(Enumerable.Range(0,2).Select(i=>(MyGuiScreenBase)new GUI.FirstRunSetup(i)))
                 .Concat(new MyGuiScreenBase[] {new GUI.HudStateOptions(),new GUI.BindingOptions()});
             foreach(var menu in menuScreens)
             {
                 menu.RecreateControls(true);
+                if(menu is GUI.BindingHelp)
+                {
+                    var guidePanel=menu.Controls.OfType<MyGuiControlScrollablePanel>().Single();
+                    Require(guidePanel.ScrolledAreaSize.X>.9f && guidePanel.ScrolledAreaSize.Y>.45f,"Help viewport was not initialized");
+                    Require(!guidePanel.CompleteScissor,"Help must draw partially visible illustrations while scrolling");
+                    guidePanel.ScrollbarVPosition=1;
+                    Require(guidePanel.ScrollbarVPosition>0 || guidePanel.ScrolledControl.Size.Y<=guidePanel.ScrolledAreaSize.Y,"Help cannot scroll to the remaining controls");
+                }
                 var buttons=menu.Controls.OfType<MyGuiControlButton>().ToArray();
                 for(int i=0;i<buttons.Length;i++) for(int j=i+1;j<buttons.Length;j++)
                 {
@@ -43,7 +62,7 @@ namespace SpaceEngineersVR.Diagnostics
                     Require(gap.X>=extent.X-.001f || gap.Y>=extent.Y-.001f,"Native menu buttons overlap: "+menu.GetFriendlyName()+" / "+a.Text+" / "+b.Text);
                 }
             }
-            log("PASS native menu layouts: settings routes, ten guide topics, setup without VR, HUD editor and binding pages have non-overlapping buttons.");
+            log("PASS native menu layouts: settings routes, visual guide topics, setup without VR, HUD editor and binding pages have non-overlapping buttons.");
             var catalog=ActionCatalog.NativeEntries();
             Require(catalog.Length>=30 && catalog.All(a=>!string.IsNullOrWhiteSpace(a.Label)),"Native action catalog lost system actions");
             log("PASS tablet search: shared native text editing and "+catalog.Length+" native system actions without execution.");

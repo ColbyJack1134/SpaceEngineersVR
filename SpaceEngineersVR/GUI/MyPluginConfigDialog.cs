@@ -25,7 +25,7 @@ namespace SpaceEngineersVR.GUI
             {
                 case "Flight":return new MyPluginConfigDialog(1);
                 case "Rendering":return new MyPluginConfigDialog(4);
-                case "Controls":return new BindingHelp();
+                case "Controls":return new BindingOptions();
                 case "Character":return new MyPluginConfigDialog();
                 case "HUD & Interface":return new MyPluginConfigDialog(3);
                 case "Third person":return new MyPluginConfigDialog(2);
@@ -43,7 +43,8 @@ namespace SpaceEngineersVR.GUI
                 var button=MenuLayout.Button(this,-.325f,-.255f+i*.093f,.24f,pages[i],()=>SelectPage(index),.075f);
                 button.Checked=page==i; if(page==i)FocusedControl=button;
             }
-            MenuLayout.Button(this,-.325f,.255f,.24f,"Controls guide",()=>MyGuiSandbox.AddScreen(new BindingHelp()));
+            MenuLayout.Button(this,-.325f,.192f,.24f,"Active bindings",()=>MyGuiSandbox.AddScreen(new BindingOptions()),.05f);
+            MenuLayout.Button(this,-.325f,.26f,.24f,"Controls guide",()=>MyGuiSandbox.AddScreen(new BindingHelp()));
             MenuLayout.Button(this,-.325f,.33f,.24f,"First-time setup",()=>MyGuiSandbox.AddScreen(new FirstRunSetup()));
             MenuLayout.Label(this,-.14f,-.27f,pages[page],.9f);
             var c=Common.Config;

@@ -75,7 +75,8 @@ namespace SpaceEngineersVR.GUI
                 MenuLayout.Icon(this,.16f,-.19f,NativeSprites.Hud("HelpScreen"),.09f);
                 MenuLayout.Label(this,-.32f,-.075f,"Hold B: toolbar     Hold Y: quick actions",.78f);
                 MenuLayout.Label(this,-.32f,.005f,"Wrist > Quick > Help",.78f);
-                MenuLayout.Button(this,0,.12f,.55f,"Open controls guide",()=>MyGuiSandbox.AddScreen(new BindingHelp(1)));
+                MenuLayout.Label(this,-.32f,.22f,"Set Model Quality to High to avoid mesh artifacts.",.62f);
+                MenuLayout.Button(this,0,.12f,.55f,"Open controls guide",()=>MyGuiSandbox.AddScreen(new BindingHelp()));
             }
             MenuLayout.Button(this,-.23f,.325f,.22f,step==0 ? "Skip":"Back",()=> {
                 if(step==0){c.SetupCompleted=true;CloseScreen();}else {if(measuring)Player.Player.CancelCalibration();measuring=false;step--;RecreateControls(false);}

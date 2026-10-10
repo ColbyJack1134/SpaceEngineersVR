@@ -20,3 +20,4 @@ __pycache__/
 /local.settings.json
 /docs/
 /*.md
+!/CONTROLS.md
