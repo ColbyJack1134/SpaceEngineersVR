@@ -29,10 +29,11 @@ namespace SpaceEngineersVR.Player
             public string Key => Timestamp+"|"+Older+"|"+Count+"|"+Available+"|"+Channel+"|"+Draft+"|"+ChoosingChannel+"|"+PlayerPage;
         }
         private static int older,lastCount,playerPage;
-        private static bool choosingChannel;
+        private static bool choosingChannel,stickScrolling;
+        private static DateTime nextStickScroll;
         private static string draft="";
-        internal static void Reset() { older=lastCount=playerPage=0; choosingChannel=false; draft=""; }
-        internal static void Open() { lastCount=MyHud.Chat.Messages.Count; older=0; choosingChannel=false; WristPanel.OpenChat(); }
+        internal static void Reset() { older=lastCount=playerPage=0; choosingChannel=stickScrolling=false; nextStickScroll=DateTime.MinValue; draft=""; }
+        internal static void Open() { lastCount=MyHud.Chat.Messages.Count; older=0; choosingChannel=stickScrolling=false; nextStickScroll=DateTime.MinValue; WristPanel.OpenChat(); }
         internal static View Snapshot()
         {
             var messages=MyHud.Chat.Messages.ToArray();
@@ -57,6 +58,19 @@ namespace SpaceEngineersVR.Player
         {
             int count=MyHud.Chat.Messages.Count;
             older=Math.Max(0,Math.Min(count-1,(int)Math.Round((1-value)*(count-1))));
+        }
+        internal static bool ScrollThumbstick(float raw,float accepted,DateTime now)
+        {
+            if(choosingChannel || MyHud.Chat.Messages.Count<2 || Math.Abs(raw)<.15f)
+            { stickScrolling=false; nextStickScroll=DateTime.MinValue; return false; }
+            if(!stickScrolling && Math.Abs(accepted)>.45f) stickScrolling=true;
+            if(!stickScrolling) return false;
+            if(Math.Abs(raw)>.45f && now>=nextStickScroll)
+            {
+                older=Math.Max(0,Math.Min(MyHud.Chat.Messages.Count-1,older+3*Math.Sign(raw)));
+                nextStickScroll=now.AddMilliseconds(130);
+            }
+            return true;
         }
         internal static void Keys(List<SurfaceKey> keys,View preview=null)
         {

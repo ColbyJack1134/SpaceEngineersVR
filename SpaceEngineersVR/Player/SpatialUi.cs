@@ -109,6 +109,12 @@ namespace SpaceEngineersVR.Player
                 if(wristTouch.Surface==null && !direct && rayTarget!=null) target=rayTarget;
                 wristHoverSurface=target.Id;
                 int clicked=Interact(target,world,ref wristHover,ref wristPressed);
+                if(target==wristMenu && WristPanel.ChatOpen && InputRouter.Gameplay)
+                {
+                    var scrollStick=c.WalkRotate.Active ? c.WalkRotate:c.ThrustRotate;
+                    if(WristChat.ScrollThumbstick(scrollStick.RawPosition.Y,scrollStick.Position.Y,now)) scrollStick.BlockUntilRelease();
+                }
+                else WristChat.ScrollThumbstick(0,0,now);
                 bool feedback=wristHover>=0 && (target.Style!=SurfaceStyle.WristStatus || direct || rayTarget==target && rayDistance<=.12f);
                 if(feedback && (!wristHoverFeedback || wristHover!=previousHover || wristHoverSurface!=previousSurface) && !wristTouch.Consumed) CockpitFeedback.Hover(Player.HandR);
                 wristHoverFeedback=feedback;
