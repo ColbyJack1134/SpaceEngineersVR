@@ -335,10 +335,11 @@ namespace SpaceEngineersVR.Player.Components
                 ShipTargeting.SecondaryPressed(controlledEntity);
             }
 
+            bool primaryHeld=primaryPressed && wasShooting;
             wasShooting = primaryPressed;
             wasSecondary = secondaryPressed;
 
-            GameActions.HandleButtons();
+            GameActions.HandleButtons(primaryHeld);
         }
 
         public override string ComponentTypeDebugString => "VR Movement Component";

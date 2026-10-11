@@ -31,6 +31,7 @@ namespace SpaceEngineersVR.Player
         internal static bool PhysicalOwns(Controller hand) { var h=hands[hand==Player.HandL ? 1 : 0]; return h.Input.Consumed || h.Input.Surface!=null || h.PhysicalHover; }
         // Left aiming redirects native use detection so labels and actions use the same target.
         internal static bool LeftAiming { get; private set; }
+        internal static bool LeftUseHeld { get; private set; }
         private static readonly Control.InputGate leftUse=new Control.InputGate();
         private static Controller detectionHand;
         private static string leftLabel;
@@ -292,7 +293,7 @@ namespace SpaceEngineersVR.Player
                 MySession.Static?.ControlledEntity==character && character!=null && !character.IsDead && !character.IsSitting &&
                 !ThirdPersonView.Active && Player.HandL.pose.isTracked && !PlacementControls.OwnsTools && !HelmetHud.Consumes(Player.HandL) &&
                 !Owns(Player.HandL) && !CockpitTouch.Owns(Player.HandL) && !TouchScreenBridge.PointingFor(Player.HandL) && !ArthurLcdBridge.PointingFor(Player.HandL) && !FloatingWindows.PointingFor(Player.HandL) &&
-                !WeaponHandling.ConsumesLeftGrip && c.LeftTriggerPressure.Active;
+                !WeaponHandling.ConsumesLeftGrip && !WeaponHandling.LeftAtItem && c.LeftTriggerPressure.Active;
             // Raw pressure keeps the laser up through a full pull, like the right ray; the gate uses once per pull.
             float pressure=allowed ? c.LeftTriggerPressure.RawPosition.X : 0;
             LeftAiming=ShowRay(pressure,LeftAiming);
@@ -305,6 +306,7 @@ namespace SpaceEngineersVR.Player
             }
             var click=c.Click(Player.HandL);
             leftUse.Update(allowed && click.Active,click.Down);
+            LeftUseHeld=leftUse.Held && click.Held && !leftUse.Pressed;
             if(!leftUse.Pressed || !click.Pressed) return;
             RefreshTarget();
             if(!TryInteract()) { character.Use(); Feedback(); }

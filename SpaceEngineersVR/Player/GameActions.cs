@@ -301,7 +301,7 @@ namespace SpaceEngineersVR.Player
             else Execute(action);
         }
 
-        public static void HandleButtons()
+        public static void HandleButtons(bool primaryHeld)
         {
             var c = Controls.Static;
             var jump=InputRouter.Flying ? c.FlightJump:c.JumpOrClimbUp;
@@ -331,6 +331,11 @@ namespace SpaceEngineersVR.Player
                 InputRouter.Update();
                 if (!InputRouter.Gameplay) return;
             }
+            // Native held use repeats only on ContinuousUsage targets: life support refill and floating object pickup.
+            // An empty-handed primary press is a native Use, which the game continues only while its own mouse binding is held.
+            bool holdingUse=c.Interact.IsPressed && !c.Interact.HasPressed && !ArthurLcdBridge.Owns(Player.HandR) && !PlacementControls.Painting;
+            var self=MySession.Static?.LocalCharacter;
+            if (character && self!=null && (holdingUse || HandInteraction.LeftUseHeld || primaryHeld && self.CurrentWeapon==null)) self.UseContinues();
             if (c.Helmet.HasPressed) Execute(HelmetAction);
             if (c.Jetpack.HasPressed && !ToolbarWheel.QuickPending)
             {

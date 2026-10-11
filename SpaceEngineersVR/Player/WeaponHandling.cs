@@ -22,6 +22,8 @@ namespace SpaceEngineersVR.Player
         private static float releaseBlend;
         public static bool ConsumesLeftGrip => support.Consumed || reload.Consumed;
         public static bool Supported => valid && support.Held;
+        // Left hand is at the held item's support grip or magazine, where a fist also pulls the trigger.
+        internal static bool LeftAtItem => valid && hover!=0;
         internal static WeaponProfile Profile => valid ? profile:null;
         internal static bool ToolEquipped => InputRouter.TrackedItems && MySession.Static?.ControlledEntity==MySession.Static?.LocalCharacter &&
             (MySession.Static?.LocalCharacter?.CurrentWeapon is MyEngineerToolBase || MySession.Static?.LocalCharacter?.CurrentWeapon is MyHandDrill);
