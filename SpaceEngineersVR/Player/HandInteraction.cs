@@ -70,6 +70,24 @@ namespace SpaceEngineersVR.Player
             world = CameraRig.DeviceWorld(controller.AimTracking);
             return world.IsValid();
         }
+        // Finger of the character's own hand, which reaches and interacts in every view. Falls back to the SteamVR tip.
+        internal static bool TryCharacterPointerPose(Controller hand,out MatrixD pose)
+        {
+            if(!TryWorldPose(hand,out pose)) return false;
+            if(TrackedArms.TryFreePointPose(hand,out var finger)) pose=finger;
+            return true;
+        }
+        // Finger of the hand the player sees: observer gloves in third person and spectator, the tracked arm otherwise.
+        internal static bool TryVisiblePointerPose(Controller hand,out MatrixD pose)
+        {
+            if(!TryWorldPose(hand,out pose)) return false;
+            if(ThirdPersonView.Active || SpectatorView.Active)
+            {
+                if(MenuHands.TryPointPose(hand.GripTracking,out var tracking,hand)) pose=tracking*CameraRig.Current.TrackingToWorld;
+            }
+            else if(TrackedArms.TryFreePointPose(hand,out var finger)) pose=finger;
+            return true;
+        }
 
         public static bool TryInteractionRay(out LineD ray)
         {
@@ -77,8 +95,7 @@ namespace SpaceEngineersVR.Player
             var character = MySession.Static?.LocalCharacter;
             var hand = detectionHand ?? UseHand;
             if (!InputRouter.Gameplay || character == null || character.IsDead || character.IsSitting ||
-                MySession.Static.ControlledEntity != character || !TryWorldPose(hand, out MatrixD pose)) return false;
-            if(TrackedArms.TryFreePointPose(hand,out var finger)) pose=finger;
+                MySession.Static.ControlledEntity != character || !TryCharacterPointerPose(hand, out MatrixD pose)) return false;
             ray = RayForPose(pose);
             return true;
         }

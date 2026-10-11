@@ -20,8 +20,7 @@ namespace SpaceEngineersVR.Player
             if(!CharacterAvailable(character) || target?.Owner==null || target.Owner.Closed || (target.SupportedActions & action)!=action) return false;
             if(target.Owner is IMyTerminalBlock block && !block.HasLocalPlayerAccess()) return false;
             var activation=target.ActivationMatrix;
-            if(!activation.IsValid() || Math.Abs(activation.Determinant())<1e-12 || !HandInteraction.TryWorldPose(Player.HandR,out var pointer)) return false;
-            if(TrackedArms.TryFreePointPose(Player.HandR,out var finger)) pointer=finger;
+            if(!activation.IsValid() || Math.Abs(activation.Determinant())<1e-12 || !HandInteraction.TryCharacterPointerPose(Player.HandR,out var pointer)) return false;
             return InReach(pointer,HandInteraction.ClosestControlPoint(activation,pointer.Translation),target.InteractiveDistance);
         }
 

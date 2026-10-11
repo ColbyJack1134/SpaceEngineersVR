@@ -120,7 +120,7 @@ namespace SpaceEngineersVR.Player
             if (!ReferenceEquals(owner, poseOwner)) { lastPose = null; poseOwner = owner; }
             bool active = ClipboardActive || Sandbox.Game.Entities.MyCubeBuilder.Static?.IsActivated == true;
             if (!Main.VrActive || !active) { lastPose = null; pose = MatrixD.Identity; return false; }
-            if ((OwnsTools || InputRouter.Mode==InputMode.Radial) && !Main.MenuOpen && HandInteraction.TryWorldPose(Player.HandR, out pose)) lastPose = pose;
+            if ((OwnsTools || InputRouter.Mode==InputMode.Radial) && !Main.MenuOpen && HandInteraction.TryVisiblePointerPose(Player.HandR, out pose)) lastPose = pose;
             pose = lastPose ?? MatrixD.Identity;
             return lastPose.HasValue;
         }

@@ -68,8 +68,7 @@ namespace SpaceEngineersVR.Player
             bool Available()
             {
                 if(!BlockActions.CharacterAvailable(character) || block.CubeGrid.Closed || block.CubeGrid.GetCubeBlock(block.Position)!=block ||
-                    !HasMissing(block) || !HandInteraction.TryWorldPose(Player.HandR,out var pointer)) return false;
-                if(TrackedArms.TryFreePointPose(Player.HandR,out var finger)) pointer=finger;
+                    !HasMissing(block) || !HandInteraction.TryCharacterPointerPose(Player.HandR,out var pointer)) return false;
                 return BlockActions.InReach(pointer,Vector3D.Transform(local,block.CubeGrid.WorldMatrix),MyConstants.DEFAULT_INTERACTIVE_DISTANCE);
             }
             return new ActionChoice("Add missing components",()=> {

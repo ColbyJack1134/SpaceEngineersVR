@@ -71,12 +71,7 @@ namespace SpaceEngineersVR.Player
         internal static bool TryPointer(Controller pointer,out MatrixD pose)
         {
             pose=MatrixD.Identity;
-            if(pointer==null || !pointer.pose.isTracked || !HandInteraction.TryWorldPose(pointer,out pose)) return false;
-            if(ThirdPersonView.Active || SpectatorView.Active)
-            {
-                if(MenuHands.TryPointPose(pointer.GripTracking,out var tracking,pointer)) pose=tracking*CameraRig.Current.TrackingToWorld;
-            }
-            else if(TrackedArms.TryFreePointPose(pointer,out var finger)) pose=finger;
+            if(pointer==null || !HandInteraction.TryVisiblePointerPose(pointer,out pose)) return false;
             pose=VrMath.Rigid(pose);
             return pose.IsValid();
         }
