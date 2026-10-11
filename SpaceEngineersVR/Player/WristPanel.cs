@@ -15,12 +15,14 @@ namespace SpaceEngineersVR.Player
         internal static void OpenSeat() { Show(0); SeatOpen=true; }
         internal static bool HudOpen { get; private set; }
         internal static void OpenHud() { Show(0); HudOpen=true; WristHud.Open(); }
+        internal static bool ChatOpen { get; private set; }
+        internal static void OpenChat() { Show(0); ChatOpen=true; SpatialUi.Expand(); }
         internal static bool DesktopOpen { get; private set; }
-        internal static void OpenDesktop() { StopEditing(); HudOpen=SeatOpen=false; DesktopOpen=true; SpatialUi.Expand(); }
-        public static void Reset() { StopEditing(); tab=page=category=0; HudOpen=SeatOpen=DesktopOpen=false; query=""; WristSignals.Reset(); }
+        internal static void OpenDesktop() { StopEditing(); HudOpen=SeatOpen=ChatOpen=false; DesktopOpen=true; SpatialUi.Expand(); }
+        public static void Reset() { StopEditing(); tab=page=category=0; HudOpen=SeatOpen=DesktopOpen=ChatOpen=false; query=""; WristSignals.Reset(); WristChat.Reset(); }
         internal static bool Inspecting => tab==3;
-        public static void StopEditing() { if(editing) MenuKeyboard.Close(); editing=false; }
-        internal static void Show(int selected) { StopEditing(); HudOpen=SeatOpen=DesktopOpen=false; tab=selected; }
+        public static void StopEditing() { if(editing || ChatOpen && MenuKeyboard.Standalone) MenuKeyboard.Close(); editing=false; }
+        internal static void Show(int selected) { StopEditing(); HudOpen=SeatOpen=DesktopOpen=ChatOpen=false; tab=selected; }
         internal static void SetQuery(string text) { query=text; page=0; }
         internal static void Edit()
         {
@@ -46,6 +48,7 @@ namespace SpaceEngineersVR.Player
             }
             else if(selected==3) { WristSignals.Keys(keys); return keys.ToArray(); }
             else if(selected==0 && HudOpen && !previewToolbar.HasValue) WristHud.Keys(keys);
+            else if(selected==0 && ChatOpen && !previewToolbar.HasValue) WristChat.Keys(keys);
             else if(selected==2) SearchKeys(keys);
             else if(showToolbar)
             {

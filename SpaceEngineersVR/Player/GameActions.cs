@@ -216,7 +216,7 @@ namespace SpaceEngineersVR.Player
             Inspect,ResetFeed,ExitFeed,PlayPosture,
             new ActionChoice("Turrets and cameras",()=>MyGuiSandbox.AddScreen(new GUI.SettingsPage("Turrets and cameras")),true),
             new ActionChoice("Body and seated play",()=>MyGuiSandbox.AddScreen(new GUI.BodyOptions()),true),
-            new ActionChoice("Chat",VrChat.Open,true),
+            new ActionChoice("Chat",WristChat.Open),
             new ActionChoice("Hotkey keyboard",MenuKeyboard.OpenHotkeys)
         };
         public static readonly ActionChoice[] Developer = {
@@ -358,7 +358,7 @@ namespace SpaceEngineersVR.Player
             if (c.CutGrid.HasPressed) new MyActionCutGrid().ExecuteAction();
             if (c.CopyGrid.HasPressed) new MyActionCopyGrid().ExecuteAction();
             if (c.PasteGrid.HasPressed) new MyActionPasteGrid().ExecuteAction();
-            if (c.Chat.HasPressed) new MyActionChat().ExecuteAction();
+            if (c.Chat.HasPressed) WristChat.Open();
             if (c.Contract.HasPressed) new MyActionTradeLedgerScreen().ExecuteAction();
             if (c.Respawn.HasPressed) MySession.Static.ControlledEntity?.Die();
         }

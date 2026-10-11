@@ -209,9 +209,13 @@ namespace SpaceEngineersVR.Player
                 Vector3 point=PhysicalSurface.Point(s,pointer.Translation);
                 if(!wristDirect && WristRay(s,pointer,out float distance)) point=PhysicalSurface.Point(s,pointer.Translation+pointer.Forward*distance);
                 var uv=PhysicalSurface.UV(s,point); var bounds=heldKey.Bounds;
-                float inset=10f/1024,amount=MathHelper.Clamp((uv.X-bounds.X-inset)/(bounds.Width-2*inset),0,1);
+                float inset=heldKey.Vertical ? 10f/640 : 10f/1024;
+                float amount=heldKey.Vertical ? MathHelper.Clamp((uv.Y-bounds.Y-inset)/(bounds.Height-2*inset),0,1)
+                    : MathHelper.Clamp((uv.X-bounds.X-inset)/(bounds.Width-2*inset),0,1);
                 heldKey.Change?.Invoke(amount);
-                wristContact.Anchor=new Vector3(((bounds.X+inset+(bounds.Width-2*inset)*amount)-.5f)*s.Width,(.5f-(bounds.Y+bounds.Height*.76f))*s.Height,.001f);
+                wristContact.Anchor=heldKey.Vertical
+                    ? new Vector3((bounds.X+bounds.Width*.5f-.5f)*s.Width,(.5f-(bounds.Y+inset+(bounds.Height-2*inset)*amount))*s.Height,.001f)
+                    : new Vector3(((bounds.X+inset+(bounds.Width-2*inset)*amount)-.5f)*s.Width,(.5f-(bounds.Y+bounds.Height*.76f))*s.Height,.001f);
                 if(sliderPulse.Sample(amount,DateTime.UtcNow)) CockpitFeedback.Activate(Player.HandR,.09f,.009f);
             }
             if(wristTouch.Surface!=null) hover=wristTouch.Held;
@@ -298,7 +302,8 @@ namespace SpaceEngineersVR.Player
                 SeatSettings=fold>=.99f && WristPanel.SeatOpen && !FlightSettings.IsOpen,
                 FlightPage=fold>=.99f && FlightSettings.IsOpen && FlightSettings.OnWrist,Title=FlightSettings.IsOpen ? FlightSettings.Title:null,
                 Levels=WristPanel.SeatOpen ? SeatPanel.States():null,Handle=CockpitControls.Adjusting ? 1:0,
-                HudSettings=fold>=.99f && WristPanel.HudOpen ? WristHud.Current:null,Desktop=fold>=.99f && WristPanel.DesktopOpen };
+                HudSettings=fold>=.99f && WristPanel.HudOpen ? WristHud.Current:null,
+                ChatView=fold>=.99f && WristPanel.ChatOpen ? WristChat.Snapshot():null,Desktop=fold>=.99f && WristPanel.DesktopOpen };
             if(menu.Desktop) DesktopCapture.Request();
             return new[] {compact,menu};
         }

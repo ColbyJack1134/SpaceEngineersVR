@@ -52,6 +52,30 @@ namespace SpaceEngineersVR.Diagnostics
                 WristPreview(device,canvas,wrist,output,"wrist-menu-preview");
                 wrist.Keys=WristPanel.Keys(null,false,true,true,false,wrist.Status,false);
                 WristPreview(device,canvas,wrist,output,"wrist-ship-controls");
+                var chat=new WristChat.View {Channel="Global",Count=8,Available=true,Players=new Sandbox.Game.World.MyPlayer[0],Messages=new[] {
+                    new Sandbox.Game.Gui.MyChatItem("Engineer","Thrusters online.","White",VRageMath.Color.White,VRageMath.Color.White),
+                    new Sandbox.Game.Gui.MyChatItem("System","Player joined the game.","White",VRageMath.Color.PaleGoldenrod,VRageMath.Color.White),
+                    new Sandbox.Game.Gui.MyChatItem("Sam","Heading to the connector.","White",VRageMath.Color.White,VRageMath.Color.White),
+                    new Sandbox.Game.Gui.MyChatItem("Alex","Copy that.","White",VRageMath.Color.LightGreen,VRageMath.Color.White),
+                    new Sandbox.Game.Gui.MyChatItem("Alex","Docking at the station now.","White",VRageMath.Color.LightGreen,VRageMath.Color.White),
+                    new Sandbox.Game.Gui.MyChatItem("Server","World saved.","White",VRageMath.Color.PaleGoldenrod,VRageMath.Color.White),
+                    new Sandbox.Game.Gui.MyChatItem("Beacon","Approach corridor is clear.","White",VRageMath.Color.LightBlue,VRageMath.Color.LightBlue),
+                    new Sandbox.Game.Gui.MyChatItem("Sam","I can bring the welder over after this run.","White",VRageMath.Color.White,VRageMath.Color.White) }};
+                var chatKeys=WristPanel.Keys(null,false,false,false,true,wrist.Status,false).Take(4).ToList();
+                WristChat.Keys(chatKeys,chat);
+                wrist.Keys=chatKeys.ToArray();
+                wrist.ChatView=chat;
+                WristPreview(device,canvas,wrist,output,"wrist-chat-preview");
+                chat.ChoosingChannel=true; chat.HasFaction=true;
+                chatKeys=WristPanel.Keys(null,false,false,false,true,wrist.Status,false).Take(4).ToList();
+                WristChat.Keys(chatKeys,chat); wrist.Keys=chatKeys.ToArray();
+                WristPreview(device,canvas,wrist,output,"wrist-chat-channels");
+                var keyboard=new SurfaceView {Id="Keyboard preview",Style=SurfaceStyle.Keyboard,Width=.62f,
+                    Height=.62f*KeyboardWindow.Aspect,Text="Control Panel| Name",Keys=MenuKeyboard.MakeKeys(false),Selection=0};
+                WristPreview(device,canvas,keyboard,output,"keyboard-caret-preview");
+                keyboard.Text="/w Sam |"; keyboard.Keys=MenuKeyboard.MakeKeys(true,"SEND");
+                WristPreview(device,canvas,keyboard,output,"keyboard-chat-preview");
+                wrist.ChatView=null; WristPanel.Show(0);
                 SignalTests.Render(device,output,log,true);
             }
             log("PASS focused wrist menu renders and standing calibration checks.");

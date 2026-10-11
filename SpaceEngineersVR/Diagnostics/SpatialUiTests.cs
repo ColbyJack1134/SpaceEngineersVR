@@ -333,7 +333,8 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(local.Y<-.30f,"Right hand overlaps bottom of the radial menu");
             }
             var keys=MenuKeyboard.MakeKeys(false);
-            Require(keys.Length==46 && keys.Any(k=>k.Label=="DONE") && keys.Any(k=>k.Label=="BKSP"),"Keyboard layout incomplete");
+            Require(keys.Length==51 && keys.Any(k=>k.Label=="DONE") && keys.Any(k=>k.Label=="BKSP") &&
+                keys.Any(k=>k.Label=="Preview") && keys.Any(k=>k.Label=="◀") && keys.Any(k=>k.Label=="▶"),"Keyboard layout incomplete");
             foreach(var key in keys) Require(window.Window.Handle(new Vector3((key.Bounds.Center.X-.5f)*window.Width,(.5f-key.Bounds.Center.Y)*window.Height,0),true)==0,"A key overlaps a window handle");
             var surface=new SurfaceView { Keys=keys,Width=.5f,Height=.3f,Pose=MatrixD.CreateTranslation(1e9,2e9,-3e9) };
             foreach(var key in keys)
@@ -343,7 +344,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Vector3D world=Vector3D.Transform(local,surface.Pose);
                 Require(surface.KeyAt(PhysicalSurface.UV(surface,PhysicalSurface.Point(surface,world)))==Array.IndexOf(keys,key),"Rendered key/touch mismatch at large coordinates");
             }
-            log("PASS spatial input: front-only/retracted pokes, bounded seat fit, temple exclusion, light-trigger ray hysteresis, fixed forearm hinge, captured keyboard move/release/bounded resize, console arrow mappings, hand/wheel clearance, attached grasps, all 46 key touch volumes at large coordinates");
+            log("PASS spatial input: front-only/retracted pokes, bounded seat fit, temple exclusion, light-trigger ray hysteresis, fixed forearm hinge, captured keyboard move/release/bounded resize, console arrow mappings, hand/wheel clearance, attached grasps, all 51 key touch volumes at large coordinates");
         }
     }
 }

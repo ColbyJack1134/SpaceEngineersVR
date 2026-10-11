@@ -121,7 +121,7 @@ namespace SpaceEngineersVR.Player
                 action.Consume();
                 CockpitFeedback.Click(hand,amplitude:.45f,duration:.035f);
                 feedbackUntil=DateTime.UtcNow.AddMilliseconds(60);
-                MenuKeyboard.Activate(clicked);
+                MenuKeyboard.Activate(clicked,near && s.KeyAt(uv)==clicked ? uv.X:rayUv.X);
             }
             else if(state.Hover>=0 && state.Hover!=previousHover && DateTime.UtcNow>=feedbackUntil) CockpitFeedback.Hover(hand);
             if(input.Consumed) action.Consume();
@@ -130,7 +130,8 @@ namespace SpaceEngineersVR.Player
         private static SurfaceView MakeView() => new SurfaceView {
             Id="Keyboard",Style=SurfaceStyle.Keyboard,Pose=window.Pose,Width=window.Width,Height=window.Height,
             TrackingSpace=true,Text=MenuKeyboard.Preview,Keys=MenuKeyboard.Keys,
-            Hover=hover>=0 || hands[1].Hover>=0 ? hover : MenuKeyboard.Selected,Pressed=pressed,HoverAlt=hands[1].Hover,PressedAlt=hands[1].Pressed,Handle=window.Drag,WindowHover=interaction.Hover };
+            Hover=hover,Pressed=pressed,HoverAlt=hands[1].Hover,PressedAlt=hands[1].Pressed,Selection=MenuKeyboard.Selected,
+            Handle=window.Drag,WindowHover=interaction.Hover };
         private static void Publish() { current=MakeView(); }
         internal static bool TryAttachment(Controller hand,out MatrixD pose,out Vector3D point,out float blend,bool tracking=false)
         {

@@ -84,6 +84,16 @@ namespace SpaceEngineersVR.Diagnostics
             Require(changed=="ba" && textbox.Text=="ba","Spatial typing lost native selection/live search semantics");
             textbox.KeypressBackspace(true);
             Require(changed=="b" && textbox.CarriagePositionIndex==1,"Spatial backspace lost native caret");
+            textbox.Text="reactor";
+            textbox.SelectAll();
+            MenuKeyboard.MoveCaret(textbox,3);
+            textbox.InsertChar(true,'X');
+            Require(textbox.Text=="reaXctor" && MenuKeyboard.TextPreview(textbox)=="reaX|ctor",
+                "Caret movement did not clear native textbox selection before middle insertion");
+            MenuKeyboard.MoveCaret(textbox,MenuKeyboard.PreviewCaretAt(textbox,.01f));
+            Require(textbox.CarriagePositionIndex==0,"Preview left edge did not place the caret at the start");
+            MenuKeyboard.MoveCaret(textbox,MenuKeyboard.PreviewCaretAt(textbox,.99f));
+            Require(textbox.CarriagePositionIndex==textbox.Text.Length,"Preview right edge did not place the caret at the end");
             textbox.Enabled=false;
             Require(MenuKeyboard.TextTarget(screen)==null,"Disabled search can be edited");
             textbox.Enabled=true; search.Visible=false; Set(screen,"m_focusedControl",null);
@@ -139,6 +149,10 @@ namespace SpaceEngineersVR.Diagnostics
             AccessTools.Method(selection.GetType(),"SelectAll").Invoke(selection,new object[] {editor});
             MenuKeyboard.Insert(editor,'q');
             Require(edited=="q","Multiline typing ignored native text selection");
+            MenuKeyboard.MoveCaret(editor,0);
+            MenuKeyboard.Insert(editor,'r');
+            Require(edited=="rq" && MenuKeyboard.TextPreview(editor)=="r|q",
+                "Multiline caret movement did not preserve native middle insertion");
             editor.Enabled=false; Require(MenuKeyboard.EditTarget(panel)==null,"Disabled multiline editor accepted typing");
             editor.Enabled=true; editor.Visible=false; Require(MenuKeyboard.EditTarget(panel)==null,"Hidden multiline editor accepted typing");
             editor.Visible=true; Set(editor,"m_selectable",false); Require(MenuKeyboard.EditTarget(panel)==null,"Non-editable multiline editor accepted typing");
