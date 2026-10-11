@@ -42,7 +42,8 @@ namespace SpaceEngineersVR.Player
         private static InputLayout layout;
         private static Buffer constants;
         private static RasterizerState rasterizer;
-        private static DepthStencilState depthState;
+        private static DepthStencilState depthState,ghostDepth;
+        private static BlendState ghostBlend;
         private static Mesh box;
         private static readonly Texture2D[] eyes=new Texture2D[2];
         private static readonly RenderTargetView[] targets=new RenderTargetView[2];
@@ -72,7 +73,7 @@ float4 PS(P p):SV_TARGET {
         color=lerp(sample.rgb,Linear(painted),mask)*(.6+.4*extra.r);
     }
     float light=.55+.45*abs(dot(normalize(p.n),normalize(float3(.3,.8,.5))));
-    return float4(Material.x>0 ? Gamma(color*light):color*light,1);
+    return float4(Material.x>0 ? Gamma(color*light):color*light,Material.z>0 ? Color.a:1);
 }";
         private static Mesh CreateMesh(Vertex[] vertices,ushort[] indices)
         {
@@ -101,6 +102,12 @@ float4 PS(P p):SV_TARGET {
                 FillMode=FillMode.Solid,CullMode=CullMode.None,IsDepthClipEnabled=true });
             depthState=new DepthStencilState(device,new DepthStencilStateDescription {
                 IsDepthEnabled=true,DepthWriteMask=DepthWriteMask.All,DepthComparison=Comparison.GreaterEqual });
+            ghostDepth=new DepthStencilState(device,new DepthStencilStateDescription {
+                IsDepthEnabled=true,DepthWriteMask=DepthWriteMask.Zero,DepthComparison=Comparison.GreaterEqual });
+            var blend=new BlendStateDescription();
+            blend.RenderTarget[0]=new RenderTargetBlendDescription(true,BlendOption.SourceAlpha,BlendOption.InverseSourceAlpha,BlendOperation.Add,
+                BlendOption.Zero,BlendOption.One,BlendOperation.Add,ColorWriteMaskFlags.Red|ColorWriteMaskFlags.Green|ColorWriteMaskFlags.Blue);
+            ghostBlend=new BlendState(device,blend);
             var vertices=new Vertex[8];
             for(int i=0;i<8;i++) vertices[i]=new Vertex { Position=new Vector3((i&1)==0 ? -0.5f:0.5f,(i&2)==0 ? -0.5f:0.5f,(i&4)==0 ? -0.5f:0.5f),Normal=Vector3.Up };
             box=CreateMesh(vertices,new ushort[] {0,1,3,0,3,2,4,6,7,4,7,5,0,4,5,0,5,1,2,3,7,2,7,6,0,2,6,0,6,4,1,5,7,1,7,3});
@@ -196,10 +203,11 @@ float4 PS(P p):SV_TARGET {
                 Dimension=SharpDX.Direct3D.ShaderResourceViewDimension.Texture2D,Texture2D=new ShaderResourceViewDescription.Texture2DResource { MipLevels=1 } });
             return texture;
         }
-        private static void DrawMesh(Mesh mesh,Matrix world,Matrix viewProjection,Vector4 color,float curl=0)
+        private static void DrawMesh(Mesh mesh,Matrix world,Matrix viewProjection,Vector4 color,float curl=0,bool flat=false)
         {
-            if(mesh.Color!=null) color+=VRageRender.MyTextureDebugMultipliers.Defaults.ColorizeHSV;
-            var data=new Constants { Transform=world*viewProjection,Color=color,Material=new Vector4(mesh.Color==null ? 0:1,curl,0,0) };
+            bool textured=mesh.Color!=null && !flat;
+            if(textured) color+=VRageRender.MyTextureDebugMultipliers.Defaults.ColorizeHSV;
+            var data=new Constants { Transform=world*viewProjection,Color=color,Material=new Vector4(textured ? 1:0,curl,color.W<1 ? 1:0,0) };
             context.UpdateSubresource(ref data,constants);
             context.InputAssembler.SetVertexBuffers(0,new VertexBufferBinding(mesh.Vertices,56,0));
             context.InputAssembler.SetIndexBuffer(mesh.Indices,Format.R16_UInt,0);
@@ -303,6 +311,28 @@ float4 PS(P p):SV_TARGET {
             }
             return eyes[0];
         }
+        internal static Texture2D PreviewAlignment(SharpDX.Direct3D11.Device device,bool left,ControllerModel.Part[] controller,Matrix deviceInGrip,Vector3 eyeOffset)
+        {
+            Init(device); var size=new Vector2I(960,720); Resize(size);
+            var glove=Glove(GloveGeometry.DefaultModel,left,true);
+            Setup(targets[0],size); context.ClearRenderTargetView(targets[0],new RawColor4(.035f,.055f,.075f,1));
+            Matrix target=Matrix.Transpose(ArmMath.HandInGrip);
+            Matrix wristPose=CockpitHandPose.GripWrist(target);
+            Vector3 center=Vector3.Transform(glove.Center,wristPose);
+            Matrix view=Matrix.CreateLookAt(center+new Vector3(left ? -eyeOffset.X:eyeOffset.X,eyeOffset.Y,eyeOffset.Z),center,Vector3.Up);
+            float slope=(float)Math.Tan(.65f/2);
+            Matrix vp=view*(Matrix)VrMath.Projection(-slope*960/720,slope*960/720,-slope,slope,.01);
+            var created=new List<Mesh>();
+            foreach(var part in controller)
+            {
+                var mesh=CreateMesh(part.Vertices,part.Indices); created.Add(mesh);
+                DrawMesh(mesh,part.Transform*deviceInGrip*target,vp,new Vector4(.85f,.85f,.85f,1));
+            }
+            DrawGhost(glove,wristPose,vp);
+            using(var commands=context.FinishCommandList(false)) gpu.ImmediateContext.ExecuteCommandList(commands,true);
+            foreach(var mesh in created) mesh.Dispose();
+            return eyes[0];
+        }
         internal static Texture2D PreviewSurface(SharpDX.Direct3D11.Device device,SurfaceView surface)
         {
             Init(device); var size=new Vector2I(960,720); Resize(size);
@@ -356,6 +386,38 @@ float4 PS(P p):SV_TARGET {
             var attached=CockpitHandPose.Attach(captured,Matrix.Identity,SpatialUi.PinchingKnob ? state.PinchPoint:state.RightPoint.Translation,contact);
             return CockpitHandPose.Blend(pose,attached,blend);
         }
+        private static readonly Dictionary<ControllerModel.Part,Mesh> controllerMeshes=new Dictionary<ControllerModel.Part,Mesh>();
+        // Hand alignment shows the target hands and the physical controllers instead of the tracked gloves.
+        private static bool DrawAlignment(Controller[] hands,Matrix vp)
+        {
+            bool shown=false;
+            for(int h=0;h<2;h++)
+            {
+                if(!GripCalibration.TryTarget(h,out _)) continue;
+                shown=true;
+                if(!hands[h].renderPose.isTracked || !ControllerModel.TryGet(hands[h],out var parts)) continue;
+                Matrix raw=hands[h].renderPose.deviceToAbsolute.matrix;
+                if(parts.Count==0) { DrawMesh(box,Matrix.CreateScale(0.035f,0.075f,0.04f)*raw,vp,new Vector4(.85f,.85f,.85f,1)); continue; }
+                foreach(var part in parts)
+                {
+                    if(!controllerMeshes.TryGetValue(part,out var mesh)) controllerMeshes[part]=mesh=CreateMesh(part.Vertices,part.Indices);
+                    DrawMesh(mesh,part.Transform*raw,vp,new Vector4(.85f,.85f,.85f,1));
+                }
+            }
+            for(int h=0;h<2;h++)
+            {
+                var glove=GripCalibration.TryTarget(h,out var target) ? GetModel(hands[h]):null;
+                if(glove!=null) DrawGhost(glove,(Matrix)Alignment.Apply(Alignment.HandKey(hands[h]),CockpitHandPose.GripWrist(target)),vp);
+            }
+            return shown;
+        }
+        // Drawn after the controllers so they stay visible through the target hand.
+        private static void DrawGhost(Mesh glove,Matrix pose,Matrix vp)
+        {
+            context.OutputMerger.SetBlendState(ghostBlend); context.OutputMerger.SetDepthStencilState(ghostDepth);
+            DrawMesh(glove,pose,vp,new Vector4(.2f,.75f,1,.45f),flat:true);
+            context.OutputMerger.SetBlendState(null); context.OutputMerger.SetDepthStencilState(depthState);
+        }
         private static void DrawEye(RenderTargetView target, EVREye eye, Vector2I size, Controller[] hands, Mesh[] meshes, bool clear,bool pointer=true)
         {
             Setup(target,size);
@@ -364,11 +426,12 @@ float4 PS(P p):SV_TARGET {
             Matrix view=Matrix.Invert(OpenVR.System.GetEyeToHeadTransform(which).ToMatrix()*Player.Headset.renderPose.deviceToAbsolute.matrix);
             float l=0,r=0,t=0,b=0; OpenVR.System.GetProjectionRaw(which,ref l,ref r,ref t,ref b);
             Matrix vp=view*(Matrix)VrMath.Projection(l,r,t,b,0.03);
+            bool aligning=DrawAlignment(hands,vp);
             for(int h=0;h<2;h++)
             {
                 var hand=hands[h]; if(!hand.renderPose.isTracked) continue;
                 Matrix raw=hand.renderPose.deviceToAbsolute.matrix;
-                if(!NativeGloves.Shown(h==0) && (!Main.WorldAvailable || !Common.Config.TrackedArms || !NativeHandLayer.Drawn(h==0) || !pointer))
+                if(!aligning && !NativeGloves.Shown(h==0) && (!Main.WorldAvailable || !Common.Config.TrackedArms || !NativeHandLayer.Drawn(h==0) || !pointer))
                 {
                     if(meshes[h]!=null)
                     {

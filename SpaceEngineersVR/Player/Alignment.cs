@@ -21,6 +21,12 @@ namespace SpaceEngineersVR.Player
         public const string WristKey="wrist/display";
         public static AnchorOffsetSetting Get(string key) =>
             Common.Config?.AnchorOffsets.FirstOrDefault(x=>x!=null && x.Key==key && x.Valid) ?? new AnchorOffsetSetting { Key=key };
+        public static void Set(string key,AnchorOffsetSetting value)
+        {
+            var config=Common.Config; if(config==null) return;
+            var others=config.AnchorOffsets.Where(x=>x!=null && x.Key!=key);
+            config.AnchorOffsets=(value==null ? others:others.Append(value)).ToArray();
+        }
         public static MatrixD Apply(string key,MatrixD frame) => (MatrixD)Get(key).Matrix*frame;
         public static float Scale(string key) => Get(key).Scale;
     }

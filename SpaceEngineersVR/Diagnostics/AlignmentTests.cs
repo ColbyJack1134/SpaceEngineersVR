@@ -22,6 +22,25 @@ namespace SpaceEngineersVR.Diagnostics
             { copy=offset.Copy(); copy.X=bad; if(copy.Valid) throw new Exception("Invalid anchor translation accepted"); }
             copy=offset.Copy(); copy.Scale=float.NaN;
             if(copy.Valid) throw new Exception("Invalid anchor scale accepted");
+            var random=new Random(5);
+            for(int i=0;i<500;i++)
+            {
+                var rotation=Matrix.CreateFromQuaternion(Quaternion.Normalize(new Quaternion((float)random.NextDouble()-.5f,(float)random.NextDouble()-.5f,(float)random.NextDouble()-.5f,(float)random.NextDouble()-.5f)));
+                var stored=AnchorOffsetSetting.FromRotation("grip/test",rotation);
+                var restored=stored.Matrix;
+                if(!stored.Valid || Vector3.Dot(restored.Forward,rotation.Forward)<.9999f || Vector3.Dot(restored.Up,rotation.Up)<.9999f)
+                    throw new Exception("Captured grip rotation does not survive yaw/pitch/roll storage");
+                var grip=rotation; grip.Translation=new Vector3(.3f,1.2f,-.4f);
+                var target=Matrix.CreateFromQuaternion(Quaternion.Normalize(new Quaternion((float)random.NextDouble()-.5f,(float)random.NextDouble()-.5f,(float)random.NextDouble()-.5f,(float)random.NextDouble()-.5f)));
+                target.Translation=grip.Translation+new Vector3((float)random.NextDouble()-.5f,(float)random.NextDouble()-.5f,(float)random.NextDouble()-.5f)*.1f;
+                var aligned=Player.GripCalibration.Solve("grip/test",target,grip).Matrix*grip;
+                if(Vector3.Distance(aligned.Translation,target.Translation)>1e-4f || Vector3.Dot(aligned.Forward,target.Forward)<.9999f || Vector3.Dot(aligned.Up,target.Up)<.9999f)
+                    throw new Exception("Grip alignment does not move the captured grip onto the target");
+            }
+            var far=Matrix.Identity; far.Translation=Vector3.Forward;
+            var clamped=Player.GripCalibration.Solve("grip/test",far,Matrix.Identity);
+            if(Math.Abs(new Vector3(clamped.X,clamped.Y,clamped.Z).Length()-.1f)>1e-5f || !clamped.Valid)
+                throw new Exception("Grip alignment translation is not clamped");
 
             string directory=Path.Combine(Path.GetTempPath(),"SEVR-settings-"+Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
@@ -46,7 +65,7 @@ namespace SpaceEngineersVR.Diagnostics
                 if(File.Exists(path+".tmp")) throw new Exception("Configuration left an incomplete replacement");
             }
             finally { Directory.Delete(directory,true); }
-            log("PASS alignment: local offsets at large coordinates, draft isolation, invalid input, XML replacement and pending changes flushed on dispose");
+            log("PASS alignment: local offsets at large coordinates, draft isolation, invalid input, grip rotation storage, grip alignment pose solve and clamp, XML replacement and pending changes flushed on dispose");
         }
     }
 }

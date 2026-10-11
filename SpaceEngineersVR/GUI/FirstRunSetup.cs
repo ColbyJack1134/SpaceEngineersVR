@@ -71,12 +71,11 @@ namespace SpaceEngineersVR.GUI
             }
             else
             {
-                MenuLayout.Icon(this,-.16f,-.19f,NativeSprites.Hud("RadialMenu"),.09f);
-                MenuLayout.Icon(this,.16f,-.19f,NativeSprites.Hud("HelpScreen"),.09f);
-                MenuLayout.Label(this,-.32f,-.075f,"Hold B: toolbar     Hold Y: quick actions",.78f);
-                MenuLayout.Label(this,-.32f,.005f,"Wrist > Quick > Help",.78f);
-                MenuLayout.Label(this,-.32f,.22f,"Set Model Quality to High to avoid mesh artifacts.",.62f);
-                MenuLayout.Button(this,0,.12f,.55f,"Open controls guide",()=>MyGuiSandbox.AddScreen(new BindingHelp()));
+                MenuLayout.Icon(this,0,-.235f,NativeSprites.Hud("HelpScreen"),.08f);
+                MenuLayout.Label(this,-.31f,-.16f,"Learn the controls",.85f);
+                MenuLayout.Button(this,0,-.085f,.58f,"Open controls guide",()=>MyGuiSandbox.AddScreen(new BindingHelp()));
+                MenuLayout.Label(this,-.31f,.045f,"Hands not lined up with your controllers?",.85f);
+                MenuLayout.Button(this,0,.12f,.58f,"Align hands",()=>MyGuiSandbox.AddScreen(new HandAlignment())).Enabled=Main.VrActive;
             }
             MenuLayout.Button(this,-.23f,.325f,.22f,step==0 ? "Skip":"Back",()=> {
                 if(step==0){c.SetupCompleted=true;CloseScreen();}else {if(measuring)Player.Player.CancelCalibration();measuring=false;step--;RecreateControls(false);}

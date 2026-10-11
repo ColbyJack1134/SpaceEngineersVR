@@ -195,6 +195,7 @@ namespace SpaceEngineersVR.Player
             {
                 device.MainUpdate();
             }
+            GripCalibration.Update();
         }
 
         public static string CalibrationStatus { get; private set; }="Enter your height above. Stand upright to measure headset height.";

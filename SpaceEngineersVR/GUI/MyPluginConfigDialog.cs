@@ -56,7 +56,8 @@ namespace SpaceEngineersVR.GUI
                     Toggle(0,"Controller-relative movement",c.ControllerRelativeMovement,v=>c.ControllerRelativeMovement=v);
                     Link(.085f,"Body visibility",()=>new SettingsPage("Body visibility"));
                     Link(.17f,"Movement & input",()=>new SettingsPage("Character"));
-                    MenuLayout.Button(this,.135f,.27f,.55f,"Recenter",()=>Player.Player.Headset.RequestRecenter()).Enabled=Main.VrActive;
+                    MenuLayout.Button(this,-.0075f,.27f,.265f,"Recenter",()=>Player.Player.Headset.RequestRecenter()).Enabled=Main.VrActive;
+                    MenuLayout.Button(this,.2775f,.27f,.265f,"Hand alignment",()=>MyGuiSandbox.AddScreen(new HandAlignment()));
                     break;
                 case 1:
                     Toggle(-.17f,"Physical cockpit sticks",c.FighterCockpitSticks,v=>c.FighterCockpitSticks=v);

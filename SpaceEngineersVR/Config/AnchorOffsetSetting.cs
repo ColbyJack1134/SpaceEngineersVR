@@ -25,6 +25,15 @@ namespace SpaceEngineersVR.Config
                 return result;
             }
         }
+        public static AnchorOffsetSetting FromRotation(string key,Matrix rotation)
+        {
+            // Inverse of Quaternion.CreateFromYawPitchRoll, which Matrix uses above.
+            var q=Quaternion.CreateFromRotationMatrix(rotation);
+            double yaw=Math.Atan2(2*(q.W*q.Y+q.X*q.Z),1-2*(q.X*q.X+q.Y*q.Y));
+            double pitch=Math.Asin(Math.Max(-1,Math.Min(1,2*(q.W*q.X-q.Y*q.Z))));
+            double roll=Math.Atan2(2*(q.W*q.Z+q.X*q.Y),1-2*(q.X*q.X+q.Z*q.Z));
+            return new AnchorOffsetSetting { Key=key,Yaw=(float)(yaw*180/Math.PI),Pitch=(float)(pitch*180/Math.PI),Roll=(float)(roll*180/Math.PI) };
+        }
         public AnchorOffsetSetting Copy() => (AnchorOffsetSetting)MemberwiseClone();
         public bool Valid => !string.IsNullOrEmpty(Key) && new Vector3(X,Y,Z).IsValid() &&
             new Vector3(Pitch,Yaw,Roll).IsValid() && Math.Abs(X)<=1 && Math.Abs(Y)<=1 && Math.Abs(Z)<=1 &&

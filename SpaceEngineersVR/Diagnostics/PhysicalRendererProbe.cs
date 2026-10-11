@@ -474,7 +474,7 @@ namespace SpaceEngineersVR.Diagnostics
             int index=(phase-100)/2;
             bool menusOnly=!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY"));
             bool setupOnly=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="setup";
-            if(index>=(setupOnly ? 19:menusOnly ? 29:12))
+            if(index>=(setupOnly ? 19:menusOnly ? 30:12))
             {
                 if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions" && (!symmetryPreviewsSaved || !rotationPreviewsSaved))
                     throw new InvalidOperationException("Native gameplay gizmo and placement indicator fixtures were not rendered");
@@ -487,7 +487,7 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 if(index>0 && index<GUI.BindingHelp.TopicCount && options is GUI.BindingHelp guide)
                 { guide.SelectTopic(index);next=DateTime.UtcNow.AddSeconds(2);phase++;return; }
-                if((index==9 || index>=24) && options is GUI.BindingHelp scrolledGuide)
+                if((index==9 || index>=24 && index<29) && options is GUI.BindingHelp scrolledGuide)
                 {
                     scrolledGuide.SelectTopic(index==9 ? 0:new[] {1,4,4,5,8}[index-24]);
                     scrolledGuide.ScrollTo(index==25 ? .45f:1);
@@ -498,7 +498,7 @@ namespace SpaceEngineersVR.Diagnostics
                 options?.CloseScreenNow();
                 options=index<GUI.BindingHelp.TopicCount ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.BindingHelp(index) :
                     index==10 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.HudStateOptions() : new GUI.BindingOptions();
-                if(index>=24)
+                if(index>=24 && index<29)
                 {
                     var scrolled=new GUI.BindingHelp(new[] {1,4,4,5,8}[index-24]);
                     options=scrolled; options.RecreateControls(true); scrolled.ScrollTo(index==25 ? .45f:1);
@@ -520,12 +520,19 @@ namespace SpaceEngineersVR.Diagnostics
                     options=new GUI.ActionBrowser(); options.RecreateControls(true);
                     MenuKeyboard.TextTarget(options).Text="symmetry";
                 }
+                if(index==29)
+                {
+                    var alignment=new GUI.HandAlignment(); options=alignment; options.RecreateControls(true);
+                    alignment.Preview("Place your hands in the blue hands and hold still: 3",
+                        GUI.HandAlignment.Describe("Left","oculus_quest2_controller_left","openxr_grip",new Config.AnchorOffsetSetting {Pitch=-12.4f,Yaw=3.1f,Roll=-178.2f}),
+                        GUI.HandAlignment.Describe("Right","oculus_quest2_controller_right","openxr_grip",new Config.AnchorOffsetSetting {Pitch=-41.7f,Yaw=-6.5f,Roll=2.3f}));
+                }
                 Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);next=DateTime.UtcNow.AddSeconds(2);
             }
             else
             {
-                if(index>=24 && options is GUI.BindingHelp scrolled) scrolled.ScrollTo(index==25 ? .45f:1);
-                string name=index>=24 ? "guide-scrolled-"+index:index==9 ? "guide-common-bottom":index==22 ? "actions-recent-native":index==23 ? "actions-filtered-native":index<12 ? "menu-gallery-"+index : index<20 ? "settings-native-"+(index+25) : index==20 ? "main-vr-options":"pause-vr-options";
+                if(index>=24 && index<29 && options is GUI.BindingHelp scrolled) scrolled.ScrollTo(index==25 ? .45f:1);
+                string name=index==29 ? "hand-alignment-native":index>=24 ? "guide-scrolled-"+index:index==9 ? "guide-common-bottom":index==22 ? "actions-recent-native":index==23 ? "actions-filtered-native":index<12 ? "menu-gallery-"+index : index<20 ? "settings-native-"+(index+25) : index==20 ? "main-vr-options":"pause-vr-options";
                 MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,name+".png"),false,false,false);
                 next=DateTime.UtcNow.AddSeconds(1);
             }
