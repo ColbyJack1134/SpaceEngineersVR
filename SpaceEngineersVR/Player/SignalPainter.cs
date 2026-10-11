@@ -20,6 +20,8 @@ namespace SpaceEngineersVR.Player
         private static OverlayCanvas labels;
         private static ShaderResourceView textTexture;
         private static string textKey,atlas;
+        private static string[] textOwners=new string[0],textNames=new string[0],textFonts=new string[0];
+        private static Vector4[] textColors=new Vector4[0];
         private static MyAtlasTextureCoordinate[] coordinates;
         private static DateTime nextText;
         private static readonly List<NativeSprite> sprites=new List<NativeSprite>();
@@ -68,9 +70,14 @@ namespace SpaceEngineersVR.Player
                 textTexture=new ShaderResourceView(target.Device,labels.Texture);
             }
             var text=entries.SelectMany(e=>e.Labels).ToArray();
-            string names=string.Join("\n",text.Select(l=>l.Name));
-            string key=names+"\n"+string.Join("\n",text.Select(l=>l.Distance+"|"+l.Color+"|"+l.Font+"|"+l.LeftAligned+"|"+l.Bounds.Width+"|"+l.LineHeight));
-            if((textKey!=key || textRevision!=NativeSprites.Revision) && (DateTime.UtcNow>=nextText || textRevision!=NativeSprites.Revision || textKey==null || !textKey.StartsWith(names+"\n",StringComparison.Ordinal)))
+            var owners=entries.SelectMany(e=>e.Labels.Select(_=>e.Id)).ToArray();
+            var names=text.Select(l=>l.Name).ToArray();
+            var colors=text.Select(l=>l.Color).ToArray();
+            var fonts=text.Select(l=>l.Font).ToArray();
+            string key=string.Join("\n",names)+"\n"+string.Join("\n",text.Select(l=>l.Distance+"|"+l.Color+"|"+l.Font+"|"+l.LeftAligned+"|"+l.Bounds.Width+"|"+l.LineHeight));
+            bool contentChanged=!owners.SequenceEqual(textOwners,StringComparer.Ordinal) || !names.SequenceEqual(textNames,StringComparer.Ordinal) ||
+                !colors.SequenceEqual(textColors) || !fonts.SequenceEqual(textFonts,StringComparer.Ordinal);
+            if((contentChanged || textKey!=key || textRevision!=NativeSprites.Revision) && (contentChanged || DateTime.UtcNow>=nextText || textRevision!=NativeSprites.Revision))
             {
                 labels.ClearTexture(); sprites.Clear();
                 for(int i=0;i<text.Length;i++)
@@ -82,7 +89,7 @@ namespace SpaceEngineersVR.Player
                     SignalFont.Add(sprites,label.Distance,x,y+65,29,virtualWidth,label.Color,WorldMarkers.AtlasWidth,WorldMarkers.AtlasHeight,!label.LeftAligned,font:label.Font);
                 }
                 NativeSprites.Draw(labels.Texture,sprites); target.Device.ImmediateContext.GenerateMips(textTexture); textRevision=NativeSprites.Revision;
-                textKey=key; nextText=DateTime.UtcNow.AddMilliseconds(100);
+                textKey=key; textOwners=owners; textNames=names; textColors=colors; textFonts=fonts; nextText=DateTime.UtcNow.AddMilliseconds(100);
             }
             sprites.Clear();
             int labelIndex=0;
