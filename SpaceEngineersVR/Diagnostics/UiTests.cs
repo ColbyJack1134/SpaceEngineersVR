@@ -80,6 +80,53 @@ namespace SpaceEngineersVR.Diagnostics
             }
             log("PASS focused wrist menu renders and standing calibration checks.");
         }
+        public static void HudPreview(string game,string output,Action<string> log)
+        {
+            Directory.CreateDirectory(output);
+            Initialize(game,Path.Combine(output,"data"));
+            var model=WristFixture();
+            model.FoodEnabled=true; model.RadiationEnabled=true; model.Inventory="46%"; model.InventoryLevel=.46f;
+            model.BuffsEnabled=true; model.BuffLevel=3; model.Dampeners=false; model.AutoDampeners=false;
+            var notices=new[] {new Notice("This switch action is unavailable or access is denied.",NoticeStyle.Warning,.4f),new Notice("Efficient Builder - Level 3",NoticeStyle.Title),
+                new Notice("Your welding speed is now 130%.",NoticeStyle.Normal),new Notice("Missing 4 x Steel Plate to place Light Armor Block",NoticeStyle.Normal)};
+            using(var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport))
+            using(var hud=new OverlayCanvas("HUD preview",1280,560,1,false,device))
+            using(var canvas=new OverlayCanvas("Wrist preview",1024,640,1,false,device))
+            {
+                void Wrist(string name) => WristPreview(device,canvas,new SurfaceView {Id="Wrist preview",Style=SurfaceStyle.WristStatus,Width=.133f,Height=.07f,Status=model},output,name);
+                Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"foot-hud.png"));
+                Wrist("wrist-foot");
+                model.Notices=notices;
+                Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"foot-hud-notices.png"));
+                Wrist("wrist-foot-inline");
+                model.Takeover=true; Wrist("wrist-takeover");
+                model.Notices=new[] {new Notice(notices[0].Text,notices[0].Style)}; Wrist("wrist-takeover-single");
+                model.Takeover=false; model.Notices=new Notice[0];
+                model.Piloting=true; model.Selected="Gatling Gun"; model.Icons=new[] {@"Textures\GUI\Icons\Cubes\gatling_gun.dds"}; model.Ammo="2,400"; model.Dampeners=true;
+                model.Inventory="84%"; model.InventoryLevel=.84f;
+                Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"ship-hud.png"));
+                Wrist("wrist-ship");
+                model.Piloting=false; model.Selected="Enhanced Welder"; model.Icons=new[] {@"Textures\GUI\Icons\WeaponWelder.dds"}; model.Ammo="";
+                model.Inventory="46%"; model.InventoryLevel=.46f;
+                if(Plugin.Common.AssetFolder==null) Plugin.Common.SetAssetPath(Util.Util.GetDefaultAssetFolder());
+                var configField=HarmonyLib.AccessTools.Field(typeof(Plugin.Common),"<Config>k__BackingField");
+                var savedConfig=Plugin.Common.Config;
+                try
+                {
+                    using(var menu=new OverlayCanvas("Wrist menu",1024,640,1,false,device))
+                        foreach(bool quiet in new[] {false,true})
+                        {
+                            configField.SetValue(null,new Config.PluginConfig {DoNotDisturb=quiet});
+                            WristPanel.Show(0);
+                            var view=new SurfaceView {Id="Wrist preview",Style=SurfaceStyle.WristMenu,Width=.4f,Height=.225f,Status=model};
+                            view.Keys=WristPanel.Keys(null,false,false,false,true,model,false);
+                            WristPreview(device,menu,view,output,"wrist-menu"+(quiet ? "-quiet":""));
+                        }
+                }
+                finally { configField.SetValue(null,savedConfig); }
+            }
+            log("PASS HUD preview renders.");
+        }
         public static void BuildPlanner(string game,string output,Action<string> log)
         {
             Directory.CreateDirectory(output);
@@ -185,15 +232,15 @@ namespace SpaceEngineersVR.Diagnostics
                     model.Speed="0.00"; model.SpeedLevel=.00001f;
                     Render(hud,()=>EssentialHud.Paint(hud,model));
                     Save(hud.Texture,Path.Combine(output,"ship-hud-zero-speed.png"));
-                    model.Prompt="This switch action is unavailable or access is denied.";
+                    model.Notices=new[] {new Notice("This switch action is unavailable or access is denied.",NoticeStyle.Warning)};
                     Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"ship-hud-error.png"));
                     model.Piloting=false; model.Selected="Enhanced Welder"; model.Icons=new[] {@"Textures\GUI\Icons\WeaponWelder.dds"}; model.Ammo=null;
-                    model.Prompt="Select a block before adding it to the build planner";
+                    model.Notices=new[] {new Notice("Select a block before adding it to the build planner",NoticeStyle.Warning)};
                     Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"hud-error.png"));
                     string rotation=Path.Combine(output,"..","physical-renderer","native-rotation-2.png");
                     if(File.Exists(rotation))
                     {
-                        model.Selected="Light Armor Block"; model.Icons=new[] {@"Textures\GUI\Icons\Cubes\light_armor_cube.dds"}; model.Prompt=null;
+                        model.Selected="Light Armor Block"; model.Icons=new[] {@"Textures\GUI\Icons\Cubes\light_armor_cube.dds"}; model.Notices=new Notice[0];
                         Render(hud,()=>EssentialHud.Paint(hud,model));
                         using(var guide=new OverlayCanvas("rotation fixture",384,384,1,false,device))
                         using(var scene=new OverlayCanvas("building HUD fixture",2048,1536,1,false,device))
@@ -613,9 +660,9 @@ namespace SpaceEngineersVR.Diagnostics
                 WristPreview(device,canvas,wrist,output,"wrist-long-equipment-preview");
                 wrist.Status.Selected="Ship Welder"; wrist.Status.Icons=new[] {@"Textures\GUI\Icons\Cubes\Welder.dds"}; wrist.Status.Ammo=null;
                 WristPreview(device,canvas,wrist,output,"wrist-ship-tool-preview");
-                wrist.Status.Prompt="This action is unavailable or access is denied.";
+                wrist.Status.Notices=new[] {new Notice("This action is unavailable or access is denied.",NoticeStyle.Warning)};
                 WristPreview(device,canvas,wrist,output,"wrist-alert-preview");
-                wrist.Status.Prompt=null;
+                wrist.Status.Notices=new Notice[0];
                 wrist.Status.Selected=null; wrist.Status.Icons=new string[0];
                 WristPreview(device,canvas,wrist,output,"wrist-ship-empty-preview");
                 wrist.Status.Piloting=false;

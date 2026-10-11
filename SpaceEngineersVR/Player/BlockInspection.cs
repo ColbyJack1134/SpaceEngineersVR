@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Text;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Cube;
 using Sandbox.Game.Gui;
+using Sandbox.Game.Weapons;
 using Sandbox.Game.World;
 using SpaceEngineersVR.Plugin;
 using VRage.Game;
@@ -34,7 +36,7 @@ namespace SpaceEngineersVR.Player
         public static void Update()
         {
             Current=null; ConsumesSecondary=false;
-            if(WeaponHandling.ToolEquipped) return;
+            bool tool=WeaponHandling.ToolEquipped;
             var character=MySession.Static?.LocalCharacter;
             bool grip=Controls.Static.Secondary.RawPressed;
             if(!grip && !Common.Config.InspectWithoutGrip) return;
@@ -42,16 +44,23 @@ namespace SpaceEngineersVR.Player
                 MySession.Static.ControlledEntity!=character ||
                 HelmetHud.NearHead(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix) ||
                 SpatialUi.Pointing || SpatialUi.OwnsRight || CockpitTouch.OwnsRight || HandInteraction.OwnsRight || !Player.HandR.pose.isTracked) return;
-            if(!TrackedArms.TryFreePointPose(Player.HandR,out var finger) || !HandInteraction.TryInteractionRay(out var ray)) return;
-            var block=Target(ray);
-            var definition=block?.BlockDefinition ?? (PlacementControls.OwnsTools ? MyCubeBuilder.Static?.CurrentBlockDefinition : null);
+            if(!TrackedArms.TryFreePointPose(Player.HandR,out var finger)) return;
+            LineD ray;
+            if(tool) ray=HandInteraction.RayForPose(finger);
+            else if(!HandInteraction.TryInteractionRay(out ray)) return;
+            var block=(tool ? (character.CurrentWeapon as MyEngineerToolBase)?.GetTargetBlock() : null) ?? Target(ray);
+            // Projected blocks are unbuilt, so they show the build cost like a placement preview.
+            var projected=block==null ? Projected(ray) : block.CubeGrid.Projector!=null ? block : null;
+            if(projected!=null) block=null;
+            var definition=block?.BlockDefinition ?? projected?.BlockDefinition ?? (PlacementControls.OwnsTools ? MyCubeBuilder.Static?.CurrentBlockDefinition : null);
             if(definition==null) { title=text=null; return; }
-            ConsumesSecondary=grip && InputRouter.Mode==InputMode.Walking;
+            // With a tool, grip is also the secondary-action modifier and must stay live.
+            ConsumesSecondary=!tool && grip && InputRouter.Mode==InputMode.Walking;
             if(ConsumesSecondary) Controls.Static.Secondary.BlockUntilRelease();
             if(!Visible(grip,Common.Config.InspectWithoutGrip)) return;
-            if(DateTime.UtcNow>=next || previous!=block || title!=definition.DisplayNameText)
+            if(DateTime.UtcNow>=next || previous!=(block ?? projected) || title!=definition.DisplayNameText)
             {
-                previous=block;
+                previous=block ?? projected;
                 next=DateTime.UtcNow.AddMilliseconds(100);
                 if(block!=null) MySlimBlock.SetBlockComponents(info,block,character.GetInventory());
                 else MySlimBlock.SetBlockComponents(info,definition,character.GetInventory());
@@ -68,9 +77,22 @@ namespace SpaceEngineersVR.Player
         private static MySlimBlock Target(LineD ray) => Target(ray,out _);
         internal static MySlimBlock Target(LineD ray,out Vector3D point)
         {
-            var hit=MyEntities.GetIntersectionWithLine(ref ray,MySession.Static.LocalCharacter,null,ignoreChildren:false,ignoreFloatingObjects:false);
+            var character=MySession.Static.LocalCharacter;
+            var hit=MyEntities.GetIntersectionWithLine(ref ray,character,character?.CurrentWeapon as VRage.Game.Entity.MyEntity,ignoreChildren:false,ignoreFloatingObjects:false);
             point=hit.HasValue ? hit.Value.IntersectionPointInWorldSpace:ray.To;
             return hit.HasValue ? BlockForHit(hit.Value.UserObject,hit.Value.Entity):null;
+        }
+        private static readonly List<Vector3I> cells=new List<Vector3I>();
+        private static MySlimBlock Projected(LineD ray)
+        {
+            if(!MyCubeGrid.GetLineIntersection(ref ray,out var grid,out _,out _,g=>g.Projector!=null) || grid.Projector==null) return null;
+            grid.RayCastCells(ray.From,ray.To,cells);
+            foreach(var cell in cells)
+            {
+                var block=grid.GetCubeBlock(cell);
+                if(block!=null && grid.Projector.CanBuild(block,false)!=Sandbox.ModAPI.BuildCheckResult.AlreadyBuilt) return block;
+            }
+            return null;
         }
         internal static MySlimBlock BlockForHit(object geometry,VRage.ModAPI.IMyEntity entity)
         {

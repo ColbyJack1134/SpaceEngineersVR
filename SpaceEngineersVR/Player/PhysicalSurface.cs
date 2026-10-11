@@ -401,6 +401,7 @@ namespace SpaceEngineersVR.Player
                     using(var left=new StringFormat {Alignment=StringAlignment.Near,LineAlignment=StringAlignment.Center,Trimming=StringTrimming.EllipsisWord})
                         g.DrawString(key.Label,labelFont,key.Enabled ? Brushes.White:Brushes.Gray,
                             new System.Drawing.RectangleF(r.X+iconSize+26,r.Y+4,r.Width-iconSize-40,r.Height-8),left);
+                    if(key.Active) using(var pen=new Pen(Color.FromArgb(125,224,159),3)) g.DrawLine(pen,r.X+12,r.Bottom-4,r.Right-12,r.Bottom-4);
                     continue;
                 }
                 var label=key.Icons.Length>0 ? new System.Drawing.RectangleF(r.X+4,r.Bottom-40,r.Width-8,36):r;

@@ -150,6 +150,9 @@ namespace SpaceEngineersVR.Player
         internal static ActionChoice[] ClipboardActions(bool grid=true) => grid ?
             new[] { PauseAction,TerminalAction,AlignGravity,Building[21],Building[20],Building[6],Building[7],BlueprintsAction } :
             new[] { PauseAction,TerminalAction,Building[20],Building[6],Building[7],BlueprintsAction };
+        public static readonly ActionChoice DoNotDisturb=new ActionChoice("Do not disturb",()=>Common.Config.DoNotDisturb=!Common.Config.DoNotDisturb,searchTerms:"notifications quiet dnd");
+        public static readonly ActionChoice BuffsAction=new ActionChoice("Buffs",()=>MyGuiSandbox.AddScreen(MyGuiScreenGamePlay.ActiveGameplayScreen=MyGuiSandbox.CreateScreen(typeof(Sandbox.Game.Screens.MyGuiScreenBuffs))),true,
+            NativeSprites.Hud("ActiveBuff"),()=>MySession.Static!=null && SpaceEngineers.Game.EntityComponents.GameLogic.Buffs.MySurvivalBuffsProgression.BuffsEnabled,"survival buffs");
         public static readonly ActionChoice HudOptions=new ActionChoice("HUD",()=>MyGuiSandbox.AddScreen(new GUI.MyPluginConfigDialog(3)),true);
         public static bool AlternateTrigger { get; private set; }
         private static ActionChoice Native(string label, MyStringId control) => new ActionChoice(label, () => NativeActions.Pulse(control));

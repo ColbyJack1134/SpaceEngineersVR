@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using VRageMath;
 using Sandbox.Game.Screens.Helpers;
+using SpaceEngineersVR.Plugin;
 
 namespace SpaceEngineersVR.Player
 {
@@ -81,11 +82,12 @@ namespace SpaceEngineersVR.Player
                 for(int i=0;i<actions.Length;i++)
                     keys.Add(new SurfaceKey(actions[i].Label=="Hotkey keyboard" ? "Hotkeys":actions[i].Label,.02f+i%4*.245f,.16f+i/4*.22f,.23f,.20f) {
                         Action=actions[i],Icons=new[] {actions[i].Icon},Enabled=actions[i].Enabled,Active=Active(actions[i],status) });
-                var utilities=new[] {GameActions.PauseAction,GameActions.HudOptions,GameActions.Options,GameActions.Quick[10]};
-                var names=new[] {"Pause","HUD","Settings","Help"};
+                var utilities=new[] {GameActions.PauseAction,GameActions.HudOptions,GameActions.BuffsAction,GameActions.DoNotDisturb,GameActions.Quick[10]};
+                var names=new[] {"Pause","HUD","Buffs","DnD","Help"};
                 for(int i=0;i<utilities.Length;i++)
-                    keys.Add(new SurfaceKey(names[i],.02f+i*.245f,.84f,.23f,.12f) {
-                        Action=utilities[i],Icons=new[] {utilities[i].Icon},Horizontal=true });
+                    keys.Add(new SurfaceKey(names[i],.02f+i*.196f,.84f,.18f,.12f) {
+                        Action=utilities[i],Icons=new[] {utilities[i]==GameActions.DoNotDisturb ? DoNotDisturbIcon:utilities[i].Icon},Horizontal=true,Enabled=utilities[i].Enabled,
+                        Active=utilities[i]==GameActions.DoNotDisturb && Common.Config?.DoNotDisturb==true });
             }
             return keys.ToArray();
         }
@@ -98,6 +100,7 @@ namespace SpaceEngineersVR.Player
             keys.Add(new SurfaceKey("Play/pause",0,0,1,1) {Action=new ActionChoice("Play/pause",DesktopCapture.PlayPause),Invisible=true});
             return keys.ToArray();
         }
+        internal static string DoNotDisturbIcon => System.IO.Path.Combine(Common.AssetFolder ?? "","Icons","dnd.dds");
         private static readonly ActionChoice SeatAction=new ActionChoice("Seat panel",OpenSeat,
             icon:NativeSprites.Hud("AdminMenu"),enabled:()=>SeatFit.Eligible(SeatFit.Seat));
         internal static readonly string[] Categories={"All","Suit","Ship","Build","VR"};

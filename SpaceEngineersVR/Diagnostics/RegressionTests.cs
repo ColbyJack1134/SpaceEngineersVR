@@ -23,6 +23,23 @@ namespace SpaceEngineersVR.Diagnostics
         {
             if (double.IsNaN(actual) || Math.Abs(actual-expected)>epsilon) throw new Exception(name+": "+actual+" != "+expected);
         }
+        private static void NoticeTakeoverCheck()
+        {
+            var t0=new DateTime(2026,1,1); DateTime At(double s) => t0.AddSeconds(s);
+            void Check(bool value,string label) { if(!value) throw new Exception("Notice takeover: "+label); }
+            var takeover=new NoticeTakeover();
+            Check(takeover.Update(At(0),true,true) && takeover.Update(At(2.9),false,true) && !takeover.Update(At(3.1),false,true),"single notice lasts 3 s");
+            takeover.Reset();
+            takeover.Update(At(0),true,true); takeover.Update(At(2),true,true);
+            Check(takeover.Update(At(4.9),false,true) && !takeover.Update(At(5.1),false,true),"new notice extends to 3 s after it");
+            takeover.Reset();
+            for(int i=0;i<=5;i++) takeover.Update(At(i),true,true);
+            Check(takeover.Update(At(5.9),false,true) && !takeover.Update(At(6.1),false,true),"continuous takeover capped at 6 s");
+            Check(!takeover.Update(At(7),true,true) && takeover.Update(At(8.1),false,true),"notice during break waits for it");
+            takeover.Reset();
+            takeover.Update(At(0),true,true);
+            Check(!takeover.Update(At(1),false,false),"disabled takeover hides at once");
+        }
         public static void Run(Action<string> log)
         {
             KeyboardInputTests.Run(log);
@@ -358,6 +375,10 @@ namespace SpaceEngineersVR.Diagnostics
                 int count=harmony.GetPatchedMethods().Count();
                 if(count<3) throw new Exception("Expected input, weapon and aiming patches; found "+count);
                 log("PASS installed "+count+" gameplay Harmony patches (no game/VR execution); render patching is tested in-game");
+                if(!NativeNotices.Available) throw new Exception("Native HUD notification fields changed");
+                log("PASS native notices: installed native notification fields resolved");
+                NoticeTakeoverCheck();
+                log("PASS notice takeover: 3 s per new notice, extended up to 6 s, 2 s break, held notices resume, disabled immediately");
             }
             finally { harmony.UnpatchAll(harmony.Id); }
         }

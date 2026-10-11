@@ -12,6 +12,7 @@ using Sandbox.Game.Entities;
 using Sandbox.Game.Gui;
 using Sandbox.Game.Screens.Helpers;
 using Sandbox.Game.World;
+using SpaceEngineers.Game.EntityComponents.GameLogic.Buffs;
 using SpaceEngineersVR.Plugin;
 using SpaceEngineersVR.Util;
 using Valve.VR;
@@ -27,7 +28,7 @@ namespace SpaceEngineersVR.Player
         {
             public float[] Levels;
             public string[] Values, Icons;
-            public string Selected, Ammo, Prompt, Speed, NaturalGravity, ArtificialGravity;
+            public string Selected, Ammo, Speed, NaturalGravity, ArtificialGravity;
             public bool Helmet, Jetpack, Dampeners, AutoDampeners, Alternate, Flying;
             public Vector3 Down;
             public bool Piloting;
@@ -37,7 +38,13 @@ namespace SpaceEngineersVR.Player
             public bool FoodEnabled,RadiationEnabled,RadiationImmunity,OxygenRefilling,HydrogenRefilling;
             public float FoodLevel,RadiationLevel;
             public string Food,Radiation,OxygenBottles,HydrogenBottles,EnvironmentOxygen,Temperature,ShipMass;
-            public bool SameAs(View other) => other!=null && Selected==other.Selected && Ammo==other.Ammo && Prompt==other.Prompt &&
+            public float InventoryLevel;
+            public string Inventory;
+            public bool InventoryFull,BuffsEnabled;
+            public int BuffLevel;
+            public Notice[] Notices=new Notice[0];
+            public bool Takeover;
+            public bool SameAs(View other) => other!=null && Selected==other.Selected && Ammo==other.Ammo && Takeover==other.Takeover &&
                 Speed==other.Speed && SpeedLevel==other.SpeedLevel && ShipHydrogenLevel==other.ShipHydrogenLevel &&
                 ShipBatteryLevel==other.ShipBatteryLevel && ShipLoadLevel==other.ShipLoadLevel && NaturalGravity==other.NaturalGravity && ArtificialGravity==other.ArtificialGravity && Helmet==other.Helmet && Jetpack==other.Jetpack &&
                 Dampeners==other.Dampeners && AutoDampeners==other.AutoDampeners && Alternate==other.Alternate && Flying==other.Flying && Down==other.Down &&
@@ -49,7 +56,9 @@ namespace SpaceEngineersVR.Player
                 FoodLevel==other.FoodLevel && RadiationLevel==other.RadiationLevel && Food==other.Food && Radiation==other.Radiation &&
                 OxygenBottles==other.OxygenBottles && HydrogenBottles==other.HydrogenBottles &&
                 OxygenRefilling==other.OxygenRefilling && HydrogenRefilling==other.HydrogenRefilling &&
-                EnvironmentOxygen==other.EnvironmentOxygen && Temperature==other.Temperature;
+                EnvironmentOxygen==other.EnvironmentOxygen && Temperature==other.Temperature &&
+                InventoryLevel==other.InventoryLevel && Inventory==other.Inventory && InventoryFull==other.InventoryFull &&
+                BuffsEnabled==other.BuffsEnabled && BuffLevel==other.BuffLevel && Notices.SequenceEqual(other.Notices);
         }
         private static volatile View snapshot;
         public static View Current => snapshot;
@@ -66,6 +75,9 @@ namespace SpaceEngineersVR.Player
         private static readonly Color[] colors={ Color.FromArgb(125,224,159),Color.FromArgb(115,207,247),Color.FromArgb(246,178,101),Color.FromArgb(244,216,120) };
         private static readonly string[] stats = { "player_health", "player_oxygen", "player_hydrogen", "player_energy" };
         private static readonly string[] art = { "HealthIcon", "OxygenIcon", "HydrogenIcon", "EnergyIcon" };
+        private static readonly Type[] buffs={typeof(MyMaxHealthBuff),typeof(MyWeldingSpeedBuff),
+            typeof(MyGrindingSpeedBuff),typeof(MyMovementSpeedBuff),
+            typeof(MyOxygenConsumptionRateBuff)};
         private static int iconRevision;
         private static readonly RenderRecovery recovery=new RenderRecovery("Essential HUD");
         private static bool failed => recovery.Failed;
@@ -74,6 +86,14 @@ namespace SpaceEngineersVR.Player
 
         private static string notice;
         private static DateTime noticeUntil;
+        private static readonly NoticeTakeover takeover=new NoticeTakeover();
+        private static readonly Dictionary<string,DateTime> seen=new Dictionary<string,DateTime>();
+        private sealed class Entry { public Notice Notice; public DateTime? Gone; }
+        // Ordered by first appearance, so the newest notice is last.
+        private static readonly List<Entry> entries=new List<Entry>();
+        private const int VitalY=422,ShipY=VitalY-115;
+        internal const double NoticeRepeat=20,NoticeFade=1;
+        internal const int MaxNotices=5;
         public static void Notify(string message) { notice = message; noticeUntil = DateTime.UtcNow.AddSeconds(3); }
         private static VRage.ModAPI.IMyHudStat Stat(string id) => MyHud.Static == null ? null : MyHud.Stats?.GetStat(MyStringHash.GetOrCompute(id));
         private static bool On(string id) => Stat(id)?.CurrentValue > 0;
@@ -128,8 +148,7 @@ namespace SpaceEngineersVR.Player
                 Dampeners=On("controlled_dampeners"), AutoDampeners=Stat("controlled_dampeners")?.CurrentValue==.5f, Alternate=GameActions.AlternateTrigger && !PlacementControls.OwnsTools, Flying=InputRouter.Flying,
                 Speed=Stat("controlled_speed")?.GetValueString() ?? "--",
                 SpeedLevel=Level("controlled_speed"),
-                NaturalGravity=Stat("natural_gravity")?.GetValueString(), ArtificialGravity=Stat("artificial_gravity")?.GetValueString(),
-                Prompt=DateTime.UtcNow < noticeUntil ? notice : null };
+                NaturalGravity=Stat("natural_gravity")?.GetValueString(), ArtificialGravity=Stat("artificial_gravity")?.GetValueString() };
             view.Piloting=piloting;
             if(piloting) ReadShipEquipment(ship.GridSelectionSystem?.CurrentGuns,view,ResolveDefinition);
             view.ShipHydrogen=hydrogen; view.ShipBattery=battery; view.ShipLoad=Percent("controlled_power_usage");
@@ -150,6 +169,14 @@ namespace SpaceEngineersVR.Player
             view.Food=Stat("player_food")?.GetValueString(); view.FoodLevel=Level("player_food");
             view.Radiation=Stat("player_radiation")?.GetValueString(); view.RadiationLevel=Level("player_radiation");
             view.RadiationImmunity=On("player_radiation_immunity");
+            view.Inventory=Percent("player_inventory_capacity"); view.InventoryLevel=Level("player_inventory_capacity");
+            view.InventoryFull=On("player_inventory_full");
+            view.BuffsEnabled=MySurvivalBuffsProgression.BuffsEnabled;
+            if(view.BuffsEnabled)
+                foreach(var type in buffs)
+                    if(character.Components.TryGet(type,out var component) && component is MySurvivalBuffBase buff)
+                        view.BuffLevel=Math.Max(view.BuffLevel,buff.Level);
+            ReadNotices(view);
             for (int i=0;i<4;i++)
             {
                 var stat=Stat(stats[i]);
@@ -190,7 +217,7 @@ namespace SpaceEngineersVR.Player
         {
             target.Clear(Color.Transparent);
             var g=target.Graphics;
-            const int left=55,right=1080,lower=8,vitalY=422,shipY=vitalY-115,valueY=vitalY+65,environmentY=valueY+46;
+            const int left=55,right=1080,lower=8,vitalY=VitalY,shipY=ShipY,valueY=vitalY+65,environmentY=valueY+46;
             if(current.Piloting)
             {
                 Gauge(target,"Battery",current.ShipBatteryLevel,Compact(current.ShipBattery),left,shipY,colors[3]);
@@ -221,7 +248,8 @@ namespace SpaceEngineersVR.Player
             Gauge(target,art[2],current.Levels[2],current.Values[2],left+300,vitalY,colors[2]);
             Bottles(target,current.OxygenBottles,current.OxygenRefilling,left+200,vitalY+43,colors[1]);
             Bottles(target,current.HydrogenBottles,current.HydrogenRefilling,left+300,vitalY+43,colors[2]);
-            if(current.FoodEnabled) Gauge(target,"FoodIcon",current.FoodLevel,current.Food ?? "--",left+400,vitalY,Color.Tan);
+            InventoryGauge(target,current,left+400,vitalY);
+            if(current.FoodEnabled) Gauge(target,"FoodIcon",current.FoodLevel,current.Food ?? "--",left+500,vitalY,Color.Tan);
             float environmentX=EnvironmentReadout(target,"OxygenIcon",current.EnvironmentOxygen,left,environmentY,colors[1]);
             environmentX=EnvironmentReadout(target,"OusideTemp",current.Temperature,environmentX,environmentY,Color.LightCyan);
             if(current.RadiationEnabled && current.RadiationLevel>0)
@@ -234,13 +262,23 @@ namespace SpaceEngineersVR.Player
                 if(current.RadiationImmunity) { target.Icon(NativeSprites.Hud("RadiationImmunityIcon"),environmentX,environmentY,24,Color.LightCyan); environmentX+=36; }
                 environmentX+=12;
             }
+            environmentX=BuffReadout(target,current,environmentX,environmentY);
             Speedometer(target,current,right,374+lower);
             GravityReadout(target,current,900,451,1.15f);
             float equipmentX=Math.Max(430,environmentX+14);
             EquipmentReadout(target,current,equipmentX,514,Math.Max(0,900-equipmentX),42,true);
-            if(!string.IsNullOrEmpty(current.Prompt)) g.DrawString(current.Prompt,small,Brushes.LightSalmon,
-                new System.Drawing.RectangleF(left,(current.Piloting ? shipY : vitalY)-64,480,56));
+            NoticeLines(target,current);
         }
+        private static void NoticeLines(OverlayCanvas target,View current)
+        {
+            int bottom=(current.Piloting ? ShipY : VitalY)-46;
+            using(var format=new StringFormat { FormatFlags=StringFormatFlags.NoWrap,Trimming=StringTrimming.EllipsisCharacter })
+                for(int i=current.Notices.Length-1,row=0;i>=0;i--,row++)
+                    using(var brush=new SolidBrush(NoticeColor(current.Notices[i])))
+                        target.Graphics.DrawString(current.Notices[i].Text,small,brush,new System.Drawing.RectangleF(55,bottom-row*28,700,28),format);
+        }
+        private static Color NoticeColor(Notice notice) => Color.FromArgb((int)(255*MathHelper.Clamp(notice.Alpha,0,1)),
+            notice.Style==NoticeStyle.Warning ? Color.LightSalmon : notice.Style==NoticeStyle.Title ? colors[3] : Color.LightCyan);
         private static void Speedometer(OverlayCanvas target,View current,int x,int y)
         {
             int segments=SpeedSegments(current.Speed,current.SpeedLevel);
@@ -257,34 +295,41 @@ namespace SpaceEngineersVR.Player
             float logicalHeight=width>0 && height>0 ? 640*height/width:337;
             target.DrawAt(0,2,target.Width/640f,(target.Height-4)/logicalHeight,()=> {
                 var g=target.Graphics;
+                if(s.Takeover) { PaintTakeover(target,s,logicalHeight); return; }
                 StateIcon(target,"PlayerHelmetOn",s.Helmet,40,3);
                 StateIcon(target,s.Piloting ? "GridPowerOnCenter":"JetpackOff",s.Piloting ? s.ShipPower:s.Jetpack,122,3);
                 StateIcon(target,s.Piloting ? "GridBroadcastingOnCenter":"PlayerBroadcastingOnCenter",s.Piloting ? s.ShipBroadcasting:s.Broadcasting,204,3);
                 StateIcon(target,"LightCenter",s.Flashlight,286,3);
                 StateIcon(target,s.Piloting ? "HandbrakeCenter":"Magboot",s.Piloting ? s.ShipPark:s.Magboots,368,3);
                 int[] order={0,3,1,2};
-                for(int i=0;i<4;i++) Gauge(target,art[order[i]],s.Levels?[order[i]] ?? 0,s.Values?[order[i]] ?? "--",22+i*88,52,colors[order[i]]);
-                Bottles(target,s.OxygenBottles,s.OxygenRefilling,198,95,colors[1]);
-                Bottles(target,s.HydrogenBottles,s.HydrogenRefilling,286,95,colors[2]);
+                // On foot the personal gauges wrap to the empty second row; piloting needs that row for ship gauges.
+                bool wrap=!s.Piloting;
+                int pitch=!wrap && s.FoodEnabled ? 78 : 88;
+                for(int i=0;i<4;i++) Gauge(target,art[order[i]],s.Levels?[order[i]] ?? 0,s.Values?[order[i]] ?? "--",22+i*pitch,52,colors[order[i]]);
+                Bottles(target,s.OxygenBottles,s.OxygenRefilling,22+2*pitch,95,colors[1]);
+                Bottles(target,s.HydrogenBottles,s.HydrogenRefilling,22+3*pitch,95,colors[2]);
                 Speedometer(target,s,552,36);
                 GravityReadout(target,s,490,180);
-                if(s.FoodEnabled) Gauge(target,"FoodIcon",s.FoodLevel,s.Food ?? "--",374,52,Color.Tan);
-                if(string.IsNullOrEmpty(s.Prompt))
+                int extraX=wrap ? 22:22+4*pitch,extraY=wrap ? 153:52;
+                InventoryGauge(target,s,extraX,extraY);
+                if(s.FoodEnabled) Gauge(target,"FoodIcon",s.FoodLevel,s.Food ?? "--",extraX+pitch,extraY,Color.Tan);
+                if(s.Notices.Length==0)
                 {
                     float environmentX=EnvironmentReadout(target,"OxygenIcon",s.EnvironmentOxygen,18,310,colors[1]);
                     environmentX=EnvironmentReadout(target,"OusideTemp",s.Temperature,environmentX,310,Color.LightCyan);
                     if(s.RadiationEnabled)
                     {
                         environmentX=EnvironmentReadout(target,"RadiationIcon",s.Radiation,environmentX,310,Color.Goldenrod);
-                        if(s.RadiationImmunity) target.Icon(NativeSprites.Hud("RadiationImmunityIcon"),environmentX,310,23,Color.LightCyan);
+                        if(s.RadiationImmunity) { target.Icon(NativeSprites.Hud("RadiationImmunityIcon"),environmentX,310,23,Color.LightCyan); environmentX+=47; }
                     }
+                    BuffReadout(target,s,environmentX,310);
                 }
                 if(s.Piloting)
                 {
                     EquipmentReadout(target,s,18,252,374,48);
                     Gauge(target,"Battery",s.ShipBatteryLevel,Compact(s.ShipBattery),22,153,colors[3]);
-                    Gauge(target,"EnergyIcon",s.ShipLoadLevel,s.ShipLoad,110,153,colors[3],false);
-                    Gauge(target,"HydrogenIcon",s.ShipHydrogenLevel,Compact(s.ShipHydrogen),198,153,colors[2]);
+                    Gauge(target,"EnergyIcon",s.ShipLoadLevel,s.ShipLoad,22+pitch,153,colors[3],false);
+                    Gauge(target,"HydrogenIcon",s.ShipHydrogenLevel,Compact(s.ShipHydrogen),22+2*pitch,153,colors[2]);
                     using(var rightAligned=new StringFormat { Alignment=StringAlignment.Far,FormatFlags=StringFormatFlags.NoWrap,Trimming=StringTrimming.EllipsisCharacter })
                     {
                         g.DrawString(s.ShipBattery ?? "--",small,Brushes.LightCyan,new System.Drawing.RectangleF(396,234,226,26),rightAligned);
@@ -296,9 +341,52 @@ namespace SpaceEngineersVR.Player
                     }
                 }
                 else EquipmentReadout(target,s,18,244,604,56);
-                if(!string.IsNullOrEmpty(s.Prompt)) g.DrawString(s.Prompt,small,Brushes.LightSalmon,new System.Drawing.RectangleF(18,307,605,28));
+                if(s.Notices.Length>0)
+                    using(var brush=new SolidBrush(NoticeColor(s.Notices.Last())))
+                    using(var format=new StringFormat { FormatFlags=StringFormatFlags.NoWrap,Trimming=StringTrimming.EllipsisCharacter })
+                        g.DrawString(s.Notices.Last().Text,small,brush,new System.Drawing.RectangleF(18,307,605,28),format);
             });
             target.Graphics.FillRectangle(Brushes.White,1020,636,4,4);
+        }
+        private static void PaintTakeover(OverlayCanvas target,View s,float height)
+        {
+            var g=target.Graphics;
+            using(var title=new Font("Segoe UI",34,FontStyle.Bold,GraphicsUnit.Pixel))
+            using(var body=new Font("Segoe UI",30,FontStyle.Regular,GraphicsUnit.Pixel))
+            using(var format=new StringFormat { Alignment=StringAlignment.Near,Trimming=StringTrimming.EllipsisWord })
+            {
+                var sizes=s.Notices.Select(n=>g.MeasureString(n.Text,n.Style==NoticeStyle.Title ? title:body,600,format).Height+10).ToArray();
+                float y=Math.Max(8,(height-sizes.Sum())/2);
+                for(int i=0;i<s.Notices.Length && y<height;i++)
+                {
+                    using(var brush=new SolidBrush(NoticeColor(s.Notices[i])))
+                        g.DrawString(s.Notices[i].Text,s.Notices[i].Style==NoticeStyle.Title ? title:body,brush,new System.Drawing.RectangleF(20,y,600,Math.Min(sizes[i],height-y)),format);
+                    y+=sizes[i];
+                }
+            }
+        }
+        private static void ReadNotices(View view)
+        {
+            var current=NativeNotices.Read();
+            var now=DateTime.UtcNow;
+            if(now<noticeUntil) current.Insert(0,new Notice(notice,NoticeStyle.Warning));
+            bool fresh=false;
+            foreach(var entry in entries) if(entry.Gone==null && current.All(n=>n.Text!=entry.Notice.Text)) entry.Gone=now;
+            foreach(var item in current)
+            {
+                var entry=entries.FirstOrDefault(e=>e.Notice.Text==item.Text);
+                if(entry==null) entries.Add(new Entry {Notice=item});
+                else entry.Gone=null;
+                if(!seen.TryGetValue(item.Text,out var last) || (now-last).TotalSeconds>NoticeRepeat) fresh=true;
+                seen[item.Text]=now;
+            }
+            entries.RemoveAll(e=>e.Gone.HasValue && (now-e.Gone.Value).TotalSeconds>=NoticeFade);
+            if(entries.Count>MaxNotices) entries.RemoveRange(0,entries.Count-MaxNotices);
+            foreach(string old in seen.Where(p=>(now-p.Value).TotalSeconds>NoticeRepeat).Select(p=>p.Key).ToArray()) seen.Remove(old);
+            // Alpha steps of 0.1 limit how often a fade republishes the HUD.
+            view.Notices=entries.Select(e=>new Notice(e.Notice.Text,e.Notice.Style,
+                e.Gone.HasValue ? (float)Math.Round(1-(now-e.Gone.Value).TotalSeconds/NoticeFade,1) : 1)).ToArray();
+            view.Takeover=takeover.Update(now,fresh,entries.Count>0 && !Common.Config.DoNotDisturb);
         }
         private static void GravityReadout(OverlayCanvas target,View s,float x,float y,float scale=1)
         {
@@ -375,6 +463,22 @@ namespace SpaceEngineersVR.Player
             target.Graphics.DrawString(value,small,Brushes.LightCyan,x+25,y-2);
             return x+25+target.Graphics.MeasureString(value,small).Width+24;
         }
+        private static void InventoryGauge(OverlayCanvas target,View s,int x,int y)
+        {
+            if(string.IsNullOrEmpty(s.Inventory)) return;
+            // Native HUD turns the backpack bar red above 79 percent.
+            var color=s.InventoryFull || s.InventoryLevel>.79f ? Color.OrangeRed : Color.FromArgb(176,196,222);
+            Gauge(target,"Backpack",s.InventoryLevel,s.Inventory,x,y,color,false);
+        }
+        private static float BuffReadout(OverlayCanvas target,View s,float x,int y)
+        {
+            if(!s.BuffsEnabled) return x;
+            var color=s.BuffLevel>0 ? Color.FromArgb(244,216,120) : Color.FromArgb(120,170,195,210);
+            target.Icon(NativeSprites.Hud("ActiveBuff"),x,y-1,22,24,new Vector4(34f/192,23f/192,124f/192,134f/192),color);
+            string level=s.BuffLevel.ToString(CultureInfo.InvariantCulture);
+            target.Graphics.DrawString(level,small,Brushes.LightCyan,x+27,y-2);
+            return x+27+target.Graphics.MeasureString(level,small).Width+24;
+        }
         private static string Compact(string value) => value==null ? "--" : value.StartsWith("NO ") ? "--" : value.Split(' ')[0];
         internal static int SpeedSegments(string displayed,float level)
         {
@@ -400,6 +504,7 @@ namespace SpaceEngineersVR.Player
             Arc(target.Graphics,Color.FromArgb(65,color),x,y,60,60,135,270,4);
             if(level>0) Arc(target.Graphics,color,x,y,60,60,135,270*MathHelper.Clamp(level,0,1),4);
             if(icon=="Battery") target.Icon(NativeSprites.Hud(icon),x+17,y+21,26,13,new Vector4(27f/128,45f/128,73f/128,37f/128),color);
+            else if(icon=="Backpack") target.Icon(NativeSprites.Hud(icon),x+21,y+15,18,26,new Vector4(0,0,1,1),color);
             else target.Icon(NativeSprites.Hud(icon),x+17,y+15,26,color);
             target.Graphics.DrawString((value ?? "--").Replace("%",""),small,Brushes.LightCyan,new System.Drawing.RectangleF(x-10,y+65,80,29),centered);
         }
@@ -466,7 +571,7 @@ namespace SpaceEngineersVR.Player
             }
             catch (Exception ex) { drawn=null; recovery.Fail(ex,"Essential HUD disabled"); RenderRecovery.Quietly(()=>canvas?.Hide()); }
         }
-        public static void Reset() { snapshot=null; notice=null; nextSample=DateTime.MinValue; }
+        public static void Reset() { snapshot=null; notice=null; nextSample=DateTime.MinValue; seen.Clear(); entries.Clear(); takeover.Reset(); NativeNotices.Reset(); }
         public static void Hide() => canvas?.Hide();
     }
 }
