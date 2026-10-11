@@ -50,6 +50,22 @@ namespace SpaceEngineersVR.Diagnostics
                     update.Invoke(null,null);
                     if(snapshot.GetValue(null)!=null) throw new Exception("Respawn retained the previous HUD snapshot");
                 }
+                var armsOwner=AccessTools.Field(typeof(TrackedArms),"owner");
+                var fitOwner=AccessTools.Field(typeof(BodyFit),"owner");
+                var previousArmsOwner=armsOwner.GetValue(null); var previousFitOwner=fitOwner.GetValue(null);
+                try
+                {
+                    armsOwner.SetValue(null,null); fitOwner.SetValue(null,null);
+                    TrackedArms.Restore(null);
+                    BodyFit.Restore(null);
+                }
+                finally { armsOwner.SetValue(null,previousArmsOwner); fitOwner.SetValue(null,previousFitOwner); }
+                if(Main.CanResumeMenu(true,false,false,false,true,0) ||
+                    Main.CanResumeMenu(true,true,true,true,true,0) ||
+                    Main.CanResumeMenu(true,true,true,false,false,0) ||
+                    Main.CanResumeMenu(true,true,true,false,true,2) ||
+                    !Main.CanResumeMenu(true,true,true,false,true,0))
+                    throw new Exception("VR menu recovery ignored respawn readiness or retry limit");
             }
             finally
             {
@@ -58,7 +74,7 @@ namespace SpaceEngineersVR.Diagnostics
                 session.SetValue(null,previousSession); snapshot.SetValue(null,previousSnapshot); sample.SetValue(null,previousSample);
                 Main.WorldAvailable=previousWorld; character=null; controlled=null; dead=false;
             }
-            log("PASS HUD lifecycle: missing character, missing control and death clear stale HUD before sampling throttle");
+            log("PASS respawn lifecycle: missing character, missing control and death clear stale HUD; empty arm/body owners restore safely");
         }
     }
 }

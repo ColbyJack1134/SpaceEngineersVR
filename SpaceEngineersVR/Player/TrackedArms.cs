@@ -29,7 +29,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Restore(MyCharacter character)
         {
-            if(owner!=character) return;
+            if(character==null || owner!=character) return;
             // Animation workers own the inactive buffer; restore only the displayed bones.
             var bones=character.AnimationController.CharacterBones;
             if (bones!=null && buffers.TryGetValue(bones, out var pair))

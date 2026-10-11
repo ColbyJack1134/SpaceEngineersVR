@@ -410,7 +410,8 @@ float4 PS(P p):SV_TARGET {
                     DrawEye(targets[eye],which,size,hands,meshes,false);
                     Matrix view=Matrix.Invert(OpenVR.System.GetEyeToHeadTransform(which).ToMatrix()*Player.Headset.renderPose.deviceToAbsolute.matrix);
                     float l=0,r=0,t=0,b=0; OpenVR.System.GetProjectionRaw(which,ref l,ref r,ref t,ref b);
-                    SpatialUi.Draw(eyes[eye],view,VrMath.Projection(l,r,t,b,.03),tracking:true);
+                    if(!Main.MenuFallback)
+                        SpatialUi.Draw(eyes[eye],view,VrMath.Projection(l,r,t,b,.03),tracking:true);
                     FloatingKeyboard.Draw(eyes[eye],which);
                     var texture=new Texture_t { eColorSpace=EColorSpace.Gamma,eType=ETextureType.DirectX,handle=eyes[eye].NativePointer };
                     var bounds=new VRTextureBounds_t { uMax=1,vMax=1 };

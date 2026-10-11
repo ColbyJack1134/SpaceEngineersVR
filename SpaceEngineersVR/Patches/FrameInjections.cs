@@ -71,10 +71,16 @@ namespace SpaceEngineersVR.Patches
         private static void BeforePresent()
         {
             presentStart=0;
-            if (!Main.VrActive) return;
+            if (!Main.VrPresent) return;
             try
             {
                 GetPoses();
+                if(Main.MenuFallback)
+                {
+                    VRGUIManager.Draw();
+                    VRGUIManager.SubmitMenuBackground();
+                    return;
+                }
                 Player.GpuTiming.Begin(Player.GpuTiming.Area.Hud);
                 Player.NativeSprites.Poll();
                 VRGUIManager.Draw();
@@ -94,7 +100,7 @@ namespace SpaceEngineersVR.Patches
             Player.GpuTiming.EndFrame();
             Player.RenderPerformance.Sample(Main.VrActive && drewStereo && Main.WorldAvailable && !Main.MenuOpen);
             Player.StereoRenderState.End();
-            if (Main.VrActive) OpenVR.Compositor.PostPresentHandoff();
+            if (Main.VrPresent) OpenVR.Compositor.PostPresentHandoff();
             posesAcquired = drewStereo = false;
         }
     }

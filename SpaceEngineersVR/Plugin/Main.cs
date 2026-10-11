@@ -31,15 +31,32 @@ namespace SpaceEngineersVR.Plugin
 
         private static volatile bool failed = true;
         public static bool VrActive => !failed;
+        internal static bool MenuFallback => menuFallback;
+        internal static bool VrPresent => !failed || menuFallback;
         public static volatile bool MenuOpen = true;
         public static volatile bool ShowDesktopPanel;
         public static volatile bool WorldAvailable;
         private static volatile bool cleanupRequested;
+        private static volatile bool menuFallback;
+        private static object failedSession,failedCharacter,failedControl;
+        private static bool fallbackSawDialog;
+        private static int recoveryAttempts;
         public static void Fail(Exception error, string context)
         {
+            menuFallback = false;
             failed = true;
             cleanupRequested = true;
             Logger.Critical(error, context);
+            MyLog.Default.WriteLine("SEVR: " + context + ": " + error);
+        }
+        internal static void FailToMenu(Exception error, string context)
+        {
+            if(failed) { Fail(error, context); return; }
+            var session=MySession.Static;
+            failedSession=session; failedCharacter=session?.LocalCharacter; failedControl=session?.ControlledEntity;
+            fallbackSawDialog=false;
+            WorldAvailable=false; MenuOpen=true; menuFallback=true; failed=true; cleanupRequested=true;
+            Logger.Critical(error, context+"; VR menu remains available");
             MyLog.Default.WriteLine("SEVR: " + context + ": " + error);
         }
         private bool openVrInitialized;
@@ -156,6 +173,7 @@ namespace SpaceEngineersVR.Plugin
                 cleanupRequested = false;
                 try
                 {
+                    Player.InputRouter.Reset();
                     Player.ToolbarWheel.Close(resume:false);
                     Player.MenuKeyboard.Close();
                     Player.BodyProximity.Reset();
@@ -167,13 +185,19 @@ namespace SpaceEngineersVR.Plugin
                     Player.CockpitButtons.Reset();
                     Player.ThirdPersonView.Reset();
                     Player.NativeGloves.Reset();
-                    VRGUIManager.Hide();
+                    if(!menuFallback) VRGUIManager.Hide();
                     Player.EssentialHud.Hide();
                     Player.BuildOrientationHud.Hide();
                     Player.PerformanceHud.Hide();
                     Player.ToolbarWheel.Hide();
                 }
                 catch (Exception ex) { Logger.Critical(ex, "VR failure cleanup"); }
+            }
+            if(menuFallback)
+            {
+                try { UpdateFallbackMenu(); }
+                catch(Exception ex) { Fail(ex,"VR menu recovery stopped"); }
+                return;
             }
             if (!failed)
             {
@@ -190,10 +214,39 @@ namespace SpaceEngineersVR.Plugin
                 }
                 catch (Exception ex)
                 {
-                    Fail(ex, "Update failed");
+                    FailToMenu(ex, "Update failed");
                 }
             }
         }
+
+        private static void UpdateFallbackMenu()
+        {
+            var session=MySession.Static;
+            bool dialog=VRGUIManager.IsAnyDialogOpen() || Player.MenuKeyboard.Standalone;
+            fallbackSawDialog |= dialog;
+            bool changed=!ReferenceEquals(session,failedSession) || !ReferenceEquals(session?.LocalCharacter,failedCharacter) ||
+                !ReferenceEquals(session?.ControlledEntity,failedControl) || fallbackSawDialog;
+            if(CanResumeMenu(session!=null && Sandbox.Game.Gui.MyGuiScreenGamePlay.Static?.LoadingDone==true,
+                session?.LocalCharacter?.IsDead==false,session?.ControlledEntity?.Entity!=null,dialog,changed,recoveryAttempts))
+            {
+                ResetWorldState();
+                recoveryAttempts++;
+                failedSession=failedCharacter=failedControl=null;
+                menuFallback=false; failed=false; WorldAvailable=true; MenuOpen=false;
+                Logger.Info("VR gameplay resumed after menu recovery");
+                return;
+            }
+            WorldAvailable=false; MenuOpen=true;
+            Player.Player.MainUpdate();
+            Player.InputRouter.Update();
+            Player.Controls.Static.Poll(Player.InputMode.Menu);
+            Player.FloatingMenu.Update();
+            Player.FloatingKeyboard.Update();
+            Player.MenuPointer.Update();
+        }
+
+        internal static bool CanResumeMenu(bool worldReady,bool characterAlive,bool controlled,bool dialog,bool changed,int attempts) =>
+            worldReady && characterAlive && controlled && !dialog && changed && attempts<2;
 
         private bool Initialize()
         {
@@ -353,6 +406,7 @@ namespace SpaceEngineersVR.Plugin
 
         public void AfterLoadedWorld()
         {
+            recoveryAttempts=0;
             ResetWorldState();
             Logger.Info("Loading SE game");
             Player.Player.Headset.RequestRecenter();
@@ -361,6 +415,7 @@ namespace SpaceEngineersVR.Plugin
 
         public void UnloadingWorld()
         {
+            recoveryAttempts=0;
             WorldAvailable = false;
             MenuOpen = true;
             Player.MenuKeyboard.Close();

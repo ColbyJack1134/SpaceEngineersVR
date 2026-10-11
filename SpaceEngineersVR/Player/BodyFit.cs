@@ -53,7 +53,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Restore(MyCharacter character)
         {
-            if(owner==character && character.AnimationController.CharacterBones!=null && poses.TryGetValue(character.AnimationController.CharacterBones,out var pose)) Restore(pose);
+            if(character!=null && owner==character && character.AnimationController.CharacterBones!=null && poses.TryGetValue(character.AnimationController.CharacterBones,out var pose)) Restore(pose);
         }
         private static void Restore(Pose pose)
         {

@@ -14,7 +14,7 @@ namespace SpaceEngineersVR.Patches
             __state=MyFakes.FORCE_SOFTWARE_MOUSE_DRAW;
             // Use the engine's own cursor texture, hotspot, hover state and UI scaling.
             // The hardware cursor otherwise never reaches the texture shown in VR.
-            if(Main.VrActive && Main.MenuOpen) MyFakes.FORCE_SOFTWARE_MOUSE_DRAW=true;
+            if(Main.VrPresent && Main.MenuOpen) MyFakes.FORCE_SOFTWARE_MOUSE_DRAW=true;
         }
         [HarmonyFinalizer]
         private static void Restore(bool __state) { MyFakes.FORCE_SOFTWARE_MOUSE_DRAW=__state; }

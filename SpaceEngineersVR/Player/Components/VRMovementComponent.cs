@@ -82,7 +82,7 @@ namespace SpaceEngineersVR.Player.Components
                 if(ThirdPersonView.Manipulating) StopTools(inputOwner);
                 else ControlCommonFunctions();
             }
-            catch (System.Exception ex) { StopInput(); Main.Fail(ex, "VR input stopped"); }
+            catch (System.Exception ex) { StopInput(); Main.FailToMenu(ex, "VR input stopped"); }
         }
 
         public override void UpdateAfterSimulation()
@@ -109,7 +109,7 @@ namespace SpaceEngineersVR.Player.Components
                 SpatialUi.Publish();
                 if(firstCameraAfterTick) { Logger.Info("VR camera receives post-physics character updates"); firstCameraAfterTick=false; }
             }
-            catch(System.Exception ex) { Main.Fail(ex,"Post-physics VR camera update failed"); }
+            catch(System.Exception ex) { Main.FailToMenu(ex,"Post-physics VR camera update failed"); }
         }
 
         internal static void StopActive() => active?.StopInput();

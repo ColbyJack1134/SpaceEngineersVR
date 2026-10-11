@@ -41,6 +41,7 @@ namespace SpaceEngineersVR.Player
         {
             if(!Main.WorldAvailable) { Reset(); failed=false; return; }
             if(!CameraRig.Detached) return;
+            if(MySession.Static?.LocalCharacter==null) { Reset(); return; }
             if(failed) return;
             try
             {
