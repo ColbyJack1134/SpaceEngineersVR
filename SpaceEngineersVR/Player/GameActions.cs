@@ -145,7 +145,7 @@ namespace SpaceEngineersVR.Player
             return new[] {PauseAction,BlueprintsAction,TerminalAction,Building[17],PlacementAction,Building[8],PaletteAction,SymmetryAction,SymmetrySetupAction,
                 BuildShapeAction,Building[9],Building[10]};
         }
-        internal static ActionChoice[] CockpitBuildActions() => new[] { PauseAction,TerminalAction,CockpitBuild,ConfigureToolbarAction,PaletteAction,Building[17],Building[8],PlacementAction,BuildShapeAction,SymmetryAction,SymmetrySetupAction };
+        internal static ActionChoice[] CockpitBuildActions() => new[] { PauseAction,TerminalAction,CockpitBuild,ConfigureToolbarAction,PaletteAction,Building[17],Building[8],PlacementAction,BuildShapeAction };
         internal static ActionChoice[] RemoteWheelActions() => new[] { PauseAction,TerminalAction,ExitFeed,ResetFeed,ConfigureToolbarAction,Native("Previous camera",MyControlsSpace.SWITCH_LEFT),Native("Next camera",MyControlsSpace.SWITCH_RIGHT),Inspect };
         internal static ActionChoice[] ClipboardActions(bool grid=true) => grid ?
             new[] { PauseAction,TerminalAction,AlignGravity,Building[21],Building[20],Building[6],Building[7],BlueprintsAction } :

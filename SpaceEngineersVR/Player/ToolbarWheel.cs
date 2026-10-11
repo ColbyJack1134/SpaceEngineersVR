@@ -166,7 +166,10 @@ namespace SpaceEngineersVR.Player
                 quickPages=BlockVariants.Pages(variants,quickChoices);
                 blockPages=(block.Length+8)/9;
                 quickPages=BlockActions.Pages(block,quickPages);
-                quickPages=WithRecents(quickPages,ActionCatalog.Recent());
+                var recent=ActionCatalog.Recent();
+                if(MySession.Static.ControlledEntity is Sandbox.Game.Entities.MyShipController)
+                    recent=recent.Where(action=>action!=GameActions.SymmetryAction && action!=GameActions.SymmetrySetupAction).ToArray();
+                quickPages=WithRecents(quickPages,recent);
                 quickChoices=quickPages[0];
             }
             owner=MySession.Static.ControlledEntity; toolbar=MyToolbarComponent.CurrentToolbar;
