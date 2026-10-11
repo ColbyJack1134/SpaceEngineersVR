@@ -28,8 +28,7 @@ namespace SpaceEngineersVR.Player
         internal static bool ToolModifier => ToolEquipped && Controls.Static.RightGripPressure.CanPress && Controls.Static.RightGripPressure.RawPosition.X>.5f;
 
         internal static bool HideUseRay => MySession.Static?.LocalCharacter?.CurrentWeapon is MyAutomaticRifleGun || ToolEquipped && (Supported || ToolContactActive);
-        internal static bool ToolContactActive => weapon is MyEngineerToolBase tool ? Multiplayer.ToolContact.Near(tool):
-            weapon is MyHandDrill drill && Multiplayer.DrillContact.Near(drill);
+        internal static bool ToolContactActive => weapon is MyEngineerToolBase tool && Multiplayer.ToolContact.Near(tool);
         internal static bool Reloading => valid && !profile.Tool && MySession.Static?.LocalCharacter?.CurrentWeapon?.IsReloading==true;
         public static void Reset()
         {

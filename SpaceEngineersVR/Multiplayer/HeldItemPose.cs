@@ -42,8 +42,10 @@ namespace SpaceEngineersVR.Multiplayer
         internal static MatrixD Working(MatrixD model,WeaponProfile profile) => MatrixD.CreateWorld(Vector3D.Transform(profile.Muzzle,model),
             Vector3D.TransformNormal(profile.Direction,model),model.Up);
         internal static MatrixD ToolAim(MyCharacter owner,MatrixD model,WeaponProfile profile)
+            => ToolAim(owner,model,profile,Supported(owner));
+        internal static MatrixD ToolAim(MyCharacter owner,MatrixD model,WeaponProfile profile,bool supported)
         {
-            if(Supported(owner)) return Working(model,profile);
+            if(supported) return Working(model,profile);
             return TryToolRay(owner,out var finger) ? finger:profile.Kind==ItemKind.Drill ? model:Working(model,profile);
         }
         internal static double ToolReach(MyCharacter owner,MatrixD model,WeaponProfile profile,MatrixD ray,double nativeReach)

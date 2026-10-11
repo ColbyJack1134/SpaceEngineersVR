@@ -20,7 +20,8 @@ namespace SpaceEngineersVR.Diagnostics
                 foreach (InputMode after in Enum.GetValues(typeof(InputMode)))
                 {
                     bool expected = Array.IndexOf(characterModes, before) >= 0 && Array.IndexOf(characterModes, after) >= 0;
-                    bool toolTransfer=(before==InputMode.Walking || before==InputMode.Jetpack) && (after==InputMode.Walking || after==InputMode.Jetpack);
+                    bool toolTransfer=(before==InputMode.Walking || before==InputMode.Jetpack) && (after==InputMode.Walking || after==InputMode.Jetpack) ||
+                        before==InputMode.Building && after==InputMode.Building;
                     if(InputRouter.CanContinueHeldItem(before,after,character,character)!=toolTransfer ||
                         InputRouter.CanContinueHeldItem(before,after,character,new object()))
                         throw new Exception("Held fire crossed an equipment, menu or control boundary");
@@ -43,6 +44,55 @@ namespace SpaceEngineersVR.Diagnostics
             trigger.AcceptSample(released); trigger.AcceptSample(squeezed);
             if(!trigger.IsPressed) throw new Exception("Trigger did not rearm after release");
             log("PASS held fire: jetpack continuity preserves trigger and alternate modifier; full resets still require release.");
+
+            var leftTrigger=new Analog(11,.55f); var ascent=new Analog(12);
+            leftTrigger.AcceptSample(Sample(41,0));
+            leftTrigger.AcceptSample(Sample(41,0,horizontal:.8f));
+            ascent.AcceptSample(Sample(0,0,false));
+            var triggerOrigins=new HashSet<ulong>();
+            Controls.CaptureLocomotionOrigins(triggerOrigins,new[] {ascent},leftTrigger);
+            leftTrigger.BlockUntilRelease(); ascent.BlockUntilRelease();
+            ascent.AcceptSample(Sample(41,0,horizontal:.8f),triggerOrigins);
+            if(ascent.Position.X<=0 || FlightAxes.Translation(Vector2.Zero,Vector2.Zero,ascent.Position.X,0,0,0).Y<=0)
+                throw new Exception("Held left trigger did not ascend when enabling jetpack");
+            leftTrigger.AcceptSample(Sample(41,0,horizontal:.8f),triggerOrigins);
+            if(leftTrigger.CanPress) throw new Exception("Locomotion transfer rearmed a held UI trigger");
+            for(int frame=0;frame<60;frame++) ascent.AcceptSample(Sample(41,0,horizontal:.8f));
+            if(ascent.Position.X<=0) throw new Exception("Transferred ascent lasted only one frame");
+            for(int cycle=0;cycle<20;cycle++)
+            {
+                foreach(bool flying in new[] {false,true})
+                {
+                    triggerOrigins.Clear();
+                    Controls.CaptureLocomotionOrigins(triggerOrigins,new[] {ascent},leftTrigger);
+                    leftTrigger.BlockUntilRelease(); ascent.BlockUntilRelease();
+                    leftTrigger.AcceptSample(Sample(41,0,horizontal:.8f),triggerOrigins);
+                    ascent.AcceptSample(flying ? Sample(41,0,horizontal:.8f):Sample(0,0,false),triggerOrigins);
+                    for(int frame=0;frame<60;frame++)
+                    {
+                        leftTrigger.AcceptSample(Sample(41,0,horizontal:.8f));
+                        ascent.AcceptSample(flying ? Sample(41,0,horizontal:.8f):Sample(0,0,false));
+                    }
+                    if(leftTrigger.HeldOrigin!=41 || leftTrigger.CanPress || flying && ascent.Position.X<=0 || !flying && ascent.Position!=Vector2.Zero)
+                        throw new Exception("Repeated jetpack toggle lost held ascent or rearmed the UI click");
+                }
+            }
+            ascent.AcceptSample(Sample(41,0));
+            if(ascent.Position!=Vector2.Zero) throw new Exception("Transferred ascent survived trigger release");
+            foreach(var sample in new[] {Sample(42,0,horizontal:.8f),Sample(0,0,horizontal:.8f),Sample(41,0,false,horizontal:.8f)})
+            {
+                ascent.BlockUntilRelease(); ascent.AcceptSample(sample,triggerOrigins);
+                if(ascent.Position!=Vector2.Zero) throw new Exception("Unrelated or unavailable trigger inherited ascent");
+            }
+            ascent.BlockUntilRelease(); ascent.AcceptSample(Sample(41,0,horizontal:.8f));
+            if(ascent.Position!=Vector2.Zero) throw new Exception("Held ascent escaped a full reset");
+            leftTrigger.BlockUntilRelease(); leftTrigger.AcceptSample(Sample(41,0,horizontal:.8f));
+            triggerOrigins.Clear();
+            Controls.CaptureLocomotionOrigins(triggerOrigins,new[] {ascent},leftTrigger);
+            if(triggerOrigins.Count!=0) throw new Exception("Blocked trigger supplied a continuation origin");
+            ascent.AcceptSample(Sample(41,0)); ascent.AcceptSample(Sample(41,0,horizontal:.8f));
+            if(ascent.Position.X<=0) throw new Exception("Ascent did not rearm after full release");
+            log("PASS left-trigger ascent: common pressure persists through 20 held on/off cycles, inactive flight intervals, sustained thrust, release, UI press isolation and source/reset boundaries");
 
             // Different actions, same physical stick. The flight action was inactive
             // throughout walking; merely removing the router's reset would not fix it.

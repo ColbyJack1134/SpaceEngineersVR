@@ -142,7 +142,9 @@ namespace SpaceEngineersVR.Diagnostics
         {
             RemoteHud.Install(harmony);
             if(LeadIndicatorTests.Enabled) LeadIndicatorTests.Install(harmony);
-            harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),LeadIndicatorTests.Enabled || Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions" ? "Present":"DrawScene"),new HarmonyMethod(typeof(PhysicalRendererProbe),nameof(Render)));
+            harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),LeadIndicatorTests.Enabled ||
+                Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions" || Environment.GetEnvironmentVariable("SEVR_BUILD_PREVIEW_PROBE")=="1" ?
+                "Present":"DrawScene"),new HarmonyMethod(typeof(PhysicalRendererProbe),nameof(Render)));
             Active=true; phase=0; next=DateTime.UtcNow.AddSeconds(10); deadline=DateTime.UtcNow.AddSeconds(520);
             Directory.CreateDirectory(output);
             foreach (string file in new[] {"native-left.png","rest-left.png","rest-right.png","articulated-left.png","articulated-right.png","restored-left.png","regrab-left.png"})
@@ -168,6 +170,13 @@ namespace SpaceEngineersVR.Diagnostics
                 if (MySession.Static!=null) throw new InvalidOperationException("Renderer probe requires the main menu, without a loaded world.");
                 if (renderError!=null) throw new InvalidOperationException(renderError);
                 if (DateTime.UtcNow>deadline) throw new TimeoutException("Native renderer probe timed out in phase "+phase);
+                if(Environment.GetEnvironmentVariable("SEVR_BUILD_PREVIEW_PROBE")=="1")
+                {
+                    if(DateTime.UtcNow<next) return;
+                    phase=200;
+                    if(BuildPreviewRenderTests.Saved) { Logger.Info("PHYSICAL RENDER SMOKE PASSED: native range-preview geometry fixture, no world loaded"); Active=false; }
+                    return;
+                }
                 if(Environment.GetEnvironmentVariable("SEVR_ITEM_GRABS")=="1") { UpdateItemGrabs(); return; }
                 if(phase>=100) { UpdateMenus(); return; }
                 if(phase>=50) { UpdateRig(); return; }
@@ -524,6 +533,12 @@ namespace SpaceEngineersVR.Diagnostics
         }
         public static void Render()
         {
+            if(Active && phase==200 && Environment.GetEnvironmentVariable("SEVR_BUILD_PREVIEW_PROBE")=="1")
+            {
+                try { BuildPreviewRenderTests.Render(output); }
+                catch(Exception ex) { renderError=ex.ToString(); }
+                return;
+            }
             if(Active && phase>=144 && (!symmetryPreviewsSaved || !rotationPreviewsSaved))
             {
                 try { SymmetryRenderTests.Render(output); PlanetRenderTests.Render(output); symmetryPreviewsSaved=true; }

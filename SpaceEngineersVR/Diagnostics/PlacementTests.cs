@@ -62,14 +62,26 @@ namespace SpaceEngineersVR.Diagnostics
             foreach(double origin in new[] {0d,1e9})
             {
                 var pose=VrMath.Rigid(MatrixD.CreateFromYawPitchRoll(.7,.3,-.2)); pose.Translation=new Vector3D(origin,origin+10,origin-30);
-                double distance=5,search=PlacementControls.ObserverDistance(distance,scale);
+                double distance=5;
+                double search=PlacementControls.ObserverDistance(distance,scale);
                 var target=pose.Translation+pose.Forward*search;
                 Require(Math.Abs(pose.Forward.Length()-1)<1e-8,"Observer orientation is not rigid");
-                Require(search>=distance && search<=20000,"Observer ray has unbounded reach");
+                Require(search>=distance && search<=20000,"Observer targeting exceeds its search bound");
                 var grid=MatrixD.CreateRotationY(.3); grid.Translation=target;
                 var box=new BoundingBoxD(-Vector3D.One,Vector3D.One);
                 Require(PlacementControls.WithinReach(box,MatrixD.Invert(grid),target+grid.Right*5.9,5),"Reach rejects a nearby large-world block");
                 Require(!PlacementControls.WithinReach(box,MatrixD.Invert(grid),target+grid.Right*6.1,5),"Observer position or scale extends Survival reach");
+                foreach(float gridSize in new[] {.5f,2.5f})
+                foreach(double range in new[] {5d,10,12.5})
+                {
+                    var inverse=MatrixD.Invert(grid);
+                    var inside=target+grid.Right*(1+.025f*gridSize+range-.01);
+                    var outside=target+grid.Right*(1+.025f*gridSize+range+.01);
+                    Require(PlacementControls.BuildReach(box,inverse,inside,gridSize,range),"Proximity rejected an in-range adjacent block");
+                    Require(!PlacementControls.BuildReach(box,inverse,outside,gridSize,range),"Detached hand extended native character range");
+                    var adjacent=box; adjacent.Translate(grid.Right*2);
+                    Require(PlacementControls.BuildReach(adjacent,inverse,target,gridSize,range),"Proximity requires the add cell to intersect the pointing ray");
+                }
             }
             foreach(double scale in new[] {.1,1,3,100})
             foreach(double nativeDistance in new[] {1d,20,100})
@@ -245,7 +257,7 @@ namespace SpaceEngineersVR.Diagnostics
                     provider.RayStart=Vector3D.Transform(hit-direction*.05,world);
                     object[] args={Vector3I.Zero,false,Vector3I.Zero,Vector3I.Zero,Vector3I.Zero};
                     Require(!(bool)method.Invoke(builder,args),"Old surface-offset regression no longer reproduced by installed cell picking");
-                    provider.RayStart=Vector3D.Transform(hit-direction*PlacementControls.ObserverDistance(5,scale),world);
+                    provider.RayStart=Vector3D.Transform(hit-direction*(5+5*scale),world);
                     Require((bool)method.Invoke(builder,args),"Native attachment failed with full observer ray");
                     Require((Vector3I)args[2]==Vector3I.Round(normal) && (Vector3I)args[3]==Vector3I.Round(normal) && (Vector3I)args[4]==Vector3I.Zero,
                         "Native attachment selected the wrong face or cell");

@@ -197,7 +197,8 @@ namespace SpaceEngineersVR.Player
             else if (mode == InputMode.Jetpack || mode == InputMode.Piloting || InputRouter.Flying) FlyingSets.Update();
             else WalkingSets.Update();
             foreach (var button in buttons) button.Update();
-            foreach (var analog in analogs) analog.Update(locomotion.Contains(analog) ? continuingOrigins : null);
+            // Common pressure keeps the accepted trigger source alive while its flight action is inactive.
+            foreach (var analog in analogs) analog.Update(locomotion.Contains(analog) || analog==LeftTriggerPressure ? continuingOrigins : null);
             WindowFocus.Update(this);
             Player.HandL?.Fingers.Update(Player.HandL,true);
             Player.HandR?.Fingers.Update(Player.HandR,false);
@@ -208,17 +209,22 @@ namespace SpaceEngineersVR.Player
                 Logger.Info("INPUT context=" + mode + "; walk=" + WalkLongitudinal.Active + "; flight=" + ThrustLRFB.Active);
         }
 
-        public void BlockUntilRelease(bool continueLocomotion = false,bool continueFire = false)
+        public void BlockUntilRelease(bool continueLocomotion = false,bool continueFire = false,bool continueBuild = false)
         {
             continuingOrigins.Clear();
             if (continueLocomotion)
-                foreach (var analog in locomotion)
-                    if (analog.HeldOrigin != OpenVR.k_ulInvalidInputValueHandle)
-                        continuingOrigins.Add(analog.HeldOrigin);
-            foreach (var button in buttons) if(button!=Primary) button.BlockUntilRelease();
+                CaptureLocomotionOrigins(continuingOrigins,locomotion,LeftTriggerPressure);
+            foreach (var button in buttons) if(button!=Primary && !(continueBuild && button==Secondary)) button.BlockUntilRelease();
             foreach (var analog in analogs)
                 if(analog!=PointerPressure && analog!=RightGripPressure) analog.BlockUntilRelease();
             BlockFireInput(Primary,PointerPressure,RightGripPressure,continueFire);
+        }
+        internal static void CaptureLocomotionOrigins(ISet<ulong> origins,IEnumerable<Analog> movement,Analog leftTrigger)
+        {
+            foreach(var analog in movement)
+                if(analog.HeldOrigin!=OpenVR.k_ulInvalidInputValueHandle) origins.Add(analog.HeldOrigin);
+            // ThrustUp is inactive while walking; common trigger pressure supplies its physical origin.
+            if(leftTrigger.HeldOrigin!=OpenVR.k_ulInvalidInputValueHandle) origins.Add(leftTrigger.HeldOrigin);
         }
         internal static void BlockFireInput(Button trigger,Analog pressure,Analog modifier,bool continuing)
         {

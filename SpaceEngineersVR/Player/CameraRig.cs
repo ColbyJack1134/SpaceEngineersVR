@@ -114,7 +114,7 @@ namespace SpaceEngineersVR.Player
                 anchor=VrMath.Level(anchor,up);
             }
             character.EnableHead(ThirdPersonView.Character);
-            character.Render.NearFlag=false;
+            Patches.CharacterDepthPatch.ApplyWorldDepth(character);
             character.EnableBag(ThirdPersonView.Character);
             eyeOffset.Y=(BodyFit.Fitting(character) ? BodyFit.DesiredEye(character) : standingEye)-CrouchDrop(character);
             onLadder=ladder;

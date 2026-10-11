@@ -1,3 +1,4 @@
+using System;
 using HarmonyLib;
 using Sandbox.Game.Entities;
 using Sandbox.Game.World;
@@ -42,13 +43,24 @@ namespace SpaceEngineersVR.Patches
     {
         private static bool Prefix(MatrixD invGridWorldMatrix,BoundingBoxD gizmoBox,float gridSize,float intersectionDistance,ref bool __result)
         {
-            if(!PlacementControls.Observer || !PlacementControls.TryBuilderPose(out var pose)) return true;
-            var line=new LineD(Vector3D.Transform(pose.Translation,invGridWorldMatrix),
-                Vector3D.Transform(pose.Translation+pose.Forward*intersectionDistance,invGridWorldMatrix));
-            gizmoBox.Inflate(.025f*gridSize);
-            __result=gizmoBox.Intersects(ref line,out _) && PlacementControls.WithinReach(gizmoBox,invGridWorldMatrix,
-                MySession.Static.LocalCharacter.GetHeadMatrix(true).Translation,PlacementControls.SurvivalRange(gridSize));
+            if(!PlacementControls.TryBuilderPose(out _) || MySession.Static?.LocalCharacter==null) return true;
+            // Native selection already validates the pointing ray; an adjacent add cell need not lie on it.
+            __result=PlacementControls.Creative || PlacementControls.EditingDistance ||
+                PlacementControls.BuildReach(gizmoBox,invGridWorldMatrix,
+                MySession.Static.LocalCharacter.GetHeadMatrix(true).Translation,gridSize,PlacementControls.SurvivalRange(gridSize));
             return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(MyCubeBuilder),"SetSurvivalIntersectionDist")]
+    internal static class InitialBuildDistancePatch
+    {
+        private static void Postfix(MyCubeBuilder __instance)
+        {
+            if(!Plugin.Main.VrActive || PlacementControls.Creative || PlacementControls.Observer ||
+                MySession.Static?.SurvivalMode!=true || MyBlockBuilderBase.SpectatorIsBuilding || __instance.CurrentBlockDefinition==null) return;
+            MyBlockBuilderBase.IntersectionDistance=Math.Max(MyBlockBuilderBase.CubeBuilderDefinition.MinBlockBuildingDistance,
+                MyBlockBuilderBase.IntersectionDistance*.5f);
         }
     }
 

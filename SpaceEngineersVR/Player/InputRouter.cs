@@ -50,7 +50,7 @@ namespace SpaceEngineersVR.Player
                 if(Main.WorldAvailable) Logger.Info("INPUT transition: "+Mode+" -> "+next+"; owner="+nextOwner?.GetType().Name+"; clipboard="+PlacementControls.ClipboardActive);
                 if (!ReferenceEquals(nextOwner, owner) || next == InputMode.Blocked) GameActions.Reset();
                 Reset(CanContinueLocomotion(Mode, next, owner, nextOwner),
-                    WeaponHandling.Profile!=null && CanContinueHeldItem(Mode,next,owner,nextOwner));
+                    CanContinueHeldItem(Mode,next,owner,nextOwner));
                 Mode = next;
                 owner = nextOwner;
                 wasFlying = flying;
@@ -68,19 +68,20 @@ namespace SpaceEngineersVR.Player
 
         internal static bool CanContinueHeldItem(InputMode previous,InputMode next,object previousOwner,object nextOwner) =>
             previousOwner!=null && ReferenceEquals(previousOwner,nextOwner) &&
-            (previous==InputMode.Walking || previous==InputMode.Jetpack) && (next==InputMode.Walking || next==InputMode.Jetpack);
+            ((previous==InputMode.Walking || previous==InputMode.Jetpack) && (next==InputMode.Walking || next==InputMode.Jetpack) ||
+                previous==InputMode.Building && next==InputMode.Building);
 
         public static void Reset() => Reset(false);
 
         private static void Reset(bool continueLocomotion,bool continueItem=false)
         {
             GameActions.ResetJumpHold();
-            Controls.Static.BlockUntilRelease(continueLocomotion,continueItem && VRMovementComponent.ToolActionHeld);
+            Controls.Static.BlockUntilRelease(continueLocomotion,continueItem,continueItem && Mode==InputMode.Building);
             SpatialUi.ReleaseInput();
             if(!continueItem) WeaponHandling.Reset();
             CockpitControls.Release();
             VRMovementComponent.StopActive();
-            NativeActions.Reset();
+            if(!continueItem || Mode!=InputMode.Building) NativeActions.Reset();
             MenuPointer.Release();
             Mode = InputMode.Blocked;
             owner = null;

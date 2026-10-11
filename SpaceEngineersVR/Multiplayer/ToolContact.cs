@@ -177,7 +177,8 @@ namespace SpaceEngineersVR.Multiplayer
             // Construction eligibility does not establish clearance through physical walls.
             if(Cast(owner,tool,ray,reach-.005,out var meshBlock,out var meshEntity,out var meshPoint) && meshEntity!=null &&
                 !(selected!=null && ReferenceEquals(meshBlock,selected)) &&
-                !(targetCollider && ReferenceEquals(meshEntity,target) && (target is MyEnvironmentSector || Vector3D.DistanceSquared(meshPoint,point)<=.02*.02))) return false;
+                !(targetCollider && ReferenceEquals(meshEntity,target) &&
+                    (target is MyEnvironmentSector || Vector3D.DistanceSquared(meshPoint,point)<=.02*.02))) return false;
             return !ConstructionRay(ray,reach-.005,out _,out _,selected);
         }
         internal static bool FindTreeNear(MyCharacter owner,MyEntity tool,ToolVolume volume,Vector3D grip,out MyDrillSensorBase.DetectionInfo tree)

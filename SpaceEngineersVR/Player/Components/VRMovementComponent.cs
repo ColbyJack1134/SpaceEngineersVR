@@ -112,7 +112,6 @@ namespace SpaceEngineersVR.Player.Components
             catch(System.Exception ex) { Main.Fail(ex,"Post-physics VR camera update failed"); }
         }
 
-        internal static bool ToolActionHeld => active!=null && (active.wasShooting || active.wasSecondary);
         internal static void StopActive() => active?.StopInput();
         internal static void StopOwner(Sandbox.Game.Entities.IMyControllableEntity owner)
         { if(owner!=null && ReferenceEquals(active?.inputOwner,owner)) active.StopInput(); }

@@ -133,9 +133,13 @@ namespace SpaceEngineersVR.Player
             if(Observer) pose=VrMath.Rigid(pose);
             return true;
         }
-        internal static float BuildDistance(float native) => Observer && !EditingDistance ? (float)(Creative ?
-            CreativeObserverDistance(native,ThirdPersonView.Current.UnitsPerMeter,MyBlockBuilderBase.CubeBuilderDefinition.DefaultBlockBuildingDistance) :
-            ObserverDistance(native,ThirdPersonView.Current.UnitsPerMeter)) : native;
+        internal static float BuildDistance(float native)
+        {
+            if(!Observer || EditingDistance) return native;
+            if(Creative) return (float)CreativeObserverDistance(native,ThirdPersonView.Current.UnitsPerMeter,
+                MyBlockBuilderBase.CubeBuilderDefinition.DefaultBlockBuildingDistance);
+            return (float)ObserverDistance(native,ThirdPersonView.Current.UnitsPerMeter);
+        }
         internal static double CreativeObserverDistance(double nativeDistance,double scale,double defaultDistance) =>
             Math.Min(20000,nativeDistance*scale/Math.Max(1,defaultDistance));
         internal static double ObserverDistance(double nativeDistance,double scale) => Math.Min(20000,Math.Max(nativeDistance,nativeDistance*scale));
@@ -150,6 +154,11 @@ namespace SpaceEngineersVR.Player
         }
         internal static bool WithinReach(BoundingBoxD box,MatrixD inverse,Vector3D head,double range) =>
             box.Distance(Vector3D.Transform(head,inverse))<=range;
+        internal static bool BuildReach(BoundingBoxD box,MatrixD inverse,Vector3D head,float gridSize,double range)
+        {
+            box.Inflate(.025f*gridSize);
+            return WithinReach(box,inverse,head,range);
+        }
 
         internal static void Queue(ActionFrame frame, InputMode mode, bool primary, bool secondary, bool alternate)
         {

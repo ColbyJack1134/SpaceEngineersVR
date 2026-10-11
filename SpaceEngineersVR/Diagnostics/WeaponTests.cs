@@ -147,15 +147,16 @@ namespace SpaceEngineersVR.Diagnostics
                     ["positions"]=data.Positions.SelectMany(v=>new[] {(double)v.X,v.Y,v.Z}).ToArray(),
                     ["indices"]=data.Indices.Select(v=>(double)v).ToArray(),
                     ["contact"]=new[] {(double)contact.X,contact.Y,contact.Z}};
-                if(profile.Tool)
+                if(profile.Kind==ItemKind.Drill)
+                {
+                    var ray=DrillContact.Ray(MatrixD.Identity,MatrixD.Identity,true);
+                    var end=ray.Translation+ray.Forward*2.2;
+                    values["ray"]=new[] {ray.Translation.X,ray.Translation.Y,ray.Translation.Z,end.X,end.Y,end.Z};
+                }
+                else if(profile.Tool)
                 {
                     var v=ToolVolume.For(profile,MatrixD.Identity);
                     values["volume"]=new[] {v.Start.X,v.Start.Y,v.Start.Z,v.End.X,v.End.Y,v.End.Z,v.Radius,v.HalfHeight,v.Disc ? 1d:0d};
-                    if(profile.Kind==ItemKind.Drill)
-                    {
-                        var shaft=ToolVolume.DrillShaft(MatrixD.Identity);
-                        values["shaft"]=new[] {shaft.Start.X,shaft.Start.Y,shaft.Start.Z,shaft.End.X,shaft.End.Y,shaft.End.Z,shaft.Radius};
-                    }
                 }
                 using(var file=File.Create(Path.Combine(output,profile.Item+"-grab.json")))
                     new DataContractJsonSerializer(values.GetType(),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,values);

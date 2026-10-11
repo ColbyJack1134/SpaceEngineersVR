@@ -13,11 +13,15 @@ namespace SpaceEngineersVR.Patches
         private static void Postfix(MyCharacter __instance)
         {
             if(!Main.VrActive || !CameraRig.Owns(__instance)) return;
+            ApplyWorldDepth(__instance);
+        }
+        internal static void ApplyWorldDepth(MyCharacter character)
+        {
             // Body and held items must all use world depth; vanilla biases both
             // hands' items forward again on each UpdateNearFlag call.
-            __instance.Render.NearFlag=false;
-            if(__instance.CurrentWeapon is MyEntity weapon) weapon.Render.NearFlag=false;
-            var item=leftItem(__instance);
+            character.Render.NearFlag=false;
+            if(character.CurrentWeapon is MyEntity weapon) weapon.Render.NearFlag=false;
+            var item=leftItem(character);
             if(item!=null) item.Render.NearFlag=false;
         }
     }

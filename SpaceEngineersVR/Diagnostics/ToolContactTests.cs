@@ -175,6 +175,7 @@ namespace SpaceEngineersVR.Diagnostics
             SupportedAim(log);
             NativeDrillSelection(log);
             ConstructionTargeting(log);
+            DrillRayTests.Run(log);
         }
         private static void SupportedAim(Action<string> log)
         {
@@ -199,15 +200,12 @@ namespace SpaceEngineersVR.Diagnostics
                     var advance=Math.Max(0,Vector3D.Dot(aim.Translation-grip,aim.Forward));
                     Require(Math.Abs(advance+HeldItemPose.ToolReach(null,model,profile,aim,2.2)-2.2)<1e-7,"Tool length extended the total native reach");
                 }
-                var shaft=ToolVolume.DrillShaft(MatrixD.Identity);
-                Require(shaft.Contains(new Vector3D(0,0,-.44)) && shaft.Contains(new Vector3D(0,0,-.58)) &&
-                    !shaft.Contains(new Vector3D(0,0,-.40)) && !shaft.Contains(new Vector3D(.08,0,-.48)),"Drill shaft contact includes casing or misses exposed metal");
                 var grid=new MyCubeGrid(); var disc=new ToolVolume {Frame=MatrixD.Identity,Disc=true,Radius=.108,HalfHeight=.018};
                 Require(ToolContact.ConstructionOverlap(disc,grid,new BoundingBox(new Vector3(.05f,-.01f,-.05f),new Vector3(.07f,.01f,.05f))),"Grinder construction contact missed a cell through a mesh gap");
                 Require(!ToolContact.ConstructionOverlap(disc,grid,new BoundingBox(new Vector3(-.05f,.04f,-.05f),new Vector3(.05f,.06f,.05f))),"Grinder construction contact included housing-side clearance");
             }
             finally { HeldItemPose.LocalSupported=previous; harmony.UnpatchAll(harmony.Id); }
-            log("PASS supported tools: exclusive tip-axis aim, unchanged one-hand ray, total reach budget at rotated billion-metre origins, drill shaft/casing and grinder construction contact");
+            log("PASS supported tools: exclusive tip-axis aim, unchanged one-hand ray, total reach budget at rotated billion-metre origins, grinder construction contact");
         }
         private static MySlimBlock AddBlock(MyCubeGrid grid,Vector3I cell)
         {
