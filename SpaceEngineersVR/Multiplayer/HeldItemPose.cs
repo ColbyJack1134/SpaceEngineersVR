@@ -54,17 +54,18 @@ namespace SpaceEngineersVR.Multiplayer
             var grip=Vector3D.Transform(profile.Primary,model);
             return Math.Max(0,nativeReach-Math.Max(0,Vector3D.Dot(ray.Translation-grip,ray.Forward)));
         }
-        internal static bool Clear(MyCharacter character,Vector3D from,Vector3D to,bool ignoreCharacters=false)
+        // Players never block a held item from reaching its grip, muzzle or tool ray.
+        internal static bool Clear(MyCharacter character,Vector3D from,Vector3D to)
         {
             if(Vector3D.DistanceSquared(from,to)<.000001) return true;
             var line=new LineD(from,to);
-            return !MyEntities.GetIntersectionWithLine(ref line,character,character.CurrentWeapon as MyEntity,ignoreChildren:false,ignoreFloatingObjects:false,ignoreCharacters:ignoreCharacters).HasValue;
+            return !MyEntities.GetIntersectionWithLine(ref line,character,character.CurrentWeapon as MyEntity,ignoreChildren:false,ignoreFloatingObjects:false,ignoreCharacters:true).HasValue;
         }
         internal static bool MuzzleClear(MyCharacter character,MatrixD model,WeaponProfile profile)
         {
             var grip=Vector3D.Transform(profile.Primary,model); var muzzle=Vector3D.Transform(profile.Muzzle,model);
             // Close targets may overlap the held weapon without preventing a shot.
-            return Clear(character,character.GetHeadMatrix(true,true).Translation,grip,ignoreCharacters:true) && Clear(character,grip,muzzle,ignoreCharacters:true);
+            return Clear(character,character.GetHeadMatrix(true,true).Translation,grip) && Clear(character,grip,muzzle);
         }
     }
     [HarmonyPatch(typeof(MyAutomaticRifleGun),nameof(MyAutomaticRifleGun.Shoot),new[] {typeof(MyShootActionEnum),typeof(Vector3),typeof(Vector3D?),typeof(string)})]

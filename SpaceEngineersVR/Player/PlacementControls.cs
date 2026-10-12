@@ -36,6 +36,7 @@ namespace SpaceEngineersVR.Player
         [ThreadStatic] internal static bool EditingDistance;
 
         // Rotate mode: a right grip tap lets the sticks rotate the preview, so a held grip still rolls in flight.
+        // The optional hold mode rotates only while the grip is held; grip + trigger still removes.
         public static bool Adjusting { get; private set; }
         private static readonly GripTap rotateTap=new GripTap();
         private static bool leftReady,rightReady;
@@ -65,9 +66,10 @@ namespace SpaceEngineersVR.Player
             // Grip chords (roll, remove, paint, size, view grab) are not taps.
             bool chord=c.Primary.IsPressed || c.Interact.IsPressed || c.Jetpack.IsPressed || ThirdPersonView.Manipulating ||
                 left.LengthSquared()>=.09f || right.LengthSquared()>=.09f;
-            bool tap=rotateTap.Update(grip,c.Secondary.HasReleased,chord || !tools,now);
+            bool hold=Common.Config.HoldGripRotation;
+            bool tap=rotateTap.Update(grip,c.Secondary.HasReleased,chord || !tools || hold,now);
             bool placed=Adjusting && c.Primary.HasPressed;
-            bool active=Rotating(Adjusting,tools,tap,placed);
+            bool active=hold ? tools && grip:Rotating(Adjusting,tools,tap,placed);
             if(active && !Adjusting)
             {
                 leftReady=rightReady=false; Array.Clear(repeat,0,repeat.Length);

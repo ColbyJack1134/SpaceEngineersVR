@@ -47,7 +47,7 @@ namespace SpaceEngineersVR.Config
         private bool trackedArms = true;
         private bool adaptiveArms = true;
         public bool AdaptiveArms { get => adaptiveArms; set => SetValue(ref adaptiveArms,value); }
-        private bool legacyShipTilt,physicalShipControlsOnly;
+        private bool legacyShipTilt,physicalShipControlsOnly,holdGripRotation;
         public bool PhysicalShipControlsOnly { get => physicalShipControlsOnly; set => SetValue(ref physicalShipControlsOnly,value); }
         private bool bodyCalibrated,seatedPlay,fitBodyOnFoot,setupCompleted;
         public bool SetupCompleted { get => setupCompleted; set => SetValue(ref setupCompleted,value); }
@@ -131,6 +131,7 @@ namespace SpaceEngineersVR.Config
         private AnchorOffsetSetting[] anchorOffsets=new AnchorOffsetSetting[0];
         public AnchorOffsetSetting[] AnchorOffsets { get => anchorOffsets; set => SetValue(ref anchorOffsets,value ?? new AnchorOffsetSetting[0]); }
         public bool LegacyShipTilt { get => legacyShipTilt; set => SetValue(ref legacyShipTilt, value); }
+        public bool HoldGripRotation { get => holdGripRotation; set => SetValue(ref holdGripRotation, value); }
         public const float DefaultJetpackRoll = 0.15f, DefaultShipRollSensitivity = 0.6f;
         public const float MinRollSensitivity = 0.05f, MaxRollSensitivity = 2f;
         // The jetpack slider shows the default as 50%, so its range is 10-200% of that scale.

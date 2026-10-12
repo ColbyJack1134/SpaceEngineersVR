@@ -21,10 +21,11 @@ namespace SpaceEngineersVR.GUI
             switch(page)
             {
                 case "Character":
-                    Toggle(-.23f,"Body follows head turns",c.UseHeadRotationForCharacter,v=>c.UseHeadRotationForCharacter=v);
-                    Toggle(-.14f,"Roomscale body movement",c.RoomscaleMovement,v=>c.RoomscaleMovement=v);
-                    Toggle(-.05f,"Controller-relative movement",c.ControllerRelativeMovement,v=>c.ControllerRelativeMovement=v);
-                    Toggle(.04f,"Invert jetpack pitch",c.InvertJetpackPitch,v=>c.InvertJetpackPitch=v);
+                    Toggle(-.27f,"Body follows head turns",c.UseHeadRotationForCharacter,v=>c.UseHeadRotationForCharacter=v);
+                    Toggle(-.19f,"Roomscale body movement",c.RoomscaleMovement,v=>c.RoomscaleMovement=v);
+                    Toggle(-.11f,"Controller-relative movement",c.ControllerRelativeMovement,v=>c.ControllerRelativeMovement=v);
+                    Toggle(-.03f,"Invert jetpack pitch",c.InvertJetpackPitch,v=>c.InvertJetpackPitch=v);
+                    Toggle(.05f,"Hold grip to rotate blocks",c.HoldGripRotation,v=>c.HoldGripRotation=v);
                     Link(.13f,"Body and seated play",()=>new BodyOptions());
                     Link(.20f,"Body visibility",()=>new SettingsPage("Body visibility"));
                     Link(.27f,"Advanced controls",()=>new SettingsPage("Advanced controls"));
