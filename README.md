@@ -31,6 +31,8 @@ If you run into any bugs or problems feel free to create a new [issue](https://g
 5. Don't forget to click **Apply**!
 6. Launch Pulsar Legacy again with SteamVR running.
 
+**Note**: If you extract the ZIP and it fails to load via Pulsar, it may be blocked. Try: right click each DLL -> Properties -> Unblock
+
 Set **Model Quality** to **High** to avoid artifacts with your in-game hand model.
 
 Flatscreen multiplayer hosts and clients can install the optional `SpaceEngineersVR.FlatscreenCompanion.dll` plugin.
