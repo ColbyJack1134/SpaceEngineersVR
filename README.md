@@ -4,7 +4,7 @@
 
 ## Space Engineers 1 VR Plugin
 
-Still pre-release but fully playable. The goal of this plugin is to be able to fully play Space Engineers in VR with [VTOL VR](https://store.steampowered.com/app/667970/VTOL_VR/) inspired interactable cockpits and in-game joysticks.
+Nearly at a 1.0 release with some polish and bugfixes remaining. The goal of this plugin is to be able to fully play Space Engineers in VR with [VTOL VR](https://store.steampowered.com/app/667970/VTOL_VR/) inspired interactable cockpits and in-game joysticks.
 
 Features:
 - Stereo VR rendering, 6DOF tracking, motion controls, and roomscale
@@ -23,10 +23,13 @@ If you run into any bugs or problems feel free to create a new [issue](https://g
 ## Installation:
 
 1. Install [Pulsar](https://github.com/SpaceGT/Pulsar).
-2. Download `SpaceEngineersVR-vXXXX.zip` from the [latest release](https://github.com/ColbyJack1134/SpaceEngineersVR/releases/latest).
-3. Extract the ZIP into Pulsar's `Legacy\Local` folder.
-4. In your Pulsar Legacy profile, click **+**, search for **SpaceEngineersVR**, and enable `SpaceEngineersVR.dll`.
-5. Launch Pulsar Legacy with SteamVR running.
+3. Download `SpaceEngineersVR-vXXXX.zip` from the [latest release](https://github.com/ColbyJack1134/SpaceEngineersVR/releases/latest).
+4. Extract the ZIP into Pulsar's `Legacy\Local` folder. Launch `Legacy.exe` at least once to create this folder.
+5. Launch `Legacy.exe`, go to `Plugins`, click **+** to Add Plugin, search for **SpaceEngineersVR**, and click the checkbox to enable
+<img width="1243" height="636" alt="image" src="https://github.com/user-attachments/assets/c7d39a03-e121-4512-a78a-fbfd957359cf" />
+
+5. Don't forget to click **Apply**!
+6. Launch Pulsar Legacy again with SteamVR running.
 
 Set **Model Quality** to **High** to avoid artifacts with your in-game hand model.
 
