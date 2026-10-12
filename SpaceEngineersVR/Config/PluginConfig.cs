@@ -89,6 +89,12 @@ namespace SpaceEngineersVR.Config
         private int waypointMode=-1;
         public bool InvertShipPitch { get => invertShipPitch; set => SetValue(ref invertShipPitch,value); }
         public bool InvertJetpackPitch { get => invertJetpackPitch; set => SetValue(ref invertJetpackPitch,value); }
+        private float turnSensitivity=1.5f;
+        public float TurnSensitivity { get => turnSensitivity; set => SetValue(ref turnSensitivity,Bound(value,.25f,4,1.5f)); }
+        private bool snapTurn;
+        public bool SnapTurn { get => snapTurn; set => SetValue(ref snapTurn,value); }
+        private float snapTurnAngle=30;
+        public float SnapTurnAngle { get => snapTurnAngle; set => SetValue(ref snapTurnAngle,Bound(value,15,90,30)); }
         public bool HudWithVisorOpen { get => hudWithVisorOpen; set => SetValue(ref hudWithVisorOpen,value); }
         public bool ShowVitals { get => showVitals ?? helmetHudMode>0; set => SetValue(ref showVitals,(bool?)value); }
         public int WaypointMode { get => waypointMode<0 ? Math.Max(0,helmetHudMode-1):waypointMode; set => SetValue(ref waypointMode,Math.Max(0,Math.Min(2,value))); }

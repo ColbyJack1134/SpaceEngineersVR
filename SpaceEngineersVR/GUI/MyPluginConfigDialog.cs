@@ -54,8 +54,8 @@ namespace SpaceEngineersVR.GUI
                     Link(-.17f,"Height & posture",()=>new BodyOptions());
                     Toggle(-.085f,"Seated play",c.SeatedPlay,BodyFit.SetSeated);
                     Toggle(0,"Controller-relative movement",c.ControllerRelativeMovement,v=>c.ControllerRelativeMovement=v);
-                    Link(.085f,"Body visibility",()=>new SettingsPage("Body visibility"));
-                    Link(.17f,"Movement & input",()=>new SettingsPage("Character"));
+                    Link(.085f,"Movement & input",()=>new SettingsPage("Character"));
+                    Link(.17f,"Character turning",()=>new SettingsPage("Character turning"));
                     MenuLayout.Button(this,-.0075f,.27f,.265f,"Recenter",()=>Player.Player.Headset.RequestRecenter()).Enabled=Main.VrActive;
                     MenuLayout.Button(this,.2775f,.27f,.265f,"Hand alignment",()=>MyGuiSandbox.AddScreen(new HandAlignment()));
                     break;

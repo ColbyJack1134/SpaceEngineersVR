@@ -30,6 +30,16 @@ namespace SpaceEngineersVR.GUI
                     Link(.20f,"Body visibility",()=>new SettingsPage("Body visibility"));
                     Link(.27f,"Advanced controls",()=>new SettingsPage("Advanced controls"));
                     break;
+                case "Character turning":
+                    Toggle(-.23f,"Snap turning",c.SnapTurn,v=>c.SnapTurn=v);
+                    Slider(-.12f,"Smooth turn speed",c.TurnSensitivity,.25f,v=>c.TurnSensitivity=v,400);
+                    Label(.04f,"Snap angle");
+                    var angle=new MyGuiControlSlider(new Vector2(-.035f,.09f),minValue:15,maxValue:90,width:.53f,defaultValue:30,
+                        labelText:"{0}°",labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=c.SnapTurnAngle };
+                    angle.ValueChanged+=v=>c.SnapTurnAngle=v.Value;
+                    Controls.Add(angle);
+                    Reset(()=> { c.SnapTurn=false;c.TurnSensitivity=1.5f;c.SnapTurnAngle=30; });
+                    break;
                 case "Body visibility":
                     Toggle(-.20f,"Proximity fade on foot",c.OnFootBodyProximityFade,v=>c.OnFootBodyProximityFade=v);
                     Toggle(-.08f,"Proximity fade in seats",c.BodyProximityFade,v=>c.BodyProximityFade=v);

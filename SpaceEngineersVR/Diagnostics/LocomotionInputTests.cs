@@ -14,6 +14,23 @@ namespace SpaceEngineersVR.Diagnostics
 
         public static void Run(Action<string> log)
         {
+            var turning=new TurnInput();
+            var instant=DateTime.UtcNow;
+            if(turning.Read(.8f,false,15,30,.13f,instant)!=12)
+                throw new Exception("Smooth turn sensitivity changed the stick response");
+            float snap=turning.Read(.8f,true,20,30,.13f,instant);
+            if(Math.Abs(snap*.13f*.02f-MathHelper.ToRadians(30))>.0001f ||
+                turning.Read(.8f,true,20,30,.13f,instant.AddMilliseconds(100))!=0 ||
+                turning.Read(.8f,true,20,30,.13f,instant.AddMilliseconds(300))==0)
+                throw new Exception("Snap turn angle or repeat interval is incorrect");
+            turning.Read(0,true,20,30,.13f,instant);
+            if(turning.Read(-.8f,true,20,30,.13f,instant)>=0)
+                throw new Exception("Snap turn did not rearm in the opposite direction");
+            turning.Reset();
+            if(turning.Read(.8f,true,20,30,.13f,instant)==0)
+                throw new Exception("Snap turn did not reset after input loss");
+            log("PASS character turning: 150% smooth speed, 30-degree snap, repeat, release and reset.");
+
             var character = new object();
             var characterModes = new[] { InputMode.Walking, InputMode.Jetpack, InputMode.Building };
             foreach (InputMode before in Enum.GetValues(typeof(InputMode)))

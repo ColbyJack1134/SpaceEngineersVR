@@ -23,6 +23,7 @@ namespace SpaceEngineersVR.Player.Components
         private bool wasSecondary;
         private readonly Control.InputGate stickSecondary=new Control.InputGate();
         private readonly Control.GripTap secondaryTap=new Control.GripTap();
+        private readonly Control.TurnInput turnInput=new Control.TurnInput();
         internal static readonly Control.CrouchControl Crouch=new Control.CrouchControl();
         internal static float HeadDrop => -Player.Headset.deviceToPlayer.Translation.Y;
         private MyShipController jumpOwner;
@@ -139,6 +140,7 @@ namespace SpaceEngineersVR.Player.Components
 
         private void StopInput()
         {
+            turnInput.Reset();
             jumpOwner?.WheelJump(false); jumpOwner=null; stickSecondary.Block(); DriveInput.Stop();
             var controlled = inputOwner;
             if (hadControllerMovement)
@@ -232,7 +234,8 @@ namespace SpaceEngineersVR.Player.Components
             {
                 var v = controls.WalkRotate.Position;
 
-                rotate.Y = v.X * RotationSpeed;
+                rotate.Y = turnInput.Read(v.X,Common.Config.SnapTurn,RotationSpeed*Common.Config.TurnSensitivity,
+                    Common.Config.SnapTurnAngle,Character.RotationSpeed,System.DateTime.UtcNow);
                 // Keep walking pitch controlled by the headset, not the thumbstick.
             }
 
@@ -273,6 +276,8 @@ namespace SpaceEngineersVR.Player.Components
                 ship && !CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) ? 0 : controls.ThrustUp.Position.X, WeaponHandling.ConsumesLeftGrip || ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) ? 0 : ThirdPersonView.Descent(controls.ThrustDown.Position.X), controls.ThrustForward.Position.X, controls.ThrustBackward.Position.X);
             float rollSensitivity = ship ? Common.Config.ShipRollSensitivity : Common.Config.JetpackRoll;
             FlightAxes.Rotation(controls.ThrustRotate.Position, controls.ThrustRoll.IsPressed && !(ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandR)) && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Player.HandR) && !(WeaponHandling.ToolModifier && controls.Primary.IsPressed), ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
+            if(!ship) rotate.Y=turnInput.Read(rotate.Y/RotationSpeed,Common.Config.SnapTurn,RotationSpeed*Common.Config.TurnSensitivity,
+                Common.Config.SnapTurnAngle,Character.RotationSpeed,System.DateTime.UtcNow);
         }
 
         void ApplyMoveAndRotation(Vector3 move, Vector2 rotate, float roll)
