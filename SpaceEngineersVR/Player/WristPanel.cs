@@ -16,6 +16,7 @@ namespace SpaceEngineersVR.Player
         internal static void OpenSeat() { Show(0); SeatOpen=true; }
         internal static bool HudOpen { get; private set; }
         internal static void OpenHud() { Show(0); HudOpen=true; WristHud.Open(); }
+        internal static readonly ActionChoice HudAction=new ActionChoice("HUD",OpenHud);
         internal static bool ChatOpen { get; private set; }
         internal static void OpenChat() { Show(0); ChatOpen=true; SpatialUi.Expand(); }
         internal static bool DesktopOpen { get; private set; }
@@ -82,7 +83,7 @@ namespace SpaceEngineersVR.Player
                 for(int i=0;i<actions.Length;i++)
                     keys.Add(new SurfaceKey(actions[i].Label=="Hotkey keyboard" ? "Hotkeys":actions[i].Label,.02f+i%4*.245f,.16f+i/4*.22f,.23f,.20f) {
                         Action=actions[i],Icons=new[] {actions[i].Icon},Enabled=actions[i].Enabled,Active=Active(actions[i],status) });
-                var utilities=new[] {GameActions.PauseAction,GameActions.HudOptions,GameActions.BuffsAction,GameActions.DoNotDisturb,GameActions.Quick[10]};
+                var utilities=new[] {GameActions.PauseAction,HudAction,GameActions.BuffsAction,GameActions.DoNotDisturb,GameActions.Quick[10]};
                 var names=new[] {"Pause","HUD","Buffs","DnD","Help"};
                 for(int i=0;i<utilities.Length;i++)
                     keys.Add(new SurfaceKey(names[i],.02f+i*.196f,.84f,.18f,.12f) {

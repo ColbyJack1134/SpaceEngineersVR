@@ -33,6 +33,7 @@ namespace SpaceEngineersVR.Player
             Add(keys,"Distances",.025f,.55f,.46f,.077f,()=>edit(v=>v.Distances=!v.Distances),value:p.Distances ? "On":"Off");
             Step(keys,"Icon size",p.IconScale,.635f,.75f,2.5f,.25f,v=>edit(h=>h.IconScale=v));
             Step(keys,"Text size",p.TextScale,.72f,.75f,1.5f,.125f,v=>edit(h=>h.TextScale=v));
+            Add(keys,"Hit markers on foot",.025f,.805f,.46f,.077f,()=>edit(v=>v.HitMarkers=!v.HitMarkers),value:p.HitMarkers ? "On":"Off");
             Add(keys,"GPS / objectives",.515f,.380f,.46f,.052f,()=>c.ShowGps=!c.ShowGps,value:c.ShowGps ? "On":"Off");
             Add(keys,"Contacts",.515f,.438f,.46f,.052f,()=>c.ShowContacts=!c.ShowContacts,value:c.ShowContacts ? "On":"Off");
             Add(keys,"Ore / hacking",.515f,.496f,.46f,.052f,()=>c.ShowResources=!c.ShowResources,value:c.ShowResources ? "On":"Off");

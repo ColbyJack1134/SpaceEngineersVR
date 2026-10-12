@@ -66,7 +66,7 @@ namespace SpaceEngineersVR.Player
             ShipReload.Draw(target,value.Reload,pixels,view,projection);
             var hit=RemoteCombat.Hit;
             if(hit==null || hit.Owner!=value.Owner || (System.DateTime.UtcNow-hit.Time).TotalSeconds>.3) return;
-            var marker=new NativeSprite(hit.Path,default(RectangleF),hit.Color.ToLinearRGB()) {NativeGui=true,Premultiplied=true};
+            var marker=RemoteCombat.HitSprite(hit);
             float width=hit.Size.X*hitScale,height=hit.Size.Y*hitScale;
             if(pixels.Project(new RectangleF(-width/2,-height/2,width,height),view,projection,ref marker))
                 NativeSprites.Draw(target,new[] {marker});

@@ -264,6 +264,7 @@ namespace SpaceEngineersVR.Player
             try
             {
                 if(ShipCrosshair.Enabled(Common.Config,HelmetHud.Visible)) ShipCrosshair.Draw(target,renderCrosshair,renderHead,view,projection,Common.Config.FaceMarkersTowardViewer);
+                if(HelmetHud.Visible) { DamageMarkers.Draw(target,renderHead,view,projection); if(Common.Config.ShowHitMarkers) RemoteCombat.DrawImpact(target,renderHead,view,projection); }
                 if(current!=null && (DateTime.UtcNow-current.Time).TotalSeconds<=1 && markersVisible)
                 {
                     SignalPainter.Draw(target,layout,signalHead,view,projection,Common.Config.FaceMarkersTowardViewer,signalUp);
@@ -275,7 +276,7 @@ namespace SpaceEngineersVR.Player
         public static void Reset()
         {
             generation++; RenderFrameBridge.CaptureMarkers(null); renderSnapshot=null;
-            renderCrosshair=null;
+            renderCrosshair=null; DamageMarkers.Reset();
             layout=new SignalLayout.Entry[0]; WristSignals.Reset();
         }
     }

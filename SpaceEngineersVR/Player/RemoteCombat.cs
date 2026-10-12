@@ -21,10 +21,16 @@ namespace SpaceEngineersVR.Player
             internal Vector4 Color;
             internal Vector2 Size;
             internal DateTime Time;
+            internal Vector3D? Impact;
+            internal Vector2 Angle;
         }
         internal static MyGuiControlImage HitControl;
         internal static HitView Hit;
         private static long hitOwner;
+        private static Vector3D? hitImpact;
+        private static Vector3D lastImpact;
+        private static DateTime lastImpactTime;
+        private const float ImpactScale=1/3f;
         private static readonly Func<MyGunBase,bool> infiniteAmmo=AccessTools.MethodDelegate<Func<MyGunBase,bool>>(AccessTools.Method(typeof(MyGunBase),"HasInfiniteAmmo"));
         private static readonly Dictionary<Type,FieldInfo> burstFields=new Dictionary<Type,FieldInfo>();
         internal static FieldInfo BurstField(Type type)
@@ -56,14 +62,41 @@ namespace SpaceEngineersVR.Player
         private static long ammoRevision;
         internal static void BeginHit()
         {
-            hitOwner=(MySession.Static?.ControlledEntity as MyShipController)?.EntityId ?? 0;
+            var session=MySession.Static;
+            hitOwner=(session?.ControlledEntity as MyShipController)?.EntityId ?? 0;
+            hitImpact=null;
+            // The hit event has no position; on foot, use this player's latest bullet impact.
+            if(hitOwner==0 && session?.LocalCharacter!=null && session.ControlledEntity==session.LocalCharacter &&
+                (DateTime.UtcNow-lastImpactTime).TotalSeconds<.5)
+            { hitOwner=session.LocalCharacter.EntityId; hitImpact=lastImpact; }
+        }
+        internal static void RecordImpact(ulong owner,Vector3D position)
+        {
+            if(owner!=0 && owner==Sandbox.Game.Multiplayer.Sync.MyId) { lastImpact=position; lastImpactTime=DateTime.UtcNow; }
         }
         internal static void Capture(MyHudWeaponHitIndicator indicator)
         {
             var image=indicator.GuiControlImage;
             HitControl=image;
-            Hit=image.Visible && hitOwner!=0 ? new HitView {Owner=hitOwner,Path=image.BackgroundTexture.Center.Texture,
-                Color=image.ColorMask,Size=Sandbox.Graphics.MyGuiManager.GetScreenSizeFromNormalizedSize(image.Size),Time=DateTime.UtcNow}:null;
+            if(!image.Visible || hitOwner==0) { Hit=null; return; }
+            var size=Sandbox.Graphics.MyGuiManager.GetScreenSizeFromNormalizedSize(image.Size);
+            int height=Sandbox.Graphics.MyGuiManager.GetSafeFullscreenRectangle().Height;
+            Hit=new HitView {Owner=hitOwner,Path=image.BackgroundTexture.Center.Texture,Color=image.ColorMask,Size=size,Time=DateTime.UtcNow,
+                Impact=hitImpact,Angle=size*(float)(2*MarkerBillboard.DesktopHalfField/(height>0 ? height:1080))};
+        }
+        internal static NativeSprite HitSprite(HitView hit) =>
+            new NativeSprite(hit.Path,default(RectangleF),hit.Color.ToLinearRGB()) {NativeGui=true,Premultiplied=true};
+        // Constant angular size at any distance, including the native pop animation.
+        internal static void DrawImpact(Texture2D target,MatrixD head,MatrixD view,MatrixD projection)
+        {
+            var hit=Hit;
+            if(hit?.Impact==null || (DateTime.UtcNow-hit.Time).TotalSeconds>.3 ||
+                !MarkerBillboard.TryCreate(hit.Impact.Value,head,head.Up,true,out var board)) return;
+            var marker=HitSprite(hit); marker.IgnoreSceneDepth=true;
+            double units=2*Math.Tan(MarkerBillboard.IconAngle/2)/ImpactScale;
+            float width=(float)(hit.Angle.X/units),height=(float)(hit.Angle.Y/units);
+            if(board.Project(new RectangleF(-width/2,-height/2,width,height),view,projection,ref marker))
+                NativeSprites.Draw(target,new[] {marker});
         }
         internal static void DrawAmmo(Texture2D target,RemoteView.View view)
         {
@@ -84,13 +117,21 @@ namespace SpaceEngineersVR.Player
         internal static void Reset()
         {
             ammoTexture?.Dispose(); ammo?.Dispose(); ammoTexture=null; ammo=null; ammoKey=null;
-            Hit=null; HitControl=null; hitOwner=0;
+            Hit=null; HitControl=null; hitOwner=0; hitImpact=null; lastImpactTime=default(DateTime);
         }
     }
     [HarmonyPatch(typeof(MyHudWeaponHitIndicator),"Hit")]
     internal static class HitFeedbackPatch
     {
         private static void Prefix() => RemoteCombat.BeginHit();
+    }
+    [HarmonyPatch(typeof(MyProjectile),nameof(MyProjectile.OnHit))]
+    internal static class ProjectileImpactPatch
+    {
+        private static void Prefix(ref MyProjectile __instance,VRage.ModAPI.IMyEntity entity,ref VRage.Game.ModAPI.MyHitInfo hitInfo)
+        {
+            if(entity!=null) RemoteCombat.RecordImpact(__instance.OwningPlayer,hitInfo.Position);
+        }
     }
     [HarmonyPatch(typeof(MyHudWeaponHitIndicator),"Update")]
     internal static class HitFeedbackUpdatePatch

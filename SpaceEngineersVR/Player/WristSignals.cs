@@ -44,7 +44,7 @@ namespace SpaceEngineersVR.Player
         {
             keys.Add(WristKnob.Key());
             keys.Add(new SurfaceKey("HUD settings",.8825f,.80f,.10f,.17778f) {
-                Action=GameActions.HudOptions,Invisible=true,Round=true });
+                Action=WristPanel.HudAction,Invisible=true,Round=true });
         }
         internal static Candidate[] Candidates(WorldMarkers.View snapshot,SurfaceView panel,Vector3D head,SignalLayout.Options options)
         {
@@ -183,7 +183,7 @@ namespace SpaceEngineersVR.Player
                 target.Graphics.DrawRectangle(rim,1,1,1022,638);
             }
             PhysicalSurface.PaintWristKeys(target,panel);
-            int settings=Array.FindIndex(panel.Keys,k=>k.Action==GameActions.HudOptions);
+            int settings=Array.FindIndex(panel.Keys,k=>k.Action==WristPanel.HudAction);
             if(settings>=0)
             {
                 var b=panel.Keys[settings].Bounds;

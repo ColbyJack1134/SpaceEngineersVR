@@ -304,6 +304,13 @@ namespace SpaceEngineersVR.Player
             else Execute(action);
         }
 
+        // Game exceptions from native use, such as leaving a seat, must not stop VR input.
+        private static void UseControlled()
+        {
+            try { MySession.Static.ControlledEntity?.Use(); }
+            catch (Exception ex) { Logger.Warning(ex,"Native use failed; VR input continues"); }
+        }
+
         public static void HandleButtons(bool primaryHeld)
         {
             var c = Controls.Static;
@@ -330,7 +337,7 @@ namespace SpaceEngineersVR.Player
             if (interact && RemoteView.Active) { RemoteView.Exit(); InputRouter.Update(); return; }
             if (interact && !PlacementControls.Painting)
             {
-                if (!HandInteraction.TryInteract()) { MySession.Static.ControlledEntity?.Use(); HandInteraction.Feedback(); }
+                if (!HandInteraction.TryInteract()) { UseControlled(); HandInteraction.Feedback(); }
                 InputRouter.Update();
                 if (!InputRouter.Gameplay) return;
             }

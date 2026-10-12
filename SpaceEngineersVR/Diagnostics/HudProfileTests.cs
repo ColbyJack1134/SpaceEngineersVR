@@ -34,9 +34,14 @@ namespace SpaceEngineersVR.Diagnostics
             Require(oldDefaults.HudProfiles.Select(p=>p.Markers).SequenceEqual(new[] {0,1,1,2}) &&
                 oldDefaults.HudProfiles.Select(p=>p.Vitals).SequenceEqual(new[] {false,false,true,false}),"Old default states did not migrate");
             Require(oldDefaults.HudProfiles.All(p=>p.IconScale==1.25f && p.TextScale==.875f && p.Group),"Migration lost sizing or retained ungrouped states");
+            Require(oldDefaults.HudProfiles.Select(p=>p.HitMarkers).SequenceEqual(new[] {false,true,true,true}),"Hit markers did not migrate off only for the empty state");
             var c=new PluginConfig(); c.InitializeHudProfiles(); WristHud.Open(c);
+            Require(c.HudProfiles.Select(p=>p.HitMarkers).SequenceEqual(new[] {false,true,true,true}),"Default hit markers are not off only for the empty state");
             Press(c,"4  Details");
             Require(c.HudProfileIndex==3 && !c.ShowVitals,"Selecting a state did not activate it immediately");
+            Press(c,"Hit markers on foot");
+            Require(!c.ShowHitMarkers && !c.HudProfiles[3].HitMarkers && c.HudProfiles[2].HitMarkers,"Wrist hit marker toggle did not change only the active state");
+            Press(c,"Hit markers on foot");
              Require(!c.ShowVitals && c.WaypointMode==2,"Selected state failed to apply details without vitals");
             c.GroupSignals=false; c.SignalIconScale=2; c.SignalTextScale=1.25f;
             Press(c,"+ State"); Require(c.HudProfiles.Length==5 && c.HudProfileIndex==4,"Adding a state failed to activate it");
@@ -85,7 +90,7 @@ namespace SpaceEngineersVR.Diagnostics
             Require(touch.Update("ring",new Vector3(0,0,.04f),0)<0 && touch.Update("ring",new Vector3(0,0,.008f),0)==0 &&
                 touch.Update("ring",new Vector3(0,0,.005f),0)<0,"Ring poke failed to require withdrawal");
             WristPanel.Reset();
-            log("PASS HUD profiles: immediate state selection, global visibility/tint, four/five-state cycle, remove/reset, legacy XML migration, rotary tint and production touch regions.");
+            log("PASS HUD profiles: immediate state selection, global visibility/tint, four/five-state cycle, remove/reset, legacy XML and hit marker migration, wrist hit marker toggle, rotary tint and production touch regions.");
         }
         internal static void Render(Device device,string output,Action<string> log)
         {

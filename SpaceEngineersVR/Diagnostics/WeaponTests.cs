@@ -239,6 +239,36 @@ namespace SpaceEngineersVR.Diagnostics
                     UiTests.Save(feed,Path.Combine(output,"ship-hit-base.png"));
                     RemoteCombat.Reset();
                 }
+                using(var eye=new Texture2D(device,new Texture2DDescription {Width=1000,Height=1000,MipLevels=1,ArraySize=1,Format=SharpDX.DXGI.Format.R8G8B8A8_UNorm_SRgb,SampleDescription=new SharpDX.DXGI.SampleDescription(1,0),Usage=ResourceUsage.Default,BindFlags=BindFlags.RenderTarget|BindFlags.ShaderResource}))
+                {
+                    var projection=MatrixD.CreatePerspectiveFieldOfView(2*Math.Atan(1.15),1,.03,10000);
+                    for(int pass=0;pass<2;pass++)
+                    {
+                        using(var rtv=new RenderTargetView(device,eye)) device.ImmediateContext.ClearRenderTargetView(rtv,new SharpDX.Mathematics.Interop.RawColor4(.10f,.14f,.18f,1));
+                        var now=DateTime.UtcNow;
+                        DamageMarkers.Reset();
+                        DamageMarkers.Add(new Vector3D(-5.74,0,-8.19),Vector3D.Up,now.AddSeconds(-.2));
+                        DamageMarkers.Add(new Vector3D(10,0,0),Vector3D.Up,now.AddSeconds(-.6));
+                        DamageMarkers.Add(new Vector3D(0,0,10),Vector3D.Up,now.AddSeconds(-1.2));
+                        DamageMarkers.Draw(eye,MatrixD.Identity,MatrixD.Identity,projection);
+                        if(pass==0) SignalTests.WaitIcons();
+                    }
+                    UiTests.Save(eye,Path.Combine(output,"damage-markers.png"));
+                    DamageMarkers.Reset();
+                    for(int pass=0;pass<2;pass++)
+                    {
+                        using(var rtv=new RenderTargetView(device,eye)) device.ImmediateContext.ClearRenderTargetView(rtv,new SharpDX.Mathematics.Interop.RawColor4(.10f,.14f,.18f,1));
+                        foreach(var impact in new[] {new Vector3D(-.6,0,-3),new Vector3D(0,0,-30),new Vector3D(60,0,-300)})
+                        {
+                            RemoteCombat.Hit=new RemoteCombat.HitView {Path=@"Textures\GUI\Indicators\HitIndicator4.png",Color=new Color(117,201,241).ToVector4(),
+                                Size=new Vector2(54),Angle=new Vector2(54)*(float)(2*MarkerBillboard.DesktopHalfField/1080),Impact=impact,Time=DateTime.UtcNow};
+                            RemoteCombat.DrawImpact(eye,MatrixD.Identity,MatrixD.Identity,projection);
+                        }
+                        if(pass==0) SignalTests.WaitIcons();
+                    }
+                    UiTests.Save(eye,Path.Combine(output,"hit-markers.png"));
+                    RemoteCombat.Reset();
+                }
                 UiTests.Render(canvas,()=>PhysicalSurface.Paint(canvas,WeaponAmmo.Label(WeaponProfile.Launcher,MatrixD.Identity,1,1)));
                 UiTests.Save(canvas.Texture,Path.Combine(output,"ammo-single.png"));
             }

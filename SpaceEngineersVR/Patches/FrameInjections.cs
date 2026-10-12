@@ -78,7 +78,8 @@ namespace SpaceEngineersVR.Patches
                 if(Main.MenuFallback)
                 {
                     VRGUIManager.Draw();
-                    VRGUIManager.SubmitMenuBackground();
+                    // Recovery can start after this frame's stereo submit; a second submit fails with AlreadySubmitted.
+                    if (!drewStereo) VRGUIManager.SubmitMenuBackground();
                     return;
                 }
                 Player.GpuTiming.Begin(Player.GpuTiming.Area.Hud);

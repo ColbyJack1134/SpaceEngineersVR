@@ -6,6 +6,8 @@ namespace SpaceEngineersVR.Player
     internal struct MarkerBillboard
     {
         public const double IconAngle = Math.PI / 90; // Two degrees, independent of eye target resolution.
+        // Native HUD sprites are sized for the default 70 degree vertical field.
+        internal static readonly double DesktopHalfField=Math.Tan(Math.PI*35/180);
         public Vector3D Center, Right, Up;
         public double Scale;
 
