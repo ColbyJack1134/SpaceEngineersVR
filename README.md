@@ -1,4 +1,6 @@
-<img width="1280" height="640" alt="SEVR-social-2" src="https://github.com/user-attachments/assets/5b3f467d-803e-4a3c-98ac-c6295ae56bec" />
+<img width="1280" height="640" alt="SEVR-social-3" src="https://github.com/user-attachments/assets/cc85a7b4-460d-445f-afbd-cc008968c509" />
+
+[Trailer](https://youtu.be/UGdSjBTu-30) • [Raw Gameplay](https://www.youtube.com/watch?v=4BAt21If5LI)
 
 ## Space Engineers 1 VR Plugin
 
