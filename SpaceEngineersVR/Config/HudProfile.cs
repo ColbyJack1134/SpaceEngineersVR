@@ -49,12 +49,13 @@ namespace SpaceEngineersVR.Config
         }
         private HudProfile CaptureHudProfile() => new HudProfile { Vitals=ShowVitals,Markers=WaypointMode,
             IconScale=SignalIconScale,TextScale=SignalTextScale,Group=GroupSignals,Distances=ShowSignalDistances,HitMarkers=ShowHitMarkers };
-        internal void InitializeHudProfiles()
+        internal void InitializeHudProfiles(bool created=false)
         {
             if(hudProfilesReady) return;
             if(hudProfiles.Length<4)
             {
-                var current=CaptureHudProfile();
+                // New configs start on Markers without vitals; older configs keep their legacy HUD state.
+                var current=created ? DefaultHudProfile(1):CaptureHudProfile();
                 hudProfileIndex=current.Markers==2 ? 3:current.Markers==1 ? (current.Vitals ? 2:1):0;
                 hudProfiles=Enumerable.Range(0,4).Select(i=> {var p=DefaultHudProfile(i); p.IconScale=current.IconScale; p.TextScale=current.TextScale; return p;}).ToArray();
             }

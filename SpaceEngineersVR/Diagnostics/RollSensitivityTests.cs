@@ -45,6 +45,8 @@ namespace SpaceEngineersVR.Diagnostics
                     Near(MathHelper.Clamp(roll*0.2f,-1,1),previousTorque*0.6f,"Ship reduction lost at engine saturation");
                 }
             }
+            var created=new PluginConfig(); created.InitializeHudProfiles(true);
+            if(created.HudProfileIndex!=1 || created.ShowVitals || created.WaypointMode!=1) throw new Exception("New configs do not start on the Markers HUD profile");
             for(int legacy=0;legacy<4;legacy++)
             {
                 PluginConfig migrated;
@@ -81,7 +83,7 @@ namespace SpaceEngineersVR.Diagnostics
                 migrated.ThirdPersonZoomSensitivity=float.NaN; migrated.ThirdPersonPanGlide=float.PositiveInfinity;
                 Near(migrated.ThirdPersonZoomSensitivity,1,"Invalid zoom sensitivity"); Near(migrated.ThirdPersonPanGlide,1,"Invalid pan glide");
             }
-            log("PASS settings migration: all legacy HUD modes, independent vitals/waypoints/visor and ship/jetpack inversion, zero-glide persistence and invalid sensitivity fallback.");
+            log("PASS settings migration: new configs on Markers, all legacy HUD modes, independent vitals/waypoints/visor and ship/jetpack inversion, zero-glide persistence and invalid sensitivity fallback.");
             foreach(bool enabled in new[] {false,true})
             {
                 if(!FlightAxes.ControllerInputAllowed(false,false,enabled) || !FlightAxes.ControllerInputAllowed(true,true,enabled))

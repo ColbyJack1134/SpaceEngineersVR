@@ -17,6 +17,7 @@ namespace SpaceEngineersVR.Config
         private string pending;
         private bool disposed;
         private const int SaveDelay = 500;
+        public bool Created { get; private set; }
 
         private string Path
         {
@@ -84,7 +85,7 @@ namespace SpaceEngineersVR.Config
             }
 
             MyLog.Default.WriteLine($"SpaceEngineersVR: Writing default configuration file: {path}");
-            var config = new PersistentConfig<T>(path, new T());
+            var config = new PersistentConfig<T>(path, new T()) { Created = true };
             config.Save();
             return config;
         }

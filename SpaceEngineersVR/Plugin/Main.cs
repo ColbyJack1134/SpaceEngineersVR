@@ -77,7 +77,7 @@ namespace SpaceEngineersVR.Plugin
             MyLog.Default.WriteLine("SpaceEngineersVR: starting...");
             var configPath = Path.Combine(MyFileSystem.UserDataPath, ConfigFileName);
             config = PersistentConfig<PluginConfig>.Load(configPath);
-            config.Data.InitializeHudProfiles();
+            config.Data.InitializeHudProfiles(config.Created);
 
             try
             {
