@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using System.IO;
 using System.Collections.Generic;
@@ -852,3 +853,4 @@ namespace SpaceEngineersVR.Diagnostics
         }
     }
 }
+#endif

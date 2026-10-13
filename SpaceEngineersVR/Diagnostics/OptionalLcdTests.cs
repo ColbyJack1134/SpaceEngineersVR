@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -192,3 +193,4 @@ namespace SpaceEngineersVR.Diagnostics
         private sealed class WrongInputBlock:InputBlock { public new int SetInputBlocked(bool value) => 0; }
     }
 }
+#endif

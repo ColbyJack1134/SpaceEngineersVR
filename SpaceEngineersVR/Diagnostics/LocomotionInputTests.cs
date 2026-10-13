@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using System.Collections.Generic;
 using SpaceEngineersVR.Player;
@@ -189,3 +190,4 @@ namespace SpaceEngineersVR.Diagnostics
         }
     }
 }
+#endif

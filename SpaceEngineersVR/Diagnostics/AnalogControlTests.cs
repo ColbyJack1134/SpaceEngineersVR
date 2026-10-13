@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using System.Collections.Generic;
 using Sandbox.Game.Screens.Helpers;
@@ -169,3 +170,4 @@ namespace SpaceEngineersVR.Diagnostics
         }
     }
 }
+#endif

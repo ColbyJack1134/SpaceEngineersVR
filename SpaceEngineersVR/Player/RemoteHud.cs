@@ -24,7 +24,7 @@ namespace SpaceEngineersVR.Player
         internal static Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode GlobalSignalMode => (Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode)signalMode.GetValue(null);
         private static readonly TextureCopy hud=new TextureCopy();
         private static long source;
-        internal static RemoteView.View Fixture;
+        internal static RemoteView.View Fixture { get; set; }
         internal static int SpriteCount { get; private set; }
         internal static string FixtureSprites;
         private static readonly Type renderer=AccessTools.TypeByName("VRageRender.MyRender11");

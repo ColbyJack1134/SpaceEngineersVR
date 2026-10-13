@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using System.IO;
 using System.Collections.Generic;
@@ -186,3 +187,4 @@ namespace SpaceEngineersVR.Diagnostics
         { Require(actual.IsValid() && Math.Abs(actual-expected)<1e-5,message+": "+actual); }
     }
 }
+#endif

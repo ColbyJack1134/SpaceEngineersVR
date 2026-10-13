@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using System.Text;
 using Valve.VR;
@@ -85,3 +86,4 @@ namespace SpaceEngineersVR.Diagnostics
         }
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Player.Control;
@@ -56,3 +57,4 @@ namespace SpaceEngineersVR.Diagnostics
         }
     }
 }
+#endif

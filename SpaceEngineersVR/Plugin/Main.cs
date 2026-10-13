@@ -88,6 +88,7 @@ namespace SpaceEngineersVR.Plugin
                     throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(), "Cannot load " + nativePath);
 
                 bool compatible = CompatibilityProbe.Run(line => Logger.Info(line));
+#if SEVR_DIAGNOSTICS
                 string mode=Environment.GetEnvironmentVariable("SEVR_MODE")?.Trim().ToLowerInvariant();
                 if (mode == "physicaltest")
                 {
@@ -114,6 +115,7 @@ namespace SpaceEngineersVR.Plugin
                     Logger.Info("Diagnostic mode complete. Rendering and motion-control patches are disabled.");
                     return;
                 }
+#endif
                 if (!compatible)
                     throw new InvalidOperationException("Renderer compatibility checks failed. See the SpaceEngineersVR log.");
                 failed = !Initialize();
@@ -166,7 +168,9 @@ namespace SpaceEngineersVR.Plugin
         public void Update()
         {
             if (Harmony != null) Patches.DoubleClickTolerancePatch.Install(Harmony);
+#if SEVR_DIAGNOSTICS
             if (PhysicalRendererProbe.Active) { PhysicalRendererProbe.Update(); return; }
+#endif
             Multiplayer.MultiplayerRuntime.Update();
             if (cleanupRequested)
             {

@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using SpaceEngineersVR.Player;
 using VRageMath;
@@ -32,3 +33,4 @@ namespace SpaceEngineersVR.Diagnostics
         { if(float.IsNaN(actual) || Math.Abs(actual-expected)>.1f) throw new Exception(message+": "+actual); }
     }
 }
+#endif

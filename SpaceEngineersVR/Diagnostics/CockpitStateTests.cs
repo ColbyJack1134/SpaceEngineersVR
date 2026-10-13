@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using System.Runtime.Remoting.Messaging;
 using System.Runtime.Remoting.Proxies;
@@ -142,3 +143,4 @@ namespace SpaceEngineersVR.Diagnostics
         }
     }
 }
+#endif

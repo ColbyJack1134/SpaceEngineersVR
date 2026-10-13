@@ -29,6 +29,12 @@ internal static class Program
             if(args.Length==4 && args[1]=="--stick-preview") { StickPreview.Export(game,args[2],args[3]); return 0; }
             if(args.Length==4 && args[1]=="--export-model") { ModelInspection.Export(game,args[2],args[3]); return 0; }
             if(args.Length==3 && args[1]=="--companion-test") { MultiplayerTests.Companion(args[2],Console.WriteLine); return 0; }
+            if(args.Length==3 && args[1]=="--patch-test")
+            {
+                Assembly.LoadFrom(Path.Combine(game,"VRage.Render11.dll")); Assembly.LoadFrom(Path.Combine(game,"Sandbox.Game.dll"));
+                UiTests.Initialize(game,Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"SEVRPrototype","Reports","regression-data"));
+                RegressionTests.InitializeRenderer(game); RegressionTests.PatchTest(args[2],Console.WriteLine); return 0;
+            }
             if(args.Length==3 && args[1]=="--multiplayer-test") { MultiplayerTests.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--navigation-preview") { UiTests.Navigation(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--hud-preview") { UiTests.HudPreview(game,args[2],Console.WriteLine); return 0; }

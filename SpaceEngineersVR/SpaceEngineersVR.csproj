@@ -5,6 +5,8 @@
     <LangVersion>7.3</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <!-- Pulsar hub builds do not define this. -->
+    <DefineConstants>$(DefineConstants);SEVR_DIAGNOSTICS</DefineConstants>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <GameBinPath Condition="'$(GameBinPath)' == '' and '$(OS)' == 'Windows_NT'">C:\Program Files (x86)\Steam\steamapps\common\SpaceEngineers\Bin64</GameBinPath>
     <GameBinPath Condition="'$(GameBinPath)' == ''">/mnt/c/Program Files (x86)/Steam/steamapps/common/SpaceEngineers/Bin64</GameBinPath>

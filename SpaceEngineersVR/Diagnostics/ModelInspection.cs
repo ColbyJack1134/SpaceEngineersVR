@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -131,3 +132,4 @@ namespace SpaceEngineersVR.Diagnostics
             .Select(v=>new[] {"X","Y","Z","W"}.Select(n=>Convert.ToSingle(Member(v,n))).ToArray()).ToArray();
     }
 }
+#endif

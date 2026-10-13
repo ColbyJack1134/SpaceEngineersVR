@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -50,3 +51,4 @@ namespace SpaceEngineersVR.Diagnostics
         { if(AccessTools.Field(type,name)?.FieldType!=expected) throw new Exception(type+"."+name+" changed type"); }
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using System.Linq;
 using System.Reflection;
@@ -373,6 +374,7 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 harmony.PatchAll(typeof(Plugin.Main).Assembly);
                 int count=harmony.GetPatchedMethods().Count();
+                Patches.FrameInjections.Install(harmony);
                 if(count<3) throw new Exception("Expected input, weapon and aiming patches; found "+count);
                 log("PASS installed "+count+" gameplay Harmony patches (no game/VR execution); render patching is tested in-game");
                 if(!NativeNotices.Available) throw new Exception("Native HUD notification fields changed");
@@ -382,5 +384,30 @@ namespace SpaceEngineersVR.Diagnostics
             }
             finally { harmony.UnpatchAll(harmony.Id); }
         }
+        // Loaded from bytes so the identical assembly identity does not resolve to this one.
+        public static void PatchTest(string assemblyPath,Action<string> log)
+        {
+            var hub=System.Reflection.Assembly.Load(System.IO.File.ReadAllBytes(assemblyPath));
+            VRage.ObjectBuilders.MyObjectBuilderType.RegisterFromAssembly(typeof(VRage.Game.MyDefinitionId).Assembly);
+            VRage.ObjectBuilders.MyObjectBuilderType.RegisterFromAssembly(Assembly.Load("SpaceEngineers.ObjectBuilders"));
+            if(hub.GetType("SpaceEngineersVR.Diagnostics.RegressionTests")!=null) throw new Exception("Hub build contains diagnostics code");
+            if(hub.GetType("SpaceEngineersVR.Diagnostics.CompatibilityProbe")==null) throw new Exception("Hub build lacks the compatibility probe");
+            int expected=Attach(typeof(Plugin.Main).Assembly,"SpaceEngineersVR.PatchTest.Local");
+            int count=Attach(hub,"SpaceEngineersVR.PatchTest.Hub");
+            if(count!=expected) throw new Exception("Hub build attached "+count+" patches; this build attaches "+expected);
+            log("PASS hub build "+hub.GetName().Version+": "+count+" gameplay and render patches attach as in this build; no diagnostics code");
+        }
+        private static int Attach(System.Reflection.Assembly assembly,string id)
+        {
+            var harmony=new Harmony(id);
+            try
+            {
+                harmony.PatchAll(assembly);
+                assembly.GetType("SpaceEngineersVR.Patches.FrameInjections",true).GetMethod("Install").Invoke(null,new object[] {harmony});
+                return harmony.GetPatchedMethods().Count();
+            }
+            finally { harmony.UnpatchAll(id); }
+        }
     }
 }
+#endif

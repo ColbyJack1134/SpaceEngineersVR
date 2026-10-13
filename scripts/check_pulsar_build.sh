@@ -10,10 +10,15 @@ trap 'rm -rf "$out"' EXIT
 printf '{"sdk":{"version":"10.0.100","rollForward":"latestFeature"}}' > "$out/global.json"
 cd "$out"
 "${SEVR_DOTNET:-$HOME/.dotnet/dotnet}" build "$root/SpaceEngineersVR/SpaceEngineersVR.csproj" -c Release --nologo -v q \
-    -p:LangVersion=14 "-p:AdditionalExplicitAssemblyReferences=$bin64/System.Memory.dll" \
+    -p:LangVersion=14 -p:DefineConstants=TRACE "-p:AdditionalExplicitAssemblyReferences=$bin64/System.Memory.dll" \
     "-p:OutputPath=$out/bin/" "-p:IntermediateOutputPath=$out/obj/"
 if grep -aq MemoryExtensions "$out/bin/SpaceEngineersVR.dll"; then
     echo "FAIL: calls bind to System.MemoryExtensions under C# 14. Call the Enumerable method explicitly."
     exit 1
 fi
-echo "PASS: Pulsar C# 14 build matches release bindings."
+if grep -aq RegressionTests "$out/bin/SpaceEngineersVR.dll"; then
+    echo "FAIL: diagnostics code compiled without SEVR_DIAGNOSTICS."
+    exit 1
+fi
+if [ -n "${SEVR_PULSAR_OUT:-}" ]; then cp "$out/bin/SpaceEngineersVR.dll" "$SEVR_PULSAR_OUT"; fi
+echo "PASS: Pulsar C# 14 build matches release bindings without diagnostics code."

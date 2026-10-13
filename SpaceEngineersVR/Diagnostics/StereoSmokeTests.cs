@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using System.Globalization;
 using System.IO;
@@ -144,3 +145,4 @@ P VS(uint id:SV_VertexID) {
         private static void Require(bool condition,string message) { if(!condition) throw new Exception(message); }
     }
 }
+#endif

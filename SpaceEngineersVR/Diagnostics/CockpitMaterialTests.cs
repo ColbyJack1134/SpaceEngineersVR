@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -125,3 +126,4 @@ namespace SpaceEngineersVR.Diagnostics
         private static void Require(bool value,string message) { if(!value) throw new Exception(message); }
     }
 }
+#endif

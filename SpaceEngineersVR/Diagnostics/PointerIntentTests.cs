@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using SpaceEngineersVR.Player.Control;
 
@@ -82,3 +83,4 @@ namespace SpaceEngineersVR.Diagnostics
         private static void Require(bool value,string message) { if(!value) throw new Exception(message); }
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using HarmonyLib;
 using SpaceEngineersVR.Config;
@@ -51,3 +52,4 @@ namespace SpaceEngineersVR.Diagnostics
         }
     }
 }
+#endif

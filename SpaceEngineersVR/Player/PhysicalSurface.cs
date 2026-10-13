@@ -59,7 +59,8 @@ namespace SpaceEngineersVR.Player
         public bool LeftHand;
         internal bool Hovered(int i) => i>=0 && (i==Hover || i==HoverAlt);
         internal bool IsPressed(int i) => i>=0 && (i==Pressed || i==PressedAlt);
-        public bool TrackingSpace,GeometryFeedback,RoundEnds;
+        public bool TrackingSpace,GeometryFeedback;
+        public bool RoundEnds { get; set; }
         public SurfaceStyle Style;
         public float[] Levels;
         public int Handle;

@@ -1,3 +1,4 @@
+#if SEVR_DIAGNOSTICS
 using System;
 using System.Runtime.Serialization;
 using HarmonyLib;
@@ -243,3 +244,4 @@ namespace SpaceEngineersVR.Diagnostics
         }
     }
 }
+#endif
