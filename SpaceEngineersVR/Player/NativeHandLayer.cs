@@ -21,7 +21,8 @@ namespace SpaceEngineersVR.Player
         private static volatile bool active;
         private static volatile bool leftDrawn,rightDrawn;
         internal static bool Drawn(bool left) => left ? leftDrawn:rightDrawn;
-        private static readonly FieldInfo parentField=AccessTools.Field(AccessTools.TypeByName("VRageRender.MyRenderableProxy"),"Parent");
+        private static readonly AccessTools.FieldRef<object,VRage.Render.Scene.Components.MyActorComponent> parentField=
+            AccessTools.FieldRefAccess<object,VRage.Render.Scene.Components.MyActorComponent>(AccessTools.Field(AccessTools.TypeByName("VRageRender.MyRenderableProxy"),"Parent"));
         private static MethodBase TargetMethod() => AccessTools.Method(AccessTools.TypeByName("VRageRender.MyGBufferPass"),"RecordCommandsInternal",new[] {AccessTools.TypeByName("VRageRender.MyRenderableProxy")});
         internal static void Begin(int width,int height,bool enabled)
         {
@@ -46,7 +47,7 @@ namespace SpaceEngineersVR.Player
         private static void Postfix(object __instance,object proxy)
         {
             if(!active) return;
-            var parent=(VRage.Render.Scene.Components.MyActorComponent)parentField.GetValue(proxy);
+            var parent=parentField(proxy);
             if(parent==null) return;
             bool observer=NativeGloves.IsHand(parent.Owner.ID,out bool left);
             if(!observer)

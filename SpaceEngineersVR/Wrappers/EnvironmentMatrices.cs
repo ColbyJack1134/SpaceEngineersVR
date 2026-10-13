@@ -1,42 +1,40 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using HarmonyLib;
 using VRageMath;
 
 namespace SpaceEngineersVR.Wrappers
 {
     // Access the real renderer object by named fields; never replace its CLR type pointer.
+    // Field accessors are resolved once per process: this runs for every billboard, so it must not reflect or box.
     public sealed class EnvironmentMatrices
     {
+        private static readonly Type type = AccessTools.TypeByName("VRageRender.MyEnvironmentMatrices");
         private readonly object instance;
-        private readonly Dictionary<string, FieldInfo> fields = new Dictionary<string, FieldInfo>();
 
         public EnvironmentMatrices(object instance)
         {
             this.instance = instance ?? throw new ArgumentNullException(nameof(instance));
+            if (!type.IsInstanceOfType(instance)) throw new ArgumentException(instance.GetType().FullName, nameof(instance));
         }
 
-        private FieldInfo Field<T>(string name)
+        private static FieldInfo Field(string name, Type fieldType)
         {
-            if (!fields.TryGetValue(name, out FieldInfo field))
-            {
-                field = instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (field == null || field.FieldType != typeof(T))
-                    throw new MissingFieldException(instance.GetType().FullName, name + " (" + typeof(T).Name + ")");
-                fields.Add(name, field);
-            }
+            var field = type?.GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (field == null || field.FieldType != fieldType)
+                throw new MissingFieldException(type?.FullName ?? "VRageRender.MyEnvironmentMatrices", name + " (" + fieldType.Name + ")");
             return field;
         }
+        private static AccessTools.FieldRef<object, T> Ref<T>(string name) => AccessTools.FieldRefAccess<object, T>(Field(name, typeof(T)));
+        private static readonly FieldInfo[] snapshotFields = typeof(EnvironmentMatrices)
+            .GetProperties(BindingFlags.Instance | BindingFlags.NonPublic).Select(p => Field(p.Name, p.PropertyType)).ToArray();
 
         public Dictionary<FieldInfo, object> Capture()
         {
             var snapshot = new Dictionary<FieldInfo, object>();
-            foreach (var property in typeof(EnvironmentMatrices).GetProperties(BindingFlags.Instance | BindingFlags.NonPublic))
-            {
-                var field = instance.GetType().GetField(property.Name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (field == null || field.FieldType != property.PropertyType) throw new MissingFieldException(property.Name);
-                snapshot.Add(field, field.GetValue(instance));
-            }
+            foreach (var field in snapshotFields) snapshot.Add(field, field.GetValue(instance));
             return snapshot;
         }
         public void Restore(Dictionary<FieldInfo, object> snapshot)
@@ -44,29 +42,49 @@ namespace SpaceEngineersVR.Wrappers
             foreach (var pair in snapshot) pair.Key.SetValue(instance, pair.Value);
         }
 
-        private T Get<T>(string name) => (T)Field<T>(name).GetValue(instance);
-        private void Set<T>(string name, T value) => Field<T>(name).SetValue(instance, value);
-        internal Vector3D CameraPosition { get => Get<Vector3D>(nameof(CameraPosition)); set => Set(nameof(CameraPosition), value); }
-        internal Matrix ViewAt0 { get => Get<Matrix>(nameof(ViewAt0)); set => Set(nameof(ViewAt0), value); }
-        internal Matrix InvViewAt0 { get => Get<Matrix>(nameof(InvViewAt0)); set => Set(nameof(InvViewAt0), value); }
-        internal Matrix ViewProjectionAt0 { get => Get<Matrix>(nameof(ViewProjectionAt0)); set => Set(nameof(ViewProjectionAt0), value); }
-        internal Matrix InvViewProjectionAt0 { get => Get<Matrix>(nameof(InvViewProjectionAt0)); set => Set(nameof(InvViewProjectionAt0), value); }
-        internal Matrix Projection { get => Get<Matrix>(nameof(Projection)); set => Set(nameof(Projection), value); }
-        internal Matrix ProjectionForSkybox { get => Get<Matrix>(nameof(ProjectionForSkybox)); set => Set(nameof(ProjectionForSkybox), value); }
-        internal Matrix InvProjection { get => Get<Matrix>(nameof(InvProjection)); set => Set(nameof(InvProjection), value); }
-        internal MatrixD ViewD { get => Get<MatrixD>(nameof(ViewD)); set => Set(nameof(ViewD), value); }
-        internal MatrixD InvViewD { get => Get<MatrixD>(nameof(InvViewD)); set => Set(nameof(InvViewD), value); }
-        internal Matrix OriginalProjection { get => Get<Matrix>(nameof(OriginalProjection)); set => Set(nameof(OriginalProjection), value); }
-        internal Matrix OriginalProjectionFar { get => Get<Matrix>(nameof(OriginalProjectionFar)); set => Set(nameof(OriginalProjectionFar), value); }
-        internal MatrixD ViewProjectionD { get => Get<MatrixD>(nameof(ViewProjectionD)); set => Set(nameof(ViewProjectionD), value); }
-        internal MatrixD InvViewProjectionD { get => Get<MatrixD>(nameof(InvViewProjectionD)); set => Set(nameof(InvViewProjectionD), value); }
-        internal BoundingFrustumD ViewFrustumClippedD { get => Get<BoundingFrustumD>(nameof(ViewFrustumClippedD)); set => Set(nameof(ViewFrustumClippedD), value); }
-        internal BoundingFrustumD ViewFrustumClippedFarD { get => Get<BoundingFrustumD>(nameof(ViewFrustumClippedFarD)); set => Set(nameof(ViewFrustumClippedFarD), value); }
-        internal float NearClipping { get => Get<float>(nameof(NearClipping)); set => Set(nameof(NearClipping), value); }
-        internal float LargeDistanceFarClipping { get => Get<float>(nameof(LargeDistanceFarClipping)); set => Set(nameof(LargeDistanceFarClipping), value); }
-        internal float FarClipping { get => Get<float>(nameof(FarClipping)); set => Set(nameof(FarClipping), value); }
-        internal float FovH { get => Get<float>(nameof(FovH)); set => Set(nameof(FovH), value); }
-        internal float FovV { get => Get<float>(nameof(FovV)); set => Set(nameof(FovV), value); }
-        internal bool LastUpdateWasSmooth { get => Get<bool>(nameof(LastUpdateWasSmooth)); set => Set(nameof(LastUpdateWasSmooth), value); }
+        private static readonly AccessTools.FieldRef<object, Vector3D> cameraPosition = Ref<Vector3D>("CameraPosition");
+        internal Vector3D CameraPosition { get => cameraPosition(instance); set => cameraPosition(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, Matrix> viewAt0 = Ref<Matrix>("ViewAt0");
+        internal Matrix ViewAt0 { get => viewAt0(instance); set => viewAt0(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, Matrix> invViewAt0 = Ref<Matrix>("InvViewAt0");
+        internal Matrix InvViewAt0 { get => invViewAt0(instance); set => invViewAt0(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, Matrix> viewProjectionAt0 = Ref<Matrix>("ViewProjectionAt0");
+        internal Matrix ViewProjectionAt0 { get => viewProjectionAt0(instance); set => viewProjectionAt0(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, Matrix> invViewProjectionAt0 = Ref<Matrix>("InvViewProjectionAt0");
+        internal Matrix InvViewProjectionAt0 { get => invViewProjectionAt0(instance); set => invViewProjectionAt0(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, Matrix> projection = Ref<Matrix>("Projection");
+        internal Matrix Projection { get => projection(instance); set => projection(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, Matrix> projectionForSkybox = Ref<Matrix>("ProjectionForSkybox");
+        internal Matrix ProjectionForSkybox { get => projectionForSkybox(instance); set => projectionForSkybox(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, Matrix> invProjection = Ref<Matrix>("InvProjection");
+        internal Matrix InvProjection { get => invProjection(instance); set => invProjection(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, MatrixD> viewD = Ref<MatrixD>("ViewD");
+        internal MatrixD ViewD { get => viewD(instance); set => viewD(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, MatrixD> invViewD = Ref<MatrixD>("InvViewD");
+        internal MatrixD InvViewD { get => invViewD(instance); set => invViewD(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, Matrix> originalProjection = Ref<Matrix>("OriginalProjection");
+        internal Matrix OriginalProjection { get => originalProjection(instance); set => originalProjection(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, Matrix> originalProjectionFar = Ref<Matrix>("OriginalProjectionFar");
+        internal Matrix OriginalProjectionFar { get => originalProjectionFar(instance); set => originalProjectionFar(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, MatrixD> viewProjectionD = Ref<MatrixD>("ViewProjectionD");
+        internal MatrixD ViewProjectionD { get => viewProjectionD(instance); set => viewProjectionD(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, MatrixD> invViewProjectionD = Ref<MatrixD>("InvViewProjectionD");
+        internal MatrixD InvViewProjectionD { get => invViewProjectionD(instance); set => invViewProjectionD(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, BoundingFrustumD> viewFrustumClippedD = Ref<BoundingFrustumD>("ViewFrustumClippedD");
+        internal BoundingFrustumD ViewFrustumClippedD { get => viewFrustumClippedD(instance); set => viewFrustumClippedD(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, BoundingFrustumD> viewFrustumClippedFarD = Ref<BoundingFrustumD>("ViewFrustumClippedFarD");
+        internal BoundingFrustumD ViewFrustumClippedFarD { get => viewFrustumClippedFarD(instance); set => viewFrustumClippedFarD(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, float> nearClipping = Ref<float>("NearClipping");
+        internal float NearClipping { get => nearClipping(instance); set => nearClipping(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, float> largeDistanceFarClipping = Ref<float>("LargeDistanceFarClipping");
+        internal float LargeDistanceFarClipping { get => largeDistanceFarClipping(instance); set => largeDistanceFarClipping(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, float> farClipping = Ref<float>("FarClipping");
+        internal float FarClipping { get => farClipping(instance); set => farClipping(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, float> fovH = Ref<float>("FovH");
+        internal float FovH { get => fovH(instance); set => fovH(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, float> fovV = Ref<float>("FovV");
+        internal float FovV { get => fovV(instance); set => fovV(instance) = value; }
+        private static readonly AccessTools.FieldRef<object, bool> lastUpdateWasSmooth = Ref<bool>("LastUpdateWasSmooth");
+        internal bool LastUpdateWasSmooth { get => lastUpdateWasSmooth(instance); set => lastUpdateWasSmooth(instance) = value; }
     }
 }

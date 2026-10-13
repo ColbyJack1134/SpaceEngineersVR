@@ -144,14 +144,10 @@ namespace SpaceEngineersVR.Wrappers
 
         private static readonly FieldInfo environment;
         private static readonly FieldInfo environment_matrices;
+        private static EnvironmentMatrices environmentMatrices;
+        // MyRender11.Environment and MyEnvironment.Matrices are readonly, so the wrapper is built once.
         public static EnvironmentMatrices Environment_Matrices
-        {
-            get
-            {
-                object obj = environment_matrices.GetValue(environment.GetValue(null));
-                return new EnvironmentMatrices(obj);
-            }
-        }
+            => environmentMatrices ?? (environmentMatrices = new EnvironmentMatrices(environment_matrices.GetValue(environment.GetValue(null))));
     }
 
     public static class MyImmediateRC

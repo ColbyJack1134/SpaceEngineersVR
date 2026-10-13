@@ -5,7 +5,7 @@ using SpaceEngineersVR.Plugin;
 
 namespace SpaceEngineersVR.Player
 {
-    // Render-thread only. Sample one frame every two seconds without waiting for the GPU.
+    // Render-thread only. With developer tools on, sample one frame every two seconds without waiting for the GPU.
     internal static class GpuTiming
     {
         internal enum Area { SceneLeft,WorldUiLeft,SceneRight,WorldUiRight,Companion,Hud,RemoteFeed }
@@ -37,7 +37,7 @@ namespace SpaceEngineersVR.Player
                     Poll();
                     if(pending && now-submitted>Stopwatch.Frequency*5) throw new TimeoutException("GPU timestamps did not complete");
                 }
-                if(active || pending || now<next) return;
+                if(active || pending || now<next || Common.Config?.DeveloperTools!=true) return;
                 if(disjoint==null)
                 {
                     disjoint=new Query(current,new QueryDescription { Type=QueryType.TimestampDisjoint });

@@ -46,12 +46,15 @@ namespace SpaceEngineersVR.Player
                     P95=sample.Sorted[(int)Math.Ceiling(sample.Count*.95)-1],Peak=sample.Sorted[sample.Count-1],Time=now,Count=sample.Count });
                 sample.Published=now;
             }
-            if(area>=Area.CockpitGeometry && area<=Area.CockpitAction && Common.Plugin!=null)
+            bool log=Common.Plugin!=null && Common.Config?.DeveloperTools==true;
+            if(log && area>=Area.CockpitGeometry && area<=Area.CockpitAction)
                 Logger.Info($"VR operation {area}: {elapsed:F3} ms");
             if(sample.Count<sample.Values.Length) return;
-            var current=Latest(area);
-            if(Common.Plugin!=null)
+            if(log)
+            {
+                var current=Latest(area);
                 Logger.Info($"VR feature {area}: mean {current.Mean:F3} ms; p95 {current.P95:F3}; peak {current.Peak:F3}; samples {sample.Count}");
+            }
             sample.Count=0; sample.Sum=0;
         }
     }
