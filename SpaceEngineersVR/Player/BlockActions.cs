@@ -27,7 +27,8 @@ namespace SpaceEngineersVR.Player
         internal static bool InReach(MatrixD pointer,Vector3D point,float reach)
         {
             float distance=(float)Vector3D.Distance(pointer.Translation,point);
-            if(distance>reach) return false;
+            var character=MySession.Static?.LocalCharacter;
+            if(distance>reach || character==null || Vector3D.Distance(character.GetHeadMatrix(true,true,forceHeadBone:true).Translation,point)>reach) return false;
             var direction=point-pointer.Translation;
             if(distance>.001f)
             {

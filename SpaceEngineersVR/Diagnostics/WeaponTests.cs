@@ -42,6 +42,18 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(Vector3D.Dot(host,aim)>.99999,"Sent body rotation and head pitch do not reproduce the VR aim on a host");
                 Require(Vector3D.Distance(Vector3D.TransformNormal(move,body),Vector3D.TransformNormal(new Vector3(.6f,0,-.8f),start))<1e-4,"Sent facing changed the host's world movement");
             }
+            var rifle=WeaponProfile.All.First(p=>p.Kind==ItemKind.Rifle);
+            var held=MatrixD.CreateFromYawPitchRoll(.7,-.3,.2); held.Translation=new Vector3D(3,2,1);
+            var kicked=HeldItemPose.Kick(held,rifle,new Vector2(10,-4));
+            Require(Vector3D.Distance(Vector3D.Transform(rifle.Primary,kicked),Vector3D.Transform(rifle.Primary,held))<1e-9,"Recoil kick moved the grip");
+            Require(Math.Abs(Vector3D.Dot(kicked.Forward,held.Up)-Math.Sin(MathHelper.ToRadians(10)))<1e-6,"Recoil kick pitch differs from the game's climb");
+            Require(Math.Abs(Vector3D.Dot(kicked.Forward,held.Right)-Math.Cos(MathHelper.ToRadians(10))*Math.Sin(MathHelper.ToRadians(4)))<1e-6,"Recoil kick yaw differs from the game's horizontal angle");
+            Require(HeldItemPose.Kick(held,rifle,Vector2.Zero)==held && HeldItemPose.Recoil(null)==Vector2.Zero,"Recoil applied without a recoiling gun");
+            Require(Math.Abs(HeldItemPose.ReachAlong(Vector3D.Zero,Vector3D.Zero,Vector3D.Forward,5)-5)<1e-9 &&
+                Math.Abs(HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(0,0,-4),Vector3D.Forward,5)-1)<1e-9 &&
+                Math.Abs(HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(3,0,0),Vector3D.Forward,5)-4)<1e-9 &&
+                Math.Abs(HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(0,0,4),Vector3D.Forward,5)-9)<1e-9 &&
+                HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(0,0,-6),Vector3D.Forward,5)==0,"Reach from the head differs from the sphere exit");
             var items=XDocument.Load(Path.Combine(VRage.FileSystem.MyFileSystem.ContentPath,"Data","HandItems.sbc")).Descendants("HandItem").Where(x=>x.Element("PhysicalItemId")!=null).ToDictionary(x=>(string)x.Element("PhysicalItemId").Attribute("Subtype"));
             foreach(var p in WeaponProfile.All)
             {
@@ -131,6 +143,18 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Export(string game,string output,Action<string> log)
         {
             Directory.CreateDirectory(output); UiTests.Initialize(game,Path.Combine(output,"data")); Run(log);
+            var rifle=WeaponProfile.All.First(p=>p.Kind==ItemKind.Rifle);
+            var held=MatrixD.CreateFromYawPitchRoll(.7,-.3,.2); held.Translation=new Vector3D(3,2,1);
+            var kicked=HeldItemPose.Kick(held,rifle,new Vector2(10,-4));
+            Require(Vector3D.Distance(Vector3D.Transform(rifle.Primary,kicked),Vector3D.Transform(rifle.Primary,held))<1e-9,"Recoil kick moved the grip");
+            Require(Math.Abs(Vector3D.Dot(kicked.Forward,held.Up)-Math.Sin(MathHelper.ToRadians(10)))<1e-6,"Recoil kick pitch differs from the game's climb");
+            Require(Math.Abs(Vector3D.Dot(kicked.Forward,held.Right)-Math.Cos(MathHelper.ToRadians(10))*Math.Sin(MathHelper.ToRadians(4)))<1e-6,"Recoil kick yaw differs from the game's horizontal angle");
+            Require(HeldItemPose.Kick(held,rifle,Vector2.Zero)==held && HeldItemPose.Recoil(null)==Vector2.Zero,"Recoil applied without a recoiling gun");
+            Require(Math.Abs(HeldItemPose.ReachAlong(Vector3D.Zero,Vector3D.Zero,Vector3D.Forward,5)-5)<1e-9 &&
+                Math.Abs(HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(0,0,-4),Vector3D.Forward,5)-1)<1e-9 &&
+                Math.Abs(HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(3,0,0),Vector3D.Forward,5)-4)<1e-9 &&
+                Math.Abs(HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(0,0,4),Vector3D.Forward,5)-9)<1e-9 &&
+                HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(0,0,-6),Vector3D.Forward,5)==0,"Reach from the head differs from the sphere exit");
             var items=XDocument.Load(Path.Combine(VRage.FileSystem.MyFileSystem.ContentPath,"Data","HandItems.sbc")).Descendants("HandItem").Where(x=>x.Element("PhysicalItemId")!=null).ToDictionary(x=>(string)x.Element("PhysicalItemId").Attribute("Subtype"));
             foreach(var item in new[] {"SemiAutoPistolItem","WelderItem","HandDrillItem"}) foreach(bool rigid in new[] {true,false})
             {

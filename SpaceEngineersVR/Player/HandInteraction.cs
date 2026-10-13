@@ -97,7 +97,10 @@ namespace SpaceEngineersVR.Player
             var hand = detectionHand ?? UseHand;
             if (!InputRouter.Gameplay || character == null || character.IsDead || character.IsSitting ||
                 MySession.Static.ControlledEntity != character || !TryCharacterPointerPose(hand, out MatrixD pose)) return false;
-            ray = RayForPose(pose);
+            var head=character.GetHeadMatrix(true,true,forceHeadBone:true).Translation;
+            if(!Multiplayer.HeldItemPose.Clear(character,head,pose.Translation) ||
+                Multiplayer.HeldItemPose.ReachAlong(head,pose.Translation,pose.Forward,MyConstants.DEFAULT_INTERACTIVE_DISTANCE)<=0) return false;
+            ray = RayForPose(pose,head);
             return true;
         }
 
@@ -113,7 +116,13 @@ namespace SpaceEngineersVR.Player
             return maximum;
         }
         internal static LineD RayForPose(MatrixD pose) =>
-            new LineD(pose.Translation, pose.Translation + pose.Forward * MyConstants.DEFAULT_INTERACTIVE_DISTANCE);
+            RayForPose(pose,MySession.Static?.LocalCharacter?.GetHeadMatrix(true,true,forceHeadBone:true).Translation ?? pose.Translation);
+        // Vanilla reach is measured from the head.
+        internal static LineD RayForPose(MatrixD pose,Vector3D head)
+        {
+            double length=Multiplayer.HeldItemPose.ReachAlong(head,pose.Translation,pose.Forward,MyConstants.DEFAULT_INTERACTIVE_DISTANCE);
+            return new LineD(pose.Translation,pose.Translation+pose.Forward*Math.Max(length,.001));
+        }
 
         internal static bool SmallControl(MatrixD activation) => activation.IsValid() &&
             activation.Right.Length()<=.6 && activation.Up.Length()<=.6 && activation.Backward.Length()<=.6;

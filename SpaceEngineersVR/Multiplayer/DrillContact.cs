@@ -63,7 +63,8 @@ namespace SpaceEngineersVR.Multiplayer
             hits.Clear(); block=null;
             if(states.TryGetValue(core.Sensor,out var state)) state.Active=true;
             center.SetValue(core.Sensor,ray.Translation);
-            var endpoint=ray.Translation+ray.Forward*2.2;
+            // Native drill sensor: 2.7 m from the neck.
+            var endpoint=ray.Translation+ray.Forward*(tool?.Owner==null ? 2.2:Math.Min(2.2,HeldItemPose.ReachAlong(HeldItemPose.ReachOrigin(tool.Owner),ray.Translation,ray.Forward,2.7)));
             front.SetValue(core.Sensor,endpoint);
             core.CutOut.UpdatePosition(ref ray);
             if(!ToolContact.PhysicsCast(tool?.Owner,tool,new LineD(ray.Translation,endpoint),out var hit)) return;

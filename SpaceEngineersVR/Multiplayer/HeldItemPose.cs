@@ -5,6 +5,7 @@ using HarmonyLib;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Character;
 using Sandbox.Game.Weapons;
+using Sandbox.Game.World;
 using SpaceEngineersVR.Player;
 using VRage.Game.Entity;
 using VRage.Game.ModAPI;
@@ -29,15 +30,49 @@ namespace SpaceEngineersVR.Multiplayer
             var local=Local?.Invoke(character);
             if(local.HasValue) model=local.Value;
             else if(!MultiplayerRuntime.ItemPose(character,out model)) return false;
-            return model.IsValid() && Vector3D.DistanceSquared(model.Translation,character.PositionComp.GetPosition())<9;
+            return model.IsValid() && WithinReach(character,Vector3D.Transform(profile.Primary,model));
         }
+        // Stretched arm plus a leaning head.
+        internal const double HandReach=1.5;
+        internal static bool WithinReach(MyCharacter character,Vector3D point) =>
+            Vector3D.DistanceSquared(point,character.GetHeadMatrix(true,true).Translation)<=HandReach*HandReach;
         internal static bool TryToolRay(MyCharacter character,out MatrixD ray)
         {
             ray=MatrixD.Identity;
             var local=LocalToolRay?.Invoke(character);
             if(local.HasValue) ray=local.Value;
             else if(!MultiplayerRuntime.ToolRay(character,out ray)) return false;
-            return ray.IsValid() && Vector3D.DistanceSquared(ray.Translation,character.PositionComp.GetPosition())<9;
+            return ray.IsValid() && WithinReach(character,ray.Translation);
+        }
+        private static readonly FieldInfo startingVertAngle=AccessTools.Field(typeof(MyAutomaticRifleGun),"m_startingVertAngle"),
+            horizontalAngle=AccessTools.Field(typeof(MyAutomaticRifleGun),"m_horizontalAngle");
+        // Native recoil moves head angles the VR camera ignores; degrees up and left.
+        internal static Vector2 Recoil(MyCharacter character)
+        {
+            if(!(character?.CurrentWeapon is MyAutomaticRifleGun gun) || MySession.Static?.Settings.EnableRecoil!=true) return Vector2.Zero;
+            var kick=new Vector2(gun.IsRecoiling ? character.HeadLocalXAngle-(float)startingVertAngle.GetValue(gun):0,(float)horizontalAngle.GetValue(gun));
+            return kick.IsValid() ? kick:Vector2.Zero;
+        }
+        internal static MatrixD Kick(MatrixD model,WeaponProfile profile,Vector2 recoil)
+        {
+            if(recoil==Vector2.Zero) return model;
+            var grip=Vector3D.Transform(profile.Primary,model);
+            var turn=MatrixD.CreateFromAxisAngle(model.Right,MathHelper.ToRadians(recoil.X))*MatrixD.CreateFromAxisAngle(model.Up,MathHelper.ToRadians(recoil.Y));
+            model.Translation-=grip; model*=turn; model.Translation+=grip;
+            return model;
+        }
+        // Native tool sensors start on the body axis at neck height.
+        internal static Vector3D ReachOrigin(MyCharacter character)
+        {
+            var definition=character.Definition;
+            float height=(character.IsCrouching ? definition.CharacterCollisionCrouchHeight:definition.CharacterCollisionHeight)-definition.CharacterHeadHeight*.5f;
+            return Vector3D.Transform(new Vector3D(0,height,0),character.PositionComp.WorldMatrixRef);
+        }
+        internal static double ReachAlong(Vector3D center,Vector3D start,Vector3D direction,double radius)
+        {
+            var offset=start-center;
+            double b=Vector3D.Dot(offset,direction),c=offset.LengthSquared()-radius*radius;
+            return c>0 ? 0:Math.Max(0,Math.Sqrt(Math.Max(0,b*b-c))-b);
         }
         internal static MatrixD Working(MatrixD model,WeaponProfile profile) => MatrixD.CreateWorld(Vector3D.Transform(profile.Muzzle,model),
             Vector3D.TransformNormal(profile.Direction,model),model.Up);
@@ -50,9 +85,10 @@ namespace SpaceEngineersVR.Multiplayer
         }
         internal static double ToolReach(MyCharacter owner,MatrixD model,WeaponProfile profile,MatrixD ray,double nativeReach)
         {
-            if(!Supported(owner)) return nativeReach;
+            double reach=owner==null ? nativeReach:ReachAlong(ReachOrigin(owner),ray.Translation,ray.Forward,nativeReach);
+            if(!Supported(owner)) return reach;
             var grip=Vector3D.Transform(profile.Primary,model);
-            return Math.Max(0,nativeReach-Math.Max(0,Vector3D.Dot(ray.Translation-grip,ray.Forward)));
+            return Math.Max(0,Math.Min(reach,nativeReach-Math.Max(0,Vector3D.Dot(ray.Translation-grip,ray.Forward))));
         }
         // Players never block a held item from reaching its grip, muzzle or tool ray.
         internal static bool Clear(MyCharacter character,Vector3D from,Vector3D to)

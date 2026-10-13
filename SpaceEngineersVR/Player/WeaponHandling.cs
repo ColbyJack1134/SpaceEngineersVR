@@ -112,7 +112,7 @@ namespace SpaceEngineersVR.Player
                     !WeaponPose.TryHandItem(profile.Palm(character.HandItemDefinition.RightHand,false),right,out var one)) return false;
                 one=Alignment.Apply(Alignment.ToolKey(character),one);
                 MatrixD? left=Supported && TrackedArms.TryFreePalm(character,Player.HandL,out var off) ? off:(MatrixD?)null;
-                model=WeaponPose.Current(profile,one,character.WorldMatrix,left,releaseRotation,releaseBlend);
+                model=Multiplayer.HeldItemPose.Kick(WeaponPose.Current(profile,one,character.WorldMatrix,left,releaseRotation,releaseBlend),profile,Multiplayer.HeldItemPose.Recoil(character));
                 muzzle=Vector3D.Transform(profile.Muzzle,model);
             }
             else
