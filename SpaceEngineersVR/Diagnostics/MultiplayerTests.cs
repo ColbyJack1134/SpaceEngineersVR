@@ -247,6 +247,9 @@ namespace SpaceEngineersVR.Diagnostics
             }
             BoundedStrings();
             RequestBudgets();
+            var bare=(Sandbox.Game.Screens.Helpers.MyToolbar)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Screens.Helpers.MyToolbar));
+            Require(MultiplayerRuntime.FatBlockClosed!=null && Delegate.CreateDelegate(typeof(Action<Sandbox.Game.Entities.MyCubeBlock>),bare,MultiplayerRuntime.FatBlockClosed)!=null,"Toolbar grid handler no longer matches the game");
+            MultiplayerRuntime.DetachGrid(bare); MultiplayerRuntime.DetachGrid(null);
             ToolbarCap(log);
             CorruptPaste();
             log("PASS multiplayer payloads: pose round trip, truncated/nonfinite/out-of-reach rejection, finger flags, ordering/wrap, interpolation, seat changes, stale timeout, cockpit record persistence, bounded string lengths and request budgets.");

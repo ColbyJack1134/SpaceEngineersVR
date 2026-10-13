@@ -256,7 +256,16 @@ namespace SpaceEngineersVR.Multiplayer
         private static void ClearAnalogToolbar(AnalogToolbar value)
         {
             if(value.Seat.HasInventory) value.Seat.GetInventory().ContentsChanged-=value.Toolbar.CharacterInventory_OnContentsChanged;
+            DetachGrid(value.Toolbar);
             value.Toolbar.Clear();
+        }
+        internal static readonly System.Reflection.MethodInfo FatBlockClosed=AccessTools.Method(typeof(MyToolbar),"OnFatBlockClosed");
+        // MyToolbar.Init subscribes to the owner grid's OnFatBlockClosed and never unsubscribes, since vanilla
+        // cockpit toolbars live as long as the cockpit. Ours are re-initialized, so release the grid's reference first.
+        internal static void DetachGrid(MyToolbar toolbar)
+        {
+            if(!(toolbar?.Owner is MyCockpit cockpit) || cockpit.CubeGrid==null) return;
+            cockpit.CubeGrid.OnFatBlockClosed-=(Action<MyCubeBlock>)Delegate.CreateDelegate(typeof(Action<MyCubeBlock>),toolbar,FatBlockClosed);
         }
         private static string RawStorage(MyCockpit seat) => seat.Storage!=null && seat.Storage.TryGetValue(CockpitMemory.Key,out string raw) ? raw:null;
         // Analog updates arrive at 20 Hz per hand; the stored record is decoded again only when the storage changed.

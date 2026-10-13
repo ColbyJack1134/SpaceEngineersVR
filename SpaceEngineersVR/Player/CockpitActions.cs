@@ -105,6 +105,7 @@ namespace SpaceEngineersVR.Player
             try
             {
                 if(owner.HasInventory) owner.GetInventory().ContentsChanged-=toolbar.CharacterInventory_OnContentsChanged;
+                MultiplayerRuntime.DetachGrid(toolbar);
                 toolbar.Clear(); toolbar.Init(builder,owner); loadedXml=shared.Toolbar;
                 Array.Clear(analog,0,analog.Length); Array.Clear(nextAnalog,0,nextAnalog.Length);
             }
@@ -261,6 +262,7 @@ namespace SpaceEngineersVR.Player
             if(toolbar!=null)
             {
                 if(owner?.HasInventory==true) owner.GetInventory().ContentsChanged-=toolbar.CharacterInventory_OnContentsChanged;
+                MultiplayerRuntime.DetachGrid(toolbar);
                 toolbar.ItemChanged-=Changed; toolbar.Clear();
             }
             Array.Clear(analog,0,analog.Length); Array.Clear(nextAnalog,0,nextAnalog.Length);
