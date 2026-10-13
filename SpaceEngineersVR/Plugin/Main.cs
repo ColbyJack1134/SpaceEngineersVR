@@ -348,6 +348,7 @@ namespace SpaceEngineersVR.Plugin
             Player.CockpitControls.Update();
             Player.PlacementControls.Update();
             Player.CameraRig.Publish();
+            Player.ViewGuard.Update();
             Player.WeaponHandling.Update();
             if(Player.WeaponHandling.ToolEquipped) Patches.MotionToolPatch.Refresh(MySession.Static.LocalCharacter);
             Player.NativeActions.Update();
@@ -405,6 +406,7 @@ namespace SpaceEngineersVR.Plugin
             Player.CockpitButtons.Reset();
             Player.CameraRig.Reset(forgetHeight:true);
             Player.ThirdPersonView.Reset();
+            Player.ViewFade.Set(Player.ViewFade.Source.Wall,0,.1f);
             Player.SeatRecenter.Reset();
         }
 

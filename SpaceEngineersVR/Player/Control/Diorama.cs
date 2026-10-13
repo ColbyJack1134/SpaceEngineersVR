@@ -12,10 +12,14 @@ namespace SpaceEngineersVR.Player.Control
             public readonly Vector3D Target;
             public readonly MatrixD Reference;
             public readonly long Timestamp;
-            public Scene(Vector3D target,MatrixD reference,long timestamp)
-            { Target=target; Reference=reference; Timestamp=timestamp; }
+            public readonly double Limit;
+            public Scene(Vector3D target,MatrixD reference,long timestamp,double limit=0)
+            { Target=target; Reference=reference; Timestamp=timestamp; Limit=limit; }
         }
         public const double MinScale=.1,MaxScale=100000;
+        // 0 for none; outward motion eases to a stop over the last SoftBand.
+        public double MaxDistance;
+        private const double SoftBand=.15;
         public double UnitsPerMeter { get; private set; }=1;
         public MatrixD Orientation { get; private set; }=MatrixD.Identity;
         public Vector3D Center { get; private set; }
@@ -45,10 +49,11 @@ namespace SpaceEngineersVR.Player.Control
         {
             double seconds=renderTime==0 ? 1d/90 : (double)(now-renderTime)/Stopwatch.Frequency;
             renderTime=now; Configure(Common.Config);
+            var head=VrMath.Affine(Player.Headset.renderPose.deviceToAbsolute.matrix*packet.OriginInverse).Translation;
             if(!Player.Headset.renderPose.isTracked || !Player.HandL.renderPose.isTracked || !Player.HandR.renderPose.isTracked) Cancel();
             else Move(VrMath.Affine(Player.HandL.RenderGripTracking*packet.OriginInverse),
-                VrMath.Affine(Player.HandR.RenderGripTracking*packet.OriginInverse),seconds);
-            return new CameraRig.Frame(Anchor(packet.Observer.Target,packet.Observer.Reference),packet.OriginInverse,
+                VrMath.Affine(Player.HandR.RenderGripTracking*packet.OriginInverse),seconds,head);
+            return new CameraRig.Frame(Anchor(packet.Observer.Target,packet.Observer.Reference,head,packet.Observer.Limit),packet.OriginInverse,
                 packet.Epoch,UnitsPerMeter,true,packet.Observer);
         }
         internal void FitTarget(double diameter,MatrixD head,Vector3D vertical,Matrix tracking,MatrixD reference,bool fullRotation)
@@ -56,6 +61,7 @@ namespace SpaceEngineersVR.Player.Control
             var orientation=fullRotation ? head.GetOrientation() : VrMath.Level(head,vertical).GetOrientation();
             var facing=VrMath.Level(tracking,Vector3D.Up);
             Fit(diameter,orientation*MatrixD.Transpose(reference),tracking.Translation+facing.Forward*1.15-facing.Up*.2);
+            if(MaxDistance>0) UnitsPerMeter=Math.Min(UnitsPerMeter,MaxDistance/Math.Max(.05,Vector3D.Distance(Center,tracking.Translation)));
         }
         internal void SetAnchor(MatrixD anchor,Vector3D target,MatrixD reference)
         {
@@ -92,6 +98,25 @@ namespace SpaceEngineersVR.Player.Control
             result.Translation=target-Vector3D.TransformNormal(Center,result)*UnitsPerMeter;
             return result;
         }
+        public MatrixD Anchor(Vector3D target,MatrixD reference,Vector3D head,double limit)
+        {
+            var result=Anchor(target,reference);
+            if(limit<=0) return result;
+            var toTarget=target-(result.Translation+Vector3D.TransformNormal(head*UnitsPerMeter,result));
+            double distance=toTarget.Length();
+            if(distance>limit) result.Translation+=toTarget*((distance-limit)/distance);
+            return result;
+        }
+        public double Distance(Vector3D head) => Vector3D.Distance(Center,head)*UnitsPerMeter;
+        private double Ease(double distance) => MaxDistance<=0 ? 1:MathHelper.Clamp((MaxDistance-distance)/(MaxDistance*SoftBand),0,1);
+        private void Confine(Vector3D head,double before,double ease)
+        {
+            if(MaxDistance<=0) return;
+            double after=Distance(head);
+            if(after<=before || after<=MaxDistance*(1-SoftBand)) return;
+            double allowed=Math.Min(MaxDistance,before+(after-before)*ease);
+            Center=head+(Center-head)*(allowed/after);
+        }
         public void ChangeReference(MatrixD before,MatrixD after)
         {
             Orientation=VrMath.Rigid(Orientation*before*MatrixD.Transpose(after));
@@ -122,7 +147,7 @@ namespace SpaceEngineersVR.Player.Control
             Hands=next; armed=false;
             return start;
         }
-        public bool Move(MatrixD newLeft,MatrixD newRight,double seconds)
+        public bool Move(MatrixD newLeft,MatrixD newRight,double seconds,Vector3D head=default(Vector3D))
         {
             LastTranslation=LastRotation=0;
             if(!Held && !releasePending && !Coasting) return false;
@@ -137,7 +162,7 @@ namespace SpaceEngineersVR.Player.Control
             {
                 if(releasePending) Release(newLeft,newRight,seconds);
                 sampledHands=0;
-                return Coast(seconds);
+                return Coast(seconds,head);
             }
             if(!poseReady)
             {
@@ -168,6 +193,8 @@ namespace SpaceEngineersVR.Player.Control
             double zoom=scaling ? Math.Log(afterSpan/beforeSpan) : 0;
             var rotation=scaling ? RotationVector(PairRotation(rawLeft,rawRight,newLeft,newRight)) : Vector3D.Zero;
             var pivot=HandCenter(rawLeft,rawRight,Hands);
+            double before=Distance(head),ease=Ease(before);
+            if(zoom<0) zoom*=ease;
             if(seconds>0)
             {
                 var speed=pan/seconds;
@@ -194,6 +221,7 @@ namespace SpaceEngineersVR.Player.Control
                 LastRotation=angle;
             }
             else Center+=pan;
+            Confine(head,before,ease);
             LastTranslation=Vector3D.Distance(Center,oldCenter);
             return true;
         }
@@ -263,22 +291,26 @@ namespace SpaceEngineersVR.Player.Control
             }
             return 0;
         }
-        private bool Coast(double seconds)
+        private bool Coast(double seconds,Vector3D head)
         {
             if(!Coasting || seconds<=0) return false;
             double step=Math.Min(seconds,CoastDuration-coastAge),decay=Math.Exp(-step/CoastTime);
             var pan=coastPan*(CoastTime*(1-decay));
+            double before=Distance(head),ease=Ease(before);
+            double zoom=coastZoom*CoastTime*(1-decay);
+            if(zoom<0) zoom*=ease;
             double rotationStep=Math.Min(step,Math.Max(0,RotationCoastDuration-coastAge));
             double rotationDecay=Math.Exp(-rotationStep/RotationCoastTime);
             var rotation=coastRotation*(RotationCoastTime*(1-rotationDecay));
             double angle=rotation.Length();
             var turn=angle>1e-12 ? MatrixD.CreateFromAxisAngle(rotation/angle,angle):MatrixD.Identity;
-            var before=Center;
-            Center=Vector3D.TransformNormal(Center-coastPivot,turn)*Scale(coastZoom*CoastTime*(1-decay))+coastPivot+pan;
+            var previous=Center;
+            Center=Vector3D.TransformNormal(Center-coastPivot,turn)*Scale(zoom)+coastPivot+pan;
             Orientation=VrMath.Rigid(MatrixD.Transpose(turn)*Orientation);
+            Confine(head,before,ease);
             coastPivot+=pan; coastPan*=decay; coastZoom*=decay; coastAge+=step;
             coastRotation=coastAge>=RotationCoastDuration ? Vector3D.Zero:coastRotation*rotationDecay;
-            LastTranslation=Vector3D.Distance(Center,before);
+            LastTranslation=Vector3D.Distance(Center,previous);
             LastRotation=angle;
             if(coastAge>=CoastDuration) Brake();
             return true;

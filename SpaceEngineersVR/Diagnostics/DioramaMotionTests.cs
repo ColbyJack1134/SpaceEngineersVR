@@ -34,8 +34,44 @@ namespace SpaceEngineersVR.Diagnostics
             for(int i=0;i<2*hz;i++) view.Move(left,right,1d/hz);
             Require(!view.Coasting,"Release motion did not settle");
         }
+        private static double Eye(Diorama view,Vector3D target,Vector3D head,double limit)
+        {
+            var anchor=view.Anchor(target,MatrixD.Identity,head,limit);
+            return Vector3D.Distance(target,anchor.Translation+Vector3D.TransformNormal(head*view.UnitsPerMeter,anchor));
+        }
+        private static void Bounds()
+        {
+            const int hz=90; var head=Vector3D.Zero;
+            foreach(var motion in new[] {new Vector2(1,0),new Vector2(0,-1)})
+            {
+                var view=new Diorama {MaxDistance=40}; view.Fit(20,MatrixD.Identity,new Vector3D(0,0,-1));
+                var free=new Diorama(); free.Fit(20,MatrixD.Identity,new Vector3D(0,0,-1));
+                view.Input(true,0,0); view.Input(true,1,1); free.Input(true,0,0); free.Input(true,1,1);
+                double last=view.Distance(head),lastStep=0; bool decelerating=true;
+                for(int i=0;i<=3*hz;i++)
+                {
+                    Hands(i/(double)hz,motion.X,motion.Y,out var left,out var right);
+                    view.Move(left,right,1d/hz,head); free.Move(left,right,1d/hz,head);
+                    double distance=view.Distance(head),step=distance-last;
+                    Require(distance<=40+1e-9 && step>=-1e-9,"Observer passed the distance limit or reversed");
+                    if(i>2*hz && step>lastStep+1e-9) decelerating=false;
+                    last=distance; lastStep=step;
+                }
+                Require(free.Distance(head)>60,"Unbounded observer did not travel past the limit");
+                Require(last>39 && decelerating && lastStep<.01,"Bounded observer did not ease into the limit: motion "+motion+" distance "+last.ToString("F3")+" step "+lastStep.ToString("F5")+" decelerating "+decelerating+" scale "+view.UnitsPerMeter.ToString("F3"));
+            }
+            var fit=new Diorama {MaxDistance=200};
+            fit.FitTarget(400,MatrixD.Identity,Vector3D.Up,Matrix.Identity,MatrixD.Identity,false);
+            Require(fit.Distance(head)<=200+1e-9 && fit.Distance(head)>199.9,"Initial fit of a large grid exceeded or wasted the limit");
+            var wide=new Diorama(); wide.Fit(20,MatrixD.Identity,new Vector3D(0,0,-1));
+            var target=new Vector3D(5,-3,40);
+            Require(Math.Abs(Eye(wide,target,head,0)-25)<1e-9 && Math.Abs(Eye(wide,target,head,10)-10)<1e-9 && Math.Abs(Eye(wide,target,new Vector3D(0,0,.2),10)-10)<1e-9,
+                "Published anchor did not hold the eye at the sweep limit");
+        }
         public static void Run(Action<string> log)
         {
+            Bounds();
+            log("PASS observer bounds: outward pan and zoom-out ease into the distance limit, large fits are capped, the anchor holds the eye at the sweep limit");
             double minPan=double.MaxValue,maxPan=0,minZoom=double.MaxValue,maxZoom=0;
             foreach(int hz in new[] {36,72,90})
             {

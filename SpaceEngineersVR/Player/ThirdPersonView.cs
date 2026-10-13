@@ -13,14 +13,14 @@ using Sandbox.Game.World;
 using SpaceEngineersVR.Player.Control;
 using SpaceEngineersVR.Player.Components;
 using SpaceEngineersVR.Plugin;
-using Valve.VR;
 using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
     internal static class ThirdPersonView
     {
-        private static readonly Diorama view=new Diorama();
+        private const double Limit=MyThirdPersonSpectator.MAX_VIEWER_DISTANCE;
+        private static readonly Diorama view=new Diorama {MaxDistance=Limit};
         private static readonly GripDescent descent=new GripDescent();
         internal static bool DescentReady => !Active || descent.Ready && !consumed;
         internal static float Descent(float pressure)
@@ -134,7 +134,7 @@ namespace SpaceEngineersVR.Player
             lock(sync) view.Cancel();
             NativeActions.Reset(); RemoteView.ReleaseInput();
             transition=action; changeAt=DateTime.UtcNow.AddSeconds(.1);
-            OpenVR.Compositor?.FadeToColor(.09f,0,0,0,1,false);
+            ViewFade.Set(ViewFade.Source.Transition,1,.09f);
         }
         private static void Fit()
         {
@@ -166,7 +166,7 @@ namespace SpaceEngineersVR.Player
             {
                 var action=transition; transition=null;
                 try { action(); }
-                finally { OpenVR.Compositor?.FadeToColor(.15f,0,0,0,0,false); }
+                finally { ViewFade.Set(ViewFade.Source.Transition,0,.15f); }
             }
             if(candidate!=null && !((IMyCameraController)candidate).IsInFirstPersonView && subject==null && transition==null && !Main.MenuOpen)
             {
@@ -224,8 +224,9 @@ namespace SpaceEngineersVR.Player
             lock(sync)
             {
                 follow.Advance(subject.WorldMatrix);
-                var scene=new Diorama.Scene(target,follow.Reference(Mode),Stopwatch.GetTimestamp());
-                Volatile.Write(ref frame,new CameraRig.Frame(view.Anchor(target,scene.Reference),Player.PlayerToAbsolute.inverted,epoch,view.UnitsPerMeter,true,scene));
+                var scene=new Diorama.Scene(target,follow.Reference(Mode),Stopwatch.GetTimestamp(),Limit);
+                Volatile.Write(ref frame,new CameraRig.Frame(view.Anchor(target,scene.Reference,Player.Headset.deviceToPlayer.Translation,Limit),
+                    Player.PlayerToAbsolute.inverted,epoch,view.UnitsPerMeter,true,scene));
             }
         }
         public static CameraRig.Frame RenderFrame(CameraRig.Frame packet)
@@ -256,7 +257,7 @@ namespace SpaceEngineersVR.Player
                 subject=null; Volatile.Write(ref frame,null); view.Cancel(); consumed=false; descent.Update(false,0,DateTime.UtcNow);
                 transition=null; epoch--; renderTime=0; traceRequested=false;
             }
-            OpenVR.Compositor?.FadeToColor(.1f,0,0,0,0,false);
+            ViewFade.Set(ViewFade.Source.Transition,0,.1f);
         }
     }
 }
