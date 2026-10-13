@@ -83,8 +83,8 @@ namespace SpaceEngineersVR.Player
                 for(int i=0;i<actions.Length;i++)
                     keys.Add(new SurfaceKey(actions[i].Label=="Hotkey keyboard" ? "Hotkeys":actions[i].Label,.02f+i%4*.245f,.16f+i/4*.22f,.23f,.20f) {
                         Action=actions[i],Icons=new[] {actions[i].Icon},Enabled=actions[i].Enabled,Active=Active(actions[i],status) });
-                var utilities=new[] {GameActions.PauseAction,HudAction,GameActions.BuffsAction,GameActions.DoNotDisturb,GameActions.Quick[10]};
-                var names=new[] {"Pause","HUD","Buffs","DnD","Help"};
+                var utilities=new[] {GameActions.BuffsAction,HudAction,GameActions.PauseAction,GameActions.DoNotDisturb,GameActions.Quick[10]};
+                var names=new[] {"Buffs","HUD","Pause","DnD","Help"};
                 for(int i=0;i<utilities.Length;i++)
                     keys.Add(new SurfaceKey(names[i],.02f+i*.196f,.84f,.18f,.12f) {
                         Action=utilities[i],Icons=new[] {utilities[i]==GameActions.DoNotDisturb ? DoNotDisturbIcon:utilities[i].Icon},Horizontal=true,Enabled=utilities[i].Enabled,
