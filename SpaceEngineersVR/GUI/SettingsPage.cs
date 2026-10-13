@@ -93,6 +93,7 @@ namespace SpaceEngineersVR.GUI
                     Toggle(-.23f,"Show HUD with visor open",c.HudWithVisorOpen,v=>c.HudWithVisorOpen=v);
                     Toggle(-.12f,"Ship crosshair",c.ShipCrosshair,v=>c.ShipCrosshair=v);
                     Toggle(-.01f,"Block info without grip",c.InspectWithoutGrip,v=>c.InspectWithoutGrip=v);
+                    Slider(.10f,"Crosshair size",c.CrosshairScale,.2f,v=>c.CrosshairScale=v,100,Config.PluginConfig.DefaultCrosshairScale);
                     break;
             }
             Controls.Add(new MyGuiControlButton(new Vector2(.18f,.34f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
@@ -112,10 +113,10 @@ namespace SpaceEngineersVR.GUI
             var slider=new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:0,maxValue:1,width:.53f,defaultValue:1) { Value=value };
             slider.ValueChanged+=v=> { store(v.Value); caption(v.Value); }; Controls.Add(slider);
         }
-        private void Slider(float y,string text,float value,float min,Action<float> store,float max=200)
+        private void Slider(float y,string text,float value,float min,Action<float> store,float max=200,float fallback=1)
         {
             Label(y,text);
-            var slider=new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:min*100,maxValue:max,width:.53f,defaultValue:100,labelText:"{0}%",labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=value*100 };
+            var slider=new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:min*100,maxValue:max,width:.53f,defaultValue:fallback*100,labelText:"{0}%",labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=value*100 };
             slider.ValueChanged+=v=>store(v.Value/100); Controls.Add(slider);
         }
         private void Link(float y,string text,Func<MyGuiScreenBase> screen) => Controls.Add(new MyGuiControlButton(new Vector2(0,y),text:new StringBuilder(text),onButtonClick:b=>MyGuiSandbox.AddScreen(screen())));

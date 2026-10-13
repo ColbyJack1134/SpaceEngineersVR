@@ -112,6 +112,10 @@ namespace SpaceEngineersVR.Config
         public bool SignalRings { get => signalRings; set => SetValue(ref signalRings,value); }
         private bool shipCrosshair=true;
         public bool ShipCrosshair { get => shipCrosshair; set => SetValue(ref shipCrosshair,value); }
+        public const float DefaultCrosshairScale=1/3f;
+        private float crosshairScale=DefaultCrosshairScale;
+        // Fraction of the flat game's crosshair size; ship crosshair, its readouts and the on-foot hit marker.
+        public float CrosshairScale { get => crosshairScale; set => SetValue(ref crosshairScale,Bound(value,.2f,1,DefaultCrosshairScale)); }
         public bool ShowGps { get => showGps; set => SetValue(ref showGps,value); }
         public bool ShowContacts { get => showContacts; set => SetValue(ref showContacts,value); }
         public bool ShowResources { get => showResources; set => SetValue(ref showResources,value); }

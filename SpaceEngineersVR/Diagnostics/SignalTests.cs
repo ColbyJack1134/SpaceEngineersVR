@@ -407,7 +407,8 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 var description=scene.Texture.Description; description.Format=SharpDX.DXGI.Format.B8G8R8A8_UNorm_SRgb;
                 using(var eyeTarget=new SharpDX.Direct3D11.Texture2D(device,description))
-                foreach(string scenario in new[] {"forward","look-right","third-person","bright","lead","lead-range","lead-overlap","lead-bright","reload","reload-hit","reload-hit-bright","reload-third-person"})
+                foreach(string scenario in new[] {"forward","look-right","third-person","bright","lead","lead-range","lead-overlap","lead-bright","reload","reload-hit","reload-hit-bright","reload-third-person",
+                    "altitude-7","altitude-42","altitude-358","altitude-1250","altitude-12000-bright","horizon-nose-up","horizon-roll","horizon-nose-up-roll-reload"})
                 {
                     var ship=MatrixD.CreateTranslation(1e12,-2e12,3e12);
                     var head=ship;
@@ -415,7 +416,8 @@ namespace SpaceEngineersVR.Diagnostics
                     if(scenario.Contains("third-person")) head=MatrixD.CreateTranslation(8,5,18)*ship;
                     var aim=ShipCrosshair.Read(new Sandbox.Game.Gui.MyHudCrosshair(),ship);
                     aim.NativeWidth=ShipCrosshair.NativeWidth(aim.HalfSize,1920);
-                    if(scenario.StartsWith("reload")) aim.Reload=ShipReloadTests.Fixture(.65f,2);
+                    if(scenario.StartsWith("reload") || scenario.Contains("-reload")) aim.Reload=ShipReloadTests.Fixture(.65f,2);
+                    if(scenario.StartsWith("altitude") || scenario.StartsWith("horizon")) ShipReloadTests.Horizon(aim,scenario,ship);
                     var source=Scene("sparse",ship,DateTime.UtcNow); source.Mode=MyHudMarkerRender.SignalMode.NoNames;
                     NativeLead.View lead=null;
                     if(scenario.StartsWith("lead"))

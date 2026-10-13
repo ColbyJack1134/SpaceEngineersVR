@@ -110,11 +110,14 @@ namespace SpaceEngineersVR.Diagnostics
             Near(config.ShipRollSensitivity,0.85f,"Saved ship value");
             FlightAxes.Rotation(new Vector2(1,0),true,false,10,config.JetpackRoll,out _,out var tunedRoll);
             Near(tunedRoll,4,"Live custom sensitivity");
+            Near(new PluginConfig().CrosshairScale,1/3f,"Crosshair size default");
+            config.CrosshairScale=5; Near(config.CrosshairScale,1,"Crosshair size upper bound");
             foreach (float invalid in new[] { float.NaN,float.PositiveInfinity,float.NegativeInfinity })
             {
-                config.JetpackRoll=invalid; config.ShipRollSensitivity=invalid;
+                config.JetpackRoll=invalid; config.ShipRollSensitivity=invalid; config.CrosshairScale=invalid;
                 Near(config.JetpackRoll,0.15f,"Invalid jetpack fallback");
                 Near(config.ShipRollSensitivity,0.6f,"Invalid ship fallback");
+                Near(config.CrosshairScale,1/3f,"Invalid crosshair size fallback");
             }
             config.JetpackRoll=-1; config.ShipRollSensitivity=10;
             Near(config.JetpackRoll,0.03f,"Lower jetpack roll bound");

@@ -30,7 +30,6 @@ namespace SpaceEngineersVR.Player
         private static Vector3D? hitImpact;
         private static Vector3D lastImpact;
         private static DateTime lastImpactTime;
-        private const float ImpactScale=1/3f;
         private static readonly Func<MyGunBase,bool> infiniteAmmo=AccessTools.MethodDelegate<Func<MyGunBase,bool>>(AccessTools.Method(typeof(MyGunBase),"HasInfiniteAmmo"));
         private static readonly Dictionary<Type,FieldInfo> burstFields=new Dictionary<Type,FieldInfo>();
         internal static FieldInfo BurstField(Type type)
@@ -93,7 +92,7 @@ namespace SpaceEngineersVR.Player
             if(hit?.Impact==null || (DateTime.UtcNow-hit.Time).TotalSeconds>.3 ||
                 !MarkerBillboard.TryCreate(hit.Impact.Value,head,head.Up,true,out var board)) return;
             var marker=HitSprite(hit); marker.IgnoreSceneDepth=true;
-            double units=2*Math.Tan(MarkerBillboard.IconAngle/2)/ImpactScale;
+            double units=2*Math.Tan(MarkerBillboard.IconAngle/2)/(Plugin.Common.Config?.CrosshairScale ?? Config.PluginConfig.DefaultCrosshairScale);
             float width=(float)(hit.Angle.X/units),height=(float)(hit.Angle.Y/units);
             if(board.Project(new RectangleF(-width/2,-height/2,width,height),view,projection,ref marker))
                 NativeSprites.Draw(target,new[] {marker});

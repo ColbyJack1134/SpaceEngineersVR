@@ -40,6 +40,16 @@ namespace SpaceEngineersVR.Diagnostics
             AccessTools.Field(typeof(MyStatControlText),"m_font").SetValue(text,font);
             return ShipReload.Read(ring,text,Vector2.Zero,progress,count);
         }
+        internal static void Horizon(ShipCrosshair.View aim,string scenario,MatrixD ship)
+        {
+            var font=new VRageRender.MyFont("",dummyFont:true);
+            AccessTools.Method(typeof(VRageRender.MyFont),"LoadFontXML",new[] {typeof(string)}).Invoke(font,new object[] {Path.Combine(MyFileSystem.ContentPath,@"Fonts\white\FontDataPA.xml")});
+            float altitude=scenario.StartsWith("altitude") ? float.Parse(scenario.Split('-')[1],System.Globalization.CultureInfo.InvariantCulture):358;
+            var up=(Vector3)ship.Up;
+            if(scenario.Contains("nose-up")) up=(Vector3)Vector3D.Normalize(ship.Up*.94+ship.Forward*.34);
+            if(scenario.Contains("roll")) up=(Vector3)Vector3D.Normalize(Vector3D.TransformNormal(up,MatrixD.CreateFromAxisAngle(ship.Forward,.4)));
+            ShipCrosshair.Horizon(aim,altitude,up*9.81f,ship,font,.8f,@"Textures\GUI\GravityHudHorizon.dds",new Vector2(512,512),1080);
+        }
         internal static void Run(Action<string> log)
         {
             if(Fixture(0,2)!=null || Fixture(1,2)!=null || Fixture(.5f,0)!=null) throw new Exception("Inactive reload retained cockpit feedback");
