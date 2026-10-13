@@ -21,9 +21,10 @@ namespace SpaceEngineersVR.Player
     internal static class LadderClimb
     {
         internal const float Speed=.847f; // native: two rungs per 59-tick step
-        private const float ExitSpeed=2*Speed; // the native top exit takes 2.8 s; this one about half that
+        private const float ExitSpeed=Speed; // the native top exit takes 2.8 s
         internal const double HeadLead=.2; // installed ladder clips hold the head this far toward the ladder
-        private const double GrabReach=.07,HandSpeed=3,EndPush=.1,ExitClearance=.3,Tick=1/60.0;
+        // Hand climbing is clamped to the native speed; the gripping hand lags and catches up when pulled faster.
+        private const double GrabReach=.07,HandSpeed=Speed,EndPush=.1,ExitClearance=.3,Tick=1/60.0;
         private const float WristDrop=.52f; // the wrist rests about 30 degrees below the rung
 
         private delegate MyLadder Probe(MyCharacterLadderComponent ladder,Vector3D position,ref Vector3 delta,out bool hit);
