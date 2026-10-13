@@ -130,6 +130,12 @@ namespace SpaceEngineersVR.Diagnostics
             log("PASS saved spectator scale restores after zoom and camera exit, excludes other sessions and clears on world reset");
             var origin=new Vector3D(1e8,-2e8,3e8);
             var ray=new LineD(origin,origin+new Vector3D(.6,0,-.8)*1000);
+            var far=new LineD(new Vector3D(0,0,500),new Vector3D(0,0,-500));
+            Require(DampenerRequests.ClampStart(Vector3D.Zero,200,ref far) && Vector3D.Distance(far.From,new Vector3D(0,0,200))<1e-9 && far.To==new Vector3D(0,0,-500),"Far ray start not moved to the camera sphere");
+            var inside=new LineD(new Vector3D(0,0,100),new Vector3D(0,0,-500)); var kept=inside;
+            Require(DampenerRequests.ClampStart(Vector3D.Zero,200,ref inside) && inside.From==kept.From,"Ray start inside the camera sphere changed");
+            var miss=new LineD(new Vector3D(300,0,500),new Vector3D(300,0,-500));
+            Require(!DampenerRequests.ClampStart(Vector3D.Zero,200,ref miss),"Ray missing the camera sphere accepted");
             var packet=DampenerRequests.Packet(17,23,41,ray);
             Require(DampenerRequests.Decode(packet,out var parsed) && parsed.Token==17 && parsed.Owner==23 && parsed.Target==41 &&
                 parsed.Start==origin && Vector3D.Distance(parsed.Direction,ray.Direction)<1e-12,"Dampener target transport lost identity or ray precision");

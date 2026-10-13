@@ -109,13 +109,27 @@ namespace SpaceEngineersVR.Multiplayer
         internal static bool ValidRay(Vector3D start,Vector3D direction) => start.IsValid() && direction.IsValid() &&
             Math.Abs(direction.LengthSquared()-1)<.001;
         internal static bool Owns(long senderIdentity,long controllingIdentity) => senderIdentity!=0 && senderIdentity==controllingIdentity;
+        internal static double StartLimit(MyEntity controlled) =>
+            Sandbox.Engine.Utils.MyThirdPersonSpectator.MAX_VIEWER_DISTANCE+controlled.PositionComp.WorldVolume.Radius;
+        // Observer pointers sit outside the sphere; keep the line, start at its entry.
+        internal static bool ClampStart(MyEntity controlled,ref LineD ray) => ClampStart(controlled.PositionComp.WorldVolume.Center,StartLimit(controlled),ref ray);
+        internal static bool ClampStart(Vector3D center,double limit,ref LineD ray)
+        {
+            var offset=ray.From-center;
+            if(offset.LengthSquared()<=limit*limit) return true;
+            double b=Vector3D.Dot(offset,ray.Direction),disc=b*b-(offset.LengthSquared()-limit*limit);
+            if(disc<0) return false;
+            double entry=-b-Math.Sqrt(disc);
+            if(entry<0 || entry>=ray.Length) return false;
+            ray=new LineD(ray.From+ray.Direction*entry,ray.To);
+            return true;
+        }
         private static bool Apply(ulong sender,long ownerId,long targetId,Vector3D start,Vector3D direction)
         {
             if(!ValidRay(start,direction) || !(MyEntities.GetEntityByIdOrDefault(ownerId) is Sandbox.Game.Entities.IMyControllableEntity controlled) ||
                 controlled.Entity.Closed || controlled.Entity.MarkedForClose ||
                 !Owns(MySession.Static.Players.TryGetIdentityId(sender),controlled.ControllerInfo?.ControllingIdentityId ?? 0)) return false;
-            // Detached VR views can put the pointer away from the body; native target reach still applies to the body.
-            if(Vector3D.DistanceSquared(start,controlled.Entity.PositionComp.GetPosition())>20000d*20000) return false;
+            if(Vector3D.Distance(start,controlled.Entity.PositionComp.WorldVolume.Center)>StartLimit(controlled.Entity)) return false;
             var ray=new LineD(start,start+direction*1000);
             var result=MyEntities.GetIntersectionWithLine(ref ray,controlled.Entity,controlled.Entity.GetTopMostParent(),ignoreChildren:false,ignoreFloatingObjects:false);
             var target=result?.Entity?.GetTopMostParent() as MyCubeGrid;

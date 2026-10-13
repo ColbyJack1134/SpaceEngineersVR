@@ -29,6 +29,7 @@ namespace SpaceEngineersVR.Player
         {
             var controlled=MySession.Static?.ControlledEntity;
             if(controlled==null) return;
+            if(!Multiplayer.DampenerRequests.ClampStart(controlled.Entity,ref ray)) { Cancel(); EssentialHud.Notify("Auto dampener target is out of reach"); return; }
             owner=controlled; pointer=hand; faceAttempt=face; pending=++sequence; if(pending==0) pending=++sequence;
             deadline=DateTime.UtcNow.AddSeconds(4);
             Multiplayer.DampenerRequests.Result=Complete;
