@@ -124,8 +124,7 @@ namespace SpaceEngineersVR.Plugin
             {
                 failed = true;
                 MyLog.Default.WriteLine("SpaceEngineersVR: Failed to start!");
-                MyLog.Default.WriteLine(ex.Message);
-                MyLog.Default.WriteLine(ex.StackTrace);
+                MyLog.Default.WriteLine(ex.ToString());
                 return;
             }
         }
