@@ -16,7 +16,9 @@ namespace SpaceEngineersVR.Player
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     public class Controls
     {
-        public static Controls Static = new Controls();
+        private static Controls instance;
+        // Created on first use from Main.Initialize; eager construction would open SteamVR input in test hosts.
+        public static Controls Static => instance ?? (instance=new Controls());
 
         public Button Recenter;
         public Button Options;
