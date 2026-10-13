@@ -28,7 +28,7 @@ namespace SpaceEngineersVR.Diagnostics
                     var merged = Merge(device, output, result, left, right);
                     Require(merged[4] == 524288 && merged[54] == 524288 && merged.Sum(v => (long)v) == 1048576,
                         "Eye weighting depends on visible pixel count");
-                    Require(merged.SequenceEqual(Merge(device, output, result, right, left)), "Swapping eyes changed exposure");
+                    Require(Enumerable.SequenceEqual(merged,Merge(device, output, result, right, left)), "Swapping eyes changed exposure");
                     left[4] = 25; left[18] = 75;
                     merged = Merge(device, output, result, left, right);
                     Require(merged[4] == 131072 && merged[18] == 393216 && merged[54] == 524288, "Histogram shape was lost");
@@ -91,12 +91,12 @@ namespace SpaceEngineersVR.Diagnostics
                     StereoRenderState.View = 0;
                     Draw(target);
                     var left = getter.Invoke(null, null);
-                    Require(Read(left).SequenceEqual(new[] { 0f, 0f }), "Left eye changed the shared exposure");
-                    Require(Read(history.GetValue(0)).SequenceEqual(new[] { 0f, 0f }), "Left eye advanced native adaptation");
+                    Require(Enumerable.SequenceEqual(Read(left),new[] { 0f, 0f }), "Left eye changed the shared exposure");
+                    Require(Enumerable.SequenceEqual(Read(history.GetValue(0)),new[] { 0f, 0f }), "Left eye advanced native adaptation");
                     StereoRenderState.View = 1;
                     Draw(target);
                     var right = getter.Invoke(null, null);
-                    Require(ReferenceEquals(left, right) && Read(right).SequenceEqual(new[] { 0f, 0f }), "Eyes used different exposure textures or values");
+                    Require(ReferenceEquals(left, right) && Enumerable.SequenceEqual(Read(right),new[] { 0f, 0f }), "Eyes used different exposure textures or values");
                     var next = Read(history.GetValue(0));
                     Require(next.All(v => !float.IsNaN(v) && !float.IsInfinity(v)) && Math.Abs(next[0]) > .0001,
                         "Combined native adaptation did not produce a finite target");
@@ -104,7 +104,7 @@ namespace SpaceEngineersVR.Diagnostics
                         "Adaptation did not advance exactly one timestep: target=" + next[0] + "; actual=" + next[1]);
                     StereoRenderState.View = -1;
                     Draw(target);
-                    Require(Read(history.GetValue(0)).SequenceEqual(next), "Diagnostic desktop advanced physical exposure");
+                    Require(Enumerable.SequenceEqual(Read(history.GetValue(0)),next), "Diagnostic desktop advanced physical exposure");
                     StereoExposure.End();
                     Require(ReferenceEquals(getter.Invoke(null, null), history.GetValue(0)), "Native exposure was not restored outside stereo");
                     log("PASS native stereo exposure: identical eye texture/pixels, left history unchanged, combined native reduction once per timestep, desktop isolation and scope restoration");

@@ -65,7 +65,7 @@ namespace SpaceEngineersVR.Multiplayer
         // Hosts without SEVR never answer the hello.
         internal static bool LocalOnly => network!=null && !network.IsServer && !hostSupport && LoadLocal!=null && Now-connected>6;
         private static uint sequence;
-        internal static void Log(string text) => MyLog.Default.WriteLine("SEVR multiplayer: "+text);
+        internal static void Log(string text) => MyLog.Default?.WriteLine("SEVR multiplayer: "+text);
         internal static void Reset()
         {
             DampenerRequests.Reset();

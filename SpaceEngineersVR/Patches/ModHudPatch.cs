@@ -51,7 +51,7 @@ namespace SpaceEngineersVR.Patches
         {
             if(!Main.VrActive || MySession.Static==null || DateTime.UtcNow<retry) return;
             retry=DateTime.UtcNow.AddSeconds(1);
-            foreach(var assembly in AppDomain.CurrentDomain.GetAssemblies().Reverse())
+            foreach(var assembly in Util.Util.NewestAssemblies())
             {
                 var text=assembly.GetType("UIFun.ModUI",false);
                 if(text!=null && AccessTools.Field(text,"instance")?.GetValue(null)!=null) AttachText(assembly,text);

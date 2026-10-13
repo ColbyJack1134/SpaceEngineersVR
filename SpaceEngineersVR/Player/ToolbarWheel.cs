@@ -26,8 +26,8 @@ namespace SpaceEngineersVR.Player
             public int Selected,Group,Page,Pages;
             public Matrix Pose;
             public bool SameAs(View other) => other!=null && Title==other.Title && Variants==other.Variants && Group==other.Group && Page==other.Page && Pages==other.Pages && Selected==other.Selected && Pose==other.Pose &&
-                Labels.SequenceEqual(other.Labels) && Enabled.SequenceEqual(other.Enabled) && SubIcons.SequenceEqual(other.SubIcons) &&
-                ItemText.SequenceEqual(other.ItemText) && Icons.Zip(other.Icons,(a,b)=>a.SequenceEqual(b)).All(equal=>equal);
+                Enumerable.SequenceEqual(Labels,other.Labels) && Enumerable.SequenceEqual(Enabled,other.Enabled) && Enumerable.SequenceEqual(SubIcons,other.SubIcons) &&
+                Enumerable.SequenceEqual(ItemText,other.ItemText) && Icons.Zip(other.Icons,(a,b)=>Enumerable.SequenceEqual(a,b)).All(equal=>equal);
         }
         private static volatile View view;
         private static View drawn;

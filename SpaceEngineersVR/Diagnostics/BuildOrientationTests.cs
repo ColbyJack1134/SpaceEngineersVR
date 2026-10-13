@@ -90,11 +90,11 @@ namespace SpaceEngineersVR.Diagnostics
                         if(i<3) Previews.Add(preview);
                     }
                     hidden.CalculateRotationHints(matrix,false);
-                    Require(Axes(drawn).SequenceEqual(Axes(hidden)) && hidden.RotationRightAxis>=0,
+                    Require(Enumerable.SequenceEqual(Axes(drawn),Axes(hidden)) && hidden.RotationRightAxis>=0,
                         "Suppressing native drawing changed rotation axes/directions");
                     drawn.CalculateRotationHints(MatrixD.Identity,true,true,true);
                     hidden.CalculateRotationHints(MatrixD.Identity,false,true,true);
-                    Require(Axes(drawn).SequenceEqual(Axes(hidden)),"Fixed/one-axis rotation changed when drawing suppressed");
+                    Require(Enumerable.SequenceEqual(Axes(drawn),Axes(hidden)),"Fixed/one-axis rotation changed when drawing suppressed");
                 }
                 var voxel=AccessTools.TypeByName("Sandbox.Game.Entities.MyVoxelClipboard");
                 var clipboard=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(voxel);
@@ -113,7 +113,7 @@ namespace SpaceEngineersVR.Diagnostics
                 {
                     expected.CalculateRotationHints(orientation,true);
                     var reference=capture.Complete();
-                    Require(Axes(expected).SequenceEqual(Axes(planetHints)) && reference.Sprites.Length==PlanetIndicator.Sprites.Length &&
+                    Require(Enumerable.SequenceEqual(Axes(expected),Axes(planetHints)) && reference.Sprites.Length==PlanetIndicator.Sprites.Length &&
                         reference.Sprites.Zip(PlanetIndicator.Sprites,(a,b)=>a.Path==b.Path && a.Tint==b.Tint && Vector4.Distance(a.TopLeft,b.TopLeft)<1e-5f).All(equal=>equal),
                         "Planet indicator differs from the shared native rotation hints");
                 }

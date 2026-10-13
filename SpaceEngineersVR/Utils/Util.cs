@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,6 +15,10 @@ namespace SpaceEngineersVR.Util
     internal static class Util
     {
         private static MyStringId SQUARE = MyStringId.GetOrCompute("Square");
+
+        // Reloading a world leaves the previous world's mod assemblies loaded; search the newest first.
+        // Enumerable.Reverse is explicit because C# 14 binds array.Reverse() to the in-place span overload.
+        internal static IEnumerable<Assembly> NewestAssemblies() => Enumerable.Reverse(AppDomain.CurrentDomain.GetAssemblies());
 
         public static string GetDefaultAssetFolder()
         {

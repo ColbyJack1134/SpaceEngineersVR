@@ -156,9 +156,8 @@ namespace SpaceEngineersVR.Player
             retry=DateTime.UtcNow.AddSeconds(1);
             if(!registered) { MyAPIGateway.Utilities.RegisterMessageHandler(Channel,Message); registered=true; }
             if(api==null) MyAPIGateway.Utilities.SendModMessage(Channel,"ApiRequestTouch");
-            // The game can retain an unloaded world's mod assembly. Select a live
-            // session, rather than stopping at the first assembly with this type.
-            foreach(var assembly in AppDomain.CurrentDomain.GetAssemblies().Reverse())
+            // Select a live session rather than stopping at the first assembly with this type.
+            foreach(var assembly in Util.Util.NewestAssemblies())
             {
                 var t=assembly.GetType("Lima.Touch.TouchSession",false);
                 if(t!=null && Attach(t)) break;

@@ -105,18 +105,18 @@ namespace SpaceEngineersVR.Diagnostics
                     { var field=AccessTools.Field(probe.GetType(),name); probeState[field]=field.GetValue(probe); }
                     camera.CameraPosition+=new Vector3D(.064,0,0);
                     StereoRenderState.View=1; Draw(target);
-                    Require(Read(particle).SequenceEqual(left),"Right eye changed simulation state");
+                    Require(Enumerable.SequenceEqual(Read(particle),left),"Right eye changed simulation state");
                     Require(ReferenceEquals(leftAlive,AccessTools.Field(native,"m_aliveIndexBuffer2").GetValue(null)),"Right eye swapped alive lists");
                     Require(probeState.All(s=>Equals(s.Value,s.Key.GetValue(probe))),"Right eye advanced reflection probes");
                     using(var remote=new RemoteScene())
                     {
                         camera.CameraPosition+=new Vector3D(1000,0,0); Draw(target);
-                        Require(Read(particle).SequenceEqual(left),"Remote camera changed physical particles");
+                        Require(Enumerable.SequenceEqual(Read(particle),left),"Remote camera changed physical particles");
                         var flare=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Common.MyManagers"),"FlareOcclusionRenderer").GetValue(null);
                         AccessTools.Method(flare.GetType(),"Render").Invoke(flare,new object[4]);
                     }
                     StereoRenderState.View=-1; Draw(target);
-                    Require(Read(particle).SequenceEqual(left),"Diagnostic desktop changed simulation state");
+                    Require(Enumerable.SequenceEqual(Read(particle),left),"Diagnostic desktop changed simulation state");
                     Require(probeState.All(s=>Equals(s.Value,s.Key.GetValue(probe))),"Camera or diagnostic desktop advanced reflection probes");
                     camera.Restore(savedCamera);
                     StereoRenderState.View=0; Draw(target);

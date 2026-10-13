@@ -106,7 +106,7 @@ namespace SpaceEngineersVR.Diagnostics
             layout=SignalLayout.Build(dense,head,options,now.AddSeconds(1));
             Require(layout.Sum(e=>e.Labels.Length)<=64,"Signal atlas row budget exceeded");
             Require(layout.Where(e=>e.Members.Any(m=>m.Pinned)).All(e=>e.Members.Length==1),"Pinned waypoint was clustered");
-            var reordered=new WorldMarkers.View(dense.Markers.Reverse().ToArray(),now) {Mode=dense.Mode};
+            var reordered=new WorldMarkers.View(Enumerable.Reverse(dense.Markers).ToArray(),now) {Mode=dense.Mode};
             Require(layout.Select(e=>e.Id).SequenceEqual(SignalLayout.Build(reordered,head,options,now).Select(e=>e.Id)),"POI enumeration reorders groups");
             var cluster=Scene("cluster",head,now); cluster.Mode=MyHudMarkerRender.SignalMode.NoNames;
             cluster.Reveal=true;

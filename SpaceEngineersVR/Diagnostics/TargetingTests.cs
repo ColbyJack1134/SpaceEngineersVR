@@ -36,13 +36,13 @@ namespace SpaceEngineersVR.Diagnostics
                 GameActions.Execute(first,fromSearch:true);
                 GameActions.Execute(second,fromSearch:true);
                 GameActions.Execute(first);
-                Require(invoked==4 && history.Keys.SequenceEqual(new[] {"Second","First"}),"Ordinary action reordered Search clicks");
+                Require(invoked==4 && Enumerable.SequenceEqual(history.Keys,new[] {"Second","First"}),"Ordinary action reordered Search clicks");
                 GameActions.Execute(new ActionChoice("Disabled",()=>invoked++,enabled:()=>false),fromSearch:true);
                 try { GameActions.Execute(new ActionChoice("Failed",()=>throw new InvalidOperationException()),fromSearch:true); }
                 catch(InvalidOperationException) { }
-                Require(invoked==4 && history.Keys.SequenceEqual(new[] {"Second","First"}),"Unexecuted Search result entered history");
+                Require(invoked==4 && Enumerable.SequenceEqual(history.Keys,new[] {"Second","First"}),"Unexecuted Search result entered history");
                 GameActions.Execute(first,fromSearch:true);
-                Require(history.Keys.SequenceEqual(new[] {"First","Second"}),"Repeated Search click did not move to the front");
+                Require(Enumerable.SequenceEqual(history.Keys,new[] {"First","Second"}),"Repeated Search click did not move to the front");
             }
             finally { harmony.UnpatchAll(harmony.Id); field.SetValue(null,previous); Plugin.Main.MenuOpen=menuOpen; }
             log("PASS Search clicks record successful actions; wheel/hotkey, disabled and failed actions leave recents unchanged");
@@ -85,7 +85,7 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 serializer.Serialize(xml,settings);
                 using(var reader=new System.IO.StringReader(xml.ToString()))
-                    Require(((Config.PluginConfig)serializer.Deserialize(reader)).RecentSearchActions.SequenceEqual(history.Keys),"Recent actions did not survive settings serialization");
+                    Require(Enumerable.SequenceEqual(((Config.PluginConfig)serializer.Deserialize(reader)).RecentSearchActions,history.Keys),"Recent actions did not survive settings serialization");
             }
             log("PASS recent action ordering, bounded persistence, fresh context choices and changing labels");
             using(var reader=new System.IO.StringReader("<PluginConfig><RecentActions><string>old-wheel-action</string></RecentActions></PluginConfig>"))

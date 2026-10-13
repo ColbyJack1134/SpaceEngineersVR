@@ -48,7 +48,7 @@ namespace SpaceEngineersVR.Player
                 Speed==other.Speed && SpeedLevel==other.SpeedLevel && ShipHydrogenLevel==other.ShipHydrogenLevel &&
                 ShipBatteryLevel==other.ShipBatteryLevel && ShipLoadLevel==other.ShipLoadLevel && NaturalGravity==other.NaturalGravity && ArtificialGravity==other.ArtificialGravity && Helmet==other.Helmet && Jetpack==other.Jetpack &&
                 Dampeners==other.Dampeners && AutoDampeners==other.AutoDampeners && Alternate==other.Alternate && Flying==other.Flying && Down==other.Down &&
-                Values.SequenceEqual(other.Values) && Icons.SequenceEqual(other.Icons) && Piloting==other.Piloting &&
+                Enumerable.SequenceEqual(Values,other.Values) && Enumerable.SequenceEqual(Icons,other.Icons) && Piloting==other.Piloting &&
                 ShipHydrogen==other.ShipHydrogen && ShipBattery==other.ShipBattery && ShipLoad==other.ShipLoad && ShipEndurance==other.ShipEndurance &&
                 Broadcasting==other.Broadcasting && Flashlight==other.Flashlight && Magboots==other.Magboots &&
                 ShipPower==other.ShipPower && ShipBroadcasting==other.ShipBroadcasting && ShipPark==other.ShipPark && ShipMass==other.ShipMass &&
@@ -58,7 +58,7 @@ namespace SpaceEngineersVR.Player
                 OxygenRefilling==other.OxygenRefilling && HydrogenRefilling==other.HydrogenRefilling &&
                 EnvironmentOxygen==other.EnvironmentOxygen && Temperature==other.Temperature &&
                 InventoryLevel==other.InventoryLevel && Inventory==other.Inventory && InventoryFull==other.InventoryFull &&
-                BuffsEnabled==other.BuffsEnabled && BuffLevel==other.BuffLevel && Notices.SequenceEqual(other.Notices);
+                BuffsEnabled==other.BuffsEnabled && BuffLevel==other.BuffLevel && Enumerable.SequenceEqual(Notices,other.Notices);
         }
         private static volatile View snapshot;
         public static View Current => snapshot;

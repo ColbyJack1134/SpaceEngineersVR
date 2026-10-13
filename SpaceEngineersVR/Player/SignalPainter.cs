@@ -76,7 +76,7 @@ namespace SpaceEngineersVR.Player
             var fonts=text.Select(l=>l.Font).ToArray();
             string key=string.Join("\n",names)+"\n"+string.Join("\n",text.Select(l=>l.Distance+"|"+l.Color+"|"+l.Font+"|"+l.LeftAligned+"|"+l.Bounds.Width+"|"+l.LineHeight));
             bool contentChanged=!owners.SequenceEqual(textOwners,StringComparer.Ordinal) || !names.SequenceEqual(textNames,StringComparer.Ordinal) ||
-                !colors.SequenceEqual(textColors) || !fonts.SequenceEqual(textFonts,StringComparer.Ordinal);
+                !Enumerable.SequenceEqual(colors,textColors) || !fonts.SequenceEqual(textFonts,StringComparer.Ordinal);
             if((contentChanged || textKey!=key || textRevision!=NativeSprites.Revision) && (contentChanged || DateTime.UtcNow>=nextText || textRevision!=NativeSprites.Revision))
             {
                 labels.ClearTexture(); sprites.Clear();

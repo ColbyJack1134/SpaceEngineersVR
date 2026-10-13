@@ -71,7 +71,7 @@ namespace SpaceEngineersVR.Diagnostics
             var wrapped=new PoseStream(); wrapped.Push(Pose(uint.MaxValue),2); Require(wrapped.Push(Pose(0),2.05),"Sequence wrap rejected");
             var record=new CockpitMemory.Record {Revision=3,Toolbar="<toolbar>parameter &amp; text</toolbar>",Covers=new[] {true,false,true}};
             var saved=CockpitMemory.Decode(CockpitMemory.Encode(record));
-            Require(saved.Revision==3 && saved.Toolbar==record.Toolbar && saved.Covers.SequenceEqual(record.Covers),"Cockpit record loses assignments or covers");
+            Require(saved.Revision==3 && saved.Toolbar==record.Toolbar && Enumerable.SequenceEqual(saved.Covers,record.Covers),"Cockpit record loses assignments or covers");
             var oldToolbar=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=new List<MyObjectBuilder_Toolbar.Slot> {
                 new MyObjectBuilder_Toolbar.Slot {Index=0},new MyObjectBuilder_Toolbar.Slot {Index=4},new MyObjectBuilder_Toolbar.Slot {Index=60} }};
             var old=new CockpitMemory.Record {LayoutVersion=0,Toolbar=CockpitMemory.Toolbar(oldToolbar),Covers=new bool[64]};
@@ -115,7 +115,7 @@ namespace SpaceEngineersVR.Diagnostics
                 var unchanged=new CockpitMemory.Record {LayoutVersion=version,Toolbar=CockpitMemory.Toolbar(cabToolbar),Covers=priorCovers};
                 string priorToolbar=unchanged.Toolbar;
                 CockpitMemory.Upgrade(unchanged,"CockpitOpen");
-                Require(unchanged.Toolbar==priorToolbar && unchanged.Covers.SequenceEqual(priorCovers),"Cab migration changes another cockpit");
+                Require(unchanged.Toolbar==priorToolbar && Enumerable.SequenceEqual(unchanged.Covers,priorCovers),"Cab migration changes another cockpit");
             }
             foreach(string subtype in new[] {"SmallBlockFlushCockpit","SmallBlockSuspendedControlSeat","LargeBlockSuspendedControlSeat",
                 "SmallBlockSuspendedControlSeatB","LargeBlockSuspendedControlSeatB"})
@@ -286,12 +286,12 @@ namespace SpaceEngineersVR.Diagnostics
             var copiedToolbar=CockpitMemory.Toolbar(copied.Toolbar);
             Require(block.EntityId==1020 && ((MyObjectBuilder_ToolbarItemTerminalBlock)copiedToolbar.Slots[0].Data).BlockEntityId==1021 &&
                 ((MyObjectBuilder_ToolbarItemTerminalGroup)copiedToolbar.Slots[1].Data).BlockEntityId==1022,"Native copy remapping lost switch target references");
-            Require(copied.Covers.SequenceEqual(record.Covers) && copied.Flight.Encode()==record.Flight.Encode(),"Native copy lost cover or flight settings");
+            Require(Enumerable.SequenceEqual(copied.Covers,record.Covers) && copied.Flight.Encode()==record.Flight.Encode(),"Native copy lost cover or flight settings");
             var untouched=CockpitMemory.Decode(((MyObjectBuilder_ModStorageComponent)original.ComponentContainer.Components[0].Component).Storage.Dictionary[CockpitMemory.Key]);
             Require(untouched.Toolbar==record.Toolbar && untouched.Revision==9,"Copy mutated original cockpit assignments");
             block.SetupForProjector(); var built=(MyObjectBuilder_Cockpit)block.Clone();
             var projected=CockpitMemory.Decode(((MyObjectBuilder_ModStorageComponent)built.ComponentContainer.Components[0].Component).Storage.Dictionary[CockpitMemory.Key]);
-            Require(projected.Toolbar==copied.Toolbar && projected.Covers.SequenceEqual(record.Covers) && projected.Flight.Encode()==record.Flight.Encode(),"Projector setup/build clone discarded cockpit state");
+            Require(projected.Toolbar==copied.Toolbar && Enumerable.SequenceEqual(projected.Covers,record.Covers) && projected.Flight.Encode()==record.Flight.Encode(),"Projector setup/build clone discarded cockpit state");
             var restored=new MyModStorageComponent(); restored.Deserialize(serialized);
             Require(restored.GetValue(CockpitMemory.Key)==CockpitMemory.Encode(copied),"Storage deserialization changed data");
             log("PASS native cockpit persistence: registered-key serialization, typed toolbar bounds, block/group target remapping, original isolation, projector setup/build clone, cover states and deserialization. No world was loaded.");
@@ -301,6 +301,13 @@ namespace SpaceEngineersVR.Diagnostics
             var assembly=System.Reflection.Assembly.LoadFrom(assemblyPath);
             Require(!assembly.GetReferencedAssemblies().Any(a=>a.Name=="OVRSharp" || a.Name=="SpaceEngineersVR"),"Companion requires the VR plugin/runtime");
             var support=assembly.GetType("SpaceEngineersVR.Multiplayer.MultiplayerSupport",true);
+            var plugin=(VRage.Plugins.IPlugin)Activator.CreateInstance(assembly.GetType("SpaceEngineersVR.Multiplayer.Plugin",true));
+            try
+            {
+                plugin.Init(null);
+                Require(!Harmony.HasAnyPatches("SpaceEngineersVR.Multiplayer"),"Companion patched while the VR plugin is loaded");
+            }
+            finally { plugin.Dispose(); }
             try
             {
                 support.GetMethod("Start").Invoke(null,null);
@@ -310,7 +317,7 @@ namespace SpaceEngineersVR.Diagnostics
             }
             finally { support.GetMethod("Stop").Invoke(null,null); }
             Require(!Harmony.HasAnyPatches("SpaceEngineersVR.Multiplayer"),"Companion left patches after shutdown");
-            log("PASS flatscreen companion: independent assembly, 23 native patch attachments, no-world update and clean shutdown without OpenVR initialization.");
+            log("PASS flatscreen companion: independent assembly, inactive beside the VR plugin, 23 native patch attachments, no-world update and clean shutdown without OpenVR initialization.");
         }
         public static void Export(string game,string output,Action<string> log)
         {

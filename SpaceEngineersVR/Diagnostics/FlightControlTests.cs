@@ -158,7 +158,7 @@ namespace SpaceEngineersVR.Diagnostics
                 WheelPitchTravel=.05f,WheelPitchDeadzone=.012f,WheelRollTravel=MathHelper.ToRadians(45)};
             var record=new CockpitMemory.Record {Toolbar="saved assignments",Covers=new[] {true,false},Flight=tuning};
             var restored=CockpitMemory.Decode(CockpitMemory.Encode(record));
-            Require(restored.Flight.Encode()==tuning.Encode() && restored.Toolbar==record.Toolbar && restored.Covers.SequenceEqual(record.Covers) &&
+            Require(restored.Flight.Encode()==tuning.Encode() && restored.Toolbar==record.Toolbar && Enumerable.SequenceEqual(restored.Covers,record.Covers) &&
                 restored.LayoutVersion==record.LayoutVersion,"Flight persistence changed cockpit assignments or tuning");
             Require(FlightTuning.Decode(tuning.Encode()).Encode()==tuning.Encode(),"Network tuning roundtrip changed flight settings");
             using(var stream=new MemoryStream()) using(var writer=new BinaryWriter(stream))
@@ -215,7 +215,7 @@ namespace SpaceEngineersVR.Diagnostics
                     writer.Write(hasTuning); if(hasTuning) writer.Write(version==5 ? bars:version==4 ? body:legacy);
                     if(version>=3) writer.Write(7);
                     var old=CockpitMemory.Decode(Convert.ToBase64String(stream.ToArray()));
-                    Require(old.Revision==17 && old.Toolbar=="legacy assignments" && old.Covers.SequenceEqual(new[] {false,true}) &&
+                    Require(old.Revision==17 && old.Toolbar=="legacy assignments" && Enumerable.SequenceEqual(old.Covers,new[] {false,true}) &&
                         old.LayoutVersion==(version>=3 ? 7:0) && (hasTuning ? old.Flight?.Encode()==(version==5 ? barMigrated:version==4 ? bodyMigrated:migrated).Encode():old.Flight==null),
                         "Legacy tuning consumed the following cockpit layout or changed assignments");
                 }

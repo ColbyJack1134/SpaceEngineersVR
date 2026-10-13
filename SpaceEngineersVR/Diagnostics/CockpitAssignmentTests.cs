@@ -58,9 +58,9 @@ namespace SpaceEngineersVR.Diagnostics
                 total+=rig.Count; pages+=layout.Pages.Length;
             }
             var seat=CockpitAssignmentLayout.Find(CockpitLayout.ControlSeat);
-            Require(seat.Pages.Any(p=>p.Controls.SequenceEqual(new[] {65,58,64,63})) &&
-                seat.Pages.Any(p=>p.Controls.SequenceEqual(new[] {69,70})) &&
-                seat.Pages.Any(p=>p.Controls.SequenceEqual(new[] {72,71,73,74})),"Control Seat row, paired levers or slider-bank order changed");
+            Require(seat.Pages.Any(p=>Enumerable.SequenceEqual(p.Controls,new[] {65,58,64,63})) &&
+                seat.Pages.Any(p=>Enumerable.SequenceEqual(p.Controls,new[] {69,70})) &&
+                seat.Pages.Any(p=>Enumerable.SequenceEqual(p.Controls,new[] {72,71,73,74})),"Control Seat row, paired levers or slider-bank order changed");
             var longRow=new CockpitAssignmentLayout(12,new CockpitAssignmentLayout.Group("Row",Enumerable.Range(0,12).ToArray()));
             Require(longRow.Pages.Length==2 && longRow.Pages[0].Controls.SequenceEqual(Enumerable.Range(0,9)) &&
                 longRow.Pages[1].Controls.SequenceEqual(Enumerable.Range(9,3)) && longRow.Control(12)==-1,"Long physical row lost continuation order");

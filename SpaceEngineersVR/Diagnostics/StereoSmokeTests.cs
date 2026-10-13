@@ -92,9 +92,9 @@ P VS(uint id:SV_VertexID) {
                         Require(!Background(right),"Missing depth did not reproduce extra smoke");
                         var fixedLeft=Draw(.003f,"after-"+effect+"-left");
                         var fixedRight=Draw(.003f,"after-"+effect+"-right");
-                        Require(fixedLeft.SequenceEqual(fixedRight) && !Background(fixedLeft),"Visible smoke pixels disagree with correct per-view depth");
+                        Require(Enumerable.SequenceEqual(fixedLeft,fixedRight) && !Background(fixedLeft),"Visible smoke pixels disagree with correct per-view depth");
                         var occludedLeft=Draw(.01f,null); var occludedRight=Draw(.01f,null);
-                        Require(occludedLeft.SequenceEqual(occludedRight) && Background(occludedLeft),"Correct depth failed to clip occluded smoke");
+                        Require(Enumerable.SequenceEqual(occludedLeft,occludedRight) && Background(occludedLeft),"Correct depth failed to clip occluded smoke");
                     }
                 }
                 byte[] Draw(float? depth,string name)

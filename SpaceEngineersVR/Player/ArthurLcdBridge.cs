@@ -77,7 +77,7 @@ namespace SpaceEngineersVR.Player
         {
             if(failed || moduleType!=null || DateTime.UtcNow<retry || MySession.Static==null) return;
             retry=DateTime.UtcNow.AddSeconds(1);
-            var type=AppDomain.CurrentDomain.GetAssemblies().Reverse().Where(a=>
+            var type=Util.Util.NewestAssemblies().Where(a=>
                 a.GetType("LcdMod.Client.LcdModClientComponent",false) is Type client &&
                 OptionalLcdContract.Reads(client,"Instance",client,isStatic:true) && OptionalLcdContract.Property(client,"Instance").GetValue(null)!=null)
                 .Select(a=>a.GetType("LcdMod.Client.Modules.EyeTracking.EyeTrackingModule",false)).FirstOrDefault(t=>t!=null);
