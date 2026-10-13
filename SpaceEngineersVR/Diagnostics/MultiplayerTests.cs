@@ -240,12 +240,97 @@ namespace SpaceEngineersVR.Diagnostics
             Require(flushSlots.Select(s=>s.Index).SequenceEqual(new[] {8,9,10,11,12,13,14,18}) && flushSlots.All(s=>
                 s.Data is MyObjectBuilder_ToolbarItemTerminalBlock item && item.BlockEntityId==700+(s.Index==18 ? 7:s.Index-8) &&
                 item._Action==(s.Index==18 ? "IncreaseVelocity":"OnOff")),"Flush dial migration loses existing switch or analog assignments");
-            foreach(var invalid in new[] {"invalid base64",Convert.ToBase64String(new byte[12]),new string('A',CockpitMemory.Limit*2+1)})
+            foreach(var invalid in new[] {"invalid base64",Convert.ToBase64String(new byte[12]),new string('A',CockpitMemory.Limit*2+1),HugeString()})
             {
                 bool rejected=false; try { CockpitMemory.Decode(invalid); } catch { rejected=true; }
                 Require(rejected,"Invalid cockpit storage accepted");
             }
-            log("PASS multiplayer payloads: pose round trip, truncated/nonfinite/out-of-reach rejection, finger flags, ordering/wrap, interpolation, seat changes, stale timeout and cockpit record persistence.");
+            BoundedStrings();
+            RequestBudgets();
+            ToolbarCap(log);
+            CorruptPaste();
+            log("PASS multiplayer payloads: pose round trip, truncated/nonfinite/out-of-reach rejection, finger flags, ordering/wrap, interpolation, seat changes, stale timeout, cockpit record persistence, bounded string lengths and request budgets.");
+        }
+        private static void Write7Bit(BinaryWriter writer,int value)
+        {
+            uint rest=(uint)value;
+            while(rest>=0x80) { writer.Write((byte)(rest|0x80)); rest>>=7; }
+            writer.Write((byte)rest);
+        }
+        // Version 6 record whose toolbar claims about 5e8 characters but carries 4 bytes.
+        private static string HugeString()
+        {
+            using(var stream=new MemoryStream())
+            using(var writer=new BinaryWriter(stream))
+            {
+                writer.Write(6); writer.Write(0L);
+                Write7Bit(writer,500000000); writer.Write(new byte[4]);
+                return Convert.ToBase64String(stream.ToArray());
+            }
+        }
+        private static void BoundedStrings()
+        {
+            foreach(var text in new[] {"","<toolbar/>",new string('\u00e9',300)+"\u4e2d\u6587",new string('x',CockpitMemory.ToolbarLimit)})
+            {
+                using(var stream=new MemoryStream())
+                {
+                    using(var writer=new BinaryWriter(stream,System.Text.Encoding.UTF8,true)) { writer.Write(text); writer.Write(7); }
+                    stream.Position=0;
+                    using(var reader=new BinaryReader(stream,System.Text.Encoding.UTF8,true))
+                        Require(CockpitMemory.ReadBoundedString(reader)==text && reader.ReadInt32()==7,"Bounded string round trip failed");
+                }
+            }
+            long before=GC.GetTotalMemory(true);
+            foreach(var claimed in new[] {500000000,int.MaxValue,8})
+            {
+                using(var stream=new MemoryStream())
+                {
+                    using(var writer=new BinaryWriter(stream,System.Text.Encoding.UTF8,true)) { Write7Bit(writer,claimed); writer.Write(new byte[4]); }
+                    stream.Position=0;
+                    bool rejected=false;
+                    try { using(var reader=new BinaryReader(stream,System.Text.Encoding.UTF8,true)) CockpitMemory.ReadBoundedString(reader); }
+                    catch(InvalidDataException) { rejected=true; }
+                    Require(rejected,"Oversized string length "+claimed+" accepted");
+                }
+            }
+            Require(GC.GetTotalMemory(false)-before<16*1024*1024,"Rejected string lengths still allocated");
+            byte[] hostile; using(var stream=new MemoryStream()) using(var writer=new BinaryWriter(stream)) { writer.Write(0x31535653); writer.Write((byte)2); writer.Write(1L); writer.Write(new byte[] {0xFF,0xFF,0xFF,0xFF,0x07,0,0,0}); hostile=stream.ToArray(); }
+            Require(hostile.Length<CockpitMemory.Limit*2+64,"Hostile packet exceeds the receive bound and would not reach the parser");
+        }
+        private static void ToolbarCap(Action<string> log)
+        {
+            var full=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=new List<MyObjectBuilder_Toolbar.Slot>()};
+            for(int i=0;i<CockpitMemory.MaximumControls;i++)
+                full.Slots.Add(new MyObjectBuilder_Toolbar.Slot {Index=i,Data=new MyObjectBuilder_ToolbarItemTerminalGroup {BlockEntityId=4000000000000000000L+i,
+                    GroupName=new string('G',64)+i,_Action="IncreaseVelocity",Parameters=new List<MyObjectBuilder_ToolbarItemActionParameter> {new MyObjectBuilder_ToolbarItemActionParameter {TypeCode=TypeCode.String,Value=new string('p',32)}}}});
+            string fullXml=CockpitMemory.Toolbar(full);
+            log("Full 160-group toolbar XML: "+fullXml.Length+" characters; request cap "+CockpitMemory.ToolbarLimit);
+            Require(fullXml.Length<CockpitMemory.ToolbarLimit && CockpitMemory.ValidToolbar(fullXml,CockpitMemory.MaximumControls),"Full toolbar does not fit the request cap");
+            Require(CockpitMemory.Encode(new CockpitMemory.Record {Toolbar=fullXml,Covers=new bool[CockpitMemory.MaximumControls]}).Length<CockpitMemory.Limit,"Full toolbar record exceeds world storage");
+            Require(!CockpitMemory.ValidToolbar(fullXml+new string(' ',CockpitMemory.ToolbarLimit),CockpitMemory.MaximumControls),"Oversized toolbar request accepted");
+        }
+        private static void CorruptPaste()
+        {
+            var storage=new MyObjectBuilder_ModStorageComponent {Storage=new SerializableDictionary<Guid,string>()};
+            storage.Storage.Dictionary[CockpitMemory.Key]="not a record";
+            storage.Storage.Dictionary[Guid.Empty]="other mod";
+            var block=new MyObjectBuilder_Cockpit {EntityId=20,ComponentContainer=new MyObjectBuilder_ComponentContainer {
+                Components=new List<MyObjectBuilder_ComponentContainer.ComponentData> {
+                    new MyObjectBuilder_ComponentContainer.ComponentData {TypeId=typeof(MyModStorageComponent).Name,Component=storage}}}};
+            CockpitMemory.Remap(block,new Remap());
+            Require(!storage.Storage.Dictionary.ContainsKey(CockpitMemory.Key) && storage.Storage.Dictionary.ContainsKey(Guid.Empty),"Corrupt pasted assignments were kept, threw or removed other data");
+        }
+        private static void RequestBudgets()
+        {
+            var budget=new RequestBudget(); double now=100;
+            for(int i=0;i<RequestBudget.Burst;i++) Require(budget.Allow(now),"Burst request "+i+" denied");
+            Require(!budget.Allow(now) && !budget.Allow(now+.05),"Request over the burst accepted");
+            Require(budget.Allow(now+.11) && !budget.Allow(now+.11),"Refill rate wrong");
+            now+=10; for(int i=0;i<RequestBudget.Burst;i++) Require(budget.Allow(now),"Budget did not refill to the burst");
+            Require(!budget.Allow(now),"Budget exceeded the burst after idling");
+            var slow=new RequestBudget(); int allowed=0;
+            for(int i=0;i<600;i++) if(slow.Allow(200+i/10.0)) allowed++;
+            Require(allowed==600,"Ten-per-second edits were throttled: "+allowed);
         }
         private sealed class Remap : IMyRemapHelper
         {
@@ -295,6 +380,7 @@ namespace SpaceEngineersVR.Diagnostics
             Require(projected.Toolbar==copied.Toolbar && Enumerable.SequenceEqual(projected.Covers,record.Covers) && projected.Flight.Encode()==record.Flight.Encode(),"Projector setup/build clone discarded cockpit state");
             var restored=new MyModStorageComponent(); restored.Deserialize(serialized);
             Require(restored.GetValue(CockpitMemory.Key)==CockpitMemory.Encode(copied),"Storage deserialization changed data");
+
             log("PASS native cockpit persistence: registered-key serialization, typed toolbar bounds, block/group target remapping, original isolation, projector setup/build clone, cover states and deserialization. No world was loaded.");
         }
         public static void Companion(string assemblyPath,Action<string> log)

@@ -16,6 +16,8 @@ namespace SpaceEngineersVR.Multiplayer
     {
         internal static readonly Guid Key=new Guid("b6d86dc9-ff9b-421b-8942-88e3d464d809");
         internal const int Limit=262144,MaximumControls=160,CurrentLayout=13;
+        // A full 160-control toolbar of group actions with long names measures about 102K characters.
+        internal const int ToolbarLimit=Limit/2;
         internal sealed class Record
         {
             internal long Revision;
@@ -38,6 +40,23 @@ namespace SpaceEngineersVR.Multiplayer
                 return Convert.ToBase64String(stream.ToArray());
             }
         }
+        // BinaryReader.ReadString allocates the claimed length before reading, so a peer could force a huge allocation.
+        internal static string ReadBoundedString(BinaryReader reader)
+        {
+            int length=0,shift=0; byte part;
+            do
+            {
+                if(shift>28) throw new InvalidDataException("Invalid string length.");
+                part=reader.ReadByte(); length|=(part&0x7F)<<shift; shift+=7;
+            }
+            while((part&0x80)!=0);
+            var stream=reader.BaseStream;
+            if(length<0 || length>stream.Length-stream.Position) throw new InvalidDataException("String length exceeds the message.");
+            if(length==0) return "";
+            var bytes=reader.ReadBytes(length);
+            if(bytes.Length!=length) throw new EndOfStreamException();
+            return System.Text.Encoding.UTF8.GetString(bytes);
+        }
         internal static Record Decode(string value)
         {
             if(string.IsNullOrEmpty(value)) return new Record();
@@ -47,7 +66,7 @@ namespace SpaceEngineersVR.Multiplayer
             {
                 int version=reader.ReadInt32();
                 if(stream.Length>Limit || version<1 || version>6) throw new InvalidDataException("Unsupported cockpit storage.");
-                var result=new Record {Revision=reader.ReadInt64(),Toolbar=reader.ReadString()};
+                var result=new Record {Revision=reader.ReadInt64(),Toolbar=ReadBoundedString(reader)};
                 int count=reader.ReadInt32();
                 if(count<0 || count>MaximumControls || result.Revision<0) throw new InvalidDataException("Invalid cockpit storage.");
                 result.Covers=new bool[count]; for(int i=0;i<count;i++) result.Covers[i]=reader.ReadBoolean();
@@ -199,7 +218,7 @@ namespace SpaceEngineersVR.Multiplayer
         }
         internal static bool ValidToolbar(string xml,int count)
         {
-            if(xml==null || xml.Length>Limit/2) return false;
+            if(xml==null || xml.Length>ToolbarLimit) return false;
             var toolbar=Toolbar(xml);
             if(toolbar==null) return true;
             if(toolbar.ToolbarType!=MyToolbarType.ButtonPanel || toolbar.Slots==null || toolbar.Slots.Count>count) return false;
@@ -220,11 +239,20 @@ namespace SpaceEngineersVR.Multiplayer
             {
                 var storage=component.Component as MyObjectBuilder_ModStorageComponent;
                 if(storage?.Storage?.Dictionary==null || !storage.Storage.Dictionary.TryGetValue(Key,out string value)) continue;
-                var record=Decode(value);
-                var toolbar=Toolbar(record.Toolbar);
-                if(toolbar!=null) { toolbar.Remap(helper); record.Toolbar=Toolbar(toolbar); }
-                record.Revision=0;
-                storage.Storage.Dictionary[Key]=Encode(record);
+                // Runs inside vanilla paste; a shared blueprint with bad data must not break it.
+                try
+                {
+                    var record=Decode(value);
+                    var toolbar=Toolbar(record.Toolbar);
+                    if(toolbar!=null) { toolbar.Remap(helper); record.Toolbar=Toolbar(toolbar); }
+                    record.Revision=0;
+                    storage.Storage.Dictionary[Key]=Encode(record);
+                }
+                catch(Exception error)
+                {
+                    storage.Storage.Dictionary.Remove(Key);
+                    MultiplayerRuntime.Log("Cockpit "+block.EntityId+": discarded invalid pasted assignments: "+error.Message);
+                }
             }
         }
     }

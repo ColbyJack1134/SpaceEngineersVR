@@ -56,6 +56,7 @@ namespace SpaceEngineersVR.Multiplayer
         private sealed class AnalogToolbar { internal MyCockpit Seat; internal string Xml; internal MyToolbar Toolbar; }
         private static readonly Dictionary<long,AnalogToolbar> analogToolbars=new Dictionary<long,AnalogToolbar>();
         private static readonly Dictionary<long,double> requested=new Dictionary<long,double>();
+        private static readonly Dictionary<ulong,RequestBudget> budgets=new Dictionary<ulong,RequestBudget>();
         private static readonly List<IMyPlayer> players=new List<IMyPlayer>();
         private static MySession session;
         private static IMyMultiplayer network;
@@ -78,7 +79,7 @@ namespace SpaceEngineersVR.Multiplayer
             foreach(var toolbar in analogToolbars.Values) ClearAnalogToolbar(toolbar);
             analogToolbars.Clear();
             foreach(var peer in peers.Values) peer.Arms.Clear();
-            peers.Clear(); characters.Clear(); states.Clear(); requested.Clear(); players.Clear();
+            peers.Clear(); characters.Clear(); states.Clear(); requested.Clear(); budgets.Clear(); players.Clear();
             while(incoming.TryDequeue(out _)) Interlocked.Decrement(ref queued);
             network=null; session=null; nextHello=nextPlayers=nextPose=connected=0; sequence=0; hostSupport=false;
         }
@@ -119,6 +120,7 @@ namespace SpaceEngineersVR.Multiplayer
                 nextPlayers=now+1; players.Clear(); MyAPIGateway.Players.GetPlayers(players);
                 foreach(var id in peers.Where(p=>now-p.Value.Seen>15 || !players.Any(player=>player.SteamUserId==p.Key)).Select(p=>p.Key).ToArray())
                 { Forget(peers[id].Arms); peers.Remove(id); }
+                foreach(var id in budgets.Keys.Where(id=>!players.Any(player=>player.SteamUserId==id)).ToArray()) budgets.Remove(id);
                 foreach(var peer in peers.Values) if(peer.Arms.Character?.Closed==true) Forget(peer.Arms);
             }
             for(int i=0;i<256 && incoming.TryDequeue(out var message);i++)
@@ -172,7 +174,7 @@ namespace SpaceEngineersVR.Multiplayer
             using(var reader=new BinaryReader(new MemoryStream(message.Data,false)))
             {
                 if(reader.ReadInt32()!=0x31535653) return;
-                byte kind=reader.ReadByte(); long seat=reader.ReadInt64(); string value=reader.ReadString();
+                byte kind=reader.ReadByte(); long seat=reader.ReadInt64(); string value=CockpitMemory.ReadBoundedString(reader);
                 if(reader.BaseStream.Position!=reader.BaseStream.Length) return;
                 if(kind==0 || kind==7)
                 {
@@ -193,7 +195,19 @@ namespace SpaceEngineersVR.Multiplayer
                 }
                 if(kind==5 && message.Server)
                 { Notify("Cockpit settings could not be shared. See the plugin log."); Log(value); return; }
-                if(network.IsServer && player!=null && (kind>=1 && kind<=3 || kind==6 || kind==8)) HostRequest(player,kind,seat,value);
+                if(!network.IsServer || player==null) return;
+                // Analog slider sync (kind 6) runs every frame while a hand moves and stays unlimited.
+                if(kind>=1 && kind<=3 || kind==8)
+                {
+                    if(!budgets.TryGetValue(message.Sender,out var budget)) budgets.Add(message.Sender,budget=new RequestBudget());
+                    if(!budget.Allow(now))
+                    {
+                        if(!budget.Reported) { budget.Reported=true; Log("Cockpit requests from "+player.DisplayName+" exceed the rate limit; dropping"); }
+                        return;
+                    }
+                    HostRequest(player,kind,seat,value);
+                }
+                else if(kind==6) HostRequest(player,kind,seat,value);
             }
         }
         internal static byte[] Packet(byte kind,long seat,string value)
