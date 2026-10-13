@@ -53,10 +53,10 @@ namespace SpaceEngineersVR.Multiplayer
         private static readonly Dictionary<ulong,Peer> peers=new Dictionary<ulong,Peer>();
         private static readonly Dictionary<long,RemoteArms> characters=new Dictionary<long,RemoteArms>();
         private static readonly Dictionary<long,CockpitMemory.Record> states=new Dictionary<long,CockpitMemory.Record>();
-        private sealed class AnalogToolbar { internal MyCockpit Seat; internal string Xml; internal MyToolbar Toolbar; }
+        private sealed class AnalogToolbar { internal MyCockpit Seat; internal string Xml,Raw; internal MyToolbar Toolbar; internal CockpitMemory.Record Record; }
         private static readonly Dictionary<long,AnalogToolbar> analogToolbars=new Dictionary<long,AnalogToolbar>();
         private static readonly Dictionary<long,double> requested=new Dictionary<long,double>();
-        private static readonly Dictionary<ulong,RequestBudget> budgets=new Dictionary<ulong,RequestBudget>();
+        private static readonly Dictionary<ulong,SenderBudget> budgets=new Dictionary<ulong,SenderBudget>();
         private static readonly List<IMyPlayer> players=new List<IMyPlayer>();
         private static MySession session;
         private static IMyMultiplayer network;
@@ -195,19 +195,15 @@ namespace SpaceEngineersVR.Multiplayer
                 }
                 if(kind==5 && message.Server)
                 { Notify("Cockpit settings could not be shared. See the plugin log."); Log(value); return; }
-                if(!network.IsServer || player==null) return;
-                // Analog slider sync (kind 6) runs every frame while a hand moves and stays unlimited.
-                if(kind>=1 && kind<=3 || kind==8)
+                if(!network.IsServer || player==null || !(kind>=1 && kind<=3 || kind==6 || kind==8)) return;
+                if(!budgets.TryGetValue(message.Sender,out var sender)) budgets.Add(message.Sender,sender=new SenderBudget());
+                var budget=kind==6 ? sender.Analog:sender.Edits;
+                if(!budget.Allow(now))
                 {
-                    if(!budgets.TryGetValue(message.Sender,out var budget)) budgets.Add(message.Sender,budget=new RequestBudget());
-                    if(!budget.Allow(now))
-                    {
-                        if(!budget.Reported) { budget.Reported=true; Log("Cockpit requests from "+player.DisplayName+" exceed the rate limit; dropping"); }
-                        return;
-                    }
-                    HostRequest(player,kind,seat,value);
+                    if(!budget.Reported) { budget.Reported=true; Log((kind==6 ? "Analog updates":"Cockpit requests")+" from "+player.DisplayName+" exceed the rate limit; dropping"); }
+                    return;
                 }
-                else if(kind==6) HostRequest(player,kind,seat,value);
+                HostRequest(player,kind,seat,value);
             }
         }
         internal static byte[] Packet(byte kind,long seat,string value)
@@ -222,13 +218,13 @@ namespace SpaceEngineersVR.Multiplayer
                 !((IMyTerminalBlock)seat).HasPlayerAccess(player.IdentityId)) return;
             try
             {
-                var record=CockpitMemory.Read(seat);
                 if(kind==6)
                 {
                     if(seat.Pilot==null || player.Character?.EntityId!=seat.Pilot.EntityId) return;
-                    ApplyAnalog(seat,record,player.IdentityId,value);
+                    ApplyAnalog(seat,AnalogRecord(seat),player.IdentityId,value);
                     return;
                 }
+                var record=CockpitMemory.Read(seat);
                 if(kind!=1)
                 {
                     if(seat.Pilot==null || player.Character?.EntityId!=seat.Pilot.EntityId) return;
@@ -262,6 +258,14 @@ namespace SpaceEngineersVR.Multiplayer
             if(value.Seat.HasInventory) value.Seat.GetInventory().ContentsChanged-=value.Toolbar.CharacterInventory_OnContentsChanged;
             value.Toolbar.Clear();
         }
+        private static string RawStorage(MyCockpit seat) => seat.Storage!=null && seat.Storage.TryGetValue(CockpitMemory.Key,out string raw) ? raw:null;
+        // Analog updates arrive at 20 Hz per hand; the stored record is decoded again only when the storage changed.
+        private static CockpitMemory.Record AnalogRecord(MyCockpit seat)
+        {
+            if(analogToolbars.TryGetValue(seat.EntityId,out var cached) && ReferenceEquals(cached.Seat,seat) && cached.Record!=null && cached.Raw==RawStorage(seat))
+                return cached.Record;
+            return CockpitMemory.Read(seat);
+        }
         private static void ApplyAnalog(MyCockpit seat,CockpitMemory.Record record,long identity,string value)
         {
             var parts=value.Split(':');
@@ -275,6 +279,7 @@ namespace SpaceEngineersVR.Multiplayer
                 cached.Toolbar.Init(CockpitMemory.Toolbar(record.Toolbar),seat);
                 analogToolbars[seat.EntityId]=cached;
             }
+            cached.Record=record; cached.Raw=RawStorage(seat);
             cached.Toolbar.UpdateItemForIdentity(slot,identity,false);
             var item=cached.Toolbar.GetItemAtIndex(slot);
             if(item?.Enabled!=true) return;

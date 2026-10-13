@@ -322,15 +322,22 @@ namespace SpaceEngineersVR.Diagnostics
         }
         private static void RequestBudgets()
         {
-            var budget=new RequestBudget(); double now=100;
-            for(int i=0;i<RequestBudget.Burst;i++) Require(budget.Allow(now),"Burst request "+i+" denied");
+            var sender=new SenderBudget(); var budget=sender.Edits; double now=100;
+            for(int i=0;i<RequestBudget.EditBurst;i++) Require(budget.Allow(now),"Burst request "+i+" denied");
             Require(!budget.Allow(now) && !budget.Allow(now+.05),"Request over the burst accepted");
             Require(budget.Allow(now+.11) && !budget.Allow(now+.11),"Refill rate wrong");
-            now+=RequestBudget.Burst/RequestBudget.Rate+1; for(int i=0;i<RequestBudget.Burst;i++) Require(budget.Allow(now),"Budget did not refill to the burst");
+            Require(sender.Analog.Allow(now),"Edit budget blocked an analog update");
+            now+=RequestBudget.EditBurst/RequestBudget.EditRate+1; for(int i=0;i<RequestBudget.EditBurst;i++) Require(budget.Allow(now),"Budget did not refill to the burst");
             Require(!budget.Allow(now),"Budget exceeded the burst after idling");
-            var slow=new RequestBudget(); int allowed=0;
+            var slow=new SenderBudget().Edits; int allowed=0;
             for(int i=0;i<600;i++) if(slow.Allow(200+i/10.0)) allowed++;
             Require(allowed==600,"Ten-per-second edits were throttled: "+allowed);
+            // Two hands on two handles at the client's 20 Hz cadence for ten seconds.
+            var analog=new SenderBudget().Analog; allowed=0;
+            for(int i=0;i<400;i++) if(analog.Allow(300+i/40.0)) allowed++;
+            Require(allowed==400,"Two-hand analog cadence was throttled: "+allowed);
+            allowed=0; for(int i=0;i<2560;i++) if(analog.Allow(320+i/15360.0)) allowed++;
+            Require(allowed<=RequestBudget.AnalogBurst+RequestBudget.AnalogRate*(2560/15360.0)+1,"Analog flood passed the budget: "+allowed);
         }
         private sealed class Remap : IMyRemapHelper
         {
