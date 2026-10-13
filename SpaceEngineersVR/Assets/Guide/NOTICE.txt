@@ -1,4 +1,4 @@
-Touch Plus controller illustrations derived from @pmndrs/assets.
+Touch Plus controller illustrations derived from the WebXR Input Profiles assets (immersive-web/webxr-input-profiles).
 
 MIT License
 
