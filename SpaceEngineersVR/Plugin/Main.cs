@@ -166,7 +166,9 @@ namespace SpaceEngineersVR.Plugin
 
         public void Update()
         {
-            if (Harmony != null) Patches.DoubleClickTolerancePatch.Install(Harmony);
+            if (Harmony != null)
+                try { Patches.DoubleClickTolerancePatch.Install(Harmony); }
+                catch (Exception ex) { Logger.Warning(ex, "Double-click tolerance patch skipped; native double clicks keep the default radius"); }
 #if SEVR_DIAGNOSTICS
             if (PhysicalRendererProbe.Active) { PhysicalRendererProbe.Update(); return; }
 #endif
@@ -281,33 +283,57 @@ namespace SpaceEngineersVR.Plugin
             var controls = Player.Controls.Static;
             var headset = Player.Player.Headset;
 
-            Logger.Info("Starting enviroment");
+            // Vanilla sends the game name and acronym to servers and Keen services; only the icon and splash change.
             MyPerGameSettings.GameIcon = Common.IconIcoPath;
-            MyPerGameSettings.BasicGameInfo.GameName = Common.PublicName;
-            MyPerGameSettings.BasicGameInfo.ApplicationName = Common.PublicName;
             MyPerGameSettings.BasicGameInfo.SplashScreenImage = Common.IconPngPath;
-            MyPerGameSettings.BasicGameInfo.GameAcronym = Common.ShortName;
 
             Logger.Info("Patching game");
-            Harmony = new Harmony(Common.Name);
-            Harmony.PatchAll(Assembly.GetExecutingAssembly());
+            try
+            {
+                Harmony = new Harmony(Common.Name);
+                Harmony.PatchAll(Assembly.GetExecutingAssembly());
 
-            Patches.FrameInjections.Install(Harmony);
-            Multiplayer.MultiplayerRuntime.Capture=seq=>VrActive ? Player.TrackedArms.CapturePose(seq):null;
-            Multiplayer.MultiplayerRuntime.Notify=message=> { if(VrActive) Player.EssentialHud.Notify(message); };
-            Multiplayer.MultiplayerRuntime.ControlCount=seat=>Player.CockpitLayout.Count(seat.BlockDefinition.Id.SubtypeName);
-            Multiplayer.MultiplayerRuntime.LoadLocal=Player.CockpitActions.LoadLocal;
-            Multiplayer.MultiplayerRuntime.SaveLocal=Player.CockpitActions.SaveLocal;
-            Multiplayer.MultiplayerRuntime.Enabled=true;
-            Logger.Info("Stereo renderer, motion tools and menu overlay hooks installed.");
+                Patches.FrameInjections.Install(Harmony);
+                Multiplayer.MultiplayerRuntime.Capture=seq=>VrActive ? Player.TrackedArms.CapturePose(seq):null;
+                Multiplayer.MultiplayerRuntime.Notify=message=> { if(VrActive) Player.EssentialHud.Notify(message); };
+                Multiplayer.MultiplayerRuntime.ControlCount=seat=>Player.CockpitLayout.Count(seat.BlockDefinition.Id.SubtypeName);
+                Multiplayer.MultiplayerRuntime.LoadLocal=Player.CockpitActions.LoadLocal;
+                Multiplayer.MultiplayerRuntime.SaveLocal=Player.CockpitActions.SaveLocal;
+                Multiplayer.MultiplayerRuntime.Enabled=true;
+                Logger.Info("Stereo renderer, motion tools and menu overlay hooks installed.");
 
-            MySession.AfterLoading += AfterLoadedWorld;
-            MySession.OnUnloading += UnloadingWorld;
+                MySession.AfterLoading += AfterLoadedWorld;
+                MySession.OnUnloading += UnloadingWorld;
 
-            DesktopResolution = MyRender11.Resolution;
+                DesktopResolution = MyRender11.Resolution;
+            }
+            catch
+            {
+                // Transpilers throw when the game's IL changes; leave the game unpatched rather than partly patched.
+                Rollback();
+                throw;
+            }
 
             Logger.Info("Finalizing...");
             return true;
+        }
+
+        private void Rollback()
+        {
+            try
+            {
+                MySession.AfterLoading -= AfterLoadedWorld;
+                MySession.OnUnloading -= UnloadingWorld;
+                Multiplayer.MultiplayerRuntime.Enabled=false;
+                Harmony?.UnpatchAll(Common.Name);
+                Harmony = null;
+                if (openVrInitialized) { OpenVR.Shutdown(); openVrInitialized = false; }
+                MyLog.Default.WriteLine("SpaceEngineersVR: start failed; game patches and OpenVR were removed");
+            }
+            catch (Exception ex)
+            {
+                MyLog.Default.WriteLine("SpaceEngineersVR: rollback failed: " + ex);
+            }
         }
 
         private void CustomUpdate()

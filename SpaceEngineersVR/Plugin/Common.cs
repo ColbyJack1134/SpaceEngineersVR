@@ -18,7 +18,6 @@ namespace SpaceEngineersVR.Plugin
 
         public static readonly string Name = "SpaceEngineersVR";
         public static readonly string PublicName = "Space Engineers VR";
-        public static readonly string ShortName = "SEVR";
 
         public static readonly Version Version = typeof(Main).Assembly.GetName().Version;
 
