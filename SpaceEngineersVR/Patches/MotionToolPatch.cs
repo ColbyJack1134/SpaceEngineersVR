@@ -38,7 +38,14 @@ namespace SpaceEngineersVR.Patches
         public static bool Eligible(MyCharacter character) => !disabled && Main.VrActive && InputRouter.TrackedItems && character!=null && !character.IsDead && !character.IsSitting && !character.IsOnLadder &&
             character == MySession.Static?.LocalCharacter && MySession.Static.ControlledEntity == character;
 
-        internal static void Refresh(MyCharacter character) { if (character?.WeaponPosition!=null) Postfix(character.WeaponPosition); }
+        internal static void Refresh(MyCharacter character) { if (character?.WeaponPosition!=null) Apply(character.WeaponPosition,false); }
+
+        // Direction a host without SEVR should fire along: from its own weapon origin to what the held item points at.
+        // The native weapon update stops without a held item, so a value older than a couple of frames is discarded.
+        private static Vector3D? hostAim;
+        private static int hostAimFrame;
+        internal static Vector3D? HostAim => MySession.Static!=null && MySession.Static.GameplayFrameCounter-hostAimFrame<=2 ? hostAim:null;
+        private const double ConvergeRange=300;
 
         internal static bool TryAim(MyCharacter character,out MatrixD hand,out Vector3D muzzle,out Vector3D direction)
         {
@@ -57,23 +64,38 @@ namespace SpaceEngineersVR.Patches
         }
 
         [HarmonyPostfix]
-        private static void Postfix(MyCharacterWeaponPositionComponent __instance)
+        private static void Postfix(MyCharacterWeaponPositionComponent __instance) => Apply(__instance,true);
+
+        private static void Apply(MyCharacterWeaponPositionComponent component,bool nativeOrigin)
         {
-            if (!Eligible(__instance.Character)) return;
+            if (!Eligible(component.Character)) { if (nativeOrigin) hostAim=null; return; }
             try
             {
-                if (!TryAim(__instance.Character,out var hand,out var muzzle,out var direction)) return;
-                LogicalWorld.SetValue(__instance,muzzle,null);
-                LogicalLocal.SetValue(__instance,Vector3D.Transform(muzzle,__instance.Character.PositionComp.WorldMatrixInvScaled),null);
-                Direction.SetValue(__instance,direction,null);
-                Crosshair.SetValue(__instance,muzzle + direction * 2000,null);
-                Graphical.SetValue(__instance,hand.Translation,null);
-                __instance.Character.ShootDirection = (Vector3)direction;
-                if (__instance.Character.CurrentWeapon is MyEntity weapon) weapon.WorldMatrix = hand;
-                if (__instance.Character.CurrentWeapon is MyEngineerToolBase tool) tool.UpdateSensorPosition();
-                else if(__instance.Character.CurrentWeapon is MyHandDrill drill) Multiplayer.DrillContact.Refresh(drill);
+                // Read before the override below replaces the native logical position.
+                var origin=(Vector3D)LogicalWorld.GetValue(component,null);
+                if (!TryAim(component.Character,out var hand,out var muzzle,out var direction)) { if (nativeOrigin) hostAim=null; return; }
+                if (nativeOrigin) { hostAim=Converge(component.Character,origin,muzzle,direction); hostAimFrame=MySession.Static.GameplayFrameCounter; }
+                LogicalWorld.SetValue(component,muzzle,null);
+                LogicalLocal.SetValue(component,Vector3D.Transform(muzzle,component.Character.PositionComp.WorldMatrixInvScaled),null);
+                Direction.SetValue(component,direction,null);
+                Crosshair.SetValue(component,muzzle + direction * 2000,null);
+                Graphical.SetValue(component,hand.Translation,null);
+                component.Character.ShootDirection = (Vector3)direction;
+                if (component.Character.CurrentWeapon is MyEntity weapon) weapon.WorldMatrix = hand;
+                if (component.Character.CurrentWeapon is MyEngineerToolBase tool) tool.UpdateSensorPosition();
+                else if(component.Character.CurrentWeapon is MyHandDrill drill) Multiplayer.DrillContact.Refresh(drill);
             }
-            catch(Exception ex) { disabled=true; Logger.Warning(ex,"Motion tool override disabled; default aiming retained"); }
+            catch(Exception ex) { disabled=true; hostAim=null; Logger.Warning(ex,"Motion tool override disabled; default aiming retained"); }
+        }
+
+        private static Vector3D? Converge(MyCharacter character,Vector3D origin,Vector3D muzzle,Vector3D direction)
+        {
+            var profile=Multiplayer.HeldItemPose.Profile(character);
+            // Welders and grinders already send their target block.
+            if (profile==null || profile.Tool && profile.Kind!=ItemKind.Drill || !origin.IsValid() || !direction.IsValid()) return null;
+            float reach=HandInteraction.ObstacleDistance(MatrixD.CreateWorld(muzzle,direction,Vector3D.CalculatePerpendicularVector(direction)),(float)ConvergeRange);
+            var aim=muzzle+direction*reach-origin;
+            return aim.LengthSquared()>1e-4 ? Vector3D.Normalize(aim):direction;
         }
     }
 }

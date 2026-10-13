@@ -29,13 +29,17 @@ namespace SpaceEngineersVR.Diagnostics
         {
             for(int i=0;i<24;i++)
             {
-                var body=MatrixD.CreateFromYawPitchRoll(i*.41,i*.23-2.5,-i*.19);
-                double angle=i*.12-1.38;
-                var aim=Vector3D.TransformNormal(new Vector3D(0,Math.Sin(angle),-Math.Cos(angle)),body);
+                var start=MatrixD.CreateFromYawPitchRoll(i*.41,i*.23-2.5,-i*.19);
+                double angle=i*.12-1.38,yaw=i*.27-3;
+                var aim=Vector3D.TransformNormal(new Vector3D(Math.Sin(yaw)*Math.Cos(angle),Math.Sin(angle),-Math.Cos(yaw)*Math.Cos(angle)),start);
+                var rotation=Quaternion.CreateFromRotationMatrix(start); var move=new Vector3(.6f,0,-.8f);
+                Patches.AimPitchSyncPatch.FaceForHost(start,aim,ref rotation,ref move);
+                var body=MatrixD.CreateFromQuaternion(rotation);
                 float pitch=Patches.AimPitchSyncPatch.Pitch(aim,body.Up);
                 // MyCharacter.GetHeadMatrixInternal orientation with includeY false.
                 var host=(MatrixD.CreateFromAxisAngle(Vector3D.Right,MathHelper.ToRadians(pitch))*MatrixD.CreateFromDir(body.Forward,body.Up)).Forward;
-                Require(Vector3D.Dot(host,aim)>.99999,"Synced head pitch does not reproduce the VR aim on a host");
+                Require(Vector3D.Dot(host,aim)>.99999,"Sent body rotation and head pitch do not reproduce the VR aim on a host");
+                Require(Vector3D.Distance(Vector3D.TransformNormal(move,body),Vector3D.TransformNormal(new Vector3(.6f,0,-.8f),start))<1e-4,"Sent facing changed the host's world movement");
             }
             var items=XDocument.Load(Path.Combine(VRage.FileSystem.MyFileSystem.ContentPath,"Data","HandItems.sbc")).Descendants("HandItem").Where(x=>x.Element("PhysicalItemId")!=null).ToDictionary(x=>(string)x.Element("PhysicalItemId").Attribute("Subtype"));
             foreach(var p in WeaponProfile.All)
