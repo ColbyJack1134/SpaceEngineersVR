@@ -310,8 +310,8 @@ namespace SpaceEngineersVR.Player
                 rotation=rightFilter.Update((right.Held || SingleLeft && left.Held) && !Adjusting,rotation,dt,tuning.Smoothing);
                 feedbackTranslation=CockpitStickMath.Response(translation,InputRouter.Mode==InputMode.Turret ? 1:tuning.TranslationCurve);
                 feedbackRotation=CockpitStickMath.Response(rotation,tuning.RotationCurve);
-                leftAngles=left.Held && !Adjusting ? CockpitStickMath.CommandVisual(SingleLeft ? feedbackRotation:feedbackTranslation,1,!SingleLeft):CockpitStickMath.ReturnVisual(leftAngles,dt);
-                rightAngles=right.Held && !Adjusting ? feedbackRotation:CockpitStickMath.ReturnVisual(rightAngles,dt);
+                leftAngles=left.Held && !Adjusting ? CockpitStickMath.SmoothVisual(leftAngles,CockpitStickMath.HandVisual(leftNeutral,l,twist,SingleLeft ? sensitivity:tuning.Translation,Rig.Left.Frame),dt):CockpitStickMath.ReturnVisual(leftAngles,dt);
+                rightAngles=right.Held && !Adjusting ? CockpitStickMath.SmoothVisual(rightAngles,CockpitStickMath.HandVisual(rightNeutral,r,twist,sensitivity,Rig.Right.Frame),dt):CockpitStickMath.ReturnVisual(rightAngles,dt);
             }
             SetVisuals();
             int barEvent=barDetent.Sample(barTilt.Active || YokeMode && yoke.Active,new Vector3(feedbackTranslation.X,0,feedbackTranslation.Z),now);

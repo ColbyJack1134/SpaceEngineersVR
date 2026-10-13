@@ -83,10 +83,11 @@ namespace SpaceEngineersVR.Player
             float yaw=-(float)Math.Atan2(heading.X,heading.Z);
             return new Vector3(tilt.X,twist ? Axis(yaw*sensitivity/TwistRange,twistDeadzone<0 ? deadzone:twistDeadzone) : 0,tilt.Y);
         }
-        internal static Vector3 CommandVisual(Vector3 command,float curve,bool translation)
+        // Tracks the wrist 1:1; deadzone and curve apply only to the command. Travel ends at full command or the model's limit.
+        internal static Vector3 HandVisual(Matrix neutral,Matrix current,bool twist,float sensitivity,Matrix frame)
         {
-            var value=Response(command,curve);
-            return translation ? new Vector3(-value.Z,value.Y,value.X):value;
+            float scale=Math.Max(1,sensitivity);
+            return Rotation(neutral,current,0,twist,scale,frame)/scale;
         }
         internal static void ApplyYoke(Multiplayer.FlightTuning tuning,bool owned,bool held,bool rightHeld,float steering,float pitch,
             Vector2 thumb,float speed,float rollSensitivity,ref Vector3 move,ref Vector2 rotate,ref float roll)

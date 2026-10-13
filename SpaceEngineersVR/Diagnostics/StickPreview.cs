@@ -26,12 +26,7 @@ namespace SpaceEngineersVR.Diagnostics
                 {"roll-left",Vector3.Forward},{"roll-right",Vector3.Backward},{"twist-left",Vector3.Down},{"twist-right",Vector3.Up},
                 {"diagonal",Vector3.One} };
             if(rig.Wheel==null)
-            {
-                var tuning=new Multiplayer.FlightTuning();
-                var half=CockpitStickMath.Rotation(Matrix.Identity,Matrix.CreateRotationX(-CockpitStickMath.TiltRange*.5f),tuning.TiltDeadzone,false);
-                poses.Add("half-travel",CockpitStickMath.CommandVisual(half,tuning.RotationCurve,false));
-
-            }
+                poses.Add("half-travel",CockpitStickMath.HandVisual(Matrix.Identity,Matrix.CreateRotationX(-CockpitStickMath.TiltRange*.5f),false,1,Matrix.Identity));
             var tilts=new Dictionary<string,Vector2>();
             var yokes=new Dictionary<string,Vector2>();
             if(rig.Wheel!=null)
