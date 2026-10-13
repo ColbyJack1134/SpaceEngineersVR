@@ -19,10 +19,16 @@ namespace SpaceEngineersVR.Multiplayer
         internal static Func<MyCharacter,MatrixD?> LocalToolRay { get; set; }
         internal static Func<MyCharacter,bool?> LocalSupported { get; set; }
         internal static bool Supported(MyCharacter character) => LocalSupported?.Invoke(character) ?? MultiplayerRuntime.ItemSupported(character);
+        internal static Func<MyCharacter,bool?> LocalMirrored { get; set; }
+        internal static bool Mirrored(MyCharacter character) => LocalMirrored?.Invoke(character) ?? MultiplayerRuntime.ItemMirrored(character);
         internal static Action<MyCharacter,ItemKind> Feedback { get; set; }
         private static readonly FieldInfo toolOwner=AccessTools.Field(typeof(MyEngineerToolBase),"Owner");
         internal static MyCharacter Owner(object item) => (item as MyAutomaticRifleGun)?.Owner ?? (item as MyHandDrill)?.Owner ?? (item is MyEngineerToolBase ? toolOwner.GetValue(item) as MyCharacter:null);
-        internal static WeaponProfile Profile(MyCharacter character) => WeaponProfile.Find(character?.CurrentWeapon?.PhysicalObject?.SubtypeName,(character?.CurrentWeapon as MyEntity)?.Model?.AssetName);
+        internal static WeaponProfile Profile(MyCharacter character)
+        {
+            var profile=WeaponProfile.Find(character?.CurrentWeapon?.PhysicalObject?.SubtypeName,(character?.CurrentWeapon as MyEntity)?.Model?.AssetName);
+            return profile!=null && Mirrored(character) ? profile.Mirror:profile;
+        }
         internal static bool TryGet(MyCharacter character,out MatrixD model,out WeaponProfile profile)
         {
             model=MatrixD.Identity; profile=Profile(character);
@@ -57,6 +63,7 @@ namespace SpaceEngineersVR.Multiplayer
         {
             if(recoil==Vector2.Zero) return model;
             var grip=Vector3D.Transform(profile.Primary,model);
+            if(profile.Mirrored) recoil=profile.FlipUp ? new Vector2(-recoil.X,recoil.Y):new Vector2(recoil.X,-recoil.Y);
             var turn=MatrixD.CreateFromAxisAngle(model.Right,MathHelper.ToRadians(recoil.X))*MatrixD.CreateFromAxisAngle(model.Up,MathHelper.ToRadians(recoil.Y));
             model.Translation-=grip; model*=turn; model.Translation+=grip;
             return model;

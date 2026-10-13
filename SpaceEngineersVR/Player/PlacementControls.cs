@@ -28,7 +28,7 @@ namespace SpaceEngineersVR.Player
         internal static void CycleShape()
         {
             if(!Creative || MyCubeBuilder.Static?.IsActivated!=true || !MyCubeBuilder.Static.IsBuildToolActive()) return;
-            NativeActions.Reset(); Controls.Static.Primary.BlockUntilRelease();
+            NativeActions.Reset(); Controls.Static.Fire.BlockUntilRelease();
             MyCubeBuilder.BuildingMode=(MyCubeBuilder.BuildingModeEnum)(((int)MyCubeBuilder.BuildingMode+1)%3);
         }
         private static object poseOwner;
@@ -49,26 +49,27 @@ namespace SpaceEngineersVR.Player
             elapsed=(float)Math.Max(0,Math.Min(.05,(now-sampled).TotalSeconds)); sampled=now;
             distanceFactor=1.1f;
             var c=Controls.Static;
-            bool grip=c.Secondary.IsPressed && !CockpitControls.RotationOwned && !CockpitTouch.OwnsRight &&
-                !SpatialUi.OwnsRight && !TouchScreenBridge.OwnsInput && !HandInteraction.OwnsRight &&
-                !FloatingWindows.OwnsInput && !HelmetHud.Consumes(Player.HandR);
+            var hand=Handedness.ActionHand;
+            bool grip=c.ActionGripClick.IsPressed && !(hand==Player.HandR ? CockpitControls.RotationOwned:(CockpitControls.Adjusting || CockpitControls.Held(hand))) && !CockpitTouch.Owns(hand) &&
+                !SpatialUi.Owns(hand) && !TouchScreenBridge.OwnsInput && !HandInteraction.Consumes(hand) &&
+                !FloatingWindows.OwnsInput && !HelmetHud.Consumes(hand);
             bool wasPainting=Painting;
             Painting=PaintChord(Mode,grip,c.Interact.IsPressed,ThirdPersonView.Manipulating || Main.MenuOpen);
             if(Painting)
             {
                 if(!wasPainting) NativeActions.Reset();
-                c.Primary.BlockUntilRelease();
+                c.Fire.BlockUntilRelease();
                 NativeActions.Pulse(MyControlsSpace.CUBE_COLOR_CHANGE);
             }
             bool tools=OwnsTools && !Main.MenuOpen && !SymmetrySetupControls.Active;
             Vector2 left=InputRouter.Flying ? c.ThrustLRFB.Position:c.WalkLongitudinal.Position;
             Vector2 right=InputRouter.Flying ? c.ThrustRotate.Position:c.WalkRotate.Position;
             // Grip chords (roll, remove, paint, size, view grab) are not taps.
-            bool chord=c.Primary.IsPressed || c.Interact.IsPressed || c.Jetpack.IsPressed || ThirdPersonView.Manipulating ||
+            bool chord=c.Fire.IsPressed || c.Interact.IsPressed || c.Jetpack.IsPressed || ThirdPersonView.Manipulating ||
                 left.LengthSquared()>=.09f || right.LengthSquared()>=.09f;
             bool hold=Common.Config.HoldGripRotation;
-            bool tap=rotateTap.Update(grip,c.Secondary.HasReleased,chord || !tools || hold,now);
-            bool placed=Adjusting && c.Primary.HasPressed;
+            bool tap=rotateTap.Update(grip,c.ActionGripClick.HasReleased,chord || !tools || hold,now);
+            bool placed=Adjusting && c.Fire.HasPressed;
             bool active=hold ? tools && grip:Rotating(Adjusting,tools,tap,placed);
             if(active && !Adjusting)
             {
@@ -78,7 +79,7 @@ namespace SpaceEngineersVR.Player
             if(!active && Adjusting)
             {
                 // The placing press must reach the builder.
-                if(!placed) c.Primary.BlockUntilRelease();
+                if(!placed) c.Fire.BlockUntilRelease();
                 c.WalkLongitudinal.BlockUntilRelease(); c.WalkRotate.BlockUntilRelease(); c.ThrustLRFB.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease();
             }
             Adjusting=active;
@@ -122,7 +123,7 @@ namespace SpaceEngineersVR.Player
             if (!ReferenceEquals(owner, poseOwner)) { lastPose = null; poseOwner = owner; }
             bool active = ClipboardActive || Sandbox.Game.Entities.MyCubeBuilder.Static?.IsActivated == true;
             if (!Main.VrActive || !active) { lastPose = null; pose = MatrixD.Identity; return false; }
-            if ((OwnsTools || InputRouter.Mode==InputMode.Radial) && !Main.MenuOpen && HandInteraction.TryVisiblePointerPose(Player.HandR, out pose)) lastPose = pose;
+            if ((OwnsTools || InputRouter.Mode==InputMode.Radial) && !Main.MenuOpen && HandInteraction.TryVisiblePointerPose(Handedness.ActionHand, out pose)) lastPose = pose;
             pose = lastPose ?? MatrixD.Identity;
             return lastPose.HasValue;
         }

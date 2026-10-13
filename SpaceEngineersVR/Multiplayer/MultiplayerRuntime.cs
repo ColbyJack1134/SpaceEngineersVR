@@ -363,6 +363,8 @@ namespace SpaceEngineersVR.Multiplayer
         }
         internal static bool ItemSupported(MyCharacter character) => Enabled && character!=null &&
             characters.TryGetValue(character.EntityId,out var arms) && arms.Supported(Now);
+        internal static bool ItemMirrored(MyCharacter character) => Enabled && character!=null &&
+            characters.TryGetValue(character.EntityId,out var arms) && arms.Mirrored(Now);
         internal static bool ToolRay(MyCharacter character,out VRageMath.MatrixD ray)
         {
             ray=VRageMath.MatrixD.Identity;

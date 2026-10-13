@@ -61,14 +61,14 @@ namespace SpaceEngineersVR.Player
 
         internal static ActionChoice CaptureMissing(MyCharacter character)
         {
-            if(!BlockActions.CharacterAvailable(character) || !HandInteraction.TryRightInteractionRay(out var ray)) return null;
+            if(!BlockActions.CharacterAvailable(character) || !HandInteraction.TryActionInteractionRay(out var ray)) return null;
             var block=BlockInspection.Target(ray,out var point);
             if(block==null || !HasMissing(block)) return null;
             var local=Vector3D.Transform(point,block.CubeGrid.PositionComp.WorldMatrixInvScaled);
             bool Available()
             {
                 if(!BlockActions.CharacterAvailable(character) || block.CubeGrid.Closed || block.CubeGrid.GetCubeBlock(block.Position)!=block ||
-                    !HasMissing(block) || !HandInteraction.TryCharacterPointerPose(Player.HandR,out var pointer)) return false;
+                    !HasMissing(block) || !HandInteraction.TryCharacterPointerPose(Handedness.ActionHand,out var pointer)) return false;
                 return BlockActions.InReach(pointer,Vector3D.Transform(local,block.CubeGrid.WorldMatrix),MyConstants.DEFAULT_INTERACTIVE_DISTANCE);
             }
             return new ActionChoice("Add missing components",()=> {
@@ -87,7 +87,7 @@ namespace SpaceEngineersVR.Player
 
         internal static void RunInventory(Operation operation)
         {
-            var target=HandInteraction.CaptureRightTarget();
+            var target=HandInteraction.CaptureActionTarget();
             var character=MySession.Static?.LocalCharacter;
             if(!CanExecute || !InventoryTarget(target) || !BlockActions.Available(target,character,UseActionEnum.BuildPlanner|UseActionEnum.OpenInventory))
             { EssentialHud.Notify("Point at an accessible inventory"); return; }

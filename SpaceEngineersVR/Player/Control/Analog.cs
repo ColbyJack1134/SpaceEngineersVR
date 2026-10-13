@@ -43,6 +43,22 @@ namespace SpaceEngineersVR.Player.Control
             AcceptSample(sample, continuingOrigins);
         }
 
+        internal ulong Origin => data.activeOrigin;
+
+        internal void UpdateFrom(Analog source, ISet<ulong> continuingOrigins = null)
+        {
+            var own = default(InputAnalogActionData_t);
+            if (OpenVR.Input.GetAnalogActionData(handle, ref own, InputAnalogActionData_t_size, OpenVR.k_ulInvalidInputValueHandle) != EVRInputError.None)
+                own = default(InputAnalogActionData_t);
+            Mirror(own.bActive, source, continuingOrigins);
+        }
+        internal void Mirror(bool active, Analog source, ISet<ulong> continuingOrigins = null)
+        {
+            var sample = source.data;
+            sample.bActive = active && sample.bActive;
+            AcceptSample(sample, continuingOrigins);
+        }
+
         internal void AcceptSample(InputAnalogActionData_t sample, ISet<ulong> continuingOrigins = null)
         {
             data = sample;

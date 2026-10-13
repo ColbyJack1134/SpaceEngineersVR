@@ -34,14 +34,27 @@ namespace SpaceEngineersVR.Multiplayer
         internal bool TryItemPose(double now,out MatrixD model)
         {
             model=MatrixD.Identity;
-            if(Character?.HandItemDefinition==null || !Stream.Sample(now,out var pose) || (pose.Tracked&2)==0 || pose.Seat!=0) return false;
+            if(Character?.HandItemDefinition==null || !Stream.Sample(now,out var pose) || pose.Seat!=0) return false;
+            bool left=(pose.Tracked&PlayerPose.ItemMirrored)!=0;
             var bones=Character.AnimationController.CharacterBones;
-            if(bones==null) return false;
-            var arm=PairFor(Character,bones).Right;
+            if(bones==null || (pose.Tracked&(left ? 1:2))==0) return false;
+            var pair=PairFor(Character,bones);
+            var arm=left ? pair.Left:pair.Right;
             var profile=HeldItemPose.Profile(Character);
-            return arm!=null && profile!=null && WeaponPose.TryHandItem(profile.Palm(Character.HandItemDefinition.RightHand,false),
-                (MatrixD)arm.PalmOffset*Stream.Hand(false,now)*Character.WorldMatrix,out model);
+            return arm!=null && profile!=null && TryHold(pair,profile,Character.HandItemDefinition,left,out var hold) &&
+                WeaponPose.TryHandItem(hold,(MatrixD)arm.PalmOffset*Stream.Hand(left,now)*Character.WorldMatrix,out model);
         }
+        private static bool TryHold(Pair pair,WeaponProfile profile,Sandbox.Definitions.MyHandItemDefinition item,bool mirrored,out MatrixD hold)
+        {
+            hold=item.RightHand;
+            if(!mirrored) { if(profile!=null) hold=profile.Hold(item.RightHand,item.LeftHand,false,Matrix.Identity); return true; }
+            if(pair.Left==null || pair.Right==null) return false;
+            var palm=ArmSkeleton.PalmMirror(pair.Right,pair.Left);
+            hold=profile!=null ? profile.Hold(item.RightHand,item.LeftHand,false,palm):WeaponProfile.MirrorHold(item.RightHand,palm);
+            return true;
+        }
+        internal bool Mirrored(double now) => Character!=null && Stream.Sample(now,out var pose) && pose.Character==Character.EntityId &&
+            pose.Seat==0 && (pose.Tracked&PlayerPose.ItemMirrored)!=0;
         internal bool Supported(double now) => Character!=null && Stream.Sample(now,out var pose) && pose.Character==Character.EntityId &&
             pose.Seat==0 && (pose.Tracked&3)==3 && (pose.Tracked&PlayerPose.ItemSupported)!=0;
         internal bool TryToolRay(double now,out MatrixD ray)
@@ -78,13 +91,17 @@ namespace SpaceEngineersVR.Multiplayer
                 if(bones==null) return;
                 var pair=PairFor(character,bones);
                 var item=character.IsSitting ? null:HeldItemPose.Profile(character);
-                if((pose.Tracked&1)!=0) ArmSkeleton.Apply(pair.Left,Stream.Hand(true,now),true,0,1,pose.LeftFingers,pose.LeftTrigger,null,item,true);
-                if((pose.Tracked&2)!=0) ArmSkeleton.Apply(pair.Right,Stream.Hand(false,now),true,0,1,pose.RightFingers,pose.RightTrigger,null,item,false);
+                bool mirrored=(pose.Tracked&PlayerPose.ItemMirrored)!=0;
+                if(mirrored && pair.Left!=null && pair.Right!=null) ArmSkeleton.MirrorCollars(pair.Left,pair.Right);
+                if((pose.Tracked&1)!=0) ArmSkeleton.Apply(pair.Left,Stream.Hand(true,now),true,0,1,pose.LeftFingers,pose.LeftTrigger,null,item,!mirrored);
+                if((pose.Tracked&2)!=0) ArmSkeleton.Apply(pair.Right,Stream.Hand(false,now),true,0,1,pose.RightFingers,pose.RightTrigger,null,item,mirrored);
                 if((pose.Tracked&PlayerPose.HeadTracked)!=0) ArmSkeleton.Look(pair.Head,Stream.Head(now),HeadLimit);
                 character.AnimationController.UpdateTransformations();
                 // Native weapon placement ran before this pose; move the held item onto the tracked palm.
-                if((pose.Tracked&2)!=0 && pair.Right?.Applied==true && character.CurrentWeapon is VRage.Game.Entity.MyEntity weapon && character.HandItemDefinition!=null &&
-                    WeaponPose.TryHandItem(item?.Palm(character.HandItemDefinition.RightHand,false) ?? character.HandItemDefinition.RightHand,(MatrixD)pair.Right.Palm.Bone.AbsoluteTransform*character.WorldMatrix,out var held))
+                var holding=mirrored ? pair.Left:pair.Right;
+                if((pose.Tracked&(mirrored ? 1:2))!=0 && holding?.Applied==true && character.CurrentWeapon is VRage.Game.Entity.MyEntity weapon && character.HandItemDefinition!=null &&
+                    TryHold(pair,item,character.HandItemDefinition,mirrored,out var hold) &&
+                    WeaponPose.TryHandItem(hold,(MatrixD)holding.Palm.Bone.AbsoluteTransform*character.WorldMatrix,out var held))
                     weapon.WorldMatrix=held;
                 ReloadAnimation.Apply(character);
             }

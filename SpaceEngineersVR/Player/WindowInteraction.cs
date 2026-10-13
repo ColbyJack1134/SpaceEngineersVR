@@ -107,8 +107,11 @@ namespace SpaceEngineersVR.Player
         internal static void Claim(Controller hand)
         {
             var controls=Controls.Static;
-            if(hand==Player.HandL) { controls.LeftClick.BlockUntilRelease(); controls.LeftGripPressure.BlockUntilRelease(false); controls.CrouchOrClimbDown.BlockUntilRelease(); controls.ThrustUp.BlockUntilRelease(); controls.ThrustDown.BlockUntilRelease(); }
-            else { controls.Primary.BlockUntilRelease(); controls.Secondary.BlockUntilRelease(); }
+            if(hand==Player.HandL) { controls.LeftClick.BlockUntilRelease(); controls.LeftGripPressure.BlockUntilRelease(false); }
+            else controls.Primary.BlockUntilRelease();
+            controls.GripClick(hand).BlockUntilRelease();
+            controls.BlockTriggerRoles(hand);
+            if(hand==Handedness.SupportHand) { controls.CrouchOrClimbDown.BlockUntilRelease(); controls.ThrustDown.BlockUntilRelease(); }
         }
         private bool Near(Matrix aim)
         {

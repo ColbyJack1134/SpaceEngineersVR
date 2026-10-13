@@ -25,6 +25,7 @@ namespace SpaceEngineersVR.Player
         private static readonly RenderRecovery recovery=new RenderRecovery("Physical UI");
         private static bool failed => recovery.Failed;
         public static bool OwnsRight => wristTouch.Consumed || seatRayPress.Held || FlightSettings.WindowCaptured;
+        internal static bool Owns(Controller hand) => hand==Player.HandR && OwnsRight;
         internal static bool ContentCaptured => wristTouch.Committed;
         internal static bool WristInUse => fold>0 || wristTouch.Surface!=null;
         public static bool RayTargeted { get; private set; }
@@ -147,7 +148,7 @@ namespace SpaceEngineersVR.Player
                 bool firing=c.Primary.IsPressed && !c.Primary.HasPressed && !seatRayPress.Held;
                 bool rayFree=!firing && !RayTargeted && !CockpitControls.Held(Player.HandR) && !CockpitTouch.OwnsRight && !FloatingWindows.OwnsInput &&
                     !wristTouch.Consumed && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.OwnsInput &&
-                    !WeaponHandling.ConsumesLeftGrip && !Main.MenuOpen;
+                    !WeaponHandling.ConsumesSupportGrip && !Main.MenuOpen;
                 int rayKey=-1;
                 seatRayTargeted=rayFree && Vector3D.Dot(seat.Pose.Backward,DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation-seat.Pose.Translation)>.015 &&
                     WristRayTarget(new[] {seat},world,3,out rayKey,out seatRayDistance)!=null &&
@@ -170,14 +171,14 @@ namespace SpaceEngineersVR.Player
             else { seatRayPress.Block(); seatRayTargeted=false; }
             // A touch owns its input while the finger is on a surface, preventing tool use.
             if(wristTouch.Consumed) InteractionInput.Read(Player.HandR,wristDirect).Consume();
-            if(seatPressed>=0 || (wristHover>=0 && trigger)) c.Primary.BlockUntilRelease();
+            if(seatPressed>=0 || (wristHover>=0 && trigger)) { c.Primary.BlockUntilRelease(); c.BlockTriggerRoles(Player.HandR); }
             Publish();
         }
         private static int Interact(SurfaceView s,MatrixD pointer,ref int hover,ref int pressed)
         {
             var c=Controls.Static;
             if(wristTouch.Surface!=null && wristTouch.Surface!=s.Id) wristTouch.Reset();
-            bool free=!CockpitControls.Held(Player.HandR) && !CockpitTouch.OwnsRight && !FloatingWindows.OwnsInput && !WeaponHandling.ConsumesLeftGrip;
+            bool free=!CockpitControls.Held(Player.HandR) && !CockpitTouch.OwnsRight && !FloatingWindows.OwnsInput && !WeaponHandling.ConsumesSupportGrip;
             Matrix headTracking=Player.Headset.pose.deviceToAbsolute.matrix;
             Vector3D head=s.TrackingSpace ? (Vector3D)headTracking.Translation : DeviceWorld(headTracking).Translation;
             bool front=Vector3D.Dot(s.Pose.Backward,head-s.Pose.Translation)>.015;

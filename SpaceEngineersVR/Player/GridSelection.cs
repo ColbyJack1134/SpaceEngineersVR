@@ -33,7 +33,7 @@ namespace SpaceEngineersVR.Player
             { EssentialHud.Notify("Finish or cancel the current preview"); return false; }
             DampenerTargeting.Cancel();
             Clear();
-            hand=pointer ?? GameActions.InvocationHand ?? Player.HandR;
+            hand=pointer ?? GameActions.InvocationHand ?? Handedness.ActionHand;
             if(hand==null || !hand.pose.isTracked) return false;
             action=name; detached=single; magLocks=magnetic;
             owner=MySession.Static.ControlledEntity; camera=MySession.Static.CameraController;
@@ -93,7 +93,8 @@ namespace SpaceEngineersVR.Player
             if(!input.Active) { Clear(); return; }
             // Sample raw trigger before consuming its gameplay aliases.
             c.Click(pointer).Consume(true,down);
-            if(pointer==Player.HandL) { c.ThrustUp.BlockUntilRelease(); c.ThrustForward.BlockUntilRelease(); }
+            c.BlockTriggerRoles(pointer);
+            if(pointer==Player.HandL) c.ThrustForward.BlockUntilRelease();
             if(!TryPointer(pointer,out var pose)) { feedback=null; return; }
             double range=action=="Dampeners" || action=="Spectator lock" ? 1000:10000;
             if(action=="Spectator lock") range*=Math.Max(1,CameraRig.Current?.UnitsPerMeter ?? 1);

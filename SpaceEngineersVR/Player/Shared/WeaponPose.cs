@@ -9,11 +9,48 @@ namespace SpaceEngineersVR.Player
         internal readonly string Item,Model;
         internal readonly ItemKind Kind;
         internal readonly Vector3 Primary,Support,Muzzle,RightShift,LeftShift,Magazine;
+        // Left-handed holds mirror across the handle axes; FlipUp mirrors vertically, turning side-handled tools upside down.
+        internal readonly float GripAxis,SupportAxis;
+        internal readonly bool FlipUp;
+        // Downward pitch about the handle axis for a flipped hold, so the item does not point up out of the fist.
+        internal readonly float FlipPitch;
+        internal readonly MatrixD Tilt=MatrixD.Identity;
+        internal readonly bool Mirrored;
+        private readonly WeaponProfile source;
+        private WeaponProfile mirror;
+        internal WeaponProfile Mirror => Mirrored ? this : mirror ?? (mirror=new WeaponProfile(this));
         internal bool Tool => Kind>=ItemKind.Welder;
         internal bool Brace => Kind==ItemKind.Pistol || Kind==ItemKind.Welder;
         internal Vector3 Direction => Kind==ItemKind.Welder ? new Vector3(0,.46947156f,-.88294759f):Vector3.Forward;
-        private WeaponProfile(string item,string model,ItemKind kind,Vector3 primary,Vector3 support,Vector3 muzzle,Vector3 right,Vector3 left,Vector3 magazine)
-        { Item=item; Model="Models/Weapons/"+model+".mwm"; Kind=kind; Primary=primary; Support=support; Muzzle=muzzle; RightShift=right; LeftShift=left; Magazine=magazine; }
+        private WeaponProfile(string item,string model,ItemKind kind,Vector3 primary,Vector3 support,Vector3 muzzle,Vector3 right,Vector3 left,Vector3 magazine,float gripAxis=0,float supportAxis=0,bool flipUp=false,float flipPitch=0)
+        { Item=item; Model="Models/Weapons/"+model+".mwm"; Kind=kind; Primary=primary; Support=support; Muzzle=muzzle; RightShift=right; LeftShift=left; Magazine=magazine; GripAxis=gripAxis; SupportAxis=supportAxis; FlipUp=flipUp; FlipPitch=flipPitch; }
+        private WeaponProfile(WeaponProfile right)
+        {
+            Item=right.Item; Model=right.Model; Kind=right.Kind; RightShift=right.RightShift; LeftShift=right.LeftShift; Muzzle=right.Muzzle; Magazine=right.Magazine;
+            GripAxis=right.GripAxis; SupportAxis=right.SupportAxis; FlipUp=right.FlipUp; FlipPitch=right.FlipPitch;
+            Primary=Flip(right.Primary,GripAxis,FlipUp); Support=Flip(right.Support,SupportAxis,FlipUp);
+            if(FlipUp && FlipPitch!=0)
+            {
+                var pivot=new Vector3D(0,GripAxis,Primary.Z);
+                Tilt=MatrixD.CreateTranslation(-pivot)*MatrixD.CreateRotationX(MathHelper.ToRadians(-FlipPitch))*MatrixD.CreateTranslation(pivot);
+                Primary=(Vector3)Vector3D.Transform(Primary,Tilt);
+            }
+            Mirrored=true; source=right;
+        }
+        internal static Vector3 Flip(Vector3 point,float axis,bool up=false) => up ? new Vector3(point.X,2*axis-point.Y,point.Z):new Vector3(2*axis-point.X,point.Y,point.Z);
+        internal static MatrixD Reflect(float axis,bool up=false)
+        {
+            var m=up ? MatrixD.CreateScale(1,-1,1):MatrixD.CreateScale(-1,1,1);
+            if(up) m.M42=2*axis; else m.M41=2*axis;
+            return m;
+        }
+        internal static MatrixD MirrorHold(MatrixD nativeRight,Matrix palmMirror,float axis=0,bool up=false) => (MatrixD)Matrix.Invert(palmMirror)*nativeRight*Reflect(axis,up);
+        internal MatrixD Hold(MatrixD nativeRight,MatrixD nativeLeft,bool support,Matrix palmMirror)
+        {
+            if(!Mirrored) return support ? Palm(nativeLeft,true):Palm(nativeRight,false);
+            return support ? (MatrixD)palmMirror*source.Palm(nativeLeft,true)*Reflect(SupportAxis,FlipUp):MirrorHold(source.Palm(nativeRight,false),palmMirror,GripAxis,FlipUp)*Tilt;
+        }
+        internal Vector3 GrabOffset(Matrix palmMirror) => Mirrored ? Vector3.Transform(WeaponPose.GrabOffset,Matrix.Invert(palmMirror)):WeaponPose.GrabOffset;
         // Native palm frames, with mesh-measured corrections; effect pivots are not tool contact points.
         internal static readonly WeaponProfile[] All={
             new WeaponProfile("AutomaticRifleItem", "AutomaticRifle", ItemKind.Rifle, new Vector3(0.02676702f,-0.03522223f,0.18000007f), new Vector3(-0.08030498f,-0.04085726f,-0.1366592f), new Vector3(0.00000013f,0.04812809f,-0.31885853f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), new Vector3(0f,-0.10668955f,-0.07233407f)),
@@ -30,14 +67,14 @@ namespace SpaceEngineersVR.Player
             new WeaponProfile("Welder2Item", "WelderMk2", ItemKind.Welder, new Vector3(0.02191496f,-0.0974584f,0.12053466f), new Vector3(-0.08084223f,-0.12751487f,0.04795811f), new Vector3(0f,0.190192f,-0.069031f), new Vector3(0f,-0.035f,0f), new Vector3(-0.00053778f,-0.01331996f,0.11589689f), new Vector3(0f,0f,0f)),
             new WeaponProfile("Welder3Item", "WelderMk3", ItemKind.Welder, new Vector3(0.02191496f,-0.0974584f,0.12053466f), new Vector3(-0.08084223f,-0.12751487f,0.04795811f), new Vector3(0f,0.190192f,-0.069031f), new Vector3(0f,-0.035f,0f), new Vector3(-0.00053778f,-0.01331996f,0.11589689f), new Vector3(0f,0f,0f)),
             new WeaponProfile("Welder4Item", "WelderMk4", ItemKind.Welder, new Vector3(0.02191496f,-0.09276381f,0.12053466f), new Vector3(-0.08084223f,-0.12282028f,0.04795811f), new Vector3(0f,0.190192f,-0.069031f), new Vector3(0f,-0.035f,0f), new Vector3(-0.00053778f,-0.00862538f,0.11589689f), new Vector3(0f,0f,0f)),
-            new WeaponProfile("AngleGrinderItem", "AngleGrinder", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.308f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.14f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f)),
-            new WeaponProfile("AngleGrinder2Item", "AngleGrinderMk2", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.308f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.14f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f)),
-            new WeaponProfile("AngleGrinder3Item", "AngleGrinderMk3", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.308f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.14f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f)),
-            new WeaponProfile("AngleGrinder4Item", "AngleGrinderMk4", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.308f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.14f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f)),
-            new WeaponProfile("HandDrillItem", "HandDrill", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f)),
-            new WeaponProfile("HandDrill2Item", "HandDrillMk2", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f)),
-            new WeaponProfile("HandDrill3Item", "HandDrillMk3", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f)),
-            new WeaponProfile("HandDrill4Item", "HandDrillMk4", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f)),
+            new WeaponProfile("AngleGrinderItem", "AngleGrinder", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.308f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.14f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .0725f, .065f, true, 20),
+            new WeaponProfile("AngleGrinder2Item", "AngleGrinderMk2", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.308f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.14f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .0725f, .065f, true, 20),
+            new WeaponProfile("AngleGrinder3Item", "AngleGrinderMk3", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.308f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.14f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .0725f, .065f, true, 20),
+            new WeaponProfile("AngleGrinder4Item", "AngleGrinderMk4", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.308f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.14f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .0725f, .065f, true, 20),
+            new WeaponProfile("HandDrillItem", "HandDrill", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true),
+            new WeaponProfile("HandDrill2Item", "HandDrillMk2", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true),
+            new WeaponProfile("HandDrill3Item", "HandDrillMk3", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true),
+            new WeaponProfile("HandDrill4Item", "HandDrillMk4", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true),
         };
         internal static WeaponProfile Rifle => All[0];
         internal static WeaponProfile Launcher => All[8];
@@ -59,7 +96,7 @@ namespace SpaceEngineersVR.Player
             foreach(var p in All) if(item==p.Item && model.Replace('\\','/').EndsWith(p.Model,StringComparison.OrdinalIgnoreCase)) return p;
             return null;
         }
-        internal Vector3 SupportContact(MatrixD nativeLeft) => (Vector3)Vector3D.Transform(WeaponPose.GrabOffset,Palm(nativeLeft,true));
+        internal Vector3 SupportContact(MatrixD nativeLeft) => Mirrored ? Flip(source.SupportContact(nativeLeft),SupportAxis,FlipUp):(Vector3)Vector3D.Transform(WeaponPose.GrabOffset,Palm(nativeLeft,true));
         internal int Grab(Vector3 point,Vector3 supportPoint)
         {
             bool magazine=ReloadAt(point);
@@ -76,7 +113,8 @@ namespace SpaceEngineersVR.Player
         }
         internal Quaternion FingerRotation(string name,float trigger,bool support,Quaternion? native=null)
         {
-            if(Kind==ItemKind.Pistol && !support && native.HasValue)
+            // The native pistol grip pose exists only for the right hand.
+            if(Kind==ItemKind.Pistol && !support && native.HasValue && !Mirrored)
             {
                 if(!name.Contains("Index")) return native.Value;
                 float squeeze=name.EndsWith("_1") ? .06f:name.EndsWith("_2") ? .12f:.08f;

@@ -15,16 +15,16 @@ namespace SpaceEngineersVR.Player
             public Quaternion Original,Applied;
             public Vector3 Translation,AppliedTranslation;
             public void Save() { Original=Bone.Rotation; Translation=Bone.Translation; }
-            public void Restore(bool force)
+            public bool Restore(bool force)
             {
                 // Do not overwrite a new pose that vanilla animation has already written.
-                if(force || (Bone.Rotation==Applied && Bone.Translation==AppliedTranslation))
-                { Bone.Rotation=Original; Bone.Translation=Translation; }
+                if(!force && (Bone.Rotation!=Applied || Bone.Translation!=AppliedTranslation)) return false;
+                Bone.Rotation=Original; Bone.Translation=Translation; return true;
             }
         }
         internal sealed class Arm
         {
-            public SavedBone Upper,Lower,Palm;
+            public SavedBone Upper,Lower,Palm,Collar;
             public SavedBone[] Fingers,Twists;
             public MyCharacterBone IndexTip,ThumbTip;
             public Matrix PalmOffset,PointFinger;
@@ -32,11 +32,13 @@ namespace SpaceEngineersVR.Player
             public bool Applied;
             public void Restore(bool force=false)
             {
-                if(!Applied) return;
+                bool collar=Collar!=null && Collar.Applied!=default(Quaternion) && Collar.Restore(force);
+                if(collar) Collar.Applied=default(Quaternion);
+                if(!Applied) { if(collar) Collar.Bone.ComputeAbsoluteTransform(true,true); return; }
                 Upper.Restore(force); Lower.Restore(force); Palm.Restore(force);
                 foreach(var twist in Twists) twist.Restore(force);
                 if(Fingers!=null) foreach(var finger in Fingers) finger.Restore(force);
-                Upper.Bone.ComputeAbsoluteTransform(true,true);
+                (collar ? Collar.Bone:Upper.Bone).ComputeAbsoluteTransform(true,true);
                 Applied=false;
             }
         }
@@ -64,10 +66,30 @@ namespace SpaceEngineersVR.Player
                 PointFinger=index==null ? Matrix.Identity : CockpitHandPose.FingerPose(palm,index,false),
                 Fingers=fingers.ToArray(),Twists=twists.ToArray(),
                 IndexTip=find(prefix+"Index_3"),ThumbTip=find(prefix+"Thumb_3"),
-                Upper=new SavedBone { Bone=upper },Lower=new SavedBone { Bone=lower },Palm=new SavedBone { Bone=palm },
+                Upper=new SavedBone { Bone=upper },Lower=new SavedBone { Bone=lower },Palm=new SavedBone { Bone=palm },Collar=upper.Parent==null ? null:new SavedBone { Bone=upper.Parent },
                 PalmOffset=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),side),
                 Hint=new Vector3(side*0.55f,-1,0.3f) };
         }
+        // Vanilla animates the collarbones for an item in the right hand; a left-handed hold swaps them as mirror images.
+        internal static void MirrorCollars(Arm left,Arm right)
+        {
+            if(left.Collar==null || right.Collar==null) return;
+            left.Collar.Save(); right.Collar.Save();
+            var mirror=Mirror(right.Collar.Bone,left.Collar.Bone);
+            Swap(left.Collar,right.Collar,mirror,Matrix.Invert(mirror)); Swap(right.Collar,left.Collar,Matrix.Invert(mirror),mirror);
+            Remember(left.Collar); Remember(right.Collar);
+            left.Collar.Bone.ComputeAbsoluteTransform(true,true); right.Collar.Bone.ComputeAbsoluteTransform(true,true);
+        }
+        private static void Swap(SavedBone target,SavedBone source,Matrix toTarget,Matrix fromTarget)
+        {
+            var rotation=fromTarget*Matrix.CreateFromQuaternion(source.Original)*toTarget;
+            target.Bone.Rotation=Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(rotation));
+            target.Bone.Translation=Vector3.TransformNormal(source.Translation,toTarget);
+        }
+        private static Matrix Mirror(MyCharacterBone right,MyCharacterBone left) =>
+            right.GetAbsoluteRigTransform().GetOrientation()*Matrix.CreateScale(-1,1,1)*Matrix.Invert(left.GetAbsoluteRigTransform().GetOrientation());
+        // Right palm to left palm coordinates, from the symmetric bind pose.
+        internal static Matrix PalmMirror(Arm right,Arm left) => Mirror(right.Palm.Bone,left.Palm.Bone);
         // Character definitions name HeadDummy, an unskinned camera bone; the astronaut head mesh follows SE_RigHead.
         internal static MyCharacterBone Head(Func<string,MyCharacterBone> find,string definitionHead) => find("SE_RigHead") ?? find(definitionHead);
         private static bool Descends(MyCharacterBone child,MyCharacterBone parent)

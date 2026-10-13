@@ -35,6 +35,26 @@ namespace SpaceEngineersVR.Player.Control
             AcceptSample(data);
         }
 
+        internal void UpdateFrom(Button source)
+        {
+            var own=default(InputDigitalActionData_t);
+            if (OpenVR.Input.GetDigitalActionData(handle, ref own, InputDigitalActionData_t_size, OpenVR.k_ulInvalidInputValueHandle) != EVRInputError.None)
+                own = default(InputDigitalActionData_t);
+            Mirror(own.bActive,source);
+        }
+        internal void Mirror(bool active,Button source)
+        {
+            var sample=source.data;
+            sample.bActive=active && sample.bActive;
+            AcceptSample(sample);
+        }
+
+        internal void UpdateFrom(Analog source,float press,float release)
+        {
+            float x=source.RawPosition.X;
+            AcceptSample(new InputDigitalActionData_t { bActive=source.Active,bState=data.bState ? x>release:x>press,activeOrigin=source.Origin });
+        }
+
         internal void AcceptSample(InputDigitalActionData_t sample)
         {
             data=sample;

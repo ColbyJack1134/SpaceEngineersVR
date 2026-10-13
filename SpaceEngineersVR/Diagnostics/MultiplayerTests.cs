@@ -29,7 +29,7 @@ namespace SpaceEngineersVR.Diagnostics
             Require(bytes.Length==PlayerPose.HeadSize && decoded!=null && decoded.Character==100 && decoded.Tracked==3,"Pose packet round trip failed");
             Require(decoded.Left==original.Left && decoded.Right==original.Right && Math.Abs(decoded.RightTrigger-.8f)<.005f,"Pose transforms or trigger lost");
             for(int n=0;n<bytes.Length;n++) if(n!=PlayerPose.LegacySize) Require(PlayerPose.Decode(bytes.Take(n).ToArray())==null,"Truncated pose accepted");
-            var bad=(byte[])bytes.Clone(); bad[24]=32; Require(PlayerPose.Decode(bad)==null,"Unknown tracking bits accepted");
+            var bad=(byte[])bytes.Clone(); bad[24]=64; Require(PlayerPose.Decode(bad)==null,"Unknown tracking bits accepted");
             var looking=Pose(); looking.Tracked|=PlayerPose.HeadTracked; looking.Head=Matrix.CreateFromYawPitchRoll(.6f,-.3f,.1f); looking.Head.Translation=new Vector3(0,1.6f,0);
             var lookingBytes=looking.Encode(); var lookingDecoded=PlayerPose.Decode(lookingBytes);
             Require(lookingDecoded!=null && lookingDecoded.Tracked==7 && Vector3.Distance(lookingDecoded.Head.Forward,looking.Head.Forward)<1e-4f,"Head pose lost in transit");

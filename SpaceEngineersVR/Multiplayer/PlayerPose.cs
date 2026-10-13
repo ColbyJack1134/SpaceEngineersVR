@@ -8,7 +8,7 @@ namespace SpaceEngineersVR.Multiplayer
     internal sealed class PlayerPose
     {
         // Version 1 packets (85 bytes) carry hands only; the head pose is appended.
-        internal const int LegacySize=85,HeadSize=113,Size=141,HeadTracked=4,ToolRayTracked=8,ItemSupported=16;
+        internal const int LegacySize=85,HeadSize=113,Size=141,HeadTracked=4,ToolRayTracked=8,ItemSupported=16,ItemMirrored=32;
         internal long Character,Seat;
         internal uint Sequence;
         internal byte Tracked;
@@ -37,12 +37,12 @@ namespace SpaceEngineersVR.Multiplayer
             {
                 if(reader.ReadInt32()!=0x31525653) return null;
                 var value=new PlayerPose {Character=reader.ReadInt64(),Seat=reader.ReadInt64(),Sequence=reader.ReadUInt32(),Tracked=reader.ReadByte()};
-                if(value.Character==0 || value.Tracked>31 || !Read(reader,out value.Left) || !Read(reader,out value.Right)) return null;
+                if(value.Character==0 || value.Tracked>63 || !Read(reader,out value.Left) || !Read(reader,out value.Right)) return null;
                 value.LeftFingers=(ArmSkeleton.Fingers)reader.ReadByte(); value.RightFingers=(ArmSkeleton.Fingers)reader.ReadByte();
                 value.LeftTrigger=reader.ReadByte()/255f; value.RightTrigger=reader.ReadByte()/255f;
                 if(data.Length==LegacySize) value.Tracked&=3;
                 else if(!Read(reader,out value.Head)) return null;
-                if(data.Length<Size) value.Tracked&=23;
+                if(data.Length<Size) value.Tracked&=unchecked((byte)~ToolRayTracked);
                 else if(!Read(reader,out value.ToolRay)) return null;
                 return value.LeftFingers>ArmSkeleton.Fingers.Stick || value.RightFingers>ArmSkeleton.Fingers.Stick ? null:value;
             }

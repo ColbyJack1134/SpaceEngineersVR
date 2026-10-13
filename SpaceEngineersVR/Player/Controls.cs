@@ -109,6 +109,27 @@ namespace SpaceEngineersVR.Player
         private readonly HashSet<ulong> continuingOrigins = new HashSet<ulong>();
         private int diagnosticTicks;
 
+        // No left grip click action exists; it is derived from the pull.
+        private readonly Button leftGripClick=new Button(0);
+        internal Button GripClick(Controller hand) => hand==Player.HandR ? Secondary : leftGripClick;
+        internal Button Fire => Handedness.Swapped ? LeftClick : Primary;
+        internal Analog FirePressure => Handedness.Swapped ? LeftTriggerPressure : PointerPressure;
+        internal Analog ActionGripPressure => Handedness.Swapped ? LeftGripPressure : RightGripPressure;
+        internal Button ActionGripClick => GripClick(Handedness.ActionHand);
+        internal Analog SupportTriggerPressure => Handedness.Swapped ? PointerPressure : LeftTriggerPressure;
+        internal Analog SupportGripPressure => Handedness.Swapped ? RightGripPressure : LeftGripPressure;
+        private Analog ThrustTrigger => Handedness.Swapped && !Handedness.SeatedBuilding ? PointerPressure : LeftTriggerPressure;
+        internal void BlockTriggerRoles(Controller hand)
+        {
+            if(hand==Handedness.SupportHand) ThrustUp.BlockUntilRelease();
+        }
+        internal void BlockGripRoles(Controller hand)
+        {
+            GripClick(hand).BlockUntilRelease();
+            if(hand==Handedness.ActionHand) ThrustRoll.BlockUntilRelease();
+            else { ThrustDown.BlockUntilRelease(); CrouchOrClimbDown.BlockUntilRelease(); }
+        }
+
         public Controls()
         {
             var error = OpenVR.Input.SetActionManifestPath(Common.ActionJsonPath);
@@ -198,9 +219,23 @@ namespace SpaceEngineersVR.Player
             if (mode == InputMode.Menu || mode == InputMode.Radial || mode == InputMode.Blocked) MenuSets.Update();
             else if (mode == InputMode.Jetpack || mode == InputMode.Piloting || InputRouter.Flying) FlyingSets.Update();
             else WalkingSets.Update();
-            foreach (var button in buttons) button.Update();
+            bool swapped=Handedness.Swapped;
+            foreach (var button in buttons) if(!swapped || button!=ThrustRoll && button!=CrouchOrClimbDown) button.Update();
             // Common pressure keeps the accepted trigger source alive while its flight action is inactive.
-            foreach (var analog in analogs) analog.Update(locomotion.Contains(analog) || analog==LeftTriggerPressure ? continuingOrigins : null);
+            var thrustTrigger=ThrustTrigger;
+            foreach (var analog in analogs)
+                if(!swapped || analog!=ThrustUp && analog!=ThrustDown) analog.Update(locomotion.Contains(analog) || analog==thrustTrigger ? continuingOrigins : null);
+            leftGripClick.UpdateFrom(LeftGripPressure,.55f,.45f);
+            if(swapped && Handedness.SeatedBuilding)
+            {
+                ThrustUp.AcceptSample(default(InputAnalogActionData_t)); ThrustDown.AcceptSample(default(InputAnalogActionData_t));
+                ThrustRoll.AcceptSample(default(InputDigitalActionData_t)); CrouchOrClimbDown.AcceptSample(default(InputDigitalActionData_t));
+            }
+            else if(swapped)
+            {
+                ThrustUp.UpdateFrom(PointerPressure,continuingOrigins); ThrustDown.UpdateFrom(RightGripPressure,continuingOrigins);
+                ThrustRoll.UpdateFrom(leftGripClick); CrouchOrClimbDown.UpdateFrom(Secondary);
+            }
             WindowFocus.Update(this);
             Player.HandL?.Fingers.Update(Player.HandL,true);
             Player.HandR?.Fingers.Update(Player.HandR,false);
@@ -215,18 +250,20 @@ namespace SpaceEngineersVR.Player
         {
             continuingOrigins.Clear();
             if (continueLocomotion)
-                CaptureLocomotionOrigins(continuingOrigins,locomotion,LeftTriggerPressure);
-            foreach (var button in buttons) if(button!=Primary && !(continueBuild && button==Secondary)) button.BlockUntilRelease();
+                CaptureLocomotionOrigins(continuingOrigins,locomotion,ThrustTrigger);
+            Button fire=Fire,build=ActionGripClick; Analog pressure=FirePressure,modifier=ActionGripPressure;
+            foreach (var button in buttons) if(button!=fire && !(continueBuild && button==build)) button.BlockUntilRelease();
+            if(!(continueBuild && build==leftGripClick)) leftGripClick.BlockUntilRelease();
             foreach (var analog in analogs)
-                if(analog!=PointerPressure && analog!=RightGripPressure) analog.BlockUntilRelease();
-            BlockFireInput(Primary,PointerPressure,RightGripPressure,continueFire);
+                if(analog!=pressure && analog!=modifier) analog.BlockUntilRelease();
+            BlockFireInput(fire,pressure,modifier,continueFire);
         }
-        internal static void CaptureLocomotionOrigins(ISet<ulong> origins,IEnumerable<Analog> movement,Analog leftTrigger)
+        internal static void CaptureLocomotionOrigins(ISet<ulong> origins,IEnumerable<Analog> movement,Analog thrustTrigger)
         {
             foreach(var analog in movement)
                 if(analog.HeldOrigin!=OpenVR.k_ulInvalidInputValueHandle) origins.Add(analog.HeldOrigin);
             // ThrustUp is inactive while walking; common trigger pressure supplies its physical origin.
-            if(leftTrigger.HeldOrigin!=OpenVR.k_ulInvalidInputValueHandle) origins.Add(leftTrigger.HeldOrigin);
+            if(thrustTrigger.HeldOrigin!=OpenVR.k_ulInvalidInputValueHandle) origins.Add(thrustTrigger.HeldOrigin);
         }
         internal static void BlockFireInput(Button trigger,Analog pressure,Analog modifier,bool continuing)
         {

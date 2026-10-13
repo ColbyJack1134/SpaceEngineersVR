@@ -342,6 +342,7 @@ namespace SpaceEngineersVR.Plugin
             GUI.FirstRunSetup.Offer();
             Player.RemoteView.UpdateContext();
             Player.SpectatorView.UpdateContext();
+            Player.Handedness.Update();
             Player.InputRouter.Update();
             Player.SeatRecenter.Update();
             Player.Controls.Static.Poll(Player.InputRouter.Mode);

@@ -37,9 +37,14 @@ namespace SpaceEngineersVR.Player
             if(left.Suppress)
             {
                 Suppress(controls.LeftClick); Suppress(controls.LeftTriggerPressure);
-                Suppress(controls.ThrustUp); Suppress(controls.WheelNextPage);
+                if(!Handedness.Swapped) Suppress(controls.ThrustUp);
+                Suppress(controls.WheelNextPage);
             }
-            if(right.Suppress) { Suppress(controls.Primary); Suppress(controls.PointerPressure); }
+            if(right.Suppress)
+            {
+                Suppress(controls.Primary); Suppress(controls.PointerPressure);
+                if(Handedness.Swapped) Suppress(controls.ThrustUp);
+            }
             if(!requestLeft && !requestRight) return;
             using(var process=Process.GetCurrentProcess())
             {

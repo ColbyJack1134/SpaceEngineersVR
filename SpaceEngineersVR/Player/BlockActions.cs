@@ -13,14 +13,14 @@ namespace SpaceEngineersVR.Player
     {
         internal static bool CharacterAvailable(Sandbox.Game.Entities.Character.MyCharacter character) =>
             character!=null && MySession.Static?.LocalCharacter==character && MySession.Static.ControlledEntity==character &&
-            !character.IsDead && !character.IsSitting && !ThirdPersonView.Active && Player.HandR.pose.isTracked;
+            !character.IsDead && !character.IsSitting && !ThirdPersonView.Active && Handedness.ActionHand.pose.isTracked;
 
         internal static bool Available(IMyUseObject target,Sandbox.Game.Entities.Character.MyCharacter character,UseActionEnum action)
         {
             if(!CharacterAvailable(character) || target?.Owner==null || target.Owner.Closed || (target.SupportedActions & action)!=action) return false;
             if(target.Owner is IMyTerminalBlock block && !block.HasLocalPlayerAccess()) return false;
             var activation=target.ActivationMatrix;
-            if(!activation.IsValid() || Math.Abs(activation.Determinant())<1e-12 || !HandInteraction.TryCharacterPointerPose(Player.HandR,out var pointer)) return false;
+            if(!activation.IsValid() || Math.Abs(activation.Determinant())<1e-12 || !HandInteraction.TryCharacterPointerPose(Handedness.ActionHand,out var pointer)) return false;
             return InReach(pointer,HandInteraction.ClosestControlPoint(activation,pointer.Translation),target.InteractiveDistance);
         }
 
@@ -41,7 +41,7 @@ namespace SpaceEngineersVR.Player
 
         internal static ActionChoice[] Capture(bool plannerOnly=false)
         {
-            var target=HandInteraction.CaptureRightTarget();
+            var target=HandInteraction.CaptureActionTarget();
             var character=MySession.Static?.LocalCharacter;
             var choices=new List<ActionChoice>();
             if(target!=null && !plannerOnly) choices.AddRange(Choices(target.SupportedActions,target is MyUseObjectTextPanel,

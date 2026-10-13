@@ -32,6 +32,7 @@ namespace SpaceEngineersVR.Player
         private static readonly VisorGesture visorGesture=new VisorGesture();
         private static readonly HeadGesture rightGesture=new HeadGesture();
         internal static bool ProtectsRight { get; private set; }
+        internal static bool ProtectsFire { get; private set; }
         internal static bool ViewGestureHeld { get; private set; }
         private static bool leftConsumed,rightConsumed;
         // After cycling profiles the cycling hand is still at the helmet; hold off the proximity reveal so the new profile is visible.
@@ -84,15 +85,17 @@ namespace SpaceEngineersVR.Player
             float leftPressure=c.LeftTriggerPressure.RawPosition.X;
             if(leftPressure<=.025f) leftConsumed=false;
             if(c.PointerPressure.RawPosition.X<=.025f && !c.Primary.RawPressed) rightConsumed=false;
-            bool gun=character?.CurrentWeapon is Sandbox.Game.Weapons.MyAutomaticRifleGun;
-            if(gun) rightConsumed=false;
+            bool rifle=character?.CurrentWeapon is Sandbox.Game.Weapons.MyAutomaticRifleGun;
+            bool rightGun=rifle && !Handedness.Swapped,leftGun=rifle && Handedness.Swapped;
+            if(rightGun) rightConsumed=false;
+            if(leftGun) leftConsumed=false;
             bool active=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && !SpectatorView.Manipulating && Player.Headset.pose.isTracked;
             bool guard=InputRouter.Gameplay && !Main.MenuOpen && Player.Headset.pose.isTracked;
             rightGesture.Update(active && Player.HandR.pose.isTracked && c.Primary.Active,
-                Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,c.Primary.RawPressed,triggerAllowed:!gun);
+                Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,c.Primary.RawPressed,triggerAllowed:!rightGun);
             bool nearLeft=guard && Player.HandL.pose.isTracked && NearHead(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix);
             bool nearRight=guard && Player.HandR.pose.isTracked && (rightGesture.Inside || NearHead(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix));
-            Reveal=active && Markers && (Mode==2 || (nearLeft || nearRight && !gun) && DateTime.UtcNow>=revealPauseUntil);
+            Reveal=active && Markers && (Mode==2 || (nearLeft && !leftGun || nearRight && !rightGun) && DateTime.UtcNow>=revealPauseUntil);
             bool visorPressed=visorGesture.Update(active && Player.HandR.pose.isTracked && c.Secondary.Active,
                 rightGesture.Inside,c.Secondary.RawPressed,CameraRig.Detached,
                 CameraRig.Detached && c.LeftGripPressure.RawPosition.X>.025f && c.RightGripPressure.RawPosition.X>.025f,DateTime.UtcNow);
@@ -104,30 +107,30 @@ namespace SpaceEngineersVR.Player
             {
                 ViewGestureHeld=true; if(SpectatorView.Active) SpectatorView.Exit(); else ThirdPersonView.Toggle(); Player.HandL.Vibrate(0,.035f,120,.25f);
             }
-            if(ViewGestureHeld) { c.LeftGripPressure.BlockUntilRelease(); c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); }
+            if(ViewGestureHeld) { c.LeftGripPressure.BlockUntilRelease(); c.BlockGripRoles(Player.HandL); }
             leftTrigger.Update(active && Player.HandL.pose.isTracked && c.LeftTriggerPressure.Active,leftPressure>.55f);
-            if(active && Player.HandL.pose.isTracked && leftTrigger.Pressed &&
+            if(active && Player.HandL.pose.isTracked && leftTrigger.Pressed && !leftGun &&
                 !CockpitControls.Held(Player.HandL) && !CockpitTouch.Owns(Player.HandL) &&
-                !WeaponHandling.ConsumesLeftGrip && NearTemple(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,true))
+                !WeaponHandling.GripsItem(Player.HandL) && NearTemple(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,true))
             {
                 if(SpectatorView.Active) MySpectatorCameraController.Static.SwitchLight(); else MySession.Static?.LocalCharacter?.SwitchLights();
                 leftConsumed=true;
                 Player.HandL.Vibrate(0,.035f,120,.25f);
             }
-            if(nearLeft && leftPressure>.025f) leftConsumed=true;
-            if(!gun && nearRight && (c.PointerPressure.RawPosition.X>.025f || c.Primary.RawPressed)) rightConsumed=true;
-            ProtectsRight=!gun && (nearRight || rightConsumed);
-            if(nearLeft)
-            { c.LeftGripPressure.BlockUntilRelease(); c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); }
-            if(!gun && (nearRight || rightConsumed)) c.Primary.BlockUntilRelease();
-            if(nearRight) { c.RightGripPressure.BlockUntilRelease(); c.Secondary.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); }
+            if(!leftGun && nearLeft && leftPressure>.025f) leftConsumed=true;
+            if(!rightGun && nearRight && (c.PointerPressure.RawPosition.X>.025f || c.Primary.RawPressed)) rightConsumed=true;
+            ProtectsRight=!rightGun && (nearRight || rightConsumed);
+            ProtectsFire=Handedness.Swapped ? !leftGun && (nearLeft || leftConsumed) : ProtectsRight;
+            if(nearLeft) { c.LeftGripPressure.BlockUntilRelease(); c.BlockGripRoles(Player.HandL); }
+            if(!rightGun && (nearRight || rightConsumed)) { c.Primary.BlockUntilRelease(); c.BlockTriggerRoles(Player.HandR); }
+            if(nearRight) { c.RightGripPressure.BlockUntilRelease(); c.BlockGripRoles(Player.HandR); }
             if(leftConsumed)
             {
-                c.LeftClick.BlockUntilRelease(); c.LeftTriggerPressure.BlockUntilRelease(); c.ThrustUp.BlockUntilRelease();
+                c.LeftClick.BlockUntilRelease(); c.LeftTriggerPressure.BlockUntilRelease(); c.BlockTriggerRoles(Player.HandL);
                 c.ThrustForward.BlockUntilRelease(); c.JumpOrClimbUp.BlockUntilRelease();
             }
             if(!active || !Player.HandR.pose.isTracked || !rightGesture.Inside) return;
-            if (!gun && rightGesture.Pressed && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandR))
+            if (!rightGun && rightGesture.Pressed && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandR))
             {
                 Common.Config.CycleHud();
                 revealPauseUntil=DateTime.UtcNow.AddSeconds(RevealPause);
@@ -138,7 +141,7 @@ namespace SpaceEngineersVR.Player
             if (visorPressed)
             {
                 GameActions.HelmetAction.Run();
-                c.Secondary.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease();
+                c.BlockGripRoles(Player.HandR);
                 Player.HandR.Vibrate(0,0.06f,95,0.45f);
             }
         }

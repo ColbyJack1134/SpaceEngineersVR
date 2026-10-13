@@ -25,18 +25,20 @@ namespace SpaceEngineersVR.Player
         private static readonly RenderRecovery recovery=new RenderRecovery("Hand interaction");
         private static bool disabled => recovery.Failed;
         private static bool rayVisible;
-        internal static bool HoldingRight => hands[0].Input.Surface!=null;
+        internal static bool HoldingRight => Holding(Player.HandR);
+        private static bool Holding(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Input.Surface!=null;
         internal static bool OwnsRight => hands[0].Input.Consumed;
+        internal static bool Consumes(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Input.Consumed;
         internal static bool Owns(Controller hand) { var h=hands[hand==Player.HandL ? 1 : 0]; return h.Input.Consumed || h.Input.Surface!=null || h.Hover!=null; }
         internal static bool PhysicalOwns(Controller hand) { var h=hands[hand==Player.HandL ? 1 : 0]; return h.Input.Consumed || h.Input.Surface!=null || h.PhysicalHover; }
-        // Left aiming redirects native use detection so labels and actions use the same target.
-        internal static bool LeftAiming { get; private set; }
-        internal static bool LeftUseHeld { get; private set; }
-        private static readonly Control.InputGate leftUse=new Control.InputGate();
+        // Support aiming redirects native use detection so labels and actions use the same target.
+        internal static bool SupportAiming { get; private set; }
+        internal static bool SupportUseHeld { get; private set; }
+        private static readonly Control.InputGate supportUse=new Control.InputGate();
         private static Controller detectionHand;
-        private static string leftLabel;
-        private static DateTime nextLeftLabel;
-        internal static Controller UseHand => LeftAiming ? Player.HandL : Player.HandR;
+        private static string supportLabel;
+        private static DateTime nextSupportLabel;
+        internal static Controller UseHand => SupportAiming ? Handedness.SupportHand : Handedness.ActionHand;
         private sealed class Contact
         {
             public readonly CockpitTouch.Hand Input=new CockpitTouch.Hand();
@@ -234,7 +236,7 @@ namespace SpaceEngineersVR.Player
                 }
                 if(h.Input.Held<0) h.Pressed=null;
                 if(h.Input.Consumed) Consume(i);
-                bool aiming=i==0 && (ShowRay(c.PointerPressure.RawPosition.X,rayVisible) || c.Primary.RawPressed);
+                bool aiming=hand==Handedness.ActionHand && (ShowRay(c.FirePressure.RawPosition.X,rayVisible) || c.Fire.RawPressed);
                 bool keepHover=h.Hover?.Owner!=null && !h.Hover.Owner.Closed && Pressable(h.Hover) &&
                     Vector3D.Distance(tip,ClosestControlPoint(h.Hover.ActivationMatrix,tip))<PressReach+.025;
                 h.PhysicalHover=target!=null || h.Pressed!=null || keepHover;
@@ -285,38 +287,41 @@ namespace SpaceEngineersVR.Player
                 yield return new SurfaceView { Id="Character use label"+i,Style=SurfaceStyle.Label,Width=.18f,Height=.028f,
                     Title=h.Label,Pose=CockpitTouch.LabelPose(head,tip,.18f) };
             }
-            if(LeftAiming && !hands[1].Pointing && !string.IsNullOrWhiteSpace(leftLabel) && TrackedArms.TryPointContact(Player.HandL,true,out var leftTip))
-                yield return new SurfaceView { Id="Character use label left ray",Style=SurfaceStyle.Label,Width=.18f,Height=.028f,
-                    Title=leftLabel,Pose=CockpitTouch.LabelPose(SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix),leftTip,.18f) };
+            var support=Handedness.SupportHand;
+            if(SupportAiming && !hands[support==Player.HandL ? 1 : 0].Pointing && !string.IsNullOrWhiteSpace(supportLabel) && TrackedArms.TryPointContact(support,true,out var supportTip))
+                yield return new SurfaceView { Id="Character use label support ray",Style=SurfaceStyle.Label,Width=.18f,Height=.028f,
+                    Title=supportLabel,Pose=CockpitTouch.LabelPose(SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix),supportTip,.18f) };
         }
         public static void Feedback()
         {
             if(MySession.Static?.LocalCharacter?.GetDetectorComponent()?.UseObject!=null) CockpitFeedback.Activate(UseHand);
         }
-        // Flying keeps the left trigger as ascend; screens, pokes and helmet gestures keep their own claim on it.
-        internal static void UpdateLeftUse()
+        // Flying keeps the support trigger as ascend; screens, pokes and helmet gestures keep their own claim on it.
+        internal static void UpdateSupportUse()
         {
             var c=Controls.Static;
             var character=MySession.Static?.LocalCharacter;
-            bool allowed=!GridSelection.Owns(Player.HandL) && !disabled && (InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Building) && !InputRouter.Flying &&
+            var hand=Handedness.SupportHand;
+            bool allowed=!GridSelection.Owns(hand) && !disabled && (InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Building) && !InputRouter.Flying &&
                 MySession.Static?.ControlledEntity==character && character!=null && !character.IsDead && !character.IsSitting &&
-                !ThirdPersonView.Active && Player.HandL.pose.isTracked && !PlacementControls.OwnsTools && !HelmetHud.Consumes(Player.HandL) &&
-                !Owns(Player.HandL) && !CockpitTouch.Owns(Player.HandL) && !TouchScreenBridge.PointingFor(Player.HandL) && !ArthurLcdBridge.PointingFor(Player.HandL) && !FloatingWindows.PointingFor(Player.HandL) &&
-                !WeaponHandling.ConsumesLeftGrip && !WeaponHandling.LeftAtItem && c.LeftTriggerPressure.Active;
-            // Raw pressure keeps the laser up through a full pull, like the right ray; the gate uses once per pull.
-            float pressure=allowed ? c.LeftTriggerPressure.RawPosition.X : 0;
-            LeftAiming=ShowRay(pressure,LeftAiming);
-            if(!LeftAiming) leftLabel=null;
-            else if(DateTime.UtcNow>=nextLeftLabel)
+                !ThirdPersonView.Active && hand.pose.isTracked && !PlacementControls.OwnsTools && !HelmetHud.Consumes(hand) &&
+                !Owns(hand) && !CockpitTouch.Owns(hand) && !TouchScreenBridge.PointingFor(hand) && !ArthurLcdBridge.PointingFor(hand) && !FloatingWindows.PointingFor(hand) &&
+                !(hand==Player.HandR && (SpatialUi.OwnsRight || SpatialUi.RayTargeted || SpatialUi.Pointing)) &&
+                !WeaponHandling.ConsumesSupportGrip && !WeaponHandling.SupportAtItem && c.SupportTriggerPressure.Active;
+            // Raw pressure keeps the laser up through a full pull, like the action ray; the gate uses once per pull.
+            float pressure=allowed ? c.SupportTriggerPressure.RawPosition.X : 0;
+            SupportAiming=ShowRay(pressure,SupportAiming);
+            if(!SupportAiming) supportLabel=null;
+            else if(DateTime.UtcNow>=nextSupportLabel)
             {
                 var target=character?.GetDetectorComponent()?.UseObject;
-                leftLabel=target==null ? null : UseLabel(target) ?? target.Owner?.DisplayName;
-                nextLeftLabel=DateTime.UtcNow.AddMilliseconds(200);
+                supportLabel=target==null ? null : UseLabel(target) ?? target.Owner?.DisplayName;
+                nextSupportLabel=DateTime.UtcNow.AddMilliseconds(200);
             }
-            var click=c.Click(Player.HandL);
-            leftUse.Update(allowed && click.Active,click.Down);
-            LeftUseHeld=leftUse.Held && click.Held && !leftUse.Pressed;
-            if(!leftUse.Pressed || !click.Pressed) return;
+            var click=c.Click(hand);
+            supportUse.Update(allowed && click.Active,click.Down);
+            SupportUseHeld=supportUse.Held && click.Held && !supportUse.Pressed;
+            if(!supportUse.Pressed || !click.Pressed) return;
             RefreshTarget();
             if(!TryInteract()) { character.Use(); Feedback(); }
         }
@@ -333,15 +338,15 @@ namespace SpaceEngineersVR.Player
                 "; use=" + (detector.UseObject?.GetType().Name ?? "none") +
                 "; target=" + (detector.UseObject?.Owner?.DisplayName ?? "none"));
         }
-        internal static bool TryRightInteractionRay(out LineD ray)
+        internal static bool TryActionInteractionRay(out LineD ray)
         {
-            detectionHand=Player.HandR;
+            detectionHand=Handedness.ActionHand;
             try { return TryInteractionRay(out ray); }
             finally { detectionHand=null; }
         }
-        internal static IMyUseObject CaptureRightTarget()
+        internal static IMyUseObject CaptureActionTarget()
         {
-            detectionHand=Player.HandR;
+            detectionHand=Handedness.ActionHand;
             try
             {
                 if(!TryInteractionRay(out _)) return null;
@@ -353,8 +358,9 @@ namespace SpaceEngineersVR.Player
         public static void Update()
         {
             if (disabled) return;
-            rayVisible=InputRouter.Gameplay && Player.HandR.pose.isTracked &&
-                (ShowRay(Controls.Static.PointerPressure.RawPosition.X,rayVisible) || Controls.Static.Primary.RawPressed);
+            var action=Handedness.ActionHand;
+            rayVisible=InputRouter.Gameplay && action.pose.isTracked &&
+                (ShowRay(Controls.Static.FirePressure.RawPosition.X,rayVisible) || Controls.Static.Fire.RawPressed);
             try
             {
                 foreach (var hand in new[] { Player.HandL, Player.HandR })
@@ -368,8 +374,9 @@ namespace SpaceEngineersVR.Player
                     MatrixD grip=CameraRig.DeviceWorld(hand.pose.deviceToAbsolute.matrix);
                     if(Common.Config.DeveloperTools && !SpatialUi.Pointing && !SpatialUi.OwnsRight && !SpatialUi.RayTargeted) MySimpleObjectDraw.DrawLine(grip.Translation-grip.Up*0.035,grip.Translation+grip.Up*0.035,
                         MyStringId.GetOrCompute("Square"),ref lineColor,0.025f);
-                    bool show = hand == Player.HandL ? LeftAiming :
-                        !LeftAiming && rayVisible && !SpatialUi.RayTargeted && !SpatialUi.OwnsRight && !CockpitTouch.OwnsRight && !HoldingRight && !TouchScreenBridge.Pointing && !ArthurLcdBridge.PointingFor(Player.HandR);
+                    bool show = hand != action ? SupportAiming :
+                        !SupportAiming && rayVisible && !(hand == Player.HandR && SpatialUi.RayTargeted) && !SpatialUi.Owns(hand) && !CockpitTouch.Owns(hand) &&
+                        !Holding(hand) && !TouchScreenBridge.Pointing && !ArthurLcdBridge.PointingFor(hand);
                     if (show && !GridSelection.Owns(hand) && !WeaponHandling.HideUseRay && TryInteractionRay(out LineD ray))
                     {
                         var aim=MatrixD.CreateWorld(ray.From,ray.Direction,Vector3D.CalculatePerpendicularVector(ray.Direction));

@@ -7,11 +7,12 @@ namespace SpaceEngineersVR.Player
     {
         internal struct Bindings
         {
-            internal Button Primary,LeftClick,Secondary,Interact,ThrustRoll,JumpOrClimbUp,CrouchOrClimbDown;
+            internal Button Primary,LeftClick,Secondary,LeftGripClick,Interact,ThrustRoll,JumpOrClimbUp,CrouchOrClimbDown;
+            internal bool Swapped;
             internal Analog PointerPressure,LeftTriggerPressure,RightGripPressure,LeftGripPressure,ThrustRotate,WalkRotate,ThrustLRFB,WalkLongitudinal,ThrustUp,ThrustForward,ThrustDown;
             internal Bindings(Controls c)
             {
-                Primary=c.Primary; LeftClick=c.LeftClick; Secondary=c.Secondary; Interact=c.Interact; ThrustRoll=c.ThrustRoll; JumpOrClimbUp=c.JumpOrClimbUp; CrouchOrClimbDown=c.CrouchOrClimbDown;
+                Primary=c.Primary; LeftClick=c.LeftClick; Secondary=c.Secondary; LeftGripClick=c.GripClick(Player.HandL); Swapped=Handedness.Swapped; Interact=c.Interact; ThrustRoll=c.ThrustRoll; JumpOrClimbUp=c.JumpOrClimbUp; CrouchOrClimbDown=c.CrouchOrClimbDown;
                 PointerPressure=c.PointerPressure; LeftTriggerPressure=c.LeftTriggerPressure; RightGripPressure=c.RightGripPressure; LeftGripPressure=c.LeftGripPressure; ThrustRotate=c.ThrustRotate; WalkRotate=c.WalkRotate; ThrustLRFB=c.ThrustLRFB; WalkLongitudinal=c.WalkLongitudinal; ThrustUp=c.ThrustUp; ThrustForward=c.ThrustForward; ThrustDown=c.ThrustDown;
             }
         }
@@ -87,18 +88,21 @@ namespace SpaceEngineersVR.Player
         internal void Consume(Controls c,bool right) => Consume(new Bindings(c),right);
         internal void Consume(Bindings c,bool right)
         {
+            bool support=right==c.Swapped;
             if(ReserveTrigger)
             {
                 (right ? c.Primary:c.LeftClick).BlockUntilRelease();
                 (right ? c.PointerPressure:c.LeftTriggerPressure).BlockUntilRelease(!Targeted);
                 if(right) c.Interact.BlockUntilRelease();
-                else { c.ThrustUp.BlockUntilRelease(); c.ThrustForward.BlockUntilRelease(); c.JumpOrClimbUp.BlockUntilRelease(); }
+                else { c.ThrustForward.BlockUntilRelease(); c.JumpOrClimbUp.BlockUntilRelease(); }
+                if(support) c.ThrustUp.BlockUntilRelease();
             }
             if(ReserveGrip)
             {
                 (right ? c.RightGripPressure:c.LeftGripPressure).BlockUntilRelease(!Targeted);
-                if(right) { c.Secondary.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); }
-                else { c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); }
+                (right ? c.Secondary:c.LeftGripClick).BlockUntilRelease();
+                if(support) { c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); }
+                else c.ThrustRoll.BlockUntilRelease();
             }
             if(ReserveScroll)
             {

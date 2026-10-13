@@ -187,14 +187,14 @@ namespace SpaceEngineersVR.Player
                 !CockpitControls.Held(Player.HandL) && !CockpitControls.Held(Player.HandR) &&
                 !CockpitControls.NearGrip(Player.HandL) && !CockpitControls.NearGrip(Player.HandR) &&
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;
-            descent.Update(allowed,left,DateTime.UtcNow);
+            descent.Update(allowed,c.SupportGripPressure.RawPosition.X,DateTime.UtcNow);
             if(allowed && left>.025f && right>.025f) consumed=true;
             if(consumed) descent.Cancel();
             bool started;
             lock(sync)
             {
                 inputTime=Stopwatch.GetTimestamp();
-                bool flight=c.Primary.IsPressed || c.Secondary.IsPressed || c.ThrustRoll.IsPressed ||
+                bool flight=c.Fire.IsPressed || c.ActionGripClick.IsPressed || c.ThrustRoll.IsPressed ||
                     c.ThrustLRFB.Position!=Vector2.Zero || c.ThrustLRUD.Position!=Vector2.Zero || c.ThrustRotate.Position!=Vector2.Zero ||
                     c.ThrustUp.Position.X!=0 || c.ThrustDown.Position.X!=0 || c.ThrustForward.Position.X!=0 || c.ThrustBackward.Position.X!=0;
                 started=view.Input(allowed,left,right,flight);
@@ -209,8 +209,8 @@ namespace SpaceEngineersVR.Player
             }
             if(consumed || transition!=null)
             {
-                c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); c.Secondary.BlockUntilRelease();
-                c.Primary.BlockUntilRelease(); c.ThrustUp.BlockUntilRelease();
+                c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); c.ActionGripClick.BlockUntilRelease();
+                c.Fire.BlockUntilRelease(); c.ThrustUp.BlockUntilRelease();
                 if(!FlightWhileManipulating)
                 { c.ThrustLRFB.BlockUntilRelease(); c.ThrustLRUD.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease(); }
                 c.ThrustForward.BlockUntilRelease(); c.ThrustBackward.BlockUntilRelease();

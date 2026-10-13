@@ -319,7 +319,7 @@ namespace SpaceEngineersVR.Player
                 MySession.Static?.ControlledEntity==MySession.Static?.LocalCharacter;
             bool flight=InputRouter.Flying && InputRouter.Gameplay && !RemoteView.Turret;
             bool alternate=character && InputRouter.Flying &&
-                !ArthurLcdBridge.Owns(Player.HandR) && (c.ThrustRoll.RawPressed || c.RightGripPressure.RawPosition.X>.55f);
+                !ArthurLcdBridge.Owns(Handedness.ActionHand) && (c.ThrustRoll.RawPressed || c.ActionGripPressure.RawPosition.X>.55f);
             var now=DateTime.UtcNow;
             if(jumpHold.Update(character || flight,jump.HasPressed,jump.IsPressed,now,character,alternate)) { dampenerTap.Reset(); Execute(JetpackAction); }
             else if(flight && jumpHold.Tapped && jumpHold.Alternate) { dampenerTap.Reset(); Execute(RelativeDampeners); }
@@ -329,7 +329,7 @@ namespace SpaceEngineersVR.Player
                 if(taps==1) Execute(Dampeners);
                 else if(taps==2) Execute(RelativeDampeners);
             }
-            HandInteraction.UpdateLeftUse();
+            HandInteraction.UpdateSupportUse();
             bool interact=c.Interact.HasPressed && !ArthurLcdBridge.Owns(Player.HandR);
             if (interact && !PlacementControls.Painting || c.Terminal.HasPressed || c.Inventory.HasPressed)
                 HandInteraction.RefreshTarget();
@@ -345,7 +345,7 @@ namespace SpaceEngineersVR.Player
             // An empty-handed primary press is a native Use, which the game continues only while its own mouse binding is held.
             bool holdingUse=c.Interact.IsPressed && !c.Interact.HasPressed && !ArthurLcdBridge.Owns(Player.HandR) && !PlacementControls.Painting;
             var self=MySession.Static?.LocalCharacter;
-            if (character && self!=null && (holdingUse || HandInteraction.LeftUseHeld || primaryHeld && self.CurrentWeapon==null)) self.UseContinues();
+            if (character && self!=null && (holdingUse || HandInteraction.SupportUseHeld || primaryHeld && self.CurrentWeapon==null)) self.UseContinues();
             if (c.Helmet.HasPressed) Execute(HelmetAction);
             if (c.Jetpack.HasPressed && !ToolbarWheel.QuickPending)
             {

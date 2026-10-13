@@ -33,15 +33,15 @@ namespace SpaceEngineersVR.Player
                 if(wheelJumpHeld) frame.Queue(MyControlsSpace.WHEEL_JUMP);
                 if(DriveInput.Braking) frame.Queue(MyControlsSpace.JUMP);
                 if(SprintAllowed && Controls.Static.CrouchOrClimbDown.IsPressed) frame.Queue(MyControlsSpace.SPRINT);
-                PlacementControls.Queue(frame, PlacementControls.Mode, Controls.Static.Primary.IsPressed,
-                    Controls.Static.Secondary.IsPressed, GameActions.AlternateTrigger);
+                PlacementControls.Queue(frame, PlacementControls.Mode, Controls.Static.Fire.IsPressed,
+                    Controls.Static.ActionGripClick.IsPressed, GameActions.AlternateTrigger);
             }
             frame.Advance(enabled);
         }
-        // Left grip sprints on foot and descends on the jetpack; ladders use the stick.
+        // Support grip sprints on foot and descends on the jetpack; ladders use the stick.
         internal static bool SprintAllowed => (InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Building) &&
             MySession.Static?.ControlledEntity is Sandbox.Game.Entities.Character.MyCharacter character && !character.IsOnLadder &&
-            !WeaponHandling.ConsumesLeftGrip && ThirdPersonView.DescentReady && !PlacementControls.Adjusting;
+            !WeaponHandling.ConsumesSupportGrip && ThirdPersonView.DescentReady && !PlacementControls.Adjusting;
         internal static bool WheelJumpAllowed => InputRouter.Mode==InputMode.Piloting && MySession.Static?.ControlledEntity is MyShipController ship &&
             ship.ControlWheels && !ToolbarWheel.QuickPending && !FloatingWindows.OwnsInput && !PlacementControls.Adjusting && !CockpitControls.Adjusting && !ThirdPersonView.Manipulating;
         public static bool Read(MyStringId action, MyControlStateType type) =>

@@ -19,7 +19,7 @@ namespace SpaceEngineersVR.Player
             Cancel();
             if(!InputRouter.Gameplay || SpectatorView.Active || MySession.Static?.ControlledEntity==null || !Player.Headset.pose.isTracked) return;
             GridSelection.Clear();
-            pointer=GameActions.InvocationHand ?? Player.HandR;
+            pointer=GameActions.InvocationHand ?? Handedness.ActionHand;
             GridSelection.CloseMenu();
             var head=CameraRig.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix);
             Send(null,new LineD(head.Translation,head.Translation+head.Forward*1000),true,pointer);

@@ -15,6 +15,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Primary=new Button(0),
                 LeftClick=new Button(0),
                 Secondary=new Button(0),
+                LeftGripClick=new Button(0),
                 Interact=new Button(0),
                 ThrustRoll=new Button(0),
                 JumpOrClimbUp=new Button(0),

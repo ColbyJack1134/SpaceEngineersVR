@@ -52,7 +52,7 @@ namespace SpaceEngineersVR.Patches
             direction=Vector3D.Zero;
             if (!WeaponHandling.TryPose(character,out hand,out muzzle))
             {
-                if (!HandInteraction.TryWorldPose(Player.Player.HandR,out hand)) return false;
+                if (!HandInteraction.TryWorldPose(Player.Handedness.ActionHand,out hand)) return false;
                 hand.Translation += hand.Forward * 0.08;
                 muzzle=hand.Translation;
             }

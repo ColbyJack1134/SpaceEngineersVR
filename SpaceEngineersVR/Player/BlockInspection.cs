@@ -38,13 +38,14 @@ namespace SpaceEngineersVR.Player
             Current=null; ConsumesSecondary=false;
             bool tool=WeaponHandling.ToolEquipped;
             var character=MySession.Static?.LocalCharacter;
-            bool grip=Controls.Static.Secondary.RawPressed;
+            var hand=Handedness.ActionHand;
+            bool grip=Controls.Static.ActionGripClick.RawPressed;
             if(!grip && !Common.Config.InspectWithoutGrip) return;
             if(!InputRouter.Gameplay || Main.MenuOpen || character==null || character.IsSitting ||
                 MySession.Static.ControlledEntity!=character ||
-                HelmetHud.NearHead(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix) ||
-                SpatialUi.Pointing || SpatialUi.OwnsRight || CockpitTouch.OwnsRight || HandInteraction.OwnsRight || !Player.HandR.pose.isTracked) return;
-            if(!TrackedArms.TryFreePointPose(Player.HandR,out var finger)) return;
+                HelmetHud.NearHead(hand.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix) ||
+                hand==Player.HandR && SpatialUi.Pointing || SpatialUi.Owns(hand) || CockpitTouch.Owns(hand) || HandInteraction.Consumes(hand) || !hand.pose.isTracked) return;
+            if(!TrackedArms.TryFreePointPose(hand,out var finger)) return;
             LineD ray;
             if(tool) ray=HandInteraction.RayForPose(finger);
             else if(!HandInteraction.TryInteractionRay(out ray)) return;
@@ -56,7 +57,7 @@ namespace SpaceEngineersVR.Player
             if(definition==null) { title=text=null; return; }
             // With a tool, grip is also the secondary-action modifier and must stay live.
             ConsumesSecondary=!tool && grip && InputRouter.Mode==InputMode.Walking;
-            if(ConsumesSecondary) Controls.Static.Secondary.BlockUntilRelease();
+            if(ConsumesSecondary) Controls.Static.ActionGripClick.BlockUntilRelease();
             if(!Visible(grip,Common.Config.InspectWithoutGrip)) return;
             if(DateTime.UtcNow>=next || previous!=(block ?? projected) || title!=definition.DisplayNameText)
             {

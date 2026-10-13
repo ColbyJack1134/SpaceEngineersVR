@@ -208,7 +208,7 @@ namespace SpaceEngineersVR.Player
             bool available=eligible && !FlightSettings.IsOpen && !ThirdPersonView.Active && !changed && InputRouter.CockpitInteraction && !Main.MenuOpen &&
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;
             var targets=new List<Target>(CockpitButtons.Targets);
-            var panel=available && !WeaponHandling.ConsumesLeftGrip ? SeatPanel.View() : null;
+            var panel=available && !WeaponHandling.ConsumesSupportGrip ? SeatPanel.View() : null;
             if(panel!=null) targets.Add(new Target { Surface=panel });
             double now=(double)Stopwatch.GetTimestamp()/Stopwatch.Frequency;
             for(int i=0;i<2;i++)

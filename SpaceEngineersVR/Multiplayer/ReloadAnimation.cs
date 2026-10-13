@@ -71,7 +71,7 @@ namespace SpaceEngineersVR.Multiplayer
             var left=character.AnimationController.FindBone(character.Definition.LeftHandIKEndBone,out _);
             if(left==null || !state.Gun.Model.Dummies.TryGetValue("subpart_magazine",out var socket)) return;
             var dock=(MatrixD)Matrix.Normalize(socket.Matrix)*state.Gun.WorldMatrix;
-            state.SuppressHand|=HeldItemPose.Supported(character);
+            state.SuppressHand|=HeldItemPose.Supported(character) || HeldItemPose.Mirrored(character);
             Visibility(state,state.SuppressHand && character.ShouldPositionMagazine);
             if(state.SuppressHand) { state.Gun.SetMagazinePosition(dock); return; }
             var hand=state.Relative*left.AbsoluteTransform*character.WorldMatrix;

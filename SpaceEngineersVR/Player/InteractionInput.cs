@@ -38,17 +38,11 @@ namespace SpaceEngineersVR.Player
         internal void Consume()
         {
             var c=Controls.Static;
-            c.Click(Right ? Player.HandR:Player.HandL).Consume(Near,Down);
-            if(Right)
-            {
-                if(Near) { c.RightGripPressure.BlockUntilRelease(Down); c.Secondary.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); }
-            }
-            else
-            {
-                c.ThrustUp.BlockUntilRelease();
-                c.ThrustForward.BlockUntilRelease(); c.JumpOrClimbUp.BlockUntilRelease();
-                if(Near) { c.LeftGripPressure.BlockUntilRelease(Down); c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); }
-            }
+            var hand=Right ? Player.HandR:Player.HandL;
+            c.Click(hand).Consume(Near,Down);
+            c.BlockTriggerRoles(hand);
+            if(!Right) { c.ThrustForward.BlockUntilRelease(); c.JumpOrClimbUp.BlockUntilRelease(); }
+            if(Near) { (Right ? c.RightGripPressure:c.LeftGripPressure).BlockUntilRelease(Down); c.BlockGripRoles(hand); }
         }
     }
 }

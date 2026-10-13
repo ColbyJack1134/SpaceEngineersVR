@@ -17,17 +17,20 @@ namespace SpaceEngineersVR.Player
         private static WeaponProfile profile;
         private static MatrixD worldPose;
         private static bool valid,wasSupported,wasReloading;
+        private static Matrix palmMirror=Matrix.Identity;
         private static int hover;
         private static Quaternion releaseRotation=Quaternion.Identity;
         private static float releaseBlend;
-        public static bool ConsumesLeftGrip => support.Consumed || reload.Consumed;
+        public static bool ConsumesSupportGrip => support.Consumed || reload.Consumed;
+        internal static bool GripsItem(Controller hand) => hand==Handedness.SupportHand && ConsumesSupportGrip;
         public static bool Supported => valid && support.Held;
-        // Left hand is at the held item's support grip or magazine, where a fist also pulls the trigger.
-        internal static bool LeftAtItem => valid && hover!=0;
+        internal static bool Holding(Controller hand) => valid && (hand==Handedness.ActionHand || hand==Handedness.SupportHand && support.Held);
+        // Support hand is at the held item's support grip or magazine, where a fist also pulls the trigger.
+        internal static bool SupportAtItem => valid && hover!=0;
         internal static WeaponProfile Profile => valid ? profile:null;
         internal static bool ToolEquipped => InputRouter.TrackedItems && MySession.Static?.ControlledEntity==MySession.Static?.LocalCharacter &&
             (MySession.Static?.LocalCharacter?.CurrentWeapon is MyEngineerToolBase || MySession.Static?.LocalCharacter?.CurrentWeapon is MyHandDrill);
-        internal static bool ToolModifier => ToolEquipped && Controls.Static.RightGripPressure.CanPress && Controls.Static.RightGripPressure.RawPosition.X>.5f;
+        internal static bool ToolModifier => ToolEquipped && Controls.Static.ActionGripPressure.CanPress && Controls.Static.ActionGripPressure.RawPosition.X>.5f;
 
         internal static bool HideUseRay => MySession.Static?.LocalCharacter?.CurrentWeapon is MyAutomaticRifleGun || ToolEquipped && (Supported || ToolContactActive);
         internal static bool ToolContactActive => weapon is MyEngineerToolBase tool && Multiplayer.ToolContact.Near(tool);
@@ -35,7 +38,7 @@ namespace SpaceEngineersVR.Player
         public static void Reset()
         {
             support.Release(); reload.Release(); valid=wasSupported=wasReloading=false; weapon=null; profile=null; releaseBlend=0;
-            Multiplayer.HeldItemPose.Local=null; Multiplayer.HeldItemPose.LocalToolRay=null; Multiplayer.HeldItemPose.LocalSupported=null;
+            Multiplayer.HeldItemPose.Local=null; Multiplayer.HeldItemPose.LocalToolRay=null; Multiplayer.HeldItemPose.LocalSupported=null; Multiplayer.HeldItemPose.LocalMirrored=null;
             hover=0; ItemGrabVisual.Reset();
         }
         public static void Update()
@@ -43,82 +46,88 @@ namespace SpaceEngineersVR.Player
             Multiplayer.HeldItemPose.Local=LocalPose;
             Multiplayer.HeldItemPose.LocalToolRay=LocalToolRay;
             Multiplayer.HeldItemPose.LocalSupported=c=>c==MySession.Static?.LocalCharacter ? Supported:(bool?)null;
+            Multiplayer.HeldItemPose.LocalMirrored=c=>c==MySession.Static?.LocalCharacter ? Handedness.Swapped:(bool?)null;
             Multiplayer.HeldItemPose.Feedback=Haptic;
             var character=MySession.Static?.LocalCharacter;
             var current=character?.CurrentWeapon as MyEntity;
             var controls=Controls.Static;
-            bool down=ConsumesLeftGrip ? controls.LeftGripPressure.RawPosition.X>.1f:
+            Controller actionHand=Handedness.ActionHand,supportHand=Handedness.SupportHand;
+            bool down=ConsumesSupportGrip ? controls.SupportGripPressure.RawPosition.X>.1f:
                 InputRouter.Flying ? controls.ThrustDown.Position.X>.5f:controls.CrouchOrClimbDown.IsPressed;
-            if(current!=weapon)
+            if(current!=weapon || profile!=null && profile.Mirrored!=Handedness.Swapped)
             {
                 support.Release(); reload.Release(); valid=wasSupported=wasReloading=false; releaseBlend=0; weapon=current;
                 profile=WeaponProfile.Find(character?.CurrentWeapon?.PhysicalObject?.SubtypeName,current?.Model?.AssetName);
+                if(Handedness.Swapped) profile=profile?.Mirror;
                 hover=0; ItemGrabVisual.Reset();
             }
             bool available=Main.VrActive && InputRouter.TrackedItems && character!=null && MySession.Static.ControlledEntity==character &&
-                !character.IsDead && !character.IsSitting && !character.IsOnLadder && profile!=null && Player.HandR.pose.isTracked && Player.Headset.pose.isTracked;
-            if(!available || !TrackedArms.TryFreePalm(character,Player.HandR,out var right) || character.HandItemDefinition==null ||
-                !WeaponPose.TryHandItem(profile.Palm(character.HandItemDefinition.RightHand,false),right,out var oneWorld))
+                !character.IsDead && !character.IsSitting && !character.IsOnLadder && profile!=null && actionHand.pose.isTracked && Player.Headset.pose.isTracked &&
+                (!profile.Mirrored || TrackedArms.TryPalmMirror(character,out palmMirror));
+            if(!available || !TrackedArms.TryFreePalm(character,actionHand,out var actionPalm) || character.HandItemDefinition==null ||
+                !WeaponPose.TryHandItem(Hold(character,false),actionPalm,out var oneWorld))
             { support.Update(false,down,false,false); reload.Update(false,down,false,false); valid=wasSupported=false; hover=0; ItemGrabVisual.Reset(); return; }
             oneWorld=Alignment.Apply(Alignment.ToolKey(character),oneWorld);
             var parent=character.WorldMatrix; var inverse=character.PositionComp.WorldMatrixNormalizedInv;
             var one=(Matrix)(oneWorld*inverse); var primary=Vector3.Transform(profile.Primary,one);
-            bool offTracked=TrackedArms.TryFreePalm(character,Player.HandL,out var left);
-            var off=offTracked ? (Vector3)Vector3D.Transform(left.Translation,inverse):Vector3.Zero;
+            bool offTracked=TrackedArms.TryFreePalm(character,supportHand,out var supportPalm);
+            var off=offTracked ? (Vector3)Vector3D.Transform(supportPalm.Translation,inverse):Vector3.Zero;
             bool reachable=offTracked && WeaponPose.TrySupport(profile,one,primary,off,out _,support.Held);
-            var local=offTracked ? (Vector3)Vector3D.Transform(Vector3D.Transform(WeaponPose.GrabOffset,left),MatrixD.Invert(valid && TryPose(character,out var displayed,out _) ? displayed:oneWorld)):Vector3.Zero;
+            var local=offTracked ? (Vector3)Vector3D.Transform(Vector3D.Transform(profile.GrabOffset(palmMirror),supportPalm),MatrixD.Invert(valid && TryPose(character,out var displayed,out _) ? displayed:oneWorld)):Vector3.Zero;
             bool interaction=offTracked && InputRouter.Gameplay && !Main.MenuOpen && (support.Held ||
-                !character.CurrentWeapon.IsReloading && !CockpitTouch.Owns(Player.HandL) && !HandInteraction.Owns(Player.HandL) &&
-                !FloatingWindows.PointingFor(Player.HandL) && !TouchScreenBridge.PointingFor(Player.HandL) && !ArthurLcdBridge.PointingFor(Player.HandL) && !HelmetHud.Consumes(Player.HandL));
+                !character.CurrentWeapon.IsReloading && !CockpitTouch.Owns(supportHand) && !HandInteraction.Owns(supportHand) &&
+                !FloatingWindows.PointingFor(supportHand) && !TouchScreenBridge.PointingFor(supportHand) && !ArthurLcdBridge.PointingFor(supportHand) && !HelmetHud.Consumes(supportHand));
             var supportPoint=profile.SupportContact(character.HandItemDefinition.LeftHand);
-            int candidate=interaction && !ConsumesLeftGrip ? profile.Grab(local,supportPoint):0;
+            int candidate=interaction && !ConsumesSupportGrip ? profile.Grab(local,supportPoint):0;
             if(candidate==1 && !reachable) candidate=0;
             bool near=candidate==1,mag=candidate==2;
-            if(candidate!=hover && candidate!=0) CockpitFeedback.Hover(Player.HandL);
+            if(candidate!=hover && candidate!=0) CockpitFeedback.Hover(supportHand);
             hover=candidate;
             bool reloadCaptured=reload.Update(interaction && (!support.Consumed || !down),down,mag,!support.Consumed || !down);
             if(reloadCaptured)
             {
-                CockpitFeedback.Activate(Player.HandL);
+                CockpitFeedback.Activate(supportHand);
                 if(character.CurrentWeapon.CanReload()) NativeActions.Pulse(MyControlsSpace.RELOAD);
             }
-            if(support.Update(interaction && (!reload.Consumed || !down),down,near,(support.Held || reachable) && (!reload.Consumed || !down))) Player.HandL.Vibrate(0,.04f,110,.35f);
+            if(support.Update(interaction && (!reload.Consumed || !down),down,near,(support.Held || reachable) && (!reload.Consumed || !down))) supportHand.Vibrate(0,.04f,110,.35f);
             if(wasSupported && !support.Held)
             {
                 var previous=(Matrix)(worldPose*inverse);
                 releaseRotation=Quaternion.CreateFromRotationMatrix(previous.GetOrientation()*Matrix.Transpose(one.GetOrientation())); releaseBlend=1;
             }
             if(!support.Held) releaseBlend=Math.Max(0,releaseBlend-.16f);
-            worldPose=WeaponPose.Current(profile,oneWorld,parent,support.Held ? left:(MatrixD?)null,releaseRotation,releaseBlend);
+            worldPose=WeaponPose.Current(profile,oneWorld,parent,support.Held ? supportPalm:(MatrixD?)null,releaseRotation,releaseBlend);
             wasSupported=support.Held; valid=true;
             bool reloading=character.CurrentWeapon.IsReloading;
-            if(reloading && !wasReloading) Player.HandL.Vibrate(0,.055f,95,.4f);
-            if(!reloading && wasReloading) Player.HandR.Vibrate(0,.035f,140,.25f);
+            if(reloading && !wasReloading) supportHand.Vibrate(0,.055f,95,.4f);
+            if(!reloading && wasReloading) actionHand.Vibrate(0,.035f,140,.25f);
             wasReloading=reloading;
             ItemGrabVisual.Update(current,profile,supportPoint,hover,Supported);
 
         }
         private static MatrixD? LocalToolRay(MyCharacter character) => Patches.MotionToolPatch.Eligible(character) && character==MySession.Static?.LocalCharacter &&
-            ToolEquipped && TrackedArms.TryFreePointPose(Player.HandR,out var ray) ? ray:(MatrixD?)null;
+            ToolEquipped && TrackedArms.TryFreePointPose(Handedness.ActionHand,out var ray) ? ray:(MatrixD?)null;
         private static MatrixD? LocalPose(MyCharacter character) => Patches.MotionToolPatch.Eligible(character) && TryPose(character,out var pose,out _) ? pose:(MatrixD?)null;
         public static bool TryPose(MyCharacter character,out MatrixD model,out Vector3D muzzle)
         {
             model=MatrixD.Identity; muzzle=Vector3D.Zero;
             if(!InputRouter.TrackedItems || character==null || character!=MySession.Static?.LocalCharacter || MySession.Static.ControlledEntity!=character ||
-                character.CurrentWeapon!=weapon || character.CurrentWeapon==null || !Player.HandR.pose.isTracked) return false;
+                character.CurrentWeapon!=weapon || character.CurrentWeapon==null || !Handedness.ActionHand.pose.isTracked) return false;
             if(profile!=null)
             {
-                if(!valid || character.HandItemDefinition==null || !TrackedArms.TryFreePalm(character,Player.HandR,out var right) ||
-                    !WeaponPose.TryHandItem(profile.Palm(character.HandItemDefinition.RightHand,false),right,out var one)) return false;
+                if(!valid || character.HandItemDefinition==null || !TrackedArms.TryFreePalm(character,Handedness.ActionHand,out var actionPalm) ||
+                    !WeaponPose.TryHandItem(Hold(character,false),actionPalm,out var one)) return false;
                 one=Alignment.Apply(Alignment.ToolKey(character),one);
-                MatrixD? left=Supported && TrackedArms.TryFreePalm(character,Player.HandL,out var off) ? off:(MatrixD?)null;
-                model=Multiplayer.HeldItemPose.Kick(WeaponPose.Current(profile,one,character.WorldMatrix,left,releaseRotation,releaseBlend),profile,Multiplayer.HeldItemPose.Recoil(character));
+                MatrixD? supportPalm=Supported && TrackedArms.TryFreePalm(character,Handedness.SupportHand,out var off) ? off:(MatrixD?)null;
+                model=Multiplayer.HeldItemPose.Kick(WeaponPose.Current(profile,one,character.WorldMatrix,supportPalm,releaseRotation,releaseBlend),profile,Multiplayer.HeldItemPose.Recoil(character));
                 muzzle=Vector3D.Transform(profile.Muzzle,model);
             }
             else
             {
-                if(character.HandItemDefinition==null || !TrackedArms.TryFreePalm(character,Player.HandR,out var hand) ||
-                    !WeaponPose.TryHandItem(character.HandItemDefinition.RightHand,hand,out model)) return false;
+                var mirror=Matrix.Identity;
+                if(character.HandItemDefinition==null || !TrackedArms.TryFreePalm(character,Handedness.ActionHand,out var hand) ||
+                    Handedness.Swapped && !TrackedArms.TryPalmMirror(character,out mirror) ||
+                    !WeaponPose.TryHandItem(Handedness.Swapped ? WeaponProfile.MirrorHold(character.HandItemDefinition.RightHand,mirror):(MatrixD)character.HandItemDefinition.RightHand,hand,out model)) return false;
                 model=Alignment.Apply(Alignment.ToolKey(character),model);
                 muzzle=character.CurrentWeapon.GunBase?.GetMuzzleWorldPosition() ?? model.Translation;
             }
@@ -127,20 +136,22 @@ namespace SpaceEngineersVR.Player
         internal static bool TryPalm(MyCharacter character,Controller hand,out MatrixD palm)
         {
             palm=MatrixD.Identity;
-            if(!valid || profile==null || hand==Player.HandL && !support.Held || !TryPose(character,out var model,out _)) return false;
-            palm=profile.Palm(hand==Player.HandL ? character.HandItemDefinition.LeftHand:character.HandItemDefinition.RightHand,hand==Player.HandL)*model;
+            if(!valid || profile==null || hand==Handedness.SupportHand && !support.Held || !TryPose(character,out var model,out _)) return false;
+            palm=Hold(character,hand==Handedness.SupportHand)*model;
             return true;
         }
+        private static MatrixD Hold(MyCharacter character,bool supporting) =>
+            profile.Hold(character.HandItemDefinition.RightHand,character.HandItemDefinition.LeftHand,supporting,palmMirror);
         private static double nextToolPulse;
         internal static void Haptic(MyCharacter owner,ItemKind kind)
         {
-            if(owner!=MySession.Static?.LocalCharacter || !InputRouter.Gameplay || Main.MenuOpen || !Player.HandR.pose.isTracked) return;
+            if(owner!=MySession.Static?.LocalCharacter || !InputRouter.Gameplay || Main.MenuOpen || !Handedness.ActionHand.pose.isTracked) return;
             var now=Multiplayer.MultiplayerRuntime.Now;
             if(kind>=ItemKind.Welder && now<nextToolPulse) return;
             nextToolPulse=now+.08;
             float strength=kind==ItemKind.Welder ? .18f:kind==ItemKind.Pistol ? .35f:kind==ItemKind.Launcher ? .8f:.5f;
-            Player.HandR.Vibrate(0,kind>=ItemKind.Welder ? .06f:.035f,kind==ItemKind.Welder ? 160:kind==ItemKind.Drill ? 65:110,strength);
-            if(Supported) Player.HandL.Vibrate(0,.03f,100,strength*.45f);
+            Handedness.ActionHand.Vibrate(0,kind>=ItemKind.Welder ? .06f:.035f,kind==ItemKind.Welder ? 160:kind==ItemKind.Drill ? 65:110,strength);
+            if(Supported) Handedness.SupportHand.Vibrate(0,.03f,100,strength*.45f);
         }
     }
 }
