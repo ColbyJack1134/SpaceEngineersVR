@@ -18,8 +18,11 @@ namespace SpaceEngineersVR.Player
         public static bool CockpitInteraction => Mode==InputMode.Piloting || Mode==InputMode.Turret && RemoteView.HomeSeat!=null;
         public static bool Flying => SpectatorView.Active || RemoteView.Turret || MySession.Static?.ControlledEntity is MyShipController ||
             (MySession.Static?.LocalCharacter is IMyCharacter character && character.EnabledThrusts);
-        public static bool Gameplay => Mode == InputMode.Walking || Mode == InputMode.Building ||
-            Mode == InputMode.Jetpack || Mode == InputMode.Piloting || Mode == InputMode.Turret || Mode == InputMode.Clipboard || Mode == InputMode.Spectator;
+        public static bool Gameplay => IsGameplay(Mode);
+        // Gameplay blocked only because a controller is untracked; keyboard and mouse still play.
+        public static bool KeyboardMouse { get; private set; }
+        private static bool IsGameplay(InputMode mode) => mode == InputMode.Walking || mode == InputMode.Building ||
+            mode == InputMode.Jetpack || mode == InputMode.Piloting || mode == InputMode.Turret || mode == InputMode.Clipboard || mode == InputMode.Spectator;
         internal static bool TrackedItems => !ThirdPersonView.Character && !SpectatorView.Active && AllowsTrackedItems(Mode,Main.MenuOpen);
         internal static bool AllowsTrackedItems(InputMode mode,bool menuOpen) => !menuOpen &&
             (mode==InputMode.Walking || mode==InputMode.Building || mode==InputMode.Jetpack ||
@@ -33,8 +36,7 @@ namespace SpaceEngineersVR.Player
             if (!Player.Headset.pose.isTracked ||
                 !Valve.VR.OpenVR.System.IsInputAvailable()) next = InputMode.Blocked;
             else if (Main.MenuOpen) next = InputMode.Menu;
-            else if (Player.IsCalibrating || character == null || character.IsDead || MySandboxGame.IsPaused ||
-                !Player.HandL.pose.isTracked || !Player.HandR.pose.isTracked) next = InputMode.Blocked;
+            else if (Player.IsCalibrating || character == null || character.IsDead || MySandboxGame.IsPaused) next = InputMode.Blocked;
             else if (!RemoteView.Live(MySession.Static.ControlledEntity)) next = InputMode.Blocked;
             else if (RadialOpen) next = InputMode.Radial;
             else if(SpectatorView.Active) next=InputMode.Spectator;
@@ -44,6 +46,9 @@ namespace SpaceEngineersVR.Player
             else if (PlacementControls.ClipboardActive) next = InputMode.Clipboard;
             else if (MyCubeBuilder.Static?.IsActivated == true) next = InputMode.Building;
             else next = Flying ? InputMode.Jetpack : InputMode.Walking;
+            bool handsTracked = Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;
+            KeyboardMouse = !handsTracked && IsGameplay(next) && Common.Config.EnableKeyboardAndMouseControls;
+            if (!handsTracked && next != InputMode.Menu) next = InputMode.Blocked;
             bool flying = Flying;
             if (next != Mode || !ReferenceEquals(nextOwner, owner) || flying != wasFlying)
             {

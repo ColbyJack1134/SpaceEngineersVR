@@ -29,8 +29,6 @@ namespace SpaceEngineersVR.Player.Components
         private MyShipController jumpOwner;
         private System.DateTime nextInputTrace;
 
-        public static bool UsingControllerMovement;
-
         public float RotationSpeed = 10;
 
         public override void OnAddedToContainer()
@@ -48,7 +46,8 @@ namespace SpaceEngineersVR.Player.Components
             active = this;
             TraceInput();
             if (firstMovementTick) { Logger.Info("MOVEMENT component is receiving simulation ticks"); firstMovementTick = false; }
-            if (!Main.VrActive || !InputRouter.Gameplay || Main.MenuOpen || MySandboxGame.IsPaused || Character.IsDead || !RemoteView.Live(MySession.Static.ControlledEntity) || ThirdPersonView.Manipulating && !ThirdPersonView.FlightWhileManipulating)
+            bool keyboardOnly = InputRouter.KeyboardMouse;
+            if (!Main.VrActive || !InputRouter.Gameplay && !keyboardOnly || Main.MenuOpen || MySandboxGame.IsPaused || Character.IsDead || !RemoteView.Live(MySession.Static.ControlledEntity) || ThirdPersonView.Manipulating && !ThirdPersonView.FlightWhileManipulating)
             {
                 StopInput();
                 return;
@@ -64,7 +63,8 @@ namespace SpaceEngineersVR.Player.Components
                 if(!RemoteView.Active) BodyLocomotion.Update(Character);
                 else if(RemoteView.CharacterAnchor) { CameraRig.Begin(Character); CameraRig.End(Character); }
 
-                if(RemoteView.Turret) { RemoteView.ControlTurret(RotationSpeed); UsingControllerMovement=true; hadControllerMovement=true; }
+                if(keyboardOnly) ApplyMoveAndRotation(Vector3.Zero,Vector2.Zero,0);
+                else if(RemoteView.Turret) { RemoteView.ControlTurret(RotationSpeed); hadControllerMovement=true; }
                 else if(FloatingWindows.OwnsInput) ApplyMoveAndRotation(Vector3.Zero,Vector2.Zero,0);
                 else if(PlacementControls.Adjusting) ApplyMoveAndRotation(Vector3.Zero,Vector2.Zero,0);
                 else if (MySession.Static.ControlledEntity is MyShipController)
@@ -80,7 +80,7 @@ namespace SpaceEngineersVR.Player.Components
                 {
                     ControlWalk();
                 }
-                if(ThirdPersonView.Manipulating) StopTools(inputOwner);
+                if(keyboardOnly || ThirdPersonView.Manipulating) StopTools(inputOwner);
                 else ControlCommonFunctions();
             }
             catch (System.Exception ex) { StopInput(); Main.FailToMenu(ex, "VR input stopped"); }
@@ -150,7 +150,6 @@ namespace SpaceEngineersVR.Player.Components
                 controlled?.MoveAndRotateStopped();
             }
             StopTools(controlled);
-            if (active == this) UsingControllerMovement = false;
             hadControllerMovement = wasShooting = wasSecondary = virtualStickHeld = false;
             inputOwner = null;
         }
@@ -282,17 +281,18 @@ namespace SpaceEngineersVR.Player.Components
 
         void ApplyMoveAndRotation(Vector3 move, Vector2 rotate, float roll)
         {
-            if (!(MySession.Static.ControlledEntity is MyShipController)) move=BodyLocomotion.RelativeMove(move);
+            var controlled = MySession.Static.ControlledEntity;
+            if (!(controlled is MyShipController)) move=BodyLocomotion.RelativeMove(move);
+            // Added after RelativeMove so keyboard movement stays body-relative, as in the base game.
+            KeyboardMouseInput.Add(controlled, ref move, ref rotate, ref roll);
             move = Vector3.Clamp(move, -Vector3.One, Vector3.One);
 
-            // Prevent the vanilla input tick from zeroing controller movement.
-            UsingControllerMovement = move != Vector3.Zero || rotate != Vector2.Zero || roll != 0f;
-
-            if (UsingControllerMovement)
-                MySession.Static.ControlledEntity?.MoveAndRotate(move, rotate, roll);
+            bool moving = move != Vector3.Zero || rotate != Vector2.Zero || roll != 0f;
+            if (moving)
+                controlled?.MoveAndRotate(move, rotate, roll);
             else if (hadControllerMovement)
-                MySession.Static.ControlledEntity?.MoveAndRotateStopped();
-            hadControllerMovement = UsingControllerMovement;
+                controlled?.MoveAndRotateStopped();
+            hadControllerMovement = moving;
         }
 
         private static bool PrimaryPressed => !HelmetHud.ProtectsRight && !FloatingWindows.OwnsInput && Controls.Static.Primary.IsPressed &&

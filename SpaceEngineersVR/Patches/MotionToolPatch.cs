@@ -40,24 +40,29 @@ namespace SpaceEngineersVR.Patches
 
         internal static void Refresh(MyCharacter character) { if (character?.WeaponPosition!=null) Postfix(character.WeaponPosition); }
 
+        internal static bool TryAim(MyCharacter character,out MatrixD hand,out Vector3D muzzle,out Vector3D direction)
+        {
+            direction=Vector3D.Zero;
+            if (!WeaponHandling.TryPose(character,out hand,out muzzle))
+            {
+                if (!HandInteraction.TryWorldPose(Player.Player.HandR,out hand)) return false;
+                hand.Translation += hand.Forward * 0.08;
+                muzzle=hand.Translation;
+            }
+            var profile=Multiplayer.HeldItemPose.Profile(character);
+            direction=profile==null ? hand.Forward:Vector3D.TransformNormal(profile.Direction,hand);
+            if(profile?.Tool==true && Multiplayer.HeldItemPose.TryToolRay(character,out var ray))
+            { muzzle=ray.Translation; direction=ray.Forward; }
+            return true;
+        }
+
         [HarmonyPostfix]
         private static void Postfix(MyCharacterWeaponPositionComponent __instance)
         {
             if (!Eligible(__instance.Character)) return;
             try
             {
-                MatrixD hand;
-                Vector3D muzzle;
-                if (!WeaponHandling.TryPose(__instance.Character,out hand,out muzzle))
-                {
-                    if (!HandInteraction.TryWorldPose(Player.Player.HandR,out hand)) return;
-                    hand.Translation += hand.Forward * 0.08;
-                    muzzle=hand.Translation;
-                }
-                var profile=Multiplayer.HeldItemPose.Profile(__instance.Character);
-                var direction=profile==null ? hand.Forward:Vector3D.TransformNormal(profile.Direction,hand);
-                if(profile?.Tool==true && Multiplayer.HeldItemPose.TryToolRay(__instance.Character,out var ray))
-                { muzzle=ray.Translation; direction=ray.Forward; }
+                if (!TryAim(__instance.Character,out var hand,out var muzzle,out var direction)) return;
                 LogicalWorld.SetValue(__instance,muzzle,null);
                 LogicalLocal.SetValue(__instance,Vector3D.Transform(muzzle,__instance.Character.PositionComp.WorldMatrixInvScaled),null);
                 Direction.SetValue(__instance,direction,null);

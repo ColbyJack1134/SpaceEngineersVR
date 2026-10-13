@@ -27,6 +27,16 @@ namespace SpaceEngineersVR.Diagnostics
         }
         internal static void Run(Action<string> log)
         {
+            for(int i=0;i<24;i++)
+            {
+                var body=MatrixD.CreateFromYawPitchRoll(i*.41,i*.23-2.5,-i*.19);
+                double angle=i*.12-1.38;
+                var aim=Vector3D.TransformNormal(new Vector3D(0,Math.Sin(angle),-Math.Cos(angle)),body);
+                float pitch=Patches.AimPitchSyncPatch.Pitch(aim,body.Up);
+                // MyCharacter.GetHeadMatrixInternal orientation with includeY false.
+                var host=(MatrixD.CreateFromAxisAngle(Vector3D.Right,MathHelper.ToRadians(pitch))*MatrixD.CreateFromDir(body.Forward,body.Up)).Forward;
+                Require(Vector3D.Dot(host,aim)>.99999,"Synced head pitch does not reproduce the VR aim on a host");
+            }
             var items=XDocument.Load(Path.Combine(VRage.FileSystem.MyFileSystem.ContentPath,"Data","HandItems.sbc")).Descendants("HandItem").Where(x=>x.Element("PhysicalItemId")!=null).ToDictionary(x=>(string)x.Element("PhysicalItemId").Attribute("Subtype"));
             foreach(var p in WeaponProfile.All)
             {

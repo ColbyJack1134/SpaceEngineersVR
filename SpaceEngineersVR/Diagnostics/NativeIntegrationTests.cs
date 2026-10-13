@@ -329,20 +329,20 @@ namespace SpaceEngineersVR.Diagnostics
             var type=typeof(Player.Components.VRMovementComponent);
             var active=AccessTools.Field(type,"active"); var owner=AccessTools.Field(type,"inputOwner");
             var had=AccessTools.Field(type,"hadControllerMovement");
-            var saved=active.GetValue(null); bool savedUsing=Player.Components.VRMovementComponent.UsingControllerMovement;
+            var saved=active.GetValue(null);
             var a=new Proxy(typeof(Sandbox.Game.Entities.IMyControllableEntity));
             var b=new Proxy(typeof(Sandbox.Game.Entities.IMyControllableEntity));
             var old=(Sandbox.Game.Entities.IMyControllableEntity)a.GetTransparentProxy();
             var next=(Sandbox.Game.Entities.IMyControllableEntity)b.GetTransparentProxy();
             var component=new Player.Components.VRMovementComponent();
-            void Arm() { owner.SetValue(component,old); had.SetValue(component,true); active.SetValue(null,component); Player.Components.VRMovementComponent.UsingControllerMovement=true; }
+            void Arm() { owner.SetValue(component,old); had.SetValue(component,true); active.SetValue(null,component); }
             try
             {
                 Arm(); Player.Components.VRMovementComponent.StopOwner(next);
                 Require(a.MovementCalls.Count==0 && ReferenceEquals(owner.GetValue(component),old),"Release touched an unrelated input owner");
                 Player.Components.VRMovementComponent.StopOwner(old);
                 Require(a.Move==Vector3.Zero && a.MovementCalls.SequenceEqual(new[] {"neutral","stop"}) &&
-                    owner.GetValue(component)==null && !Player.Components.VRMovementComponent.UsingControllerMovement,
+                    owner.GetValue(component)==null && !(bool)had.GetValue(component),
                     "Old owner was not neutralized before native stop");
                 Player.Components.VRMovementComponent.StopOwner(old);
                 Require(a.MovementCalls.Count==2,"Repeated release sent more input");
@@ -365,7 +365,7 @@ namespace SpaceEngineersVR.Diagnostics
                     Require(Harmony.GetPatchInfo(method).Prefixes.Any(p=>p.PatchMethod.DeclaringType.Namespace=="SpaceEngineersVR.Patches" && p.PatchMethod.DeclaringType.Name.Contains("MovementRelease")),"Movement release is not attached to "+method.Name);
                 log("PASS movement release: native detached-pilot stop failure reproduced; explicit neutral before stop, captured-owner isolation, same/rejected requests preserved, handoff/control loss and release hooks.");
             }
-            finally { active.SetValue(null,saved); Player.Components.VRMovementComponent.UsingControllerMovement=savedUsing; }
+            finally { active.SetValue(null,saved); }
         }
     }
 }

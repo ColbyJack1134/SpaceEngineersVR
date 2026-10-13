@@ -1,5 +1,4 @@
-﻿using SpaceEngineersVR.Player.Components;
-using HarmonyLib;
+﻿using HarmonyLib;
 using Sandbox.Game.Gui;
 using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Plugin;
@@ -11,19 +10,11 @@ namespace SpaceEngineersVR.Patches
     {
         [HarmonyPrefix]
         [HarmonyPatch(nameof(MyGuiScreenGamePlay.HandleInput))]
-        private static bool GameplayInput() => !Main.VrActive || InputRouter.Gameplay || MenuKeyboard.Hotkeys;
+        private static bool GameplayInput() => !Main.VrActive || InputRouter.Gameplay || InputRouter.KeyboardMouse || MenuKeyboard.Hotkeys;
 
+        // VRMovementComponent merges keyboard and mouse into its own MoveAndRotate call.
         [HarmonyPrefix]
         [HarmonyPatch(nameof(MyGuiScreenGamePlay.MoveAndRotatePlayerOrCamera))]
-        public static bool Prefix()
-        {
-            if (!Main.VrActive || Main.MenuOpen) return true;
-            if(SpectatorView.Active) return false;
-            if (ThirdPersonView.Manipulating) return false;
-            if (VRMovementComponent.UsingControllerMovement)
-                return false;
-
-            return Common.Config.EnableKeyboardAndMouseControls;
-        }
+        public static bool Prefix() => !Main.VrActive || Main.MenuOpen;
     }
 }

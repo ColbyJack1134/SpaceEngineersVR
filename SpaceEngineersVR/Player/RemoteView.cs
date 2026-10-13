@@ -261,7 +261,9 @@ namespace SpaceEngineersVR.Player
             CockpitControls.ApplyTurret(speed,ref aim,ref zoom);
             aim*=Common.Config.TurretAimSensitivity;
             if(OwnsInput || CockpitControls.Adjusting) { aim=Vector2.Zero; zoom=0; }
-            MySession.Static.ControlledEntity.MoveAndRotate(Vector3.Zero,aim,0);
+            var turret=MySession.Static.ControlledEntity; var move=Vector3.Zero; float roll=0;
+            KeyboardMouseInput.Add(turret,ref move,ref aim,ref roll);
+            turret.MoveAndRotate(Vector3.Zero,aim,0);
             Zoom(zoom/60*.6f);
         }
         public static void Zoom(float delta)
