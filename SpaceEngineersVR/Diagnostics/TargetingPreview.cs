@@ -37,7 +37,7 @@ namespace SpaceEngineersVR.Diagnostics
                     for(int page=0;page<pages.Length;page++)
                     {
                         var actions=pages[page];
-                        var model=new ToolbarWheel.View {Title=page==pages.Length-1 ? "Recent searches" : fixture.Item1=="symmetry-setup" ? "Symmetry setup":pages.Length>1 ? "Quick actions "+(page+1)+" / "+pages.Length:"Quick actions",Group=1,Pages=pages.Length,Page=page,Selected=-1,
+                        var model=new ToolbarWheel.View {Title=page==pages.Length-1 ? "Recent searches" : fixture.Item1=="symmetry-setup" ? "Symmetry setup":"Quick actions",Group=1,Pages=pages.Length,Page=page,Selected=-1,
                             Labels=actions.Select(a=>a?.Label ?? "").ToArray(),Icons=actions.Select(a=>a==null ? Array.Empty<string>():new[] {a.Icon}).ToArray(),
                             Enabled=actions.Select(a=>a!=null).ToArray(),SubIcons=new string[9],ItemText=new string[9],Hint=ToolbarWheel.QuickControlsHint(pages.Length>1)};
                         UiTests.Render(wheel,()=>ToolbarWheel.Paint(wheel,model));

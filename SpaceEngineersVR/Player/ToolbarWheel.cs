@@ -37,6 +37,8 @@ namespace SpaceEngineersVR.Player
         private static readonly Font titleFont=new Font("Segoe UI",28,FontStyle.Bold,GraphicsUnit.Pixel);
         private static readonly StringFormat centered=new StringFormat {
             Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center,Trimming=StringTrimming.EllipsisWord };
+        private static readonly StringFormat singleLine=new StringFormat {
+            Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center,FormatFlags=StringFormatFlags.NoWrap,Trimming=StringTrimming.EllipsisCharacter };
         private static DateTime nextSnapshot;
         private static readonly RenderRecovery recovery=new RenderRecovery("Toolbar wheel");
         private static bool failed => recovery.Failed;
@@ -225,7 +227,7 @@ namespace SpaceEngineersVR.Player
             }
             var next = new View { Pose = pose, Labels = labels, Enabled = enabled, Selected = selection, Icons = icons, SubIcons = subIcons, ItemText = itemText,
                 Title = group == 0 ? "Toolbar " + ((toolbar?.CurrentPage ?? 0) + 1) + "/" + (toolbar?.PageCount ?? 0)
-                    : quickPage==quickPages.Length-1 ? "Recent searches" : SymmetrySetupControls.Active ? "Symmetry setup" : quickPages?.Length>1 ? (quickPage<blockPages ? "Block actions " : variantPages>0 ? "Building " : "Quick actions ")+(quickPage+1)+" / "+quickPages.Length : "Quick actions",
+                    : quickPage==quickPages.Length-1 ? "Recent searches" : SymmetrySetupControls.Active ? "Symmetry setup" : quickPage<blockPages ? "Block actions" : variantPages>0 ? "Building" : "Quick actions",
                 Variants=group==1 && quickPage>=blockPages && quickPage<blockPages+variantPages,Group=group,Page=group==0 ? toolbar?.CurrentPage ?? 0 : quickPage,Pages=group==0 ? toolbar?.PageCount ?? 1 : quickPages?.Length ?? 1,
                 Hint = group==0 ? ControlsHint : QuickControlsHint(quickPages?.Length>1) };
             if (!next.SameAs(view)) view=next;
@@ -291,36 +293,78 @@ namespace SpaceEngineersVR.Player
             target.Clear(Color.Transparent);
             var g = target.Graphics;
             using (var center = new SolidBrush(Color.FromArgb(220, 9, 18, 26))) g.FillEllipse(center, 335, 308, 354, 354);
-            g.DrawString(current.Title,titleFont,Brushes.White,new System.Drawing.RectangleF(360,337,304,40),centered);
+            // The title sits where the 177 px center disc narrows; fit it to the chord at its cap height.
+            float titleWidth=2*(float)Math.Sqrt(177*177-140*140)-12;
+            g.DrawString(current.Title,TextFit.Font(g,current.Title,titleFont,titleWidth,1,18),Brushes.White,
+                new System.Drawing.RectangleF(512-titleWidth/2,337,titleWidth,40),centered);
             if(current.Selected>=0) foreach(string icon in current.Icons[current.Selected]) target.Icon(icon,456,389,112);
             else target.Icon(current.Group==0 ? GameActions.ConfigureToolbarAction.Icon : current.Group==1 ? GameActions.InventoryAction.Icon :
                 GameActions.Building[0].Icon,456,389,112);
-            g.DrawString(current.Selected<0 ? "Cancel" : current.Labels[current.Selected],titleFont,Brushes.Cyan,
-                new System.Drawing.RectangleF(360,514,304,76),centered);
+            string selected=current.Selected<0 ? "Cancel" : current.Labels[current.Selected];
+            g.DrawString(selected,TextFit.Font(g,selected,titleFont,280,2,20),Brushes.Cyan,new System.Drawing.RectangleF(372,514,280,76),centered);
             int pages=Math.Min(9,Math.Max(1,current.Pages));
             for(int i=0;(current.Group==0 || current.Pages>1) && i<pages;i++) g.FillEllipse(i==current.Page ? Brushes.Cyan : Brushes.SlateGray,512-(pages*24)/2+i*24,602,13,13);
             g.DrawString(current.Group==0 ? "A: Assign" : "X: Inventory",font,Brushes.LightGray,new System.Drawing.RectangleF(392,624,240,28),centered);
-            for (int i = 0; i < current.Labels.Length; i++)
+            int count=current.Labels.Length;
+            float degrees=360f/count;
+            var sectors=new System.Drawing.Drawing2D.GraphicsPath[count];
+            var centers=new PointF[count];
+            var widths=new float[count];
+            var labelTops=new float[count];
+            var labelFits=new bool[count];
+            try
             {
-                double angle = i * Math.PI * 2 / current.Labels.Length;
-                float degrees = 360f / current.Labels.Length;
-                using (var sector = new System.Drawing.Drawing2D.GraphicsPath())
+                float labelSize=font.Size;
+                for(int i=0;i<count;i++)
                 {
-                    sector.AddArc(102, 75, 820, 820, -90+i*degrees-degrees/2+1, degrees-2);
-                    sector.AddArc(322, 295, 380, 380, -90+i*degrees+degrees/2-1, -degrees+2);
+                    var sector=sectors[i]=new System.Drawing.Drawing2D.GraphicsPath();
+                    sector.AddArc(102,75,820,820,-90+i*degrees-degrees/2+1,degrees-2);
+                    sector.AddArc(322,295,380,380,-90+i*degrees+degrees/2-1,-degrees+2);
                     sector.CloseFigure();
-                    using (var fill = new SolidBrush(i == current.Selected ? Color.FromArgb(245, 28, 97, 118) : Color.FromArgb(225, 19, 34, 45))) g.FillPath(fill, sector);
-                    if (i == current.Selected) using (var outline = new Pen(Color.Cyan, 3)) g.DrawPath(outline, sector);
+                    double angle=i*Math.PI*2/count;
+                    // Upper segments narrow toward the center, where their label sits; move the stack outward.
+                    float x=512+(float)Math.Sin(angle)*298,y=485-(float)Math.Cos(angle)*298-24*(float)Math.Max(0,Math.Cos(angle));
+                    centers[i]=new PointF(x,y);
+                    // Native item text (weapon ammo "0 • 20x") gets its own line under the icon; the label follows it.
+                    labelTops[i]=y+(string.IsNullOrEmpty(current.ItemText[i]) ? 38:62);
+                    widths[i]=SectorSpan(sector,x,labelTops[i]+13,labelTops[i]+41);
+                    if(ShowsLabel(current,i) && (labelFits[i]=TextFit.TryFont(g,current.Labels[i],font,widths[i],2,15,out var fitted)))
+                        labelSize=Math.Min(labelSize,fitted.Size);
                 }
-                float x = 512 + (float)Math.Sin(angle) * 298, y = 485 - (float)Math.Cos(angle) * 298;
-                foreach (string icon in current.Icons[i]) target.Icon(icon, x-56, y-68, 112, current.Enabled[i]);
-                if (current.SubIcons[i] != null) target.Icon(current.SubIcons[i], x+24, y+10, 40, current.Enabled[i]);
-                g.DrawString((i+1).ToString(),font,Brushes.LightGray,x-72,y-64);
-                if(!current.Variants && (current.Group==1 || i==current.Selected)) g.DrawString(current.Labels[i],font,current.Enabled[i] ? Brushes.White : Brushes.Gray,
-                    new System.Drawing.RectangleF(x-88,y+38,176,44),centered);
-                if(!string.IsNullOrEmpty(current.ItemText[i])) g.DrawString(current.ItemText[i],font,Brushes.Cyan,x-40,y+16);
+                // One size for every segment keeps the ring even.
+                var labelFont=TextFit.Sized(font,labelSize);
+                for(int i=0;i<count;i++)
+                {
+                    float x=centers[i].X,y=centers[i].Y;
+                    using(var fill=new SolidBrush(i==current.Selected ? Color.FromArgb(245,28,97,118):Color.FromArgb(225,19,34,45))) g.FillPath(fill,sectors[i]);
+                    if(i==current.Selected) using(var outline=new Pen(Color.Cyan,3)) g.DrawPath(outline,sectors[i]);
+                    foreach(string icon in current.Icons[i]) target.Icon(icon,x-56,y-68,112,current.Enabled[i]);
+                    if(current.SubIcons[i]!=null) target.Icon(current.SubIcons[i],x+24,y+2,40,current.Enabled[i]);
+                    g.DrawString((i+1).ToString(),font,Brushes.LightGray,x-72,y-64);
+                    var labelBrush=current.Enabled[i] ? Brushes.White:Brushes.Gray;
+                    if(ShowsLabel(current,i) && labelFits[i])
+                        g.DrawString(current.Labels[i],labelFont,labelBrush,new System.Drawing.RectangleF(x-widths[i]/2,labelTops[i],widths[i],54),centered);
+                    // The center already names the selected item; others shorten rather than break a word.
+                    else if(ShowsLabel(current,i) && i!=current.Selected)
+                        g.DrawString(current.Labels[i],TextFit.Sized(font,15),labelBrush,new System.Drawing.RectangleF(x-widths[i]/2,labelTops[i],widths[i],27),singleLine);
+                    if(!string.IsNullOrEmpty(current.ItemText[i]))
+                    {
+                        float width=SectorSpan(sectors[i],x,y+50,y+50);
+                        g.DrawString(current.ItemText[i],TextFit.Font(g,current.ItemText[i],font,width,1,14),Brushes.Cyan,new System.Drawing.RectangleF(x-width/2,y+38,width,24),singleLine);
+                    }
+                }
             }
+            finally { foreach(var sector in sectors) sector?.Dispose(); }
             // Instruction text belongs in controller help, not below the wheel.
+        }
+        private static bool ShowsLabel(View current,int i) => !current.Variants && (current.Group==1 || i==current.Selected);
+        // Widest label centered on x whose two text lines stay inside the segment, so text never crosses into a neighbor.
+        private static float SectorSpan(System.Drawing.Drawing2D.GraphicsPath sector,float x,float firstLine,float secondLine)
+        {
+            bool Inside(float px) => sector.IsVisible(px,firstLine) && sector.IsVisible(px,secondLine);
+            float half=4;
+            while(half<100 && Inside(x-half-4) && Inside(x+half+4)) half+=4;
+            return half*2;
         }
         public static void Hide() => canvas?.Hide();
     }

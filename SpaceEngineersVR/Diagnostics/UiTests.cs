@@ -143,7 +143,7 @@ namespace SpaceEngineersVR.Diagnostics
                 {
                     var pages=BlockActions.Pages(fixture.Item2,BlockVariants.Pages(Array.Empty<ActionChoice>(),GameActions.WheelActions(false,false,false)));
                     var page=pages[0];
-                    var model=new ToolbarWheel.View {Title="Block actions 1 / "+pages.Length,Group=1,Pages=pages.Length,Selected=fixture.Item3,
+                    var model=new ToolbarWheel.View {Title="Block actions",Group=1,Pages=pages.Length,Selected=fixture.Item3,
                         Labels=page.Select(c=>c?.Label ?? "").ToArray(),Icons=page.Select(c=>c==null ? Array.Empty<string>():new[] {c.Icon}).ToArray(),
                         Enabled=page.Select(c=>c!=null).ToArray(),SubIcons=new string[9],ItemText=new string[9]};
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"wheel-"+fixture.Item1+".png"));
@@ -271,7 +271,7 @@ namespace SpaceEngineersVR.Diagnostics
                     var blockChoices=BlockActions.Choices(VRage.Game.Entity.UseObject.UseActionEnum.Manipulate|VRage.Game.Entity.UseObject.UseActionEnum.OpenTerminal,true,_=>true,_=>{});
                     var blockPages=BlockActions.Pages(blockChoices,BlockVariants.Pages(Array.Empty<ActionChoice>(),GameActions.WheelActions(false,false,false)));
                     var blockPage=blockPages[0];
-                    model.Title="Block actions 1 / "+blockPages.Length; model.Pages=blockPages.Length; model.Selected=1;
+                    model.Title="Block actions"; model.Pages=blockPages.Length; model.Selected=1;
                     model.Labels=blockPage.Select(a=>a?.Label ?? "").ToArray(); model.Icons=blockPage.Select(a=>a==null ? Array.Empty<string>():new[] {a.Icon}).ToArray();
                     model.Enabled=blockPage.Select(a=>a!=null).ToArray();
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"wheel-block-actions.png"));
@@ -282,7 +282,7 @@ namespace SpaceEngineersVR.Diagnostics
                         for(int page=0;page<pages.Length;page++)
                         {
                             var items=pages[page];
-                            model.Title="Quick actions "+(page+1)+" / "+pages.Length; model.Group=1; model.Page=page; model.Pages=pages.Length;
+                            model.Title="Quick actions"; model.Group=1; model.Page=page; model.Pages=pages.Length;
                             model.Hint="Hold Y · Either stick selects · Release Y confirms\nLeft / right trigger: previous / next page";
                             model.Labels=items.Select(c=>c?.Label ?? "").ToArray(); model.Icons=items.Select(c=>c==null ? Array.Empty<string>() : new[] {c.Icon}).ToArray();
                             model.Enabled=items.Select(c=>c!=null).ToArray();
@@ -297,7 +297,7 @@ namespace SpaceEngineersVR.Diagnostics
                     var buildingPages=BlockVariants.Pages(variants,GameActions.WheelActions(true,false,false));
                     for(int p=0;p<buildingPages.Length;p++)
                     {
-                        var choices=buildingPages[p]; model.Title="Building "+(p+1)+" / "+buildingPages.Length;
+                        var choices=buildingPages[p]; model.Title="Building";
                         model.Variants=p<(variants.Length+8)/9; model.Group=1; model.Page=p; model.Pages=buildingPages.Length; model.Selected=p==0 ? 0:-1;
                         model.Hint="Hold Y · Either stick selects · Release Y confirms\nLeft / right trigger: previous / next page";
                         model.Labels=choices.Select(c=>c?.Label ?? "").ToArray(); model.Icons=choices.Select(c=>c==null ? new string[0]:new[] {c.Icon}).ToArray();
@@ -309,8 +309,13 @@ namespace SpaceEngineersVR.Diagnostics
                     model.Title="Toolbar 1/9"; model.Group=0; model.Pages=9; model.Labels=new[] { "Welder","Grinder","Drill","Automatic rifle","Enhanced welder","Enhanced grinder","Enhanced drill","Proficient welder","Proficient grinder" };
                     model.Icons=tools.Select(t=>new[] { @"Textures\GUI\Icons\"+t+".dds" }).ToArray();
                     model.Enabled=Enumerable.Repeat(true,9).ToArray(); model.Enabled[5]=false;
+                    model.ItemText=new string[9];
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
                     Save(wheel.Texture,Path.Combine(output,"wheel-toolbar-preview.png"));
+                    model.ItemText[3]="0 • 20x"; model.ItemText[4]="12 • 3x"; model.Selected=3;
+                    Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
+                    Save(wheel.Texture,Path.Combine(output,"wheel-toolbar-item-text.png"));
+                    model.ItemText=new string[9]; model.Selected=0;
                     model.Labels[2]="Assign slot"; model.Icons[2]=new[] { GameActions.ConfigureToolbarAction.Icon };
                     model.Selected=2;
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
