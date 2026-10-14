@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using HarmonyLib;
 using Sandbox.Game.Entities;
 using Sandbox.Game.World;
@@ -55,12 +58,50 @@ namespace SpaceEngineersVR.Patches
     [HarmonyPatch(typeof(MyCubeBuilder),"SetSurvivalIntersectionDist")]
     internal static class InitialBuildDistancePatch
     {
+        // Halves stored metres, not the observer-scaled getter value.
+        private static void Prefix(out bool __state) => __state=PlacementControls.BeginRawDistance();
+        private static void Finalizer(bool __state) => PlacementControls.EditingDistance=__state;
         private static void Postfix(MyCubeBuilder __instance)
         {
-            if(!Plugin.Main.VrActive || PlacementControls.Creative || PlacementControls.Observer ||
+            if(!Plugin.Main.VrActive || PlacementControls.Creative ||
                 MySession.Static?.SurvivalMode!=true || MyBlockBuilderBase.SpectatorIsBuilding || __instance.CurrentBlockDefinition==null) return;
             MyBlockBuilderBase.IntersectionDistance=Math.Max(MyBlockBuilderBase.CubeBuilderDefinition.MinBlockBuildingDistance,
                 MyBlockBuilderBase.IntersectionDistance*.5f);
+        }
+    }
+
+    [HarmonyPatch(typeof(MyCubeBuilder),"CalculateCubePlacement")]
+    internal static class ObserverFreePlacementPatch
+    {
+        internal static Vector3D Free(Vector3D native) => PlacementControls.TryFreeTarget(out var target) ? target:native;
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions,MethodBase original)
+        {
+            var list=instructions.ToList();
+            int read=list.FindIndex(i=>i.Calls(AccessTools.PropertyGetter(typeof(MyBlockBuilderBase),nameof(MyBlockBuilderBase.IntersectionDistance))));
+            int store=read<0 ? -1:list.FindIndex(read,i=>i.IsStloc());
+            int local=store<0 ? -1:list[store].LocalIndex();
+            if(local<0 || original.GetMethodBody().LocalVariables[local].LocalType!=typeof(Vector3D)) throw new InvalidOperationException("Native free placement point changed");
+            list.InsertRange(store+1,new[] { CodeInstruction.LoadLocal(local),CodeInstruction.Call(typeof(ObserverFreePlacementPatch),nameof(Free)),CodeInstruction.StoreLocal(local) });
+            return list;
+        }
+    }
+
+    [HarmonyPatch(typeof(MyDefaultPlacementProvider),nameof(MyDefaultPlacementProvider.UpdatePlacement))]
+    internal static class ObserverVoxelReachPatch
+    {
+        private static void Postfix(MyDefaultPlacementProvider __instance,ref Sandbox.Engine.Physics.MyPhysics.HitInfo? ___m_hitInfo,ref MyVoxelBase ___m_closestVoxelMap)
+        {
+            if(___m_closestVoxelMap==null || !___m_hitInfo.HasValue || !PlacementControls.DropsVoxelHit(___m_hitInfo.Value.Position,__instance.RayStart)) return;
+            ___m_hitInfo=null; ___m_closestVoxelMap=null;
+        }
+    }
+
+    [HarmonyPatch(typeof(MyCubeBuilder),"CaluclateDynamicModePos")]
+    internal static class ObserverDynamicPlacementPatch
+    {
+        private static void Prefix(ref Vector3D defaultPos,bool isDynamicOverride)
+        {
+            if(!isDynamicOverride && PlacementControls.TryFreeTarget(out var target)) defaultPos=target;
         }
     }
 

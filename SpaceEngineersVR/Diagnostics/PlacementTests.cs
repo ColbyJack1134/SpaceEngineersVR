@@ -195,8 +195,40 @@ namespace SpaceEngineersVR.Diagnostics
             var nativeReach=PatchProcessor.GetOriginalInstructions(AccessTools.Method(typeof(MyCubeBuilderGizmo),"DefaultGizmoCloseEnough"));
             Require(nativeReach.Any(i=>i.operand is System.Reflection.MethodInfo m && m.Name=="GetHeadMatrix"),"Installed reach no longer uses character head");
             Require(AccessTools.Field(typeof(MyCubeBuilder),"m_gizmo")?.FieldType==typeof(MyCubeBuilderGizmo) && AccessTools.Method(typeof(MyCubeBuilder),"Change")!=null,"Native paint/gizmo contract changed");
-            log("PASS observer building: consistent observer distances at five scales and billion-metre origins; independent character reach; paint chord ownership; installed character/cockpit camera, paint and reach APIs.");
+            var rewrites=DistanceRewrites().ToArray();
+            Require(rewrites.OrderBy(m=>m).SequenceEqual(new[] {"InitialBuildDistancePatch.Postfix","MyCubeBuilder.HandleBlockCreationMovement"}),
+                "Unguarded read-modify-write of the observer-scaled build distance: "+string.Join(", ",rewrites));
+            log("PASS observer building: consistent observer distances at five scales and billion-metre origins; independent character reach; paint chord ownership; only guarded methods rewrite the build distance; installed character/cockpit camera, paint and reach APIs.");
             log("PASS placement: continuous free-space and five grid steps/second at 36/72/90 Hz with neutral/reverse/cancel; build/clipboard/tool ownership, simultaneous cancel priority, alternate-trigger isolation, transition release gates; installed native remove/paste/cancel/distance IDs, Creative checks and clipboard pose API. No world modified.");
+        }
+        // A read-modify-write outside EditingDistance stores the observer-scaled distance.
+        private static System.Collections.Generic.IEnumerable<string> DistanceRewrites()
+        {
+            var getter=AccessTools.PropertyGetter(typeof(MyBlockBuilderBase),nameof(MyBlockBuilderBase.IntersectionDistance));
+            var setter=AccessTools.PropertySetter(typeof(MyBlockBuilderBase),nameof(MyBlockBuilderBase.IntersectionDistance));
+            const System.Reflection.BindingFlags all=System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.NonPublic|
+                System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.DeclaredOnly;
+            var token=BitConverter.GetBytes(setter.MetadataToken);
+            foreach(var assembly in new[] {typeof(MyCubeBuilder).Assembly,typeof(Plugin.Main).Assembly})
+            foreach(var type in AccessTools.GetTypesFromAssembly(assembly))
+            foreach(var method in type.GetMethods(all).Cast<System.Reflection.MethodBase>().Concat(type.GetConstructors(all)))
+            {
+                byte[] il;
+                try { il=method.GetMethodBody()?.GetILAsByteArray(); } catch { continue; }
+                if(il==null) continue;
+                // Token prefilter; decoding every game method is slow.
+                if(assembly==typeof(MyCubeBuilder).Assembly && !Contains(il,token)) continue;
+                System.Reflection.MethodBase[] calls;
+                try { calls=PatchProcessor.ReadMethodBody(method).Select(i=>i.Value as System.Reflection.MethodBase).Where(m=>m!=null).ToArray(); }
+                catch { continue; }
+                if(calls.Contains(setter) && calls.Contains(getter)) yield return type.Name+"."+method.Name;
+            }
+        }
+        private static bool Contains(byte[] il,byte[] token)
+        {
+            for(int i=0;i+4<il.Length;i++)
+                if(il[i+1]==token[0] && il[i+2]==token[1] && il[i+3]==token[2] && il[i+4]==token[3]) return true;
+            return false;
         }
         internal static void RunNativeFixture(Action<string> log)
         {

@@ -143,6 +143,29 @@ namespace SpaceEngineersVR.Player
                 MyBlockBuilderBase.CubeBuilderDefinition.DefaultBlockBuildingDistance);
             return (float)ObserverDistance(native,ThirdPersonView.Current.UnitsPerMeter);
         }
+        // Third person keeps the first-person world distance from the finger; the scaled distance is only the grid search range.
+        internal static bool TryFreeTarget(out Vector3D target)
+        {
+            target=Vector3D.Zero;
+            if(!Observer || EditingDistance || MyCubeBuilder.Static?.HitInfo.HasValue!=false) return false;
+            target=MyBlockBuilderBase.IntersectionStart+MyBlockBuilderBase.IntersectionDirection*RawDistance();
+            return target.IsValid();
+        }
+        // Only grids use the longer observer search.
+        internal static bool DropsVoxelHit(Vector3D hit,Vector3D start)
+        {
+            if(!Observer || EditingDistance) return false;
+            double reach=RawDistance();
+            return Vector3D.DistanceSquared(hit,start)>reach*reach;
+        }
+        // Stored metres, before observer scaling.
+        internal static float RawDistance()
+        {
+            bool previous=BeginRawDistance();
+            try { return MyBlockBuilderBase.IntersectionDistance; }
+            finally { EditingDistance=previous; }
+        }
+        internal static bool BeginRawDistance() { bool previous=EditingDistance; EditingDistance=true; return previous; }
         internal static double CreativeObserverDistance(double nativeDistance,double scale,double defaultDistance) =>
             Math.Min(20000,nativeDistance*scale/Math.Max(1,defaultDistance));
         internal static double ObserverDistance(double nativeDistance,double scale) => Math.Min(20000,Math.Max(nativeDistance,nativeDistance*scale));

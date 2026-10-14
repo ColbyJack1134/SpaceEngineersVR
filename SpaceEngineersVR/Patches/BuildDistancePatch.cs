@@ -11,7 +11,7 @@ namespace SpaceEngineersVR.Patches
     internal static class BuildDistancePatch
     {
         // Native distance arithmetic must edit the stored metre value once, before observer scaling.
-        private static void Prefix(out bool __state) { __state=PlacementControls.EditingDistance; PlacementControls.EditingDistance=true; }
+        private static void Prefix(out bool __state) => __state=PlacementControls.BeginRawDistance();
         private static void Finalizer(bool __state) => PlacementControls.EditingDistance=__state;
         [HarmonyTranspiler]
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) => DistanceFactors(instructions,2,"build");
