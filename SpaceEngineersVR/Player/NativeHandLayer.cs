@@ -19,14 +19,15 @@ namespace SpaceEngineersVR.Player
         private static Texture2D texture;
         private static DepthStencilView target;
         private static volatile bool active;
-        private static volatile bool leftDrawn,rightDrawn;
+        private static volatile bool leftDrawn,rightDrawn,observerOnly;
         internal static bool Drawn(bool left) => left ? leftDrawn:rightDrawn;
         private static readonly AccessTools.FieldRef<object,VRage.Render.Scene.Components.MyActorComponent> parentField=
             AccessTools.FieldRefAccess<object,VRage.Render.Scene.Components.MyActorComponent>(AccessTools.Field(AccessTools.TypeByName("VRageRender.MyRenderableProxy"),"Parent"));
         private static MethodBase TargetMethod() => AccessTools.Method(AccessTools.TypeByName("VRageRender.MyGBufferPass"),"RecordCommandsInternal",new[] {AccessTools.TypeByName("VRageRender.MyRenderableProxy")});
-        internal static void Begin(int width,int height,bool enabled)
+        // In third person only the tracked observer gloves are hands, not the character's own.
+        internal static void Begin(int width,int height,bool enabled,bool observer=false)
         {
-            active=ready=leftDrawn=rightDrawn=false;
+            active=ready=leftDrawn=rightDrawn=false; observerOnly=observer;
             if(!enabled || Actor==uint.MaxValue && !NativeGloves.Visible) return;
             if(texture==null || texture.Description.Width!=width || texture.Description.Height!=height)
             {
@@ -52,7 +53,7 @@ namespace SpaceEngineersVR.Player
             bool observer=NativeGloves.IsHand(parent.Owner.ID,out bool left);
             if(!observer)
             {
-                if(parent.Owner.ID!=Actor) return;
+                if(observerOnly || parent.Owner.ID!=Actor) return;
                 string material=CockpitRender.Member(CockpitRender.Member(CockpitRender.Member(proxy,"Material"),"Info"),"Name").ToString();
                 if(material!="LeftGlove" && material!="RightGlove") return;
                 left=material=="LeftGlove";

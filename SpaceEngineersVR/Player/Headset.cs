@@ -143,8 +143,8 @@ namespace SpaceEngineersVR.Player
             GpuTiming.Begin(sceneArea);
             long sceneStart=FeatureTiming.Start();
             var targetSize=((SharpDX.Direct3D11.Texture2D)target.GetResource()).Description;
-            bool handLayer=RenderFrameBridge.Remote!=null || DesktopWindow.Current!=null || (RenderFrameBridge.Surfaces!=null && System.Linq.Enumerable.Any(RenderFrameBridge.Surfaces,s=>s.WindowPose.HasValue)) || rig?.ThirdPerson!=true && (Main.MenuOpen || Main.ShowDesktopPanel);
-            NativeHandLayer.Begin(targetSize.Width,targetSize.Height,handLayer);
+            bool handLayer=RenderFrameBridge.Remote!=null || DesktopWindow.Current!=null || (RenderFrameBridge.Surfaces!=null && System.Linq.Enumerable.Any(RenderFrameBridge.Surfaces,s=>s.WindowPose.HasValue)) || Main.MenuOpen || Main.ShowDesktopPanel || MenuKeyboard.IsOpen;
+            NativeHandLayer.Begin(targetSize.Width,targetSize.Height,handLayer,rig?.ThirdPerson==true);
             try { MyRender11.DrawGameScene(target, out ambientOcclusion); }
             finally { NativeHandLayer.End(); }
             FeatureTiming.End(eye==EVREye.Eye_Left ? FeatureTiming.Area.SceneLeft : FeatureTiming.Area.SceneRight,sceneStart);

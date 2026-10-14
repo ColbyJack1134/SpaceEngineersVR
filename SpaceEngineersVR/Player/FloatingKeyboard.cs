@@ -166,7 +166,7 @@ namespace SpaceEngineersVR.Player
                 float l=0,r=0,t=0,b=0; OpenVR.System.GetProjectionRaw(eye,ref l,ref r,ref t,ref b);
                 // Match the menu controllers' projection/depth, independent of cockpit walls.
                 FloatingSurface.Draw(target,new[] { s },view,VrMath.Projection(l,r,t,b,.03),MenuHands.Depth);
-                WindowFrame.Draw(target,"Keyboard",new WindowFrame.Snapshot {Pose=(Matrix)s.Pose,Width=s.Width,Height=s.Height,Hover=s.WindowHover},view,VrMath.Projection(l,r,t,b,.03),ThirdPersonView.Active ? null:NativeHandLayer.Depth,MenuHands.Depth);
+                WindowFrame.Draw(target,"Keyboard",new WindowFrame.Snapshot {Pose=(Matrix)s.Pose,Width=s.Width,Height=s.Height,Hover=s.WindowHover},view,VrMath.Projection(l,r,t,b,.03),NativeHandLayer.Depth,MenuHands.Depth);
             }
             catch(Exception ex) { current=null; recovery.Fail(ex,"Floating keyboard renderer disabled"); }
         }
