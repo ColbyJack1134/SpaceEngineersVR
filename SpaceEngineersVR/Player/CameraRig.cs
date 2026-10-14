@@ -78,6 +78,10 @@ namespace SpaceEngineersVR.Player
         {
             MatrixD body=BodyFrame(character);
             bool ladder=character.IsOnLadder;
+            bool thrusts=((IMyCharacter)character).EnabledThrusts;
+            Vector3D gravity=character.Physics?.Gravity ?? Vector3.Zero;
+            bool gravityUp=!thrusts && gravity.LengthSquared()>0.01;
+            Vector3D up=gravityUp ? -Vector3D.Normalize(gravity) : body.Up;
             if (owner!=character || !ReferenceEquals(activeDefinition,character.Definition))
             {
                 Reset();
@@ -105,14 +109,9 @@ namespace SpaceEngineersVR.Player
                 // Only changes since END of last tick are game/joystick rotation.
                 // Physical body-follow yaw is already in lastBody and never enters the camera.
                 // Mounting or leaving a ladder turns the body to face it; the view keeps its heading.
-                anchor=VrMath.AdvanceAnchor(anchor,lastBody,body);
+                anchor=gravityUp ? VrMath.AdvanceYaw(anchor,lastBody,body,up) : VrMath.AdvanceAnchor(anchor,lastBody,body);
             }
-            if (!((IMyCharacter)character).EnabledThrusts)
-            {
-                Vector3D up=character.Physics.Gravity;
-                up=up.LengthSquared()>0.01 ? -Vector3D.Normalize(up) : body.Up;
-                anchor=VrMath.Level(anchor,up);
-            }
+            if (!thrusts) anchor=VrMath.Level(anchor,up);
             character.EnableHead(ThirdPersonView.Character);
             Patches.CharacterDepthPatch.ApplyWorldDepth(character);
             character.EnableBag(ThirdPersonView.Character);
@@ -123,7 +122,7 @@ namespace SpaceEngineersVR.Player
         private static void Place(MyCharacter character,MatrixD body)
         {
             // Installed ladder clips lean the head toward the ladder; the eye follows the animated head.
-            anchor.Translation=body.Translation+Vector3D.TransformNormal(eyeOffset,anchor)+body.Forward*LadderClimb.ViewLead(character);
+            anchor.Translation=VrMath.EyePosition(body,anchor,eyeOffset,character.Physics?.Center.Y ?? 0)+body.Forward*LadderClimb.ViewLead(character);
         }
         private static double crouchDrop;
         private static long crouchTime;

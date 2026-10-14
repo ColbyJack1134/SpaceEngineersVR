@@ -50,6 +50,19 @@ namespace SpaceEngineersVR.Player
         {
             return Rigid(anchor.GetOrientation()*MatrixD.Transpose(previousBody.GetOrientation())*currentBody.GetOrientation());
         }
+        // A body tilting upright must not swing the view's heading; only its turn about up is carried.
+        public static MatrixD AdvanceYaw(MatrixD anchor, MatrixD previousBody, MatrixD currentBody, Vector3D up)
+        {
+            up.Normalize();
+            Vector3D from=Level(previousBody,up).Forward, to=Level(currentBody,up).Forward;
+            double angle=Math.Atan2(Vector3D.Dot(Vector3D.Cross(from,to),up),Vector3D.Dot(from,to));
+            return Rigid(anchor.GetOrientation()*MatrixD.CreateFromAxisAngle(up,angle));
+        }
+        // The eye hangs from the capsule centre, the engine's pivot for stand-up turns, so a tilted body cannot swing it on the feet.
+        public static Vector3D EyePosition(MatrixD body, MatrixD view, Vector3D eyeOffset, double centre)
+        {
+            return body.Translation+body.Up*centre+Vector3D.TransformNormal(eyeOffset-new Vector3D(0,centre,0),view);
+        }
         public static Matrix Affine(Matrix value)
         {
             // Float matrix inversion can leave M44 at 0.99999994. Multiplying that

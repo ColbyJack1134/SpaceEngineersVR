@@ -278,6 +278,26 @@ namespace SpaceEngineersVR.Diagnostics
             Near(Vector3D.Distance(walked.Translation,movedAnchor.Translation),0,"roomscale consumed exactly once",0.00001);
             log("PASS 20,000 body-follow turns without yaw/roll drift, stick/flight rotation and roomscale consumption");
 
+            // Standing up in gravity: the upright pose keeps heading, the view takes only stick yaw, the eye hangs from the capsule centre.
+            MatrixD noseDown=MatrixD.CreateWorld(Vector3D.Zero,Vector3D.Down,Vector3D.Forward);
+            Near(Vector3D.Distance(VrMath.Level(noseDown,Vector3D.Up).Forward,Vector3D.Forward),0,"nose-down stands up by the shortest turn",1e-9);
+            MatrixD inverted=MatrixD.CreateWorld(Vector3D.Zero,Vector3D.Right,Vector3D.Down);
+            Near(Vector3D.Distance(VrMath.Level(inverted,Vector3D.Up).Forward,Vector3D.Right),0,"inverted stands up keeping heading",1e-9);
+            MatrixD sideways=MatrixD.CreateRotationY(1.1);
+            MatrixD tilted=MatrixD.CreateRotationZ(2.0)*MatrixD.CreateRotationX(0.7);
+            Near(Vector3D.Distance(VrMath.AdvanceYaw(sideways,tilted,VrMath.Level(tilted,Vector3D.Up),Vector3D.Up).Forward,sideways.Forward),0,
+                "standing up does not turn the view",1e-9);
+            MatrixD stickTurn=MatrixD.CreateRotationY(0.4);
+            Near(Vector3D.Distance(VrMath.AdvanceYaw(sideways,MatrixD.Identity,stickTurn,Vector3D.Up).Forward,VrMath.AdvanceAnchor(sideways,MatrixD.Identity,stickTurn).Forward),0,
+                "stick yaw is carried while standing up",1e-9);
+            var eye=new Vector3D(0,1.7,0);
+            var feet=MatrixD.CreateTranslation(3,4,5);
+            Near(Vector3D.Distance(VrMath.EyePosition(feet,sideways,eye,0.9),feet.Translation+eye),0,"upright eye unchanged",1e-9);
+            var centre=new Vector3D(3,4,5);
+            MatrixD tiltedFeet=tilted; tiltedFeet.Translation=centre-tilted.Up*0.9;
+            Near(Vector3D.Distance(VrMath.EyePosition(tiltedFeet,sideways,eye,0.9),centre+Vector3D.Up*0.8),0,"tilted body cannot move the eye",1e-9);
+            log("PASS stand-up keeps heading and eye position on the capsule centre");
+
             // Standing sway affects the eyes without touching the capsule. The old
             // 1cm cutoff consumed the whole offset at once; the new boundary is continuous.
             for(int tick=0;tick<600;tick++)
