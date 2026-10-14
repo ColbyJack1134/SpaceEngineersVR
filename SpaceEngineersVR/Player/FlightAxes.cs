@@ -9,6 +9,10 @@ namespace SpaceEngineersVR.Player
 
         public static bool ControllerInputAllowed(bool ship,bool thirdPerson,bool physicalOnly) => !ship || thirdPerson || !physicalOnly;
 
+        // Physical-only seats with a modeled stick need it in hand before the trigger fires or drives.
+        public static bool StickTriggerAllowed(bool ship,bool physicalOnly,bool sticksAvailable,bool stickHeld) =>
+            !ship || !physicalOnly || !sticksAvailable || stickHeld;
+
         public static Vector3 Translation(Vector2 lateralVertical, Vector2 lateralForward, float up, float down, float forward, float back) =>
             new Vector3(lateralVertical.X + lateralForward.X, lateralVertical.Y + up - down, -lateralForward.Y - forward + back);
 

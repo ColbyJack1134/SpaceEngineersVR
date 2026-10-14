@@ -54,9 +54,13 @@ namespace SpaceEngineersVR.Player
         private static bool SingleLeft => !IsSteering && Rig!=null && Rig.Right==null;
         internal static bool OwnsRightThumb => seat!=null && !IsSteering && !Adjusting && (right.Held || SingleLeft && left.Held);
         public static bool Held(Controller hand) => hand==Player.HandL ? left.Held : right.Held;
+        internal static bool AnyHeld => left.Held || right.Held;
+        // Only modeled joysticks gate the action trigger; wheels and handlebars are not a stick to hold.
+        internal static bool SticksAvailable => Grabbable && Rig?.HasSticks==true;
         private static bool Available => !ThirdPersonView.Active && seat!=null && Eligible(seat) && CockpitRender.Ready && (InputRouter.Mode==InputMode.Piloting || InputRouter.Mode==InputMode.Turret) && !FloatingWindows.OwnsInput && !Main.MenuOpen && !TouchScreenBridge.OwnsInput &&
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked &&
                 (!IsSteering || InputRouter.Mode==InputMode.Piloting);
+        private static bool Grabbable => Available && !FlightSettings.IsOpen;
         internal const float CaptureRadius=.14f;
         internal static bool NearGrip(Controller hand) => Available && NearDistance(hand==Player.HandL,GripDistance(hand));
         private static bool NearDistance(bool isLeft,float distance) => IsSteering ?
@@ -213,7 +217,7 @@ namespace SpaceEngineersVR.Player
                 previousTuning=nextTuning;
             }
             RefreshVisuals();
-            bool available=Available && !FlightSettings.IsOpen;
+            bool available=Grabbable;
             if (!available && Adjusting) Release();
             var c=Controls.Static;
             bool leftDown=left.AnalogDown(c.ThrustDown.Position.X,c.ThrustDown.RawPosition.X);

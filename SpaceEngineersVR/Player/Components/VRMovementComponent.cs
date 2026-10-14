@@ -296,7 +296,9 @@ namespace SpaceEngineersVR.Player.Components
         }
 
         private static bool PrimaryPressed => !HelmetHud.ProtectsFire && !FloatingWindows.OwnsInput && Controls.Static.Fire.IsPressed &&
-            !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Handedness.ActionHand);
+            !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Handedness.ActionHand) &&
+            FlightAxes.StickTriggerAllowed(MySession.Static?.ControlledEntity is MyShipController,Common.Config.PhysicalShipControlsOnly,
+                CockpitControls.SticksAvailable,CockpitControls.AnyHeld);
         // Grip + trigger is ship secondary, as with tools on foot. A held physical stick owns the grip.
         private static bool ShipChord => Controls.Static.Fire.IsPressed && Controls.Static.ActionGripClick.IsPressed && !CockpitControls.Held(Handedness.ActionHand);
 

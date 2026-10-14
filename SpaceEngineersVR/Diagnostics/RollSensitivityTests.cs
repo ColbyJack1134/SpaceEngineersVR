@@ -93,6 +93,16 @@ namespace SpaceEngineersVR.Diagnostics
                     throw new Exception("First-person controller flight ignores physical-only setting");
             }
             log("PASS physical-only flight preference: legacy default off, enabled persistence, first-person ship gate and third-person/jetpack exceptions.");
+            foreach(bool physicalOnly in new[] {false,true})
+                foreach(bool available in new[] {false,true})
+                    foreach(bool held in new[] {false,true})
+                    {
+                        if(!FlightAxes.StickTriggerAllowed(false,physicalOnly,available,held))
+                            throw new Exception("Stick trigger gate reaches characters and turrets");
+                        if(FlightAxes.StickTriggerAllowed(true,physicalOnly,available,held)==(physicalOnly && available && !held))
+                            throw new Exception("Ship trigger ignores the physical-only stick gate");
+                    }
+            log("PASS physical-only ship trigger gate: free trigger without the setting, in seats with no grabbable stick and off ships; held stick required for fire and thrust otherwise.");
             string changed=null;
             config.PropertyChanged+=(sender,args)=>changed=args.PropertyName;
             config.PhysicalShipControlsOnly=true;
