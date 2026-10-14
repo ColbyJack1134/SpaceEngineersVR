@@ -184,10 +184,14 @@ namespace SpaceEngineersVR.Diagnostics
                     "Disabled occupied slot activated or was treated as empty");
                 Require(ToolbarWheel.SelectSlot(hotbar,0,true,configure)==ToolbarWheel.SlotResult.Assigned && occupied.Count==1 && calls==4,
                     "Disabled occupied slot could not be explicitly reassigned");
+                Require(ToolbarWheel.Slots(hotbar)==hotbar.SlotCount+1,"Wheel lost the native holster slot");
+                Require(ToolbarWheel.SelectSlot(hotbar,hotbar.SlotCount,true,configure)==ToolbarWheel.SlotResult.Assigned && assigned==-1 && calls==5,
+                    "Holster slot took an assignment instead of opening the configuration screen unselected");
             }
             log("PASS radial hotbar assignment: native Character/Ship toolbars, current-page empty slots, occupied/disabled override without activation or removal, neutral cancel and ordinary activation.");
 
             var actions=new MyToolbar(MyToolbarType.ButtonPanel,4,1);
+            Require(ToolbarWheel.Slots(actions)==4,"Toolbars without a native holster slot gained a wheel sector");
             var push=new Item(); var on=new Item(); var off=new Item();
             actions.SetItemAtIndex(0,push); actions.SetItemAtIndex(2,on); actions.SetItemAtIndex(3,off);
             for(int page=0;page<2;page++)

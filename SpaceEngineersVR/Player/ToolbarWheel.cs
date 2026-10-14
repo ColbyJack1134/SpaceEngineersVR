@@ -80,7 +80,7 @@ namespace SpaceEngineersVR.Player
                 { Close(); GameActions.Execute(GameActions.InventoryAction); return; }
                 if (group==0 && controls.Interact.HasPressed)
                 {
-                    int slot=group==0 ? RadialMath.Sector(stick,toolbar?.SlotCount ?? 9) : -1;
+                    int slot=group==0 ? RadialMath.Sector(stick,Slots(toolbar)) : -1;
                     var target=toolbar;
                     Close();
                     if (InputRouter.Gameplay && ReferenceEquals(target,MyToolbarComponent.CurrentToolbar))
@@ -89,7 +89,7 @@ namespace SpaceEngineersVR.Player
                 }
                 if (!(group==0 ? controls.Unequip.RawPressed : controls.QuickMenu.RawPressed))
                 {
-                    int chosen = RadialMath.Sector(stick, group == 0 ? toolbar?.SlotCount ?? 9 : 9);
+                    int chosen = RadialMath.Sector(stick, group == 0 ? Slots(toolbar) : 9);
                     int chosenGroup = group;
                     var choices=quickChoices;
                     var chosenToolbar = toolbar;
@@ -127,7 +127,7 @@ namespace SpaceEngineersVR.Player
                     controls.MenuPage.BlockUntilRelease(); controls.MenuNavigate.BlockUntilRelease(); navigation.Reset(); stick=Vector2.Zero;
                     nextSnapshot=DateTime.MinValue;
                 }
-                int next=RadialMath.Sector(stick,group==0 ? toolbar?.SlotCount ?? 9:9);
+                int next=RadialMath.Sector(stick,group==0 ? Slots(toolbar):9);
                 if (next!=selection) { selection=next; nextSnapshot=DateTime.MinValue; (navigation.Owner==0 ? Player.HandL:Player.HandR).Vibrate(0,0.025f,90,0.2f); }
                 Publish();
                 return;
@@ -180,9 +180,21 @@ namespace SpaceEngineersVR.Player
             InputRouter.RadialOpen=true; InputRouter.Update(); nextSnapshot=DateTime.MinValue; Publish();
         }
 
+        private const string HolsterIcon=@"Textures\GUI\Icons\HideWeapon.dds";
+        // Vanilla keeps its unequip as the slot after the last one, for ship and character toolbars alike.
+        internal static int Slots(MyToolbar target) => (target?.SlotCount ?? 9)+(target?.ShowHolsterSlot==true ? 1:0);
+        private static bool Holster(MyToolbar target,int slot) => target?.ShowHolsterSlot==true && slot==target.SlotCount;
+
         internal static SlotResult SelectSlot(MyToolbar target,int slot,bool assign,Action<int> configure)
         {
             if(target==null) return SlotResult.Ignored;
+            if(Holster(target,slot))
+            {
+                // Assignment opens the configuration screen with no slot; the holster cannot hold an action.
+                if(assign) { configure(-1); return SlotResult.Assigned; }
+                target.ActivateItemAtSlot(slot);
+                return SlotResult.Activated;
+            }
             bool valid=slot>=0 && slot<target.SlotCount;
             var item=valid ? target.GetItemAtSlot(slot) : null;
             if(assign || (valid && item==null))
@@ -201,12 +213,16 @@ namespace SpaceEngineersVR.Player
         {
             if (DateTime.UtcNow < nextSnapshot) return;
             nextSnapshot = DateTime.UtcNow.AddMilliseconds(100);
-            int count = group == 0 ? toolbar?.SlotCount ?? 9 : 9;
+            int count = group == 0 ? Slots(toolbar) : 9;
             var labels = new string[count]; var enabled = new bool[count];
             var icons = new string[count][]; var subIcons = new string[count]; var itemText = new string[count];
             for (int i = 0; i < count; i++)
             {
-                if (group == 0)
+                if (group == 0 && Holster(toolbar,i))
+                {
+                    labels[i]="Unequip"; icons[i]=new[] { HolsterIcon }; enabled[i]=true;
+                }
+                else if (group == 0)
                 {
                     var item = toolbar?.GetItemAtSlot(i);
                     labels[i] = item?.DisplayName?.ToString() ?? (toolbar!=null ? "Assign slot" : "Unavailable");
