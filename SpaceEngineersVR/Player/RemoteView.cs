@@ -201,7 +201,7 @@ namespace SpaceEngineersVR.Player
             if(recenter) { Place(); Save(); }
             var now=DateTime.UtcNow; float seconds=(float)Math.Min(.05,Math.Max(0,(now-last).TotalSeconds)); last=now;
             var controls=Controls.Static;
-            if(!Turret && !RemoteGrid && InputRouter.Gameplay && !Main.MenuOpen && CockpitControls.OwnsRightThumb)
+            if(!Turret && InputRouter.Gameplay && !Main.MenuOpen && CockpitControls.OwnsRightThumb)
                 Zoom(-controls.ThrustRotate.Position.Y*seconds*.6f);
             if(InputRouter.Gameplay && !Main.MenuOpen) left=interaction.PickHand(Hand,Free,Aim)==Player.HandL;
             var hand=Hand;
