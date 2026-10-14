@@ -174,8 +174,20 @@ namespace SpaceEngineersVR.Diagnostics
                     for(int i=0;i<4;i++)
                         if((int)indices[v][i]==head.Index && weights[v][i]>0) { skinned++; break; }
                 if(skinned<1000) throw new Exception("Remote head bone "+head.Name+" moves "+skinned+" vertices in "+model);
+                // GetHeadMatrix reads the definition's camera dummy; turning the head must not move it.
+                foreach(var bone in bones) bone.ComputeAbsoluteTransform();
+                var eye=ArmSkeleton.Below(head,bones.FirstOrDefault(b=>b.Name==(string)astronaut.Element("HeadBone")));
+                if(eye==null) throw new Exception("Camera dummy is not below "+head.Name+" in "+model);
+                var before=eye.Bone.AbsoluteTransform; var headBefore=head.AbsoluteTransform;
+                var saved=new ArmSkeleton.SavedBone {Bone=head};
+                if(!ArmSkeleton.Look(saved,eye,Matrix.CreateRotationY(.6f)*Matrix.CreateRotationX(.3f),ArmSkeleton.HeadLimit)) throw new Exception("Head look failed in "+model);
+                if(Vector3.Dot(head.AbsoluteTransform.Forward,headBefore.Forward)>.95f) throw new Exception("Head did not turn in "+model);
+                Near(Vector3.Distance(eye.Bone.AbsoluteTransform.Translation,before.Translation),0,"Turning the head moves the camera dummy in "+model,.0005f);
+                if(!eye.Restore(false) || !saved.Restore(false)) throw new Exception("Head look does not restore in "+model);
+                head.ComputeAbsoluteTransform(true,true);
+                Near(Vector3.Distance(eye.Bone.AbsoluteTransform.Translation,before.Translation),0,"Restored camera dummy moved in "+model,.0005f);
             }
-            log("PASS remote head bone: "+astronauts.Length+" installed astronaut definitions resolve to a bone weighted to the head mesh.");
+            log("PASS head bones: "+astronauts.Length+" installed astronaut definitions resolve to a bone weighted to the head mesh; a turned head keeps the camera dummy in place and restores.");
         }
         private static void RecordedWatchPose(Action<string> log)
         {

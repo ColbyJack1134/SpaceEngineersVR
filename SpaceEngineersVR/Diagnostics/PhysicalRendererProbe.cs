@@ -660,6 +660,7 @@ namespace SpaceEngineersVR.Diagnostics
                     // The main menu has no world lighting. Inspect actual rasterized albedo/depth occlusion.
                     var buffer=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Resources.MyGBuffer"),"Main").GetValue(null);
                     var texture=(Texture2D)CockpitRender.Member(CockpitRender.Member(buffer,"GBuffer0"),"Resource");
+                    if(phase==48) CockpitVisibilityTests.RunFirstPerson(native,target,output,line=>Logger.Info(line));
                     if(phase==24 || phase==48)
                     {
                         texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);

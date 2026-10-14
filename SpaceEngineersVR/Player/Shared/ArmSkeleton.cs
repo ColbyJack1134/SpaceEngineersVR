@@ -157,6 +157,22 @@ namespace SpaceEngineersVR.Player
             Remember(head);
             return true;
         }
+        internal const float HeadLimit=1.4f;
+        // Keeps the camera dummy below the head in place, so views anchored to it do not turn with the head.
+        internal static bool Look(SavedBone head,SavedBone eye,Matrix target,float limit)
+        {
+            var anchored=eye?.Bone.AbsoluteTransform;
+            if(!Look(head,target,limit)) return false;
+            if(anchored.HasValue)
+            {
+                var absolute=anchored.Value; eye.Save();
+                eye.Bone.SetCompleteTransformFromAbsoluteMatrix(ref absolute,false);
+                eye.Bone.ComputeAbsoluteTransform(true,true);
+                Remember(eye);
+            }
+            return true;
+        }
+        internal static SavedBone Below(MyCharacterBone head,MyCharacterBone bone) => head!=null && bone!=null && Descends(bone,head) ? new SavedBone {Bone=bone}:null;
         private static void Remember(SavedBone saved)
         { saved.Applied=saved.Bone.Rotation; saved.AppliedTranslation=saved.Bone.Translation; }
     }

@@ -34,7 +34,7 @@ namespace SpaceEngineersVR.Player
             {
                 using(var resources=MyRender11.Resolution==size ? null:new EyeResolution.Scene(size,true))
                 using(var exposure=new RemoteExposure())
-                using(var isolated=new RemoteScene()) MyRender11.DrawGameScene(feed,out ambient);
+                using(var isolated=new RemoteScene(view)) MyRender11.DrawGameScene(feed,out ambient);
                 var rendered=(Texture2D)feed.GetResource();
                 RemoteHud.Composite(rendered,view);
                 RemoteCombat.DrawAmmo(rendered,view);

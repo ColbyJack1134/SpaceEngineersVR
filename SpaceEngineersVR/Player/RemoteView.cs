@@ -28,6 +28,8 @@ namespace SpaceEngineersVR.Player
             public long Source;
             public Vector3D? RayStart,RayEnd;
             public bool LeftHand;
+            public uint Character=uint.MaxValue;
+            public string[] FirstPersonMaterials;
         }
         private static readonly MenuWindow window=new MenuWindow { BarOffset=.035f,TopMargin=.08f };
         private static readonly WindowInteraction interaction=new WindowInteraction(window);
@@ -248,9 +250,21 @@ namespace SpaceEngineersVR.Player
         {
             if(!Active || source==null) { Current=null; return; }
             RemoteCombat.ReadAmmo(source as MyLargeTurretBase,out int ammo,out int capacity);
+            var character=MySession.Static?.LocalCharacter;
             Current=new View { Pose=(MatrixD)window.Pose,Width=window.Width,Height=window.Height,Hover=hover<0 ? window.Drag!=0 ? window.Drag:lastHover : hover,
                 SignalMode=ReadSignalMode(),Ammo=ammo,Capacity=capacity,
-                RayStart=rayStart,RayEnd=rayEnd,LeftHand=left,Source=(source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0 };
+                RayStart=rayStart,RayEnd=rayEnd,LeftHand=left,Source=(source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0,
+                Character=character?.Render.GetRenderObjectID() ?? uint.MaxValue,FirstPersonMaterials=FirstPersonMaterials(character?.Definition) };
+        }
+        private static Sandbox.Definitions.MyCharacterDefinition materialsDefinition;
+        private static string[] materials;
+        // EnableHead and EnableBag hide these from every view, the feed included.
+        internal static string[] FirstPersonMaterials(Sandbox.Definitions.MyCharacterDefinition definition)
+        {
+            if(definition==null) return null;
+            if(definition!=materialsDefinition)
+            { materials=(definition.MaterialsDisabledIn1st ?? new string[0]).Concat(new[] {"Backpack"}).ToArray(); materialsDefinition=definition; }
+            return materials;
         }
         internal static void Axes(Vector2 right,Vector2 left,float speed,out Vector2 aim,out float zoom)
         { aim=new Vector2(-VrMath.Deadzone(right.Y),VrMath.Deadzone(right.X))*speed; zoom=-VrMath.Deadzone(left.Y); }

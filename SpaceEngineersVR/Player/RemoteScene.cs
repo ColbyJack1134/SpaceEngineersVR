@@ -1,8 +1,10 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using SpaceEngineersVR.Wrappers;
+using VRage.Render.Scene;
 
 namespace SpaceEngineersVR.Player
 {
@@ -12,6 +14,16 @@ namespace SpaceEngineersVR.Player
         public static bool Active { get; private set; }
         private static readonly Type common=AccessTools.TypeByName("VRageRender.MyCommon"),managers=AccessTools.TypeByName("VRage.Render11.Common.MyManagers");
         private static MethodInfo changed;
+        // Resolved without throwing so a renderer change only leaves the feed headless.
+        private static readonly Type renderableType=AccessTools.TypeByName("VRage.Render11.Scene.Components.MyRenderableComponent");
+        internal static readonly MethodInfo RenderableOf=renderableType==null ? null:AccessTools.Method(typeof(MyActor),nameof(MyActor.GetComponent))?.MakeGenericMethod(renderableType);
+        internal static readonly FieldInfo ProxyFlags=AccessTools.Field(AccessTools.TypeByName("VRageRender.MyRenderableProxy"),"Flags");
+        internal static readonly long FirstPersonHidden=HiddenFlags();
+        private static long HiddenFlags()
+        {
+            try { return ProxyFlags==null ? 0:Convert.ToInt64(Enum.Parse(ProxyFlags.FieldType,"SkipInMainView, SkipInForward")); }
+            catch(ArgumentException) { return 0; }
+        }
         private static MemberInfo Find(object owner,string name,out object target)
         {
             if(owner==null) throw new InvalidOperationException("Missing renderer member "+name);
@@ -32,7 +44,7 @@ namespace SpaceEngineersVR.Player
         {
             object saved=Read(owner,name); restore.Add(()=>Write(owner,name,saved)); Write(owner,name,value);
         }
-        public RemoteScene()
+        public RemoteScene(RemoteView.View view=null)
         {
             try
             {
@@ -50,9 +62,35 @@ namespace SpaceEngineersVR.Player
                 if(changed==null) changed=AccessTools.Method(factory.GetType(),"OnLoddingSettingChanged");
                 restore.Insert(0,()=>changed.Invoke(factory,null)); changed.Invoke(factory,null);
                 CockpitRender.RemoteVisibility(restore);
+                if(view!=null) ShowFirstPerson(view.Character,view.FirstPersonMaterials,restore);
                 Active=true;
             }
             catch { Dispose(); throw; }
+        }
+        // Proxy flags are read when each pass filters its draws, so this needs no proxy rebuild.
+        internal static void ShowFirstPerson(uint id,string[] materials,List<Action> restore)
+        {
+            if(RenderableOf==null || FirstPersonHidden==0) return;
+            var actor=id==uint.MaxValue || materials==null ? null:MyIDTracker<MyActor>.FindByID(id);
+            var renderable=actor==null ? null:RenderableOf.Invoke(actor,null);
+            if(renderable==null || !(CockpitRender.Member(renderable,"Lods") is IEnumerable lods)) return;
+            foreach(object lod in lods)
+            {
+                if(!(CockpitRender.Member(lod,"RenderableProxies") is IEnumerable proxies)) continue;
+                foreach(object proxy in proxies)
+                {
+                    object material=CockpitRender.Member(proxy,"Material");
+                    if(Convert.ToInt32(CockpitRender.Member(material,"Index"))<0 ||
+                        Array.IndexOf(materials,CockpitRender.Member(CockpitRender.Member(material,"Info"),"Name").ToString())<0) continue;
+                    object saved=ProxyFlags.GetValue(proxy);
+                    long value=Convert.ToInt64(saved);
+                    if((value&FirstPersonHidden)==0) continue;
+                    object shown=Enum.ToObject(ProxyFlags.FieldType,value&~FirstPersonHidden);
+                    ProxyFlags.SetValue(proxy,shown);
+                    // A rebuild during the feed would return this proxy to the engine's pool.
+                    restore.Add(()=> { if(Equals(ProxyFlags.GetValue(proxy),shown) && Equals(CockpitRender.Member(proxy,"Material"),material)) ProxyFlags.SetValue(proxy,saved); });
+                }
+            }
         }
         public void Dispose()
         {

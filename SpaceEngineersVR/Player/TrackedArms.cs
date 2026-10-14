@@ -14,7 +14,7 @@ namespace SpaceEngineersVR.Player
         private static MyCharacter owner;
         private static Multiplayer.PlayerPose latestPose;
         private static double poseTime;
-        private sealed class ArmPair { public Arm Left, Right; }
+        private sealed class ArmPair { public Arm Left, Right; public ArmSkeleton.SavedBone Head,Eye; }
         private static readonly Dictionary<MyCharacterBone[], ArmPair> buffers = new Dictionary<MyCharacterBone[], ArmPair>();
         private static Arm left,right;
         private static bool disabled,reportedPose;
@@ -33,7 +33,11 @@ namespace SpaceEngineersVR.Player
             // Animation workers own the inactive buffer; restore only the displayed bones.
             var bones=character.AnimationController.CharacterBones;
             if (bones!=null && buffers.TryGetValue(bones, out var pair))
-            { pair.Left?.Restore(); pair.Right?.Restore(); }
+            {
+                pair.Left?.Restore(); pair.Right?.Restore();
+                pair.Eye?.Restore(false);
+                if(pair.Head!=null && pair.Head.Restore(false)) pair.Head.Bone.ComputeAbsoluteTransform(true,true);
+            }
             BodyFit.Restore(character);
         }
         public static void Update(MyCharacter character)
@@ -57,6 +61,9 @@ namespace SpaceEngineersVR.Player
                     pair = new ArmPair {
                         Left=ArmSkeleton.Find(character,definition.LeftHandIKStartBone,definition.LeftForearmBone,definition.LeftHandIKEndBone,-1),
                         Right=ArmSkeleton.Find(character,definition.RightHandIKStartBone,definition.RightForearmBone,definition.RightHandIKEndBone,1) };
+                    var head=ArmSkeleton.Head(name=>character.AnimationController.FindBone(name,out _),definition.HeadBone);
+                    if(head!=null) pair.Head=new ArmSkeleton.SavedBone {Bone=head};
+                    pair.Eye=ArmSkeleton.Below(head,character.AnimationController.FindBone(definition.HeadBone,out _));
                     buffers.Add(skeleton, pair);
                     Logger.Info("Tracked arm buffer initialized: left="+(pair.Left!=null)+"; right="+(pair.Right!=null));
                 }
@@ -72,6 +79,8 @@ namespace SpaceEngineersVR.Player
                 if(Common.Config.TrackedArms && Handedness.Swapped && character.CurrentWeapon!=null && !character.IsSitting && left!=null && right!=null)
                     ArmSkeleton.MirrorCollars(left,right);
                 bool applied=Common.Config.TrackedArms && (Apply(left,Player.HandL,character) | Apply(right,Player.HandR,character));
+                // First person hides the head; a camera feed shows it, so turn it as other players see it.
+                if(RemoteView.Current!=null && pair.Eye!=null && TryHead(character,out var look)) ArmSkeleton.Look(pair.Head,pair.Eye,look,ArmSkeleton.HeadLimit);
                 character.AnimationController.UpdateTransformations();
                 Multiplayer.ReloadAnimation.Apply(character);
                 latestPose=CreatePose(); poseTime=Multiplayer.MultiplayerRuntime.Now;
@@ -149,12 +158,18 @@ namespace SpaceEngineersVR.Player
                 if(Handedness.Swapped && character.CurrentWeapon!=null && !character.IsSitting) pose.Tracked|=Multiplayer.PlayerPose.ItemMirrored;
                 pose.LeftFingers=FingerMode(character,Player.HandL); pose.RightFingers=FingerMode(character,Player.HandR);
                 pose.LeftTrigger=Trigger(Player.HandL); pose.RightTrigger=Trigger(Player.HandR);
-                // Seated heads need the first-person seat frame; observer views would send a stale camera pose.
-                bool headFrame=character.IsSitting ? SeatFit.Eligible(character.Parent as Sandbox.Game.Entities.MyCockpit) : !ThirdPersonView.Active && CameraRig.Owns(character);
-                if(Player.Headset.pose.isTracked && headFrame)
-                { pose.Tracked|=Multiplayer.PlayerPose.HeadTracked; pose.Head=(Matrix)(SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix)*character.PositionComp.WorldMatrixNormalizedInv); }
+                if(TryHead(character,out var head)) { pose.Tracked|=Multiplayer.PlayerPose.HeadTracked; pose.Head=head; }
             }
             return pose;
+        }
+        private static bool TryHead(MyCharacter character,out Matrix head)
+        {
+            head=Matrix.Identity;
+            // Seated heads need the first-person seat frame; observer views would send a stale camera pose.
+            bool frame=character.IsSitting ? SeatFit.Eligible(character.Parent as Sandbox.Game.Entities.MyCockpit) : !ThirdPersonView.Active && CameraRig.Owns(character);
+            if(!Player.Headset.pose.isTracked || !frame) return false;
+            head=(Matrix)(SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix)*character.PositionComp.WorldMatrixNormalizedInv);
+            return true;
         }
         internal static float Trigger(Controller hand) => CockpitTouch.HoldingBar(hand) || LadderClimb.Holding(hand) ? 1 : (hand==Player.HandL ? Controls.Static.LeftTriggerPressure:Controls.Static.PointerPressure).RawPosition.X;
         private static bool RequiresPointing(Controller hand) => GridSelection.Owns(hand) || Main.MenuOpen || MenuKeyboard.IsOpen || CockpitTouch.Attached(hand) ||
