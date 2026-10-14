@@ -95,7 +95,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(!p.ReloadAt(p.Support),"Support overlaps reload region: "+p.Item);
                 if(p.Kind==ItemKind.Pistol) Require(p.ReloadAt(p.Magazine+Vector3.Down*.035f) && !p.ReloadAt(p.Magazine+Vector3.Left*.09f) && !p.ReloadAt(p.Magazine+Vector3.Up*.02f),"Pistol reload did not require underside contact");
             }
-            foreach(var type in new[] {typeof(HeldItemPose),typeof(ToolContact),typeof(DrillContact),typeof(ToolProjectionPatch),typeof(HeldDrillPosePatch),typeof(ToolFeedbackPatch)})
+            foreach(var type in new[] {typeof(HeldItemPose),typeof(ToolContact),typeof(DrillContact),typeof(HeldDrillPosePatch),typeof(ToolFeedbackPatch)})
                 foreach(var field in type.GetFields(System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static))
                     if(field.FieldType==typeof(System.Reflection.FieldInfo) || field.FieldType==typeof(System.Reflection.PropertyInfo))
                         Require(field.GetValue(null)!=null,"Installed engine member missing: "+type.Name+"."+field.Name);

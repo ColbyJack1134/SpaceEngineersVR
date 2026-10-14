@@ -39,16 +39,23 @@ namespace SpaceEngineersVR.Multiplayer
             if(physicsHits==null) physicsHits=new List<MyPhysics.HitInfo>();
             physicsHits.Clear(); MyPhysics.CastRay(line.From,line.To,physicsHits,24);
         }
+        // Kept out of line because these native accessors are otherwise inlined here, which diagnostics cannot intercept.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static VRage.ModAPI.IMyEntity HitEntity(MyPhysics.HitInfo hit) => hit.HkHitInfo.GetHitEntity();
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static int HitItem(MyEnvironmentSector sector,MyPhysics.HitInfo hit) => sector.GetItemFromShapeKey(hit.HkHitInfo.GetShapeKey(0));
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static void EntitiesInSphere(ref BoundingSphereD sphere,List<MyEntity> result) => MyGamePruningStructure.GetAllEntitiesInSphere(ref sphere,result);
         private static bool PhysicsHit(MyEntity owner,MyEntity tool,MyPhysics.HitInfo hit,out MyDrillSensorBase.DetectionInfo result)
         {
             result=default(MyDrillSensorBase.DetectionInfo);
-            var raw=hit.HkHitInfo.GetHitEntity(); var entity=raw?.GetTopMostParent() as MyEntity;
+            var raw=HitEntity(hit); var entity=raw?.GetTopMostParent() as MyEntity;
             if(entity==null || ReferenceEquals(entity,owner) || ReferenceEquals(entity,tool)) return false;
             var point=hit.Position;
             if(entity is MyCubeGrid) point-=hit.HkHitInfo.Normal*.005f;
             if(raw is MyEnvironmentSector sector)
             {
-                int item=sector.GetItemFromShapeKey(hit.HkHitInfo.GetShapeKey(0));
+                int item=HitItem(sector,hit);
                 if(item<0 || sector.DataView?.Items==null || item>=sector.DataView.Items.Count || sector.DataView.Items[item].ModelIndex<0) return false;
                 result=new MyDrillSensorBase.DetectionInfo(sector,point,item);
             }
@@ -88,42 +95,42 @@ namespace SpaceEngineersVR.Multiplayer
             var volume=ToolVolume.For(profile,model);
             // A blade or bit may penetrate its contact surface; occlusion starts at the grip.
             var grip=Vector3D.Transform(profile.Primary,model);
+            var ray=HeldItemPose.ToolAim(owner,model,profile);
+            double reach=HeldItemPose.ToolReach(owner,model,profile,ray,Reach(sensor));
+            // Native projection targeting rebuilds its own ray from the caster, so keep it current in every branch.
+            center.SetValue(sensor.Caster,ray.Translation); front.SetValue(sensor.Caster,ray.Translation+ray.Forward*reach);
+            sensor.SetPointOfReference(ray.Translation);
             if(!HeldItemPose.Clear(owner,owner.GetHeadMatrix(true,true).Translation,grip))
             { Set(sensor,null,from); state.Near=true; return; }
             if(FindNear(owner,tool,volume,out var selected,out var selectedHit))
             { Set(sensor,selected,selectedHit); state.Near=true; }
             else if(tool is MyAngleGrinder && FindTreeNear(owner,tool,volume,grip,out var tree))
             { state.Near=true; SetTarget(sensor,null,tree.Entity,tree.DetectionPoint,tree.ItemId); }
-            else if(!HeldItemPose.Supported(owner) && !HeldItemPose.Clear(owner,grip,from)) { Set(sensor,null,from); state.Near=true; }
+            else if(!HeldItemPose.Clear(owner,grip,from)) { Set(sensor,null,from); state.Near=true; }
+            else if(ray.Translation!=from && !HeldItemPose.Clear(owner,grip,ray.Translation)) Set(sensor,null,ray.Translation);
             else
             {
-                var ray=HeldItemPose.ToolAim(owner,model,profile);
-                double reach=HeldItemPose.ToolReach(owner,model,profile,ray,Reach(sensor));
-                center.SetValue(sensor.Caster,ray.Translation); front.SetValue(sensor.Caster,ray.Translation+ray.Forward*reach);
-                sensor.SetPointOfReference(ray.Translation);
-                if(!HeldItemPose.Supported(owner) && !HeldItemPose.Clear(owner,grip,ray.Translation)) { Set(sensor,null,ray.Translation); return; }
-                CastTarget(owner,tool,ray,reach,out var block,out var entity,out var point,out var item,HeldItemPose.Supported(owner));
-                if(HeldItemPose.Supported(owner) && entity!=null && !Accessible(owner,tool,grip,point,block,entity,item)) { Set(sensor,null,point); return; }
+                CastTarget(owner,tool,ray,reach,out var block,out var entity,out var point,out var item);
                 SetTarget(sensor,block,entity,point,item);
             }
         }
         internal static void CastTarget(MyCharacter owner,MyEntity tool,MatrixD ray,double reach,
-            out MySlimBlock block,out MyEntity entity,out Vector3D point,out int item,bool supported=false)
+            out MySlimBlock block,out MyEntity entity,out Vector3D point,out int item)
         {
             bool mesh=Cast(owner,tool,ray,reach,out block,out entity,out point);
             item=0;
             var line=new LineD(ray.Translation,ray.Translation+ray.Forward*reach);
-            if(PhysicsCast(owner,tool,line,out var hit) && (supported || !(hit.Entity is MyCubeGrid)) &&
+            if(PhysicsCast(owner,tool,line,out var hit) &&
                 (!mesh || !(hit.Entity is MyCubeGrid) && ReferenceEquals(entity,hit.Entity) || Vector3D.DistanceSquared(ray.Translation,hit.DetectionPoint)<=Vector3D.DistanceSquared(ray.Translation,point)+.0001))
             { block=hit.Entity is MyCubeGrid grid ? ResolveBlock(grid,hit.DetectionPoint):null; entity=hit.Entity; point=hit.DetectionPoint; item=hit.ItemId; }
             else if(entity is MyEnvironmentSector) entity=null;
-            if(supported)
-            {
-                var limit=entity==null ? reach:Math.Sqrt(Vector3D.DistanceSquared(ray.Translation,point));
-                if(ConstructionRay(ray,limit,out var construction,out var entry))
-                { block=construction; entity=block.CubeGrid; point=entry; item=0; }
-            }
+            // An unfinished block is a full cell to native physics and a thin scaffold to its render mesh.
+            var limit=entity==null ? reach:Math.Sqrt(Vector3D.DistanceSquared(ray.Translation,point));
+            if(ConstructionRay(ray,limit,out var construction,out var entry))
+            { block=construction; entity=block.CubeGrid; point=entry; item=0; }
         }
+        internal static float ProjectionMultiplier(MyCasterComponent sensor) =>
+            (float)(Vector3D.Distance(sensor.Caster.Center,sensor.Caster.FrontPoint)/MyEngineerToolBase.DEFAULT_REACH_DISTANCE);
         internal static MySlimBlock ResolveBlock(MyCubeGrid grid,Vector3D point)
         {
             var local=Vector3D.Transform(point,grid.PositionComp.WorldMatrixNormalizedInv)/grid.GridSize;
@@ -137,7 +144,7 @@ namespace SpaceEngineersVR.Multiplayer
             var sphere=new BoundingSphereD((ray.Translation+point)*.5,reach*.5+.01);
             if(rayGrids==null) rayGrids=new List<MyEntity>();
             if(cells==null) cells=new List<Vector3I>();
-            rayGrids.Clear(); MyGamePruningStructure.GetAllEntitiesInSphere(ref sphere,rayGrids);
+            rayGrids.Clear(); EntitiesInSphere(ref sphere,rayGrids);
             double best=reach;
             foreach(var entity in rayGrids)
             {
@@ -157,28 +164,19 @@ namespace SpaceEngineersVR.Multiplayer
             }
             return selected!=null;
         }
-        internal static bool Accessible(MyCharacter owner,MyEntity tool,Vector3D grip,Vector3D point,MySlimBlock selected,MyEntity target=null,int item=0)
+        internal static bool Accessible(MyCharacter owner,MyEntity tool,Vector3D grip,Vector3D point,MySlimBlock selected)
         {
             var approach=point-grip;
             if(approach.LengthSquared()<=.005*.005) return true;
             var ray=MatrixD.CreateWorld(grip,Vector3D.Normalize(approach),Vector3D.CalculatePerpendicularVector(approach));
-            double reach=approach.Length(); bool targetCollider=false;
+            double reach=approach.Length();
             // Check every collider before contact; a selected construction box can hide another wall.
-            PhysicsHits(new LineD(grip,point+ray.Forward*(selected==null ? .005:-.005)));
+            PhysicsHits(new LineD(grip,point-ray.Forward*.005));
             foreach(var hit in physicsHits)
-            {
-                if(!PhysicsHit(owner,tool,hit,out var physical)) continue;
-                if(physical.Entity is MyCubeGrid grid && selected!=null && ReferenceEquals(ResolveBlock(grid,physical.DetectionPoint),selected)) continue;
-                bool same=ReferenceEquals(physical.Entity,target) && (target is MyEnvironmentSector ? physical.ItemId==item:
-                    Vector3D.DistanceSquared(physical.DetectionPoint,point)<=.02*.02);
-                if(!same) return false;
-                targetCollider=true;
-            }
+                if(PhysicsHit(owner,tool,hit,out var physical) &&
+                    !(physical.Entity is MyCubeGrid grid && ReferenceEquals(ResolveBlock(grid,physical.DetectionPoint),selected))) return false;
             // Construction eligibility does not establish clearance through physical walls.
-            if(Cast(owner,tool,ray,reach-.005,out var meshBlock,out var meshEntity,out var meshPoint) && meshEntity!=null &&
-                !(selected!=null && ReferenceEquals(meshBlock,selected)) &&
-                !(targetCollider && ReferenceEquals(meshEntity,target) &&
-                    (target is MyEnvironmentSector || Vector3D.DistanceSquared(meshPoint,point)<=.02*.02))) return false;
+            if(Cast(owner,tool,ray,reach-.005,out var meshBlock,out var meshEntity,out _) && meshEntity!=null && !ReferenceEquals(meshBlock,selected)) return false;
             return !ConstructionRay(ray,reach-.005,out _,out _,selected);
         }
         internal static bool FindTreeNear(MyCharacter owner,MyEntity tool,ToolVolume volume,Vector3D grip,out MyDrillSensorBase.DetectionInfo tree)
@@ -209,7 +207,7 @@ namespace SpaceEngineersVR.Multiplayer
             var sphere=volume.Bounds;
             if(!HeldItemPose.TryGet(owner,out var model,out var profile)) { selected=null; selectedHit=from; return false; }
             var grip=Vector3D.Transform(profile.Primary,model);
-            nearby.Clear(); MyGamePruningStructure.GetAllEntitiesInSphere(ref sphere,nearby);
+            nearby.Clear(); EntitiesInSphere(ref sphere,nearby);
             selected=null; selectedHit=from; double best=double.MaxValue;
             foreach(var entity in nearby)
             {
@@ -298,23 +296,15 @@ namespace SpaceEngineersVR.Multiplayer
                 ToolContact.Apply(tool,__instance,HeldItemPose.Working(model,profile),profile);
         }
     }
-    [HarmonyPatch(typeof(MyEngineerToolBase),nameof(MyEngineerToolBase.GetTargetBlock))]
-    internal static class ToolTargetPatch
+    [HarmonyPatch(typeof(MyWelder),nameof(MyWelder.FindProjectedBlock))]
+    internal static class ToolProjectionReachPatch
     {
-        private static bool Prefix(MyEngineerToolBase __instance,ref MySlimBlock __result)
+        // Native projection targeting measures the reach constant from the caster origin instead of its front point.
+        private static void Prefix(MyCasterComponent rayCaster,ref float distanceMultiplier)
         {
-            if(!HeldItemPose.TryGet(HeldItemPose.Owner(__instance),out _,out _)) return true;
-            __result=((MyCasterComponent)ToolContact.Sensor.GetValue(__instance))?.HitBlock; return false;
-        }
-    }
-    [HarmonyPatch(typeof(MyWelder),"CheckProjection")]
-    internal static class ToolProjectionPatch
-    {
-        private static readonly FieldInfo target=AccessTools.Field(typeof(MyWelder),"m_targetProjectionGrid");
-        private static bool Prefix(MyWelder __instance)
-        {
-            if(!(ToolContact.Near(__instance) || HeldItemPose.Supported(HeldItemPose.Owner(__instance))) || !HeldItemPose.TryGet(HeldItemPose.Owner(__instance),out _,out _)) return true;
-            target.SetValue(__instance,null); return false;
+            if(!(rayCaster?.Entity is MyEngineerToolBase tool) || !HeldItemPose.TryGet(HeldItemPose.Owner(tool),out _,out _)) return;
+            float scaled=ToolContact.ProjectionMultiplier(rayCaster);
+            if(scaled>0) distanceMultiplier=scaled;
         }
     }
     [HarmonyPatch(typeof(MyHandDrill),"WorldPositionChanged")]

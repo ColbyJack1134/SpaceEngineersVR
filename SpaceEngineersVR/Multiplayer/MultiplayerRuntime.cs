@@ -25,7 +25,7 @@ namespace SpaceEngineersVR.Multiplayer
         {
             if(MultiplayerRuntime.Enabled) return;
             harmony=new Harmony("SpaceEngineersVR.Multiplayer");
-            foreach(var type in new[] {typeof(CockpitStoragePatch),typeof(CockpitRemapPatch),typeof(AnalogSavePatch),typeof(RemoteArmsRestorePatch),typeof(RemoteArmsUpdatePatch),typeof(HeldWeaponShotPatch),typeof(HeldProjectileStartPatch),typeof(HeldDirectionPatch),typeof(HeldStraightAimPatch),typeof(HeldReloadAnimationPatch),typeof(HeldMagazineAlignmentPatch),typeof(ToolSensorPatch),typeof(ToolTargetPatch),typeof(ToolProjectionPatch),typeof(HeldDrillPosePatch),typeof(ToolFeedbackPatch),typeof(HeldDrillContactPatch),typeof(WelderContactEffectPatch)})
+            foreach(var type in new[] {typeof(CockpitStoragePatch),typeof(CockpitRemapPatch),typeof(AnalogSavePatch),typeof(RemoteArmsRestorePatch),typeof(RemoteArmsUpdatePatch),typeof(HeldWeaponShotPatch),typeof(HeldProjectileStartPatch),typeof(HeldDirectionPatch),typeof(HeldStraightAimPatch),typeof(HeldReloadAnimationPatch),typeof(HeldMagazineAlignmentPatch),typeof(ToolSensorPatch),typeof(HeldDrillPosePatch),typeof(ToolFeedbackPatch),typeof(HeldDrillContactPatch),typeof(WelderContactEffectPatch)})
                 harmony.CreateClassProcessor(type).Patch();
             MultiplayerRuntime.Enabled=true;
         }

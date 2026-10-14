@@ -20,7 +20,7 @@ namespace SpaceEngineersVR.Diagnostics
         private static Vector3D[] points;
         private static int index;
         private static LineD line;
-        private static bool Physics(Vector3D from,Vector3D to,List<MyPhysics.HitInfo> toList)
+        private static bool Physics(ref Vector3D from,ref Vector3D to,List<MyPhysics.HitInfo> toList)
         {
             line=new LineD(from,to); index=0;
             foreach(var point in points) toList.Add(new MyPhysics.HitInfo(default(HkHitInfo),point));
@@ -39,8 +39,8 @@ namespace SpaceEngineersVR.Diagnostics
             var hits=new Dictionary<long,MyDrillSensorBase.DetectionInfo>();
             var front=new MyEntity {EntityId=101}; var behind=new MyEntity {EntityId=102};
             var harmony=new Harmony("SEVR.DrillRay.Tests");
-            harmony.Patch(AccessTools.Method(typeof(MyPhysics),nameof(MyPhysics.CastRay),new[] {typeof(Vector3D),typeof(Vector3D),typeof(List<MyPhysics.HitInfo>),typeof(int)}),prefix:new HarmonyMethod(typeof(DrillRayTests),nameof(Physics)));
-            harmony.Patch(AccessTools.Method(typeof(MyPhysicsExtensions),nameof(MyPhysicsExtensions.GetHitEntity)),prefix:new HarmonyMethod(typeof(DrillRayTests),nameof(Entity)));
+            harmony.Patch(ToolContactTests.CastRayInternal,prefix:new HarmonyMethod(typeof(DrillRayTests),nameof(Physics)));
+            harmony.Patch(AccessTools.Method(typeof(ToolContact),nameof(ToolContact.HitEntity)),prefix:new HarmonyMethod(typeof(DrillRayTests),nameof(Entity)));
             try
             {
                 foreach(double origin in new[] {0d,1e9})

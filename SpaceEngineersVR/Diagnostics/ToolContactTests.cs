@@ -34,7 +34,10 @@ namespace SpaceEngineersVR.Diagnostics
         private static bool Clear(ref bool __result) { __result=clear; return false; }
         private sealed class TreeView : MyEnvironmentDataView { public override void Close() { } }
         private static bool TreeItem(ref int __result) { __result=1; return false; }
-        private static bool PhysicsRay(Vector3D from,Vector3D to,List<MyPhysics.HitInfo> toList,int raycastFilterLayer)
+        // The public CastRay wrapper can be inlined into its caller before this patch is installed.
+        internal static readonly System.Reflection.MethodInfo CastRayInternal=AccessTools.Method(typeof(MyPhysics),"CastRayInternal",
+            new[] {typeof(Vector3D).MakeByRefType(),typeof(Vector3D).MakeByRefType(),typeof(List<MyPhysics.HitInfo>),typeof(int)});
+        private static bool PhysicsRay(ref Vector3D from,ref Vector3D to,List<MyPhysics.HitInfo> toList,int raycastFilterLayer)
         {
             Require(raycastFilterLayer==24,"Drill did not use the native tool collision layer");
             hitIndex=0;
@@ -48,7 +51,8 @@ namespace SpaceEngineersVR.Diagnostics
         private static MyGridPhysics constructionPhysics;
         private static float buildRatio;
         private static bool Pruning(List<MyEntity> result) { result.Add(constructionGrid); return false; }
-        private static bool BuildRatio(ref float __result) { __result=buildRatio; return false; }
+        // The engine inlines the BuildLevelRatio getter into this method, so the stage is stubbed one level up.
+        private static bool ModelStage(ref int __result) { __result=buildRatio<=.8f ? 0:-1; return false; }
         private static bool Pose(ref MatrixD model,ref WeaponProfile profile,ref bool __result)
         { model=MatrixD.Identity; profile=WeaponProfile.All.First(p=>p.Kind==ItemKind.Welder); __result=true; return false; }
         private static bool EmptyPruning() => false;
@@ -83,15 +87,17 @@ namespace SpaceEngineersVR.Diagnostics
             }
             finally { result=null; harmony.Unpatch(method,AccessTools.Method(typeof(ToolContactTests),nameof(Intersection))); }
             log("PASS tool contact: native empty/entityless raycast results clear targets, valid entity hits retain contact position");
-            var physics=AccessTools.Method(typeof(MyPhysics),nameof(MyPhysics.CastRay),new[] {typeof(Vector3D),typeof(Vector3D),typeof(List<MyPhysics.HitInfo>),typeof(int)});
-            var entityMethod=AccessTools.Method(typeof(MyPhysicsExtensions),nameof(MyPhysicsExtensions.GetHitEntity));
-            var treeItem=AccessTools.Method(typeof(MyEnvironmentSector),nameof(MyEnvironmentSector.GetItemFromShapeKey));
+            var physics=CastRayInternal;
+            var entityMethod=AccessTools.Method(typeof(ToolContact),nameof(ToolContact.HitEntity));
+            var treeItem=AccessTools.Method(typeof(ToolContact),nameof(ToolContact.HitItem));
             var clearMethod=AccessTools.Method(typeof(HeldItemPose),nameof(HeldItemPose.Clear));
             harmony.Patch(physics,prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(PhysicsRay)));
             harmony.Patch(entityMethod,prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(HitEntity)));
             harmony.Patch(treeItem,prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(TreeItem)));
             harmony.Patch(method,prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(Intersection)));
             harmony.Patch(clearMethod,prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(Clear)));
+            var pruning=AccessTools.Method(typeof(ToolContact),nameof(ToolContact.EntitiesInSphere));
+            harmony.Patch(pruning,prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(EmptyPruning)));
             try
             {
                 var owner=new MyEntity(); var tool=new MyEntity();
@@ -135,8 +141,6 @@ namespace SpaceEngineersVR.Diagnostics
                 clear=true;
                 positions=new[] {origin+Vector3D.Right*.2};
                 Require(!ToolContact.FindTreeNear(null,tool,volume,origin+Vector3D.Backward,out near),"Grinder tree contact extended beyond its blade volume");
-                var pruning=AccessTools.Method(typeof(MyGamePruningStructure),nameof(MyGamePruningStructure.GetAllEntitiesInSphere));
-                harmony.Patch(pruning,prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(EmptyPruning)));
                 var grid=new MyCubeGrid();
                 AccessTools.PropertySetter(typeof(MyCubeGrid),nameof(MyCubeGrid.GridSize)).Invoke(grid,new object[] {.5f});
                 var frontBlock=AddBlock(grid,Vector3I.Zero); var backBlock=AddBlock(grid,Vector3I.Forward);
@@ -144,8 +148,11 @@ namespace SpaceEngineersVR.Diagnostics
                 AccessTools.Field(typeof(MyCubeGrid),"m_max").SetValue(grid,Vector3I.Zero);
                 var forwardRay=MatrixD.CreateTranslation(0,0,.5);
                 entities=new MyEntity[] {grid}; positions=new[] {new Vector3D(0,0,-.3)};
+                result=null;
+                ToolContact.CastTarget(null,tool,forwardRay,2.2,out block,out entity,out point,out item);
+                Require(ReferenceEquals(block,backBlock) && ReferenceEquals(entity,grid),"One-hand ray ignored a native grid collider");
                 result=new MyIntersectionResultLineTriangleEx {Entity=grid,UserObject=new MyCube {CubeBlock=frontBlock},IntersectionPointInWorldSpace=new Vector3D(0,0,.25)};
-                ToolContact.CastTarget(null,tool,forwardRay,2.2,out block,out entity,out point,out item,true);
+                ToolContact.CastTarget(null,tool,forwardRay,2.2,out block,out entity,out point,out item);
                 Require(ReferenceEquals(block,frontBlock),"Farther physics hit replaced a nearer block on the same grid");
                 Require(!ToolContact.Accessible(null,tool,forwardRay.Translation,new Vector3D(0,0,-.3),backBlock),"Same-grid wall did not block a farther target");
                 result=null;
@@ -154,14 +161,10 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(!ToolContact.Accessible(null,tool,forwardRay.Translation,new Vector3D(0,0,-.3),backBlock),"Eligibility hid a physical wall before the selected block");
                 entities=new MyEntity[] {grid,obstacle}; positions=new[] {new Vector3D(0,0,-.3),new Vector3D(0,0,-.4)};
                 Require(!ToolContact.Accessible(null,tool,forwardRay.Translation,new Vector3D(0,0,-.5),backBlock),"Selected collider hid another wall farther along the approach");
-                entities=new MyEntity[] {tree}; positions=new[] {origin+Vector3D.Forward};
-                result=new MyIntersectionResultLineTriangleEx {Entity=tree,IntersectionPointInWorldSpace=origin+Vector3D.Forward*.98};
-                Require(ToolContact.Accessible(null,tool,origin,positions[0],null,tree,1),"Supported tree reach rejected its own render surface before its collider");
-                Require(!ToolContact.Accessible(null,tool,origin,positions[0],null,tree,0),"Supported tree reach allowed a different tree item in the same sector");
-                harmony.Unpatch(pruning,AccessTools.Method(typeof(ToolContactTests),nameof(EmptyPruning)));
             }
             finally
             {
+                harmony.Unpatch(pruning,AccessTools.Method(typeof(ToolContactTests),nameof(EmptyPruning)));
                 harmony.Unpatch(physics,AccessTools.Method(typeof(ToolContactTests),nameof(PhysicsRay)));
                 harmony.Unpatch(entityMethod,AccessTools.Method(typeof(ToolContactTests),nameof(HitEntity)));
                 harmony.Unpatch(treeItem,AccessTools.Method(typeof(ToolContactTests),nameof(TreeItem)));
@@ -170,7 +173,7 @@ namespace SpaceEngineersVR.Diagnostics
                 clear=true; result=null;
                 entities=null; positions=null;
             }
-            log("PASS supported tool occlusion: nearer mesh block survives same-grid physics hit, selected penetration allowed, separate walls rejected");
+            log("PASS tool ray targeting: native grid collider from one hand, nearer mesh block survives the same-grid physics hit, selected penetration allowed, separate walls rejected");
             log("PASS drill physics targeting: synthetic voxel hits, owner/tool filtering, nearest obstacle and stale target clearing");
             log("PASS grinder tree targeting: physics-only trees, native item propagation, closer obstacles and stale target clearing");
             SupportedAim(log);
@@ -201,12 +204,24 @@ namespace SpaceEngineersVR.Diagnostics
                     var advance=Math.Max(0,Vector3D.Dot(aim.Translation-grip,aim.Forward));
                     Require(Math.Abs(advance+HeldItemPose.ToolReach(null,model,profile,aim,2.2)-2.2)<1e-7,"Tool length extended the total native reach");
                 }
+                var caster=new MyCasterComponent(new MyDrillSensorRayCast(0,2f,null));
+                var casterOrigin=new Vector3D(1e9,2,-3);
+                AccessTools.Field(typeof(MyDrillSensorBase),"m_center").SetValue(caster.Caster,casterOrigin);
+                AccessTools.Field(typeof(MyDrillSensorBase),"m_frontPoint").SetValue(caster.Caster,casterOrigin+new Vector3D(0,0,-1.3));
+                Require(Math.Abs(ToolContact.ProjectionMultiplier(caster)-.65)<1e-6,"Projected blocks ignored the clamped tool reach");
                 var grid=new MyCubeGrid(); var disc=new ToolVolume {Frame=MatrixD.Identity,Disc=true,Radius=.108,HalfHeight=.018};
                 Require(ToolContact.ConstructionOverlap(disc,grid,new BoundingBox(new Vector3(.05f,-.01f,-.05f),new Vector3(.07f,.01f,.05f))),"Grinder construction contact missed a cell through a mesh gap");
                 Require(!ToolContact.ConstructionOverlap(disc,grid,new BoundingBox(new Vector3(-.05f,.04f,-.05f),new Vector3(.05f,.06f,.05f))),"Grinder construction contact included housing-side clearance");
             }
             finally { HeldItemPose.LocalSupported=previous; harmony.UnpatchAll(harmony.Id); }
-            log("PASS supported tools: exclusive tip-axis aim, unchanged one-hand ray, total reach budget at rotated billion-metre origins, grinder construction contact");
+            log("PASS supported tools: exclusive tip-axis aim, unchanged one-hand ray, total reach budget at rotated billion-metre origins, projection reach from the caster ray, grinder construction contact");
+        }
+        private static void Size(MyCubeGrid grid,float size)
+        {
+            AccessTools.PropertySetter(typeof(MyCubeGrid),nameof(MyCubeGrid.GridSize)).Invoke(grid,new object[] {size});
+            AccessTools.PropertySetter(typeof(MyCubeGrid),nameof(MyCubeGrid.GridSizeHalfVector)).Invoke(grid,new object[] {new Vector3(size*.5f)});
+            AccessTools.PropertySetter(typeof(MyCubeGrid),nameof(MyCubeGrid.GridSizeHalf)).Invoke(grid,new object[] {size*.5f});
+            AccessTools.PropertySetter(typeof(MyCubeGrid),nameof(MyCubeGrid.GridSizeR)).Invoke(grid,new object[] {1f/size});
         }
         private static MySlimBlock AddBlock(MyCubeGrid grid,Vector3I cell)
         {
@@ -223,26 +238,22 @@ namespace SpaceEngineersVR.Diagnostics
         {
             var harmony=new Harmony("SEVR.ConstructionTargeting.Tests");
             constructionGrid=new MyCubeGrid(); constructionPhysics=(MyGridPhysics)FormatterServices.GetUninitializedObject(typeof(MyGridPhysics)); AccessTools.Field(typeof(MyGridPhysics),"m_enabled").SetValue(constructionPhysics,true);
-            AccessTools.PropertySetter(typeof(MyCubeGrid),nameof(MyCubeGrid.GridSize)).Invoke(constructionGrid,new object[] {.5f});
-            AccessTools.PropertySetter(typeof(MyCubeGrid),nameof(MyCubeGrid.GridSizeHalfVector)).Invoke(constructionGrid,new object[] {new Vector3(.25f)});
-            AccessTools.PropertySetter(typeof(MyCubeGrid),nameof(MyCubeGrid.GridSizeHalf)).Invoke(constructionGrid,new object[] {.25f});
-            AccessTools.PropertySetter(typeof(MyCubeGrid),nameof(MyCubeGrid.GridSizeR)).Invoke(constructionGrid,new object[] {2f});
+            Size(constructionGrid,.5f);
             AccessTools.Field(typeof(MyCubeGrid),"m_min").SetValue(constructionGrid,Vector3I.Zero);
             AccessTools.Field(typeof(MyCubeGrid),"m_max").SetValue(constructionGrid,Vector3I.Zero);
             var block=AddBlock(constructionGrid,Vector3I.Zero);
             block.BlockDefinition.BuildProgressModels=new[] {new MyCubeBlockDefinition.BuildProgressModel {BuildRatioUpperBound=.8f,Visible=true}};
-            harmony.Patch(AccessTools.Method(typeof(MyGamePruningStructure),nameof(MyGamePruningStructure.GetAllEntitiesInSphere)),prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(Pruning)));
+            harmony.Patch(AccessTools.Method(typeof(ToolContact),nameof(ToolContact.EntitiesInSphere)),prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(Pruning)));
             AccessTools.Field(typeof(MyEntity),"m_physics").SetValue(constructionGrid,constructionPhysics);
-            harmony.Patch(AccessTools.PropertyGetter(typeof(MySlimBlock),nameof(MySlimBlock.BuildLevelRatio)),prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(BuildRatio)));
+            harmony.Patch(AccessTools.Method(typeof(MySlimBlock),nameof(MySlimBlock.CalculateCurrentModelID)),prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(ModelStage)));
             harmony.Patch(AccessTools.Method(typeof(HeldItemPose),nameof(HeldItemPose.TryGet)),prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(Pose)));
             var intersection=typeof(MyEntities).GetMethods().Single(m=>m.Name==nameof(MyEntities.GetIntersectionWithLine) && m.GetParameters()[0].ParameterType==typeof(LineD).MakeByRefType());
             harmony.Patch(intersection,prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(Intersection)));
-            harmony.Patch(AccessTools.Method(typeof(MyPhysics),nameof(MyPhysics.CastRay),new[] {typeof(Vector3D),typeof(Vector3D),typeof(List<MyPhysics.HitInfo>),typeof(int)}),prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(PhysicsRay)));
+            harmony.Patch(CastRayInternal,prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(PhysicsRay)));
             try
             {
                 result=null; entities=new MyEntity[0]; positions=new Vector3D[0]; buildRatio=.4f;
                 var volume=new ToolVolume {Frame=MatrixD.CreateTranslation(.12,.12,.12),Radius=.038};
-                Require(block.CalculateCurrentModelID()==0,"Native construction stage fixture was not active");
                 Require(ToolContact.FindNear(null,null,volume,out var found,out _) && ReferenceEquals(found,block),"Unfinished cell required a scaffold beam or collider hit");
                 buildRatio=.99f;
                 Require(!ToolContact.FindNear(null,null,volume,out _,out _),"Damaged completed model inherited unfinished full-cell contact");
@@ -265,9 +276,22 @@ namespace SpaceEngineersVR.Diagnostics
                     buildRatio=.99f;
                     Require(!ToolContact.ConstructionRay(ray,1.2,out _,out _),"Completed hollow model acquired full-cell distance targeting");
                 }
+                foreach(float size in new[] {.5f,2.5f})
+                {
+                    Size(constructionGrid,size);
+                    var world=MatrixD.CreateFromYawPitchRoll(-.2,.5,.3); world.Translation=new Vector3D(1e9,1e9+2,1e9-3);
+                    AccessTools.Field(typeof(MyEntity),"m_physics").SetValue(constructionGrid,null);
+                    constructionGrid.PositionComp.SetWorldMatrix(ref world);
+                    AccessTools.Field(typeof(MyEntity),"m_physics").SetValue(constructionGrid,constructionPhysics);
+                    var ray=MatrixD.CreateWorld(Vector3D.Transform(new Vector3D(size*.24,size*.24,size*.5+1),world),world.Forward,world.Up);
+                    result=null; entities=new MyEntity[0]; positions=new Vector3D[0]; buildRatio=.4f;
+                    ToolContact.CastTarget(null,null,ray,1.2,out var reached,out var entity,out var at,out _);
+                    Require(ReferenceEquals(reached,block) && ReferenceEquals(entity,constructionGrid) &&
+                        Math.Abs(Vector3D.Distance(at,ray.Translation)-1)<1e-6,"One-hand ray missed an unfinished cell 1 m away on grid size "+size);
+                }
             }
             finally { harmony.UnpatchAll(harmony.Id); constructionGrid=null; constructionPhysics=null; result=null; entities=null; positions=null; }
-            log("PASS construction targeting: native occupied-cell contact without beam hits, rotated billion-metre reach, range limit and completed-model exclusion");
+            log("PASS construction targeting: native occupied-cell contact without beam hits, rotated billion-metre reach, range limit, completed-model exclusion and equal one-hand reach on both cube sizes");
         }
         private static void NativeDrillSelection(Action<string> log)
         {
