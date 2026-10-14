@@ -33,10 +33,10 @@ namespace SpaceEngineersVR.Player
                 activate.Invoke(builder,new object[] {block});
             },icon:block.Icons?.FirstOrDefault(),enabled:()=>Available(block))).ToArray();
         }
-        internal static ActionChoice[][] Pages(ActionChoice[] variants,ActionChoice[] actions)
+        internal static ActionChoice[][] Pages(params ActionChoice[][] sources)
         {
             var pages=new System.Collections.Generic.List<ActionChoice[]>();
-            foreach(var source in new[] {variants,actions})
+            foreach(var source in sources)
                 for(int offset=0;offset<source.Length;offset+=9)
                 {
                     var page=new ActionChoice[9];

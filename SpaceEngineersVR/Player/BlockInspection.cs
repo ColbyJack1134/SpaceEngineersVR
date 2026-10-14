@@ -53,7 +53,7 @@ namespace SpaceEngineersVR.Player
             // Projected blocks are unbuilt, so they show the build cost like a placement preview.
             var projected=block==null ? Projected(ray) : block.CubeGrid.Projector!=null ? block : null;
             if(projected!=null) block=null;
-            var definition=block?.BlockDefinition ?? projected?.BlockDefinition ?? (PlacementControls.OwnsTools ? MyCubeBuilder.Static?.CurrentBlockDefinition : null);
+            var definition=block?.BlockDefinition ?? projected?.BlockDefinition ?? (PlacementControls.OwnsTools && !VoxelTools.Active ? MyCubeBuilder.Static?.CurrentBlockDefinition : null);
             if(definition==null) { title=text=null; return; }
             // With a tool, grip is also the secondary-action modifier and must stay live.
             ConsumesSecondary=!tool && grip && InputRouter.Mode==InputMode.Walking;

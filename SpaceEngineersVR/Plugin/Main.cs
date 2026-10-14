@@ -40,6 +40,11 @@ namespace SpaceEngineersVR.Plugin
         private static volatile bool menuFallback;
         private static object failedSession,failedCharacter,failedControl;
         private static bool fallbackSawDialog;
+        private static readonly Integration touchScreens=new Integration("TouchScreenAPI",Player.TouchScreenBridge.Reset,Player.TouchScreenBridge.RefreshRegistrations,Player.TouchScreenBridge.Update,Player.TouchScreenBridge.Draw),
+            arthurLcd=new Integration("Arthur's LCD",Player.ArthurLcdBridge.Reset,Player.ArthurLcdBridge.RefreshRegistrations,Player.ArthurLcdBridge.Update,Player.ArthurLcdBridge.Draw);
+        internal static readonly Integration[] Integrations={touchScreens,arthurLcd,
+            new Integration("Mod HUD",Patches.ModHud.Reset,Patches.ModHud.RefreshRegistrations),
+            new Integration("Voxel tool mods",Patches.DigiTools.Reset,Patches.DigiTools.RefreshRegistrations)};
         private static int recoveryAttempts;
         public static void Fail(Exception error, string context)
         {
@@ -137,9 +142,7 @@ namespace SpaceEngineersVR.Plugin
             Player.ThirdPersonView.Reset();
             Player.NativeGloves.Reset();
             Player.MenuPointer.Release();
-            Player.TouchScreenBridge.Reset();
-            Player.ArthurLcdBridge.Reset();
-            Patches.ModHud.Reset();
+            foreach(var integration in Integrations) integration.Reset();
             Player.CockpitButtons.Reset();
             Player.BodyProximity.Reset();
             Player.TrackedArms.Reset();
@@ -184,9 +187,7 @@ namespace SpaceEngineersVR.Plugin
                     Player.BodyProximity.Reset();
                     Player.TrackedArms.Reset();
                     Player.CockpitControls.Reset();
-                    Player.TouchScreenBridge.Reset();
-                    Player.ArthurLcdBridge.Reset();
-                    Patches.ModHud.Reset();
+                    foreach(var integration in Integrations) integration.Reset();
                     Player.CockpitButtons.Reset();
                     Player.ThirdPersonView.Reset();
                     Player.NativeGloves.Reset();
@@ -355,14 +356,12 @@ namespace SpaceEngineersVR.Plugin
             Player.FloatingMenu.Update();
             Player.RemoteView.Update();
             Player.DesktopWindow.Update();
-            Player.TouchScreenBridge.RefreshRegistrations();
-            Player.ArthurLcdBridge.RefreshRegistrations();
-            Patches.ModHud.RefreshRegistrations();
+            foreach(var integration in Integrations) integration.Refresh();
             Player.CockpitTouch.BeginFrame();
             Player.CockpitButtons.Update();
             Player.SpatialUi.Update();
-            Player.TouchScreenBridge.Update();
-            Player.ArthurLcdBridge.Update();
+            touchScreens.Update();
+            arthurLcd.Update();
             Player.HandInteraction.UpdateTouch();
             Player.ThirdPersonView.Update();
             Player.SpectatorView.UpdateGestures();
@@ -390,8 +389,8 @@ namespace SpaceEngineersVR.Plugin
                 MySession.Static.LocalCharacter.Components.Add(new VRMovementComponent());
             }
             if (Player.InputRouter.Gameplay) { if(!Player.WeaponHandling.ToolEquipped) Player.HandInteraction.Update(); Player.CockpitControls.Draw(); }
-            Player.TouchScreenBridge.Draw();
-            Player.ArthurLcdBridge.Draw();
+            touchScreens.Draw();
+            arthurLcd.Draw();
             Player.EssentialHud.Update();
             Player.HelmetLight.Publish();
             Player.SpatialUi.Publish();
@@ -426,9 +425,7 @@ namespace SpaceEngineersVR.Plugin
             Player.SeatFit.Reset();
             Player.SpatialUi.Reset();
             Player.NativeGloves.Reset();
-            Player.TouchScreenBridge.Reset();
-            Player.ArthurLcdBridge.Reset();
-            Patches.ModHud.Reset();
+            foreach(var integration in Integrations) integration.Reset();
             Player.CockpitButtons.Reset();
             Player.CameraRig.Reset(forgetHeight:true);
             Player.ThirdPersonView.Reset();

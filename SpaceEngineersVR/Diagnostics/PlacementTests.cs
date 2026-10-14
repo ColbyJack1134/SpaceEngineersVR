@@ -140,7 +140,7 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 double distance=5;
                 for(int i=0;i<hz;i++) distance*=PlacementControls.DistanceStep(1,1f/hz);
-                Require(Math.Abs(distance-5*Math.Pow(1.1,1/.22))<.0001,"Distance speed depends on frame rate");
+                Require(Math.Abs(distance-5*Math.Pow(1.1,1/PlacementControls.DistanceRepeat))<.0001,"Distance speed depends on frame rate");
                 Require(PlacementControls.DistanceStep(0,1f/hz)==1 && PlacementControls.DistanceStep(float.NaN,1f/hz)==1,"Distance moves at neutral/invalid input");
                 for(int i=0;i<hz;i++) distance/=PlacementControls.DistanceStep(-1,1f/hz);
                 Require(Math.Abs(distance-5)<.0001,"Distance reversal is asymmetric");

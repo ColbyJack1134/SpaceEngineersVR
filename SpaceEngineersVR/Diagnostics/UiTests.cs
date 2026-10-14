@@ -142,7 +142,7 @@ namespace SpaceEngineersVR.Diagnostics
                     Tuple.Create("inventory",inventory,Array.FindIndex(inventory,c=>c.Label=="Withdraw 10x / keep")),
                     Tuple.Create("unfinished",new[] {new ActionChoice("Add missing components",()=>{},icon:NativeSprites.Hud("MultiBlockBuilding"))},0)})
                 {
-                    var pages=BlockActions.Pages(fixture.Item2,BlockVariants.Pages(Array.Empty<ActionChoice>(),GameActions.WheelActions(false,false,false)));
+                    var pages=ToolbarWheel.Layout(new[] {new ToolbarWheel.Group("Block actions",fixture.Item2),new ToolbarWheel.Group("Quick actions",GameActions.WheelActions(false,false,false))},out _,out _);
                     var page=pages[0];
                     var model=new ToolbarWheel.View {Title="Block actions",Group=1,Pages=pages.Length,Selected=fixture.Item3,
                         Labels=page.Select(c=>c?.Label ?? "").ToArray(),Icons=page.Select(c=>c==null ? Array.Empty<string>():new[] {c.Icon}).ToArray(),
@@ -270,7 +270,7 @@ namespace SpaceEngineersVR.Diagnostics
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
                     Save(wheel.Texture,Path.Combine(output,"wheel-actions-preview.png"));
                     var blockChoices=BlockActions.Choices(VRage.Game.Entity.UseObject.UseActionEnum.Manipulate|VRage.Game.Entity.UseObject.UseActionEnum.OpenTerminal,true,_=>true,_=>{});
-                    var blockPages=BlockActions.Pages(blockChoices,BlockVariants.Pages(Array.Empty<ActionChoice>(),GameActions.WheelActions(false,false,false)));
+                    var blockPages=ToolbarWheel.Layout(new[] {new ToolbarWheel.Group("Block actions",blockChoices),new ToolbarWheel.Group("Quick actions",GameActions.WheelActions(false,false,false))},out _,out _);
                     var blockPage=blockPages[0];
                     model.Title="Block actions"; model.Pages=blockPages.Length; model.Selected=1;
                     model.Labels=blockPage.Select(a=>a?.Label ?? "").ToArray(); model.Icons=blockPage.Select(a=>a==null ? Array.Empty<string>():new[] {a.Icon}).ToArray();
@@ -295,16 +295,8 @@ namespace SpaceEngineersVR.Diagnostics
                         if(!File.Exists(Path.Combine(MyFileSystem.ContentPath,@"Textures\GUI\Icons\Cubes\"+icon+".dds"))) throw new FileNotFoundException("Variant artwork",icon);
                     var variants=new[] { "Light Armor Block","Light Armor Slope","Light Armor Corner","Light Armor Inv. Corner","Light Armor Slope 2x1x1 Base","Light Armor Slope 2x1x1 Tip","Light Armor Half Block","Light Armor Half Slope" }
                         .Select((label,i)=>new ActionChoice(label,()=> {},icon:@"Textures\GUI\Icons\Cubes\"+variantIcons[i]+".dds")).ToArray();
-                    var buildingPages=BlockVariants.Pages(variants,GameActions.WheelActions(true,false,false));
-                    for(int p=0;p<buildingPages.Length;p++)
-                    {
-                        var choices=buildingPages[p]; model.Title="Building";
-                        model.Variants=p<(variants.Length+8)/9; model.Group=1; model.Page=p; model.Pages=buildingPages.Length; model.Selected=p==0 ? 0:-1;
-                        model.Hint="Hold Y · Either stick selects · Release Y confirms\nLeft / right trigger: previous / next page";
-                        model.Labels=choices.Select(c=>c?.Label ?? "").ToArray(); model.Icons=choices.Select(c=>c==null ? new string[0]:new[] {c.Icon}).ToArray();
-                        model.Enabled=choices.Select(c=>c!=null).ToArray();
-                        Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"wheel-variants-"+p+".png"));
-                    }
+                    VoxelToolRenders.Wheel(wheel,ToolbarWheel.ToolGroups("Building",GameActions.WheelActions(true,false,false),
+                        new[] {new ToolbarWheel.Group("Variants",variants,true)},GameActions.WheelActions(false,false,false)),new[] {0,1,2},output,"wheel-variants-");
                     model.Variants=false; model.Hint=ToolbarWheel.ControlsHint; model.Selected=0;
                     string[] tools={ "WeaponWelder","WeaponGrinder","WeaponDrill","WeaponAutomaticRifle","WeaponWelder_1","WeaponGrinder_1","WeaponDrill_1","WeaponWelder_2","WeaponGrinder_2" };
                     model.Title="Toolbar 1/9"; model.Group=0; model.Pages=9; model.Labels=new[] { "Welder","Grinder","Drill","Automatic rifle","Enhanced welder","Enhanced grinder","Enhanced drill","Proficient welder","Proficient grinder" };
@@ -323,6 +315,7 @@ namespace SpaceEngineersVR.Diagnostics
                     Save(wheel.Texture,Path.Combine(output,"wheel-empty-assignment.png"));
 
                 }
+                VoxelToolRenders.Run(device,output,log);
                 using(var performance=new OverlayCanvas("Performance preview",640,540,1,false,device))
                 {
                     long now=System.Diagnostics.Stopwatch.GetTimestamp();

@@ -44,7 +44,7 @@ namespace SpaceEngineersVR.Player
             else if (MySession.Static.ControlledEntity is MyShipController) next = InputMode.Piloting;
             else if (MySession.Static.ControlledEntity != character) next = InputMode.Blocked;
             else if (PlacementControls.ClipboardActive) next = InputMode.Clipboard;
-            else if (MyCubeBuilder.Static?.IsActivated == true) next = InputMode.Building;
+            else if (MyCubeBuilder.Static?.IsActivated == true || VoxelTools.Active) next = InputMode.Building;
             else next = Flying ? InputMode.Jetpack : InputMode.Walking;
             bool handsTracked = Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;
             KeyboardMouse = !handsTracked && IsGameplay(next) && Common.Config.EnableKeyboardAndMouseControls;

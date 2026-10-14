@@ -142,6 +142,8 @@ namespace SpaceEngineersVR.Player
             string ammo = piloting ? item?.IconText?.ToString() : weapon?.GunBase is Sandbox.Game.Weapons.MyGunBase gun ? WeaponAmmo.Count(gun) : "";
             if(!piloting && block==null && weapon==null) { selected=null; icons=null; ammo=null; }
             if (InputRouter.Mode == InputMode.Clipboard) selected = "Blueprint preview";
+            if (VoxelTools.Current is VoxelTool tool && tool.Selected(out var material, out var materialIcon))
+            { selected = material; icons = materialIcon == null ? null : new[] { materialIcon }; }
             var view = new View {
                 Selected=selected, Icons=icons == null ? new string[0] : (string[])icons.Clone(), Ammo=ammo,
                 Levels=new float[4], Values=new string[4], Helmet=On("player_helmet"), Jetpack=On("player_jetpack"),

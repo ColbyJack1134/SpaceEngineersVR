@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using Sandbox.Game.Screens.Helpers;
@@ -45,7 +46,9 @@ namespace SpaceEngineersVR.Player
         private static readonly ToolbarGesture gesture=new ToolbarGesture(),quickGesture=new ToolbarGesture();
         private static ActionChoice[] quickChoices;
         private static ActionChoice[][] quickPages;
-        private static int quickPage,variantPages,blockPages;
+        private static int quickPage;
+        private static string[] pageTitles;
+        private static bool[] variantPages;
         public static bool QuickPending => Controls.Static.QuickMenu.RawPressed;
         private static int iconRevision;
         private static object owner;
@@ -157,21 +160,27 @@ namespace SpaceEngineersVR.Player
         private static void Open(bool quick)
         {
             quickChoices=quick ? GameActions.WheelActions(PlacementControls.OwnsTools,InputRouter.Mode==InputMode.Piloting,ThirdPersonView.Active,InputRouter.Mode==InputMode.Jetpack || MySession.Static?.LocalCharacter?.JetpackComp?.TurnedOn==true):null;
-            quickPage=variantPages=blockPages=0; quickPages=null;
+            quickPage=0; quickPages=null; pageTitles=null; variantPages=null;
             if(quick)
             {
                 bool symmetry=SymmetrySetupControls.Active;
-                var variants=!symmetry && PlacementControls.Mode==InputMode.Building ? BlockVariants.Choices() : Array.Empty<ActionChoice>(); variantPages=(variants.Length+8)/9;
+                bool jetpack=InputRouter.Mode==InputMode.Jetpack || MySession.Static?.LocalCharacter?.JetpackComp?.TurnedOn==true;
                 var block=symmetry || PlacementControls.ClipboardActive ? Array.Empty<ActionChoice>():BlockActions.Capture(PlacementControls.OwnsTools);
-                quickChoices=quickChoices.Select(choice=>choice==GameActions.Quick[11] || choice==GameActions.Quick[12] ?
+                ActionChoice[] Contextual(ActionChoice[] choices) => choices.Select(choice=>choice==GameActions.Quick[11] || choice==GameActions.Quick[12] ?
                     block.FirstOrDefault(c=>c.Label==choice.Label) ?? choice:choice).ToArray();
-                quickPages=BlockVariants.Pages(variants,quickChoices);
-                blockPages=(block.Length+8)/9;
-                quickPages=BlockActions.Pages(block,quickPages);
+                var groups=new List<Group> {new Group("Block actions",block)};
+                if(InputRouter.Mode==InputMode.Building && !symmetry)
+                {
+                    var voxel=VoxelTools.Current;
+                    groups.AddRange(ToolGroups(voxel?.Title ?? "Building",quickChoices,voxel!=null ? voxel.Materials() : new[] {new Group("Variants",BlockVariants.Choices(),true)},
+                        Contextual(GameActions.WheelActions(false,false,ThirdPersonView.Active,jetpack))));
+                }
+                else groups.Add(new Group(symmetry ? "Symmetry setup":"Quick actions",Contextual(quickChoices)));
                 var recent=ActionCatalog.Recent();
                 if(MySession.Static.ControlledEntity is Sandbox.Game.Entities.MyShipController)
                     recent=recent.Where(action=>action!=GameActions.SymmetryAction && action!=GameActions.SymmetrySetupAction).ToArray();
-                quickPages=WithRecents(quickPages,recent);
+                quickPages=WithRecents(Layout(groups,out var titles,out var variants),recent);
+                pageTitles=titles.Concat(new[] {"Recent searches"}).ToArray(); variantPages=variants.Concat(new[] {false}).ToArray();
                 quickChoices=quickPages[0];
             }
             owner=MySession.Static.ControlledEntity; toolbar=MyToolbarComponent.CurrentToolbar;
@@ -243,10 +252,31 @@ namespace SpaceEngineersVR.Player
             }
             var next = new View { Pose = pose, Labels = labels, Enabled = enabled, Selected = selection, Icons = icons, SubIcons = subIcons, ItemText = itemText,
                 Title = group == 0 ? "Toolbar " + ((toolbar?.CurrentPage ?? 0) + 1) + "/" + (toolbar?.PageCount ?? 0)
-                    : quickPage==quickPages.Length-1 ? "Recent searches" : SymmetrySetupControls.Active ? "Symmetry setup" : quickPage<blockPages ? "Block actions" : variantPages>0 ? "Building" : "Quick actions",
-                Variants=group==1 && quickPage>=blockPages && quickPage<blockPages+variantPages,Group=group,Page=group==0 ? toolbar?.CurrentPage ?? 0 : quickPage,Pages=group==0 ? toolbar?.PageCount ?? 1 : quickPages?.Length ?? 1,
+                    : pageTitles?[quickPage] ?? "Quick actions",
+                Variants=group==1 && variantPages?[quickPage]==true,Group=group,Page=group==0 ? toolbar?.CurrentPage ?? 0 : quickPage,Pages=group==0 ? toolbar?.PageCount ?? 1 : quickPages?.Length ?? 1,
                 Hint = group==0 ? ControlsHint : QuickControlsHint(quickPages?.Length>1) };
             if (!next.SameAs(view)) view=next;
+        }
+
+        internal sealed class Group
+        {
+            internal readonly string Title;
+            internal readonly ActionChoice[] Items;
+            // Variant and material pages show icons only, with the hovered name in the center.
+            internal readonly bool Variants;
+            internal Group(string title,ActionChoice[] items,bool variants=false) { Title=title; Items=items; Variants=variants; }
+        }
+        // Y wheel order: aimed-block actions, the held tool's actions, its variants or materials, general quick actions, recent searches.
+        internal static Group[] ToolGroups(string title,ActionChoice[] tool,Group[] variants,ActionChoice[] quick) =>
+            new[] {new Group(title,tool)}.Concat(variants).Concat(new[] {new Group("Quick actions",quick)}).ToArray();
+        internal static ActionChoice[][] Layout(IEnumerable<Group> groups,out string[] titles,out bool[] variants)
+        {
+            var pages=new List<ActionChoice[]>(); var titleList=new List<string>(); var variantList=new List<bool>();
+            foreach(var group in groups)
+                foreach(var page in BlockVariants.Pages(group.Items))
+                { pages.Add(page); titleList.Add(group.Title); variantList.Add(group.Variants); }
+            titles=titleList.ToArray(); variants=variantList.ToArray();
+            return pages.ToArray();
         }
 
         public static void Close(bool resume = true)

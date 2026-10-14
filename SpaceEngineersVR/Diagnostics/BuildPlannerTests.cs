@@ -32,9 +32,9 @@ namespace SpaceEngineersVR.Diagnostics
             available=false;
             foreach(var choice in choices) { Require(!choice.Enabled,"Lost inventory target stayed enabled"); choice.Run(); }
             Require(dispatched.Count==6,"Unavailable inventory target executed a planner operation");
-            var pages=BlockActions.Pages(BlockActions.Choices(VRage.Game.Entity.UseObject.UseActionEnum.Manipulate|
-                VRage.Game.Entity.UseObject.UseActionEnum.OpenTerminal|VRage.Game.Entity.UseObject.UseActionEnum.OpenInventory,false,_=>true,_=>{}).Concat(choices).ToArray(),
-                BlockVariants.Pages(Array.Empty<ActionChoice>(),GameActions.WheelActions(false,false,false)));
+            var pages=ToolbarWheel.Layout(new[] {new ToolbarWheel.Group("Block actions",BlockActions.Choices(VRage.Game.Entity.UseObject.UseActionEnum.Manipulate|
+                VRage.Game.Entity.UseObject.UseActionEnum.OpenTerminal|VRage.Game.Entity.UseObject.UseActionEnum.OpenInventory,false,_=>true,_=>{}).Concat(choices).ToArray()),
+                new ToolbarWheel.Group("Quick actions",GameActions.WheelActions(false,false,false))},out _,out _);
             Require(pages[0].Count(c=>c!=null)==9 && pages.Skip(1).SelectMany(p=>p).Any(c=>c==GameActions.PauseAction),"Inventory operations displaced personal wheel pages");
             foreach(string field in new[] {"withdraw","production","deposit"})
             {

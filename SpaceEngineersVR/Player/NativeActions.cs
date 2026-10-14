@@ -53,7 +53,7 @@ namespace SpaceEngineersVR.Player
             // The wheel/dashboard do not necessarily invoke the native screen's
             // InputLost. Cancel pending line/plane build/remove strokes before any
             // synthetic release; StopBuilding would commit the pending operation.
-            if (PlacementControls.Mode == InputMode.Building) MyCubeBuilder.Static?.InputLost();
+            if (PlacementControls.BlockTool) MyCubeBuilder.Static?.InputLost();
             if (WasHeld(MyControlsSpace.PRIMARY_TOOL_ACTION)) owner?.EndShoot(MyShootActionEnum.PrimaryAction);
             if (WasHeld(MyControlsSpace.SECONDARY_TOOL_ACTION)) owner?.EndShoot(MyShootActionEnum.SecondaryAction);
             if(WasHeld(MyControlsSpace.WHEEL_JUMP)) (owner as MyShipController)?.WheelJump(false);

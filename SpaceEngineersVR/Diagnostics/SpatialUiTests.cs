@@ -22,11 +22,13 @@ namespace SpaceEngineersVR.Diagnostics
             foreach(var action in blockActions) { Require(!action.Enabled,"Unavailable captured block action stayed enabled"); action.Run(); }
             Require(used.Count==3,"Lost block access executed a captured action");
             Require(BlockActions.Choices(VRage.Game.Entity.UseObject.UseActionEnum.OpenTerminal,false,_=>true,_=>{}).Single().Label=="Control panel","Unsupported native actions leaked into block page");
-            var personal=BlockVariants.Pages(Array.Empty<ActionChoice>(),GameActions.WheelActions(false,false,false));
-            var capturedPages=BlockActions.Pages(blockActions,personal);
-            Require(capturedPages[0].Where(a=>a!=null).SequenceEqual(blockActions) && capturedPages.Skip(1).SequenceEqual(personal),"Captured block actions mixed with personal pages or changed their order");
-            Require(BlockActions.Pages(Array.Empty<ActionChoice>(),personal).SequenceEqual(personal),"Empty target added a blank block page");
-            var future=BlockActions.Pages(Enumerable.Range(0,12).Select(i=>new ActionChoice("Block "+i,()=>{})).ToArray(),personal);
+            var personalActions=GameActions.WheelActions(false,false,false);
+            ActionChoice[][] Captured(ActionChoice[] block) => ToolbarWheel.Layout(new[] {new ToolbarWheel.Group("Block actions",block),new ToolbarWheel.Group("Quick actions",personalActions)},out _,out _);
+            var personal=Captured(Array.Empty<ActionChoice>());
+            var capturedPages=Captured(blockActions);
+            Require(capturedPages[0].Where(a=>a!=null).SequenceEqual(blockActions) && capturedPages.Skip(1).Select(p=>p.Where(a=>a!=null)).SelectMany(p=>p).SequenceEqual(personal.SelectMany(p=>p).Where(a=>a!=null)),"Captured block actions mixed with personal pages or changed their order");
+            Require(personal.Length==1,"Empty target added a blank block page");
+            var future=Captured(Enumerable.Range(0,12).Select(i=>new ActionChoice("Block "+i,()=>{})).ToArray());
             Require(future.Length==personal.Length+2 && future.All(p=>p.Length==9) && future[1].Count(a=>a!=null)==3,"Extended block actions overflowed native radial pages");
             log("PASS captured block actions: supported native use/terminal/inventory dispatch, access-loss rejection, fixed first page, personal-page order, no-target fallback and multi-page growth.");
             foreach(var context in new[] {
@@ -34,11 +36,13 @@ namespace SpaceEngineersVR.Diagnostics
                 new[] {true,false,false,true},new[] {false,true,false,false},new[] {false,true,true,false},new[] {true,false,true,false},new[] {false,false,true,false},new[] {true,true,false,false},new[] {true,true,true,false},new[] {true,false,true,true},new[] {false,false,true,true} })
             {
                 var wheel=GameActions.WheelActions(context[0],context[1],context[2],context[3]);
-                Require(wheel.Distinct().Count()==wheel.Length && wheel.Length>=8 && wheel[0]==GameActions.PauseAction && !wheel.Contains(GameActions.Options),"Context moved Pause, retained VR options or duplicated wheel actions");
+                // On-foot building opens on its tool page; Pause leads the quick actions page that follows the variants.
+                var first=context[0] && !context[1] ? GameActions.WheelActions(false,false,context[2],context[3]) : wheel;
+                Require(wheel.Distinct().Count()==wheel.Length && wheel.Length>=8 && first[0]==GameActions.PauseAction && !wheel.Contains(GameActions.Options),"Context moved Pause, retained VR options or duplicated wheel actions");
                 Require(!wheel.Contains(GameActions.Tablet) && !wheel.Any(a=>a.Label=="Reset ship view"),"Duplicate gesture/button action consumes a radial slot");
                 Require(!wheel.Contains(GameActions.RelativeDampeners) || context[3],"Auto dampeners shown outside jetpack context");
                 Require(wheel.Count(a=>a.Label.StartsWith("Camera:"))==(context[2] && context[1] && !context[0] ? 1:0),"Camera cycle leaked context or split into multiple slots");
-                Require(wheel.Contains(GameActions.BlueprintsAction)==!context[1],"Blueprint browser leaked into cockpit or disappeared on foot");
+                Require(wheel.Concat(first).Contains(GameActions.BlueprintsAction)==!context[1],"Blueprint browser leaked into cockpit or disappeared on foot");
                 Require(wheel.Contains(GameActions.CockpitBuild)==context[1],"Native cockpit build toggle escaped its cockpit context");
                 var quickPages=BlockVariants.Pages(Array.Empty<ActionChoice>(),wheel);
                 Require(quickPages.All(p=>p.Length==9) && quickPages.SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(wheel),"Action paging drops or duplicates an entry");
@@ -57,11 +61,15 @@ namespace SpaceEngineersVR.Diagnostics
             armor.BlockVariantsGroup=armorCorner.BlockVariantsGroup=small.BlockVariantsGroup=family;
             Require(BlockVariants.Family(armorCorner,new[] {armorCorner}).SequenceEqual(new[] {armor,armorCorner}),"Selecting a armorCorner collapsed the radial variant family");
             Require(BlockVariants.Family(small,new[] {armorCorner}).SequenceEqual(new[] {small}),"Variant family leaked the previous block size");
-            var pages=BlockVariants.Pages(variants,GameActions.WheelActions(true,false,false));
+            var buildingTool=GameActions.WheelActions(true,false,false);
+            var quickActions=GameActions.WheelActions(false,false,false);
+            var pages=ToolbarWheel.Layout(ToolbarWheel.ToolGroups("Building",buildingTool,new[] {new ToolbarWheel.Group("Variants",variants,true)},quickActions),out var titles,out var variantFlags);
             Require(pages.Length==4 && pages.All(p=>p.Length==9),"Building wheel loses fixed actions or overflow pages");
-            Require(pages.Take(2).SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(variants),"Building variant paging loses or duplicates entries");
-            Require(pages.Skip(2).SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(GameActions.WheelActions(true,false,false)),"Building actions page moved before variants");
-            Require(BlockVariants.Pages(new ActionChoice[0],GameActions.WheelActions(true,false,false)).SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(GameActions.WheelActions(true,false,false)),"No-variant block does not open actions directly");
+            Require(pages[0].Where(a=>a!=null).SequenceEqual(buildingTool) && titles[0]=="Building","Building actions do not open first");
+            Require(pages.Skip(1).Take(2).SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(variants) && variantFlags.SequenceEqual(new[] {false,true,true,false}),"Building variant paging loses or duplicates entries");
+            Require(pages[3].Where(a=>a!=null).SequenceEqual(quickActions) && titles[3]=="Quick actions","Quick actions are not last");
+            Require(!buildingTool.Contains(GameActions.PauseAction) && quickActions.Contains(GameActions.PauseAction),"Pause left the quick actions page");
+            Require(ToolbarWheel.Layout(ToolbarWheel.ToolGroups("Building",buildingTool,new[] {new ToolbarWheel.Group("Variants",new ActionChoice[0],true)},quickActions),out _,out _).Length==2,"A block without variants gained empty pages");
             WristPanel.Reset(); WristPanel.Show(2); WristPanel.SetQuery("damp");
             var search=WristPanel.Keys(null,false,false,false,true,null);
             Require(search.Any(k=>k.Action==GameActions.RelativeDampeners) && search.Any(k=>k.Action==GameActions.Dampeners),"Tablet search loses native actions");

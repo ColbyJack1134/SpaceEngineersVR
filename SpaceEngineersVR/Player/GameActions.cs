@@ -36,6 +36,9 @@ namespace SpaceEngineersVR.Player
             if (Label.StartsWith("Yaw") || Label.StartsWith("Pitch") || Label.StartsWith("Roll") || Label.StartsWith("Camera:")) return "BlockRotate";
             if (Label.StartsWith("Offset:")) return "SwitchSymmetryAxis";
             if (Label.StartsWith("Build shape:")) return "MultiBlockBuilding";
+            if (Label.StartsWith("Snap to voxel:")) return "GridSize";
+            if (Label.StartsWith("Project to surface:")) return "MoveFurther";
+            if (Label.StartsWith("Left stick:")) return Label.EndsWith("size") ? "ScaleUp":"MoveFurther";
             switch (Label)
             {
                 case "Chat": return "Chat";
@@ -81,7 +84,14 @@ namespace SpaceEngineersVR.Player
                 case "Select follow target": case "Unlock target": case "Tracking mode": return "SignalMode";
                 case "Save tracked view 1": case "Recall tracked view 1": return "CameraSpectator";
                 case "Placement mode": return "PlacementMode";
-                case "Align mount point": return "Autorotate";
+                case "Align mount point": case "Align": return "Autorotate";
+                case "Brush settings": return "SetupVoxelHand";
+                case "Larger brush": case "Larger box": return "ScaleUp";
+                case "Smaller brush": case "Smaller box": return "ScaleDown";
+                case "Revert terrain": return "RotateCounterClockWise";
+                case "Snap mode": return "PlacementMode";
+                case "Snap lock": return "SwitchSymmetryAxis";
+                case "Tool help": return "HelpScreen";
                 default: return "RadialMenu";
             }
         }
@@ -133,7 +143,7 @@ namespace SpaceEngineersVR.Player
             if(building && seated) return CockpitBuildActions();
             if(thirdPerson && seated) return new[] { PauseAction,TerminalAction,Quick[22],LightsAction,Dampeners,PowerAction,ParkAction,BroadcastAction,CockpitBuild };
             if(building && PlacementControls.ClipboardActive) return ClipboardActions(PlacementControls.GridClipboardActive);
-            if(building) return BuildingWheelActions();
+            if(building) return VoxelTools.Current?.Actions() ?? BuildingWheelActions();
             if(seated) return new[] { PauseAction,TerminalAction,LightsAction,Dampeners,PowerAction,ParkAction,HelmetAction,BroadcastAction,CockpitBuild };
             if(jetpack) return new[] { PauseAction,BlueprintsAction,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,BroadcastAction };
             return new[] { PauseAction,BlueprintsAction,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],Quick[12] };
@@ -142,8 +152,7 @@ namespace SpaceEngineersVR.Player
         {
             bool setup=symmetrySetup ?? (MySession.Static!=null && MyCubeBuilder.Static?.IsSymmetrySetupMode()==true);
             if(setup) return SymmetrySetupControls.Actions();
-            return new[] {PauseAction,BlueprintsAction,TerminalAction,Building[17],PlacementAction,Building[8],PaletteAction,SymmetryAction,SymmetrySetupAction,
-                BuildShapeAction,Building[9],Building[10]};
+            return new[] {Building[17],PlacementAction,Building[8],PaletteAction,SymmetryAction,SymmetrySetupAction,BuildShapeAction,Building[9],Building[10]};
         }
         internal static ActionChoice[] CockpitBuildActions() => new[] { PauseAction,TerminalAction,CockpitBuild,ConfigureToolbarAction,PaletteAction,Building[17],Building[8],PlacementAction,BuildShapeAction };
         internal static ActionChoice[] RemoteWheelActions() => new[] { PauseAction,TerminalAction,ExitFeed,ResetFeed,ConfigureToolbarAction,Native("Previous camera",MyControlsSpace.SWITCH_LEFT),Native("Next camera",MyControlsSpace.SWITCH_RIGHT),Inspect };
@@ -268,6 +277,8 @@ namespace SpaceEngineersVR.Player
         {
             AlternateTrigger = false;
             if (PlacementControls.ClipboardActive) { PlacementControls.Cancel(); return; }
+            // Native unequip only clears a held weapon; the voxel hand turns off when the toolbar selection clears.
+            if (VoxelTools.Hand.Active) { MyToolbarComponent.CurrentToolbar?.Unselect(); return; }
             new MyActionUnequip().ExecuteAction();
         }
         private static readonly Control.JumpHold jumpHold=new Control.JumpHold();
@@ -349,7 +360,7 @@ namespace SpaceEngineersVR.Player
             if (c.Helmet.HasPressed) Execute(HelmetAction);
             if (c.Jetpack.HasPressed && !ToolbarWheel.QuickPending)
             {
-                if(InputRouter.Mode==InputMode.Building && PlacementControls.Adjusting) Building[8].Run();
+                if(InputRouter.Mode==InputMode.Building && PlacementControls.Adjusting) { if(PlacementControls.BlockTool) Building[8].Run(); }
                 else Execute(JetpackAction);
             }
             if (c.Lights.HasPressed) Execute(LightsAction);

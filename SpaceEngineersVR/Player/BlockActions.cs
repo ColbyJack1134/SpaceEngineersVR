@@ -66,12 +66,5 @@ namespace SpaceEngineersVR.Player
             Add(UseActionEnum.OpenInventory,"Block inventory",true,GameActions.InventoryAction.Icon);
             return choices.ToArray();
         }
-        internal static ActionChoice[][] Pages(ActionChoice[] block,ActionChoice[][] existing)
-        {
-            var pages=new List<ActionChoice[]>();
-            if(block.Length>0) pages.AddRange(BlockVariants.Pages(Array.Empty<ActionChoice>(),block));
-            pages.AddRange(existing);
-            return pages.ToArray();
-        }
     }
 }
