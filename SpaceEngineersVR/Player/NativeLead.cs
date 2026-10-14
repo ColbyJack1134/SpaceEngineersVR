@@ -36,7 +36,7 @@ namespace SpaceEngineersVR.Player
             var target=indicator?.TargetInfo?.Entity;
             var controlled=MySession.Static?.ControlledEntity;
             if(indicator?.HasTargetLock!=true || target==null || target.Closed || target.MarkedForClose || circle==null || circle.State.ToString()!="Visible" ||
-                RemoteView.Current!=null || MyHud.MinimalHud || MyHud.IsHudMinimal || MyHud.CutsceneHud ||
+                RemoteView.Current!=null || HelmetHud.NativeSuppressed ||
                 !(controlled is Sandbox.ModAPI.IMyTargetingCapableBlock capable) || !capable.CanActiveToolShoot() || !capable.IsTargetLockingEnabled()) return null;
             if(controlled is MyCubeBlock block && (!block.IsWorking || !block.CubeGrid.IsPowerSwitchOn)) return null;
             var native=lead.GetValue(indicator);

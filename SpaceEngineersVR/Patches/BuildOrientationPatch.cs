@@ -10,8 +10,14 @@ namespace SpaceEngineersVR.Patches
     [HarmonyPatch(typeof(MyBlockBuilderRotationHints),nameof(MyBlockBuilderRotationHints.CalculateRotationHints))]
     internal static class BuildOrientationPatch
     {
-        private static void Prefix(bool draw,out BuildOrientationHud.Capture __state)
-        { __state=Main.VrActive && BuildOrientationHud.Capturing==null ? BuildOrientationHud.Begin(draw) : null; }
+        private static void Prefix(ref bool draw,out BuildOrientationHud.Capture __state)
+        {
+            __state=null;
+            if(!Main.VrActive || BuildOrientationHud.Capturing!=null) return;
+            // Native callers draw hints only in HudState 1; captured hints never reach the desktop.
+            if(!draw && Sandbox.Game.Gui.MyHud.HudState!=1 && !HelmetHud.NativeSuppressed && Sandbox.MySandboxGame.Config.RotationHints && !VRage.Input.MyInput.Static.IsJoystickLastUsed) draw=true;
+            __state=BuildOrientationHud.Begin(draw);
+        }
         private static void Postfix(BuildOrientationHud.Capture __state) => __state?.Complete();
         private static Exception Finalizer(Exception __exception,BuildOrientationHud.Capture __state)
         { __state?.Dispose(); return __exception; }
@@ -25,7 +31,7 @@ namespace SpaceEngineersVR.Patches
         {
             if(!Main.VrActive || !___m_planetMode) return true;
             // Planets have no preview entity to supply the ordinary native rotation hint.
-            Calculate(__instance,hints,___m_pastePosition,!Sandbox.Game.Gui.MyHud.MinimalHud && !Sandbox.Game.Gui.MyHud.CutsceneHud &&
+            Calculate(__instance,hints,___m_pastePosition,!HelmetHud.NativeSuppressed &&
                 Sandbox.MySandboxGame.Config.RotationHints && !VRage.Input.MyInput.Static.IsJoystickLastUsed,isRotating);
             return false;
         }

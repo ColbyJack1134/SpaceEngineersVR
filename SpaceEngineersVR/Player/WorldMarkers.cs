@@ -73,6 +73,38 @@ namespace SpaceEngineersVR.Player
             gpsInfo.Add(poi,new GpsInfo { Id="gps:"+gps.Hash,Name=string.IsNullOrEmpty(gps.DisplayName) ? gps.Name:gps.DisplayName,
                 Description=gps.Description,Encounter=gps.IsGlobalEncounterGPS || gps.IsContainerGPS });
         }
+        private static readonly Action<MyGuiScreenHudSpace,MyHudGpsMarkers> gpsMarkers=Collector<MyHudGpsMarkers>("DrawGpsMarkers"),buttonMarkers=Collector<MyHudGpsMarkers>("DrawButtonPanelMarkers");
+        private static readonly Action<MyGuiScreenHudSpace,MyHudOreMarkers> oreMarkers=Collector<MyHudOreMarkers>("DrawOreMarkers");
+        private static readonly Action<MyGuiScreenHudSpace,MyHudLargeTurretTargets> turretTargets=Collector<MyHudLargeTurretTargets>("DrawLargeTurretTargets");
+        private static readonly Action<MyGuiScreenHudSpace,MyHudHackingMarkers> hackingMarkers=Collector<MyHudHackingMarkers>("DrawHackingMarkers");
+        private static readonly Action<MyGuiScreenHudSpace,MyHudWorldBorderChecker> worldBorder=Collector<MyHudWorldBorderChecker>("DrawWorldBorderIndicator");
+        // A missing or changed collector after a game update drops only its markers.
+        private static Action<MyGuiScreenHudSpace,T> Collector<T>(string name)
+        {
+            try { return AccessTools.MethodDelegate<Action<MyGuiScreenHudSpace,T>>(AccessTools.Method(typeof(MyGuiScreenHudSpace),name,new[] {typeof(T)})); }
+            catch(Exception) { return null; }
+        }
+        internal static bool CollectorsResolved => gpsMarkers!=null && buttonMarkers!=null && oreMarkers!=null && turretTargets!=null && hackingMarkers!=null && worldBorder!=null;
+        // Tab skips the native marker collection and draws; rerun them without desktop sprites so VR captures and the list clears.
+        internal static void CaptureHidden(MyGuiScreenHudSpace hud,MyHudMarkerRender renderer)
+        {
+            if(failed || !MyHud.IsHudMinimal || HelmetHud.NativeSuppressed) return;
+            try
+            {
+                if(MyHud.LocationMarkers.Visible) renderer.DrawLocationMarkers(MyHud.LocationMarkers);
+                if(MyHud.GpsMarkers.Visible && Sandbox.Engine.Utils.MyFakes.ENABLE_GPS) gpsMarkers?.Invoke(hud,MyHud.GpsMarkers);
+                if(MyHud.ButtonPanelMarkers.Visible) buttonMarkers?.Invoke(hud,MyHud.ButtonPanelMarkers);
+                if(MyHud.OreMarkers.Visible) oreMarkers?.Invoke(hud,MyHud.OreMarkers);
+                if(MyHud.LargeTurretTargets.Visible) turretTargets?.Invoke(hud,MyHud.LargeTurretTargets);
+                worldBorder?.Invoke(hud,MyHud.WorldBorderChecker);
+                if(MyHud.HackingMarkers.Visible) hackingMarkers?.Invoke(hud,MyHud.HackingMarkers);
+                if(MyHud.OffscreenTargetMarker.Visible) renderer.AddOffscreenTarget(MyHud.OffscreenTargetMarker.Position,MyHud.OffscreenTargetMarker.TargetPlayerRelation);
+                RemoteHud.Discarding++;
+                try { renderer.DrawTargetIndicatorRender(); renderer.Draw(); }
+                finally { RemoteHud.Discarding--; }
+            }
+            catch(Exception ex) { ((IList)points.GetValue(renderer)).Clear(); RenderFrameBridge.CaptureMarkers(null); recovery.Fail(ex,"VR markers with a hidden native HUD disabled"); }
+        }
         private static View renderSnapshot;
         private static MatrixD renderHead,signalHead;
         private static Vector3D signalUp;
@@ -171,7 +203,7 @@ namespace SpaceEngineersVR.Player
             var target=renderer.TargetIndicatorRender?.TargetInfo;
             var circle=MyHud.TargetingMarkers?.TargetingCircle;
             if(target?.IsSet!=true || target.Entity==null || target.Entity.Closed || target.Entity.MarkedForClose || circle==null || circle.State.ToString()!="Visible") return;
-            if(MyHud.IsHudMinimal || MyHud.MinimalHud || MyHud.CutsceneHud) return;
+            if(HelmetHud.NativeSuppressed) return;
             var controlled=Sandbox.Game.World.MySession.Static?.ControlledEntity;
             if(!(controlled is Sandbox.ModAPI.IMyTargetingCapableBlock capable) || !capable.IsTargetLockingEnabled() || capable.IsShipToolSelected()) return;
             if(controlled is Sandbox.Game.Entities.MyCubeBlock block && (!block.IsWorking || !block.CubeGrid.IsPowerSwitchOn)) return;
@@ -195,7 +227,7 @@ namespace SpaceEngineersVR.Player
         private static void ReadPlayers(MyHudMarkerRender renderer,List<Marker> markers,Vector3D head)
         {
             var indicators=playerIndicators.GetValue(renderer) as IEnumerable;
-            if(indicators==null || MyHud.HudState==0) return;
+            if(indicators==null) return;
             foreach(object entry in indicators)
             {
                 object indicator=entry.GetType().GetProperty("Value").GetValue(entry);

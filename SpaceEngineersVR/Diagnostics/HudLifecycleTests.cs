@@ -6,6 +6,7 @@ using System.Reflection.Emit;
 using System.Runtime.Serialization;
 using HarmonyLib;
 using Sandbox.Game.Entities.Character;
+using Sandbox.Game.Gui;
 using Sandbox.Game.World;
 using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Plugin;
@@ -67,6 +68,19 @@ namespace SpaceEngineersVR.Diagnostics
                     Main.CanResumeMenu(true,true,true,false,true,2) ||
                     !Main.CanResumeMenu(true,true,true,false,true,0))
                     throw new Exception("VR menu recovery ignored respawn readiness or retry limit");
+                ref int hudState=ref AccessTools.StaticFieldRefAccess<int>(typeof(MyHud),"m_hudState");
+                int previousHudState=hudState; bool previousMinimal=MyHud.MinimalHud,previousCutscene=MyHud.CutsceneHud;
+                try
+                {
+                    foreach(var (state,minimal,cutscene,suppressed) in new[] { (0,true,false,false),(1,false,false,false),(1,true,false,true),(2,false,true,true),(0,true,true,true) })
+                    {
+                        hudState=state; MyHud.MinimalHud=minimal; MyHud.CutsceneHud=cutscene;
+                        if(HelmetHud.NativeSuppressed!=suppressed) throw new Exception("VR HUD suppression wrong for native state "+state+"/"+minimal+"/"+cutscene);
+                    }
+                }
+                finally { hudState=previousHudState; MyHud.MinimalHud=previousMinimal; MyHud.CutsceneHud=previousCutscene; }
+                if(!WorldMarkers.CollectorsResolved || AccessTools.Method(typeof(MyGuiScreenHudSpace),"AsyncUpdate")==null || AccessTools.Field(typeof(MyGuiScreenHudSpace),"m_markerRender")==null)
+                    throw new Exception("Native hidden-HUD marker collectors changed");
             }
             finally
             {
@@ -75,7 +89,7 @@ namespace SpaceEngineersVR.Diagnostics
                 session.SetValue(null,previousSession); snapshot.SetValue(null,previousSnapshot); sample.SetValue(null,previousSample);
                 Main.WorldAvailable=previousWorld; character=null; controlled=null; dead=false;
             }
-            log("PASS respawn lifecycle: missing character, missing control and death clear stale HUD; empty arm/body owners restore safely");
+            log("PASS respawn lifecycle: missing character, missing control and death clear stale HUD; empty arm/body owners restore safely; Tab-hidden native HUD keeps VR markers while cutscenes and scenario HUDs hide them; installed hidden-HUD marker collectors");
         }
     }
 }

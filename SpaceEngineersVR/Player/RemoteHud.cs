@@ -19,6 +19,8 @@ namespace SpaceEngineersVR.Player
         [ThreadStatic] private static int capturing;
         [ThreadStatic] private static int collecting;
         [ThreadStatic] private static int markerDrawing;
+        // Drops desktop sprites from native HUD passes run only for their state.
+        [ThreadStatic] internal static int Discarding;
         [ThreadStatic] private static int markerMode;
         private static readonly FieldInfo signalMode=AccessTools.Field(typeof(Sandbox.Game.GUI.HudViewers.MyHudMarkerRender),"<SignalDisplayMode>k__BackingField");
         internal static Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode GlobalSignalMode => (Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode)signalMode.GetValue(null);
@@ -88,7 +90,7 @@ namespace SpaceEngineersVR.Player
         private static bool Route(ref string targetTexture)
         {
             // Capture only the selected native controls and camera marker renderer.
-            if(markerDrawing>0 && markerMode==3) return false;
+            if(Discarding>0 || markerDrawing>0 && markerMode==3) return false;
             if(capturing>0) targetTexture=queue;
             return true;
         }

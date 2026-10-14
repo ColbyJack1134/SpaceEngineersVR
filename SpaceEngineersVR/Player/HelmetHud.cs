@@ -63,6 +63,8 @@ namespace SpaceEngineersVR.Player
             return InHeadZone(p);
         }
         private static bool InHeadZone(Vector3 p) => Math.Abs(p.X)<.24f && p.Y>-.12f && p.Y<.16f && p.Z>-.13f && p.Z<.27f;
+        // Tab (HudState 0) hides only the desktop HUD; cutscenes and scenario minimal HUDs hide both.
+        internal static bool NativeSuppressed => Sandbox.Game.Gui.MyHud.CutsceneHud || Sandbox.Game.Gui.MyHud.MinimalHud && !Sandbox.Game.Gui.MyHud.IsHudMinimal;
         public static void Update()
         {
             var character=MySession.Static?.LocalCharacter;

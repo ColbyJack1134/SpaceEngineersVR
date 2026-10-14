@@ -45,7 +45,7 @@ namespace SpaceEngineersVR.Player
         {
             var session=MySession.Static;
             if(!(session?.ControlledEntity is MyShipController ship) || ship.Closed || ship.MarkedForClose ||
-                RemoteView.Current!=null || MyHud.MinimalHud || MyHud.IsHudMinimal || MyHud.CutsceneHud ||
+                RemoteView.Current!=null || HelmetHud.NativeSuppressed ||
                 session.CameraController is MySpectatorCameraController) return null;
             var result=Read(MyHud.Crosshair,ship.WorldMatrix);
             if(result==null) return null;
