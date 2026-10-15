@@ -38,7 +38,18 @@ namespace SpaceEngineersVR.GUI
         internal static int TopicCount => topics.Length;
         private static string GuideFolder => Path.Combine(Common.AssetFolder ?? Util.Util.GetDefaultAssetFolder(),"Guide");
         internal static string[] ImagePaths => topics.SelectMany(t=>t.Diagrams)
-            .Select(d=>Path.Combine(GuideFolder,d.Name+".dds")).ToArray();
+            .Select(d=>Path.Combine(GuideFolder,d.Name+".dds")).Concat(Directory.GetFiles(GuideFolder,FramePrefix+"*.dds")).ToArray();
+        private const string FramePrefix="frame-";
+        // Pages with Steam Frame controller art replace the shared page while a Frame is the right controller.
+        private static bool Frame => Main.VrActive && Player.Player.HandR.ProfileName.Contains("frame_controller");
+        private static string Texture(Diagram diagram,out int height)
+        {
+            string path=Path.Combine(GuideFolder,FramePrefix+diagram.Name+".dds");
+            if(Frame && File.Exists(path))
+                using(var reader=new BinaryReader(File.OpenRead(path))) { reader.BaseStream.Position=12; height=(int)reader.ReadUInt32(); return path; }
+            height=diagram.Height;
+            return Path.Combine(GuideFolder,diagram.Name+".dds");
+        }
         public BindingHelp(int topic=0) : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(1.03f,.91f))
         { page=Math.Max(0,Math.Min(topics.Length-1,topic)); m_closeOnEsc=true; CloseButtonEnabled=true; }
         public override string GetFriendlyName()=>"SEVR controls guide";
@@ -60,14 +71,15 @@ namespace SpaceEngineersVR.GUI
             const float width=.94f;
             // Native GUI coordinates use a 4:3 reference canvas.
             float gap=width*4f/3f*30f/1600f;
-            float height=topics[page].Diagrams.Sum(d=>width*4f/3f*d.Height/d.Width)+gap*(topics[page].Diagrams.Length-1);
+            var textures=topics[page].Diagrams.Select(d=>(path:Texture(d,out int h),height:h,diagram:d)).ToArray();
+            float height=textures.Sum(t=>width*4f/3f*t.height/t.diagram.Width)+gap*(textures.Length-1);
             var content=new MyGuiControlParent(size:new Vector2(width,height));
             float y=-height/2;
-            foreach(var diagram in topics[page].Diagrams)
+            foreach(var texture in textures)
             {
-                float h=width*4f/3f*diagram.Height/diagram.Width;
+                float h=width*4f/3f*texture.height/texture.diagram.Width;
                 content.Controls.Add(new MyGuiControlImage(new Vector2(-width/2,y),new Vector2(width,h),
-                    textures:new[] {Path.Combine(GuideFolder,diagram.Name+".dds")},
+                    textures:new[] {texture.path},
                     originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_TOP));
                 y+=h+gap;
             }
