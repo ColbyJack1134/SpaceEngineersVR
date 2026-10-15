@@ -74,7 +74,7 @@ namespace SpaceEngineersVR.Diagnostics
             string shaders=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(VRageRender.MyRenderProxy).Assembly.Location),"..","Content","Shaders"));
             using(var device=new Device(DriverType.Warp))
             {
-                try { StereoParticles.Ensure(device,shaders); StereoSmokeTests.Run(device,shaders,log); }
+                try { StereoParticles.Ensure(device,shaders); StereoSmokeTests.Run(device,shaders,log); StereoFoliageTests.Run(device,shaders,log); }
                 finally { StereoParticles.Dispose(); }
             }
             log("PASS stereo scenes: asymmetric AO reconstruction, finite shifted sun-scale flare placement under head rotation, shared marker geometry/size with eye parallax at large coordinates and third-person scale, installed particle vertex shaders");
@@ -96,7 +96,10 @@ namespace SpaceEngineersVR.Diagnostics
                 Near(clip.X/clip.W,-.4,"Native AO horizontal reconstruction"); Near(clip.Y/clip.W,-.6,"Native AO vertical reconstruction");
                 LineFades(camera);
                 RenderMarkers(MyRender11.DeviceInstance,output);
-                log("PASS native stereo AO constants, common line-billboard angular fades with custom/remote camera preservation, and production crosshair/locking-ring/lead renders at scales 1 and 100");
+                StereoFoliage.Prepare();
+                Require(StereoFoliage.Ready,"Native registry did not compile the stereo foliage geometry shaders");
+                foreach(string include in StereoFoliage.Includes) Require(File.Exists(Path.Combine(StereoFoliage.Folder,include)),"Stereo foliage include missing: "+include);
+                log("PASS native stereo AO constants, common line-billboard angular fades with custom/remote camera preservation, production crosshair/locking-ring/lead renders at scales 1 and 100, and native-registry stereo foliage shader compile");
             }
             finally { camera.Restore(savedCamera); }
         }

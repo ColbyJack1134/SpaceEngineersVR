@@ -99,6 +99,7 @@ namespace SpaceEngineersVR.Plugin
                 {
                     Harmony=new Harmony(Common.Name);
                     Harmony.PatchAll(Assembly.GetExecutingAssembly());
+                    Player.StereoFoliage.Warm();
                     PhysicalRendererProbe.Start(Harmony);
                     return;
                 }
@@ -295,6 +296,7 @@ namespace SpaceEngineersVR.Plugin
                 Harmony.PatchAll(Assembly.GetExecutingAssembly());
 
                 Patches.FrameInjections.Install(Harmony);
+                Player.StereoFoliage.Warm();
                 Multiplayer.MultiplayerRuntime.Capture=seq=>VrActive ? Player.TrackedArms.CapturePose(seq):null;
                 Multiplayer.MultiplayerRuntime.Notify=message=> { if(VrActive) Player.EssentialHud.Notify(message); };
                 Multiplayer.MultiplayerRuntime.ControlCount=seat=>Player.CockpitLayout.Count(seat.BlockDefinition.Id.SubtypeName);
