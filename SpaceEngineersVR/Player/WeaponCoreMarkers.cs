@@ -20,6 +20,11 @@ namespace SpaceEngineersVR.Player
         private static MyEntity leadWeapon,leadFocus;
         private static DateTime leadWeaponTime;
 
+        // Threat markers (Config.ThreatMarkers): all while aiming a lock, all always, or only the pointed one while aiming.
+        private static readonly string[] threatModes={"Aiming","Always","Pointed"};
+        internal static string ThreatModeName => threatModes[Math.Max(0,Math.Min(2,Common.Config.ThreatMarkers))];
+        internal static void CycleThreatMode() => Common.Config.ThreatMarkers=(Common.Config.ThreatMarkers+1)%threatModes.Length;
+
         // Names, threat levels, shield labels and the ranking cost WeaponCore / Defense Shields calls and allocations; they
         // refresh at 10 Hz while positions and bracket sizes follow every frame.
         private sealed class Snapshot
@@ -65,8 +70,11 @@ namespace SpaceEngineersVR.Player
                 if(grid==null) return;
                 var head=CameraRig.Current?.Anchor.Translation ?? MySector.MainCamera.Position;
                 var data=Current(grid);
-                // While the cockpit grip aims, the threat a release would lock turns red, and a release on the lock itself unlocks.
-                var pointed=TargetLock.Preview?.GetTopMostParent();
+                // While a lock is aimed (cockpit grip held or hand lock armed), the threat it would lock turns red, and aiming at
+                // the lock itself shows that the release unlocks it.
+                var pointed=(TargetLock.Preview ?? HandLock.Preview)?.GetTopMostParent();
+                bool aiming=TargetLock.Aiming || HandLock.Armed;
+                int threatMode=Common.Config.ThreatMarkers;
                 if(Alive(data.Focus))
                 {
                     string name=pointed!=null && data.Focus.GetTopMostParent()==pointed ? data.FocusRelease:data.FocusName;
@@ -79,8 +87,9 @@ namespace SpaceEngineersVR.Player
                 {
                     var target=threat.Key;
                     if(!Alive(target)) continue;
-                    var color=pointed!=null && target.GetTopMostParent()==pointed ? pointedColor:threatColor;
-                    markers.Add(Marker("wcthreat:"+target.EntityId,threat.Value,color,target.PositionComp.WorldAABB.Center,head,Span(target,head,1.7f)));
+                    bool isPointed=pointed!=null && target.GetTopMostParent()==pointed;
+                    if(threatMode==0 && !aiming || threatMode==2 && !isPointed) continue;
+                    markers.Add(Marker("wcthreat:"+target.EntityId,threat.Value,isPointed ? pointedColor:threatColor,target.PositionComp.WorldAABB.Center,head,Span(target,head,1.7f)));
                 }
                 if(WeaponCoreAim.AimPoint.HasValue && (DateTime.UtcNow-WeaponCoreAim.AimTime).TotalSeconds<.25 && data.Manual)
                     markers.Add(Marker("wcaim","AIM",aimColor,WeaponCoreAim.AimPoint.Value,head,1,pinned:true,symbol:"cross",side:"below"));

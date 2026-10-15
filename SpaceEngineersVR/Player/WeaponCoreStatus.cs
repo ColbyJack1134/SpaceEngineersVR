@@ -114,7 +114,8 @@ namespace SpaceEngineersVR.Player
         {
             var grid=TargetLock.ShooterGrid();
             float y=.145f;
-            keys.Add(new SurfaceKey("WEAPONS",.025f,y+.005f,.45f,.06f) {Caption=true,Enabled=false});
+            keys.Add(new SurfaceKey("WEAPONS",.025f,y+.005f,.2f,.06f) {Caption=true,Enabled=false});
+            keys.Add(new SurfaceKey("Threats",.235f,y,.265f,.07f) {Action=new ActionChoice("Threat markers",WeaponCoreMarkers.CycleThreatMode),Value=WeaponCoreMarkers.ThreatModeName});
             keys.Add(new SurfaceKey("Manual aim",.515f,y,.46f,.07f) {Action=new ActionChoice("Manual aim",WeaponCoreAim.CycleMode),Value=WeaponCoreAim.ModeName});
             y+=.085f;
             string alert=WeaponCoreAlerts.Text;
