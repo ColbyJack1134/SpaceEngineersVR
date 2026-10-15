@@ -32,8 +32,7 @@ namespace SpaceEngineersVR.Diagnostics
                     string json=File.ReadAllText(Path.Combine(folder,name+".json"));
                     bool left=name.Contains("left");
                     var openXr=Component(json,"openxr_grip"); var handgrip=Component(json,"handgrip");
-                    // Same source order as Controller.MainUpdate.
-                    var grip=openXr.HasValue ? Controller.OpenXrGripToHandgrip(left)*openXr.Value : handgrip ?? Matrix.Identity;
+                    Controller.TryGrip(name,left,openXr,handgrip,out var grip,out string source);
                     var held=Matrix.Invert(grip);
                     var parts=Load(folder,json);
                     foreach(var view in new[] {Tuple.Create("side",new Vector3(.5f,.06f,.04f)),Tuple.Create("front",new Vector3(.22f,.16f,-.42f))})
@@ -41,7 +40,7 @@ namespace SpaceEngineersVR.Diagnostics
                     if(rendered++==0)
                         UiTests.Save(MenuHands.PreviewAlignment(device,left,parts,held*Matrix.CreateRotationX(MathHelper.ToRadians(40)),new Vector3(.5f,.06f,.04f)),
                             Path.Combine(output,"alignment-"+name+"-tilted-side.png"));
-                    log("alignment preview "+name+": "+(openXr.HasValue ? "openxr_grip":handgrip.HasValue ? "handgrip":"raw"));
+                    log("alignment preview "+name+": "+source);
                 }
             log("PASS hand alignment previews: installed glove target with "+rendered+" SteamVR controller meshes");
         }

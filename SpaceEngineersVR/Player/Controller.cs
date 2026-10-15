@@ -33,6 +33,19 @@ namespace SpaceEngineersVR.Player
         internal static Matrix OpenXrGripToHandgrip(bool left) =>
             Component(0,.003f,.097f,5.037f)*Matrix.Invert(Component(left ? .007f:-.007f,-.00182941f,.1019482f,20.6f));
         private static Matrix Component(float x,float y,float z,float pitch) => Matrix.CreateRotationX(MathHelper.ToRadians(pitch))*Matrix.CreateTranslation(x,y,z);
+        // Hand grip in the controller frame. A model whose openxr_grip only copies its handgrip (Steam Frame) did not
+        // define a spec openxr_grip, so its handgrip is used directly.
+        internal static bool TryGrip(string model,bool left,Matrix? openXr,Matrix? handgrip,out Matrix grip,out string source)
+        {
+            grip=Matrix.Identity; source="raw";
+            var other=handgrip ?? Matrix.Identity;
+            if(openXr.HasValue && !(handgrip.HasValue && openXr.Value.EqualsFast(ref other,1e-4f))) { grip=OpenXrGripToHandgrip(left)*openXr.Value; source="openxr_grip"; }
+            else if(handgrip.HasValue) { grip=handgrip.Value; source="handgrip"; }
+            else return false;
+            // Steam Frame: rendered against the Quest 3 hand, its grip sits 14 mm high in the palm.
+            if(model.Contains("frame_controller")) grip=Matrix.CreateTranslation(0,.012f,-.007f)*grip;
+            return true;
+        }
 
         public override void MainUpdate()
         {
@@ -56,13 +69,10 @@ namespace SpaceEngineersVR.Player
             if(!gripResolved)
             {
                 bool hasHandgrip=TryComponent(name,"handgrip",source,out var handgrip);
-                if(TryComponent(name,"openxr_grip",source,out var openXr))
-                {
-                    gripOffset=OpenXrGripToHandgrip(IsLeft)*openXr; GripSource="openxr_grip";
-                    if(hasHandgrip) Logger.Info("Converted openxr_grip differs from handgrip by "+Difference(gripOffset,handgrip)+" on "+handPath);
-                }
-                else if(hasHandgrip) { gripOffset=handgrip; GripSource="handgrip"; }
-                gripResolved=GripSource!="raw";
+                bool hasOpenXr=TryComponent(name,"openxr_grip",source,out var openXr);
+                gripResolved=TryGrip(name,IsLeft,hasOpenXr ? openXr:(Matrix?)null,hasHandgrip ? handgrip:(Matrix?)null,out var grip,out var gripSource);
+                if(gripResolved) { gripOffset=grip; GripSource=gripSource; }
+                if(gripResolved && hasHandgrip) Logger.Info("Hand grip differs from handgrip by "+Difference(gripOffset,handgrip)+" on "+handPath);
                 if(gripResolved) Logger.Info("SteamVR hand-grip alignment loaded from "+GripSource+": "+handPath+" / "+name);
                 else if(aimRetry==1) Logger.Warning("SteamVR grip unavailable for "+handPath+" / "+name+" (components: "+Components(name)+"); arms use raw controller origin and retry.");
             }
