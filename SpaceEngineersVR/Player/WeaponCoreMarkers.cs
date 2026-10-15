@@ -72,12 +72,14 @@ namespace SpaceEngineersVR.Player
                 var data=Current(grid);
                 // While a lock is aimed (cockpit grip held or hand lock armed), the threat it would lock turns red, and aiming at
                 // the lock itself shows that the release unlocks it.
-                var pointed=(TargetLock.Preview ?? HandLock.Preview)?.GetTopMostParent();
-                bool aiming=TargetLock.Aiming || HandLock.Armed;
+                var pointedTarget=TargetLock.Preview ?? HandLock.Preview;
+                var pointed=pointedTarget?.GetTopMostParent();
+                bool aiming=TargetLock.Aiming || HandLock.Armed,pointedShown=false;
                 int threatMode=Common.Config.ThreatMarkers;
                 if(Alive(data.Focus))
                 {
-                    string name=pointed!=null && data.Focus.GetTopMostParent()==pointed ? data.FocusRelease:data.FocusName;
+                    pointedShown=pointed!=null && data.Focus.GetTopMostParent()==pointed;
+                    string name=pointedShown ? data.FocusRelease:data.FocusName;
                     var locked=Marker("wcfocus:"+data.Focus.EntityId,name,focusColor,data.Focus.PositionComp.WorldAABB.Center,head,Span(data.Focus,head,2.2f),pinned:true);
                     // Lays out first, so the other names move around it, and stays on the HUD as an arrow when out of view.
                     locked.LockState="Locked"; locked.EdgeArrow=true;
@@ -89,8 +91,14 @@ namespace SpaceEngineersVR.Player
                     if(!Alive(target)) continue;
                     bool isPointed=pointed!=null && target.GetTopMostParent()==pointed;
                     if(threatMode==0 && !aiming || threatMode==2 && !isPointed) continue;
+                    pointedShown|=isPointed;
                     markers.Add(Marker("wcthreat:"+target.EntityId,threat.Value,isPointed ? pointedColor:threatColor,target.PositionComp.WorldAABB.Center,head,Span(target,head,1.7f)));
                 }
+                // Any tracked threat can be locked, not only the nearest MaxThreats with markers, so the pointed one always shows.
+                if(!pointedShown && Alive(pointedTarget))
+                    markers.Add(Marker("wcthreat:"+pointedTarget.EntityId,WeaponCoreThreats.Name(pointedTarget)+
+                        (WeaponCoreThreats.Threat(grid,pointedTarget) is int level ? "  T"+level:"")+Shield(pointedTarget),
+                        pointedColor,pointedTarget.PositionComp.WorldAABB.Center,head,Span(pointedTarget,head,1.7f)));
                 if(WeaponCoreAim.AimPoint.HasValue && (DateTime.UtcNow-WeaponCoreAim.AimTime).TotalSeconds<.25 && data.Manual)
                     markers.Add(Marker("wcaim","AIM",aimColor,WeaponCoreAim.AimPoint.Value,head,1,pinned:true,symbol:"cross",side:"below"));
                 // WeaponCore's own paint mark is part of its hidden HUD; it rides on the painted entity.
