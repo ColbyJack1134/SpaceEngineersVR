@@ -40,8 +40,7 @@ namespace SpaceEngineersVR.Player
         private static double standingEye;
         private static readonly EyeHeightCalibration eyeHeight=new EyeHeightCalibration();
         private static bool onLadder;
-        // On magnetic boots the game turns the body to each voxel triangle underfoot; the view's up follows through a spring.
-        // On voxels small tilts are ignored outright; grids already get the game's own ray-cast smoothing.
+        // Boots turn the body to each voxel triangle underfoot; the view's up springs after it, ignoring small tilts on voxels only (grids are smoothed natively).
         internal const double BootsSmoothing=.2;
         internal static readonly double BootsDeadband=MathHelper.ToRadians(3),BootsMaxLag=MathHelper.ToRadians(60);
         private static Vector3D bootsUp,bootsSpin,bootsTarget;

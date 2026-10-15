@@ -10,8 +10,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
-    // The engine bends the upper body with head pitch on foot only; a desktop jetpack pitches the whole body instead.
-    // A VR head pitches on its own, so the body bends with the headset in both, and looking down shows the legs.
+    // The engine bends the upper body with head pitch on foot only, since a desktop jetpack pitches the whole body; a VR head pitches on its own.
     [HarmonyPatch(typeof(MyCharacter),"UpdateFallAndSpine")]
     internal static class HeadLeanPatch
     {
@@ -27,7 +26,7 @@ namespace SpaceEngineersVR.Patches
             {
                 var gaze=CameraRig.DeviceWorld(Player.Player.Headset.pose.deviceToAbsolute.matrix).Forward;
                 if(!gaze.IsValid()) return;
-                // Same clamp and multiplier as the native on-foot bend; whole degrees keep headset jitter off the synced value.
+                // Same clamp and multiplier as the native on-foot bend.
                 float pitch=MathHelper.Clamp((float)Math.Round(-AimPitchSyncPatch.Pitch(gaze,__instance.WorldMatrix.Up)),-89.9f,89f);
                 ((Sync<float,SyncDirection.BothWays>)leaning.GetValue(__instance)).Value=__instance.Definition.BendMultiplier3rd*pitch;
             }

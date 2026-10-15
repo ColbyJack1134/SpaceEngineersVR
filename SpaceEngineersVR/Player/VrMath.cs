@@ -34,8 +34,7 @@ namespace SpaceEngineersVR.Player
             forward.Normalize();
             return MatrixD.CreateWorld(value.Translation,forward,up);
         }
-        // Heading from the head's right axis, which pitch never turns: looking straight down, or past it, keeps the heading.
-        // False only with the head rolled onto its side, where the heading is undefined.
+        // Heading from the head's right axis, which pitch never turns; false only for a head rolled onto its side.
         public static bool TryFacing(MatrixD head,Vector3D up,out MatrixD facing)
         {
             facing=MatrixD.Identity;
@@ -45,8 +44,7 @@ namespace SpaceEngineersVR.Player
             facing=MatrixD.CreateWorld(head.Translation,Vector3D.Cross(up,Vector3D.Normalize(right)),up);
             return true;
         }
-        // Critically damped spring from current toward target, solved exactly for the step so it does not depend on frame rate.
-        // The turn starts from rest instead of at full speed. Velocity is the angular velocity in radians per second.
+        // Critically damped spring toward target, solved exactly per step so frame rate does not matter; velocity in radians per second.
         public static Vector3D SpringUp(Vector3D current,ref Vector3D velocity,Vector3D target,double seconds,double smoothTime,double maxLag)
         {
             target.Normalize();

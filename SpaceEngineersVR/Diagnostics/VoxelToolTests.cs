@@ -102,8 +102,7 @@ namespace SpaceEngineersVR.Diagnostics
             }
         }
 
-        // The voxel hand's static constructor reads the large grid size, which is 0 before a world loads.
-        // Only the guarded accessor and in-world input may touch its statics.
+        // The voxel hand's statics read the large grid size, 0 before a world loads; only the guarded accessor and in-world input may touch them.
         private static void NativeStatics()
         {
             var field=AccessTools.Field(typeof(MySessionComponentVoxelHand),nameof(MySessionComponentVoxelHand.Static));

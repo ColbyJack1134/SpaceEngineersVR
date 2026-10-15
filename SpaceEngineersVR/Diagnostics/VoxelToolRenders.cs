@@ -44,8 +44,8 @@ namespace SpaceEngineersVR.Diagnostics
                 Wheel(wheel,ToolbarWheel.ToolGroups(VoxelTools.Hand.Title,VoxelTools.Hand.Actions(),materials,quick),new[] {0,1,2,materials.Length+1},output,"wheel-voxel-");
                 var digi=VoxelToolTests.Fixture();
                 if(terrainChoices.Length>0)
-                    Wheel(wheel,ToolbarWheel.ToolGroups("Terrain tool",digi.Actions(),new[] {new ToolbarWheel.Group("Soil and stone",terrainChoices.Take(42).ToArray(),true),
-                        new ToolbarWheel.Group("Snow and ice",terrainChoices.Skip(42).ToArray(),true)},quick),new[] {0,1,6},output,"wheel-terrain-");
+                    Wheel(wheel,ToolbarWheel.ToolGroups("Terrain tool",digi.Actions(),new[] {new ToolbarWheel.Group("Soil and stone",terrainChoices.Take(DigiTool.IceStart).ToArray(),true),
+                        new ToolbarWheel.Group("Snow and ice",terrainChoices.Skip(DigiTool.IceStart).ToArray(),true)},quick),new[] {0,1,6},output,"wheel-terrain-");
             }
             using(var hud=new OverlayCanvas("Voxel HUD",1280,560,1,false,device))
             {

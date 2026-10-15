@@ -9,7 +9,6 @@ using Sandbox.Game.SessionComponents;
 using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Plugin;
 using VRage.Input;
-using VRage.ModAPI;
 using VRage.Game.Utils;
 using VRage.Utils;
 using VRageMath;
@@ -98,8 +97,12 @@ namespace SpaceEngineersVR.Patches
         private static IEnumerable<MethodBase> TargetMethods()
         {
             var input=AccessTools.TypeByName("VRage.Input.MyVRageInput");
+            if(input==null) yield break;
             foreach(string name in new[] {"IsAnyCtrlKeyPressed","IsAnyShiftKeyPressed","IsAnyAltKeyPressed"})
-                yield return AccessTools.Method(input,"VRage.ModAPI.IMyInput."+name,Type.EmptyTypes);
+            {
+                var method=AccessTools.Method(input,"VRage.ModAPI.IMyInput."+name,Type.EmptyTypes);
+                if(method!=null) yield return method;
+            }
         }
         private static void Postfix(MethodBase __originalMethod,ref bool __result)
         {

@@ -151,8 +151,7 @@ namespace SpaceEngineersVR.Player
         internal override bool Sizing => base.Sizing || Native?.ProjectToVoxel==true;
         protected override void Move(float factor) { var hand=Native; hand?.SetBrushZoom(hand.GetBrushZoom()*factor); }
         protected override void Resize(float factor) { var hand=Native; if(hand!=null) Resize(hand,factor); }
-        // Every native brush slider is a dimension, as the native scale buttons assume.
-        // Brush Load fills the sliders unclamped without rebuilding the shape; applying them on activation syncs the preview.
+        // Every brush slider is a dimension. Brush Load fills them unclamped without rebuilding the shape, so activation applies them.
         private static void Resize(MySessionComponentVoxelHand hand,float factor,bool apply=false)
         {
             var shape=hand.CurrentShape;
@@ -294,7 +293,7 @@ namespace SpaceEngineersVR.Player
             new ActionChoice("Align",()=>NativeActions.Pulse(MyControlsSpace.CUBE_DEFAULT_MOUNTPOINT)),
             new ActionChoice("Tool help",()=>NativeActions.Pulse(MyControlsSpace.SECONDARY_TOOL_ACTION))});
         // Terrain mode follows the selected type: the mod keeps soil/stone and snow/ice in separate index ranges.
-        private const int IceStart=42;
+        internal const int IceStart=42;
         internal override ToolbarWheel.Group[] Materials()
         {
             if(!Terrain || !(Mod is object mod)) return new ToolbarWheel.Group[0];

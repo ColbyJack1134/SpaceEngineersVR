@@ -9,14 +9,11 @@ using Sandbox.Game.World;
 using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Plugin;
 using VRage.Game;
-using VRage.Game.Entity;
 using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
-    // The engine stands a body up to gravity by 0.04 rad a step about the capsule centre. Finish the turn at once about the
-    // same pivot; the host applies the sent rotation like any other turn. A pose overlapping a grid or voxel keeps the slow
-    // turn, because an overlapping capsule disables client prediction.
+    // Finishes the engine's 0.04 rad-a-step stand-up at once about the same pivot; an overlapping capsule keeps the slow turn, as it disables client prediction.
     [HarmonyPatch(typeof(MyCharacter),"UpdateStandup")]
     internal static class StandUprightPatch
     {

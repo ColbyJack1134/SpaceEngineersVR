@@ -159,12 +159,12 @@ namespace SpaceEngineersVR.Player
         }
         private static void Open(bool quick)
         {
-            quickChoices=quick ? GameActions.WheelActions(PlacementControls.OwnsTools,InputRouter.Mode==InputMode.Piloting,ThirdPersonView.Active,InputRouter.Mode==InputMode.Jetpack || MySession.Static?.LocalCharacter?.JetpackComp?.TurnedOn==true):null;
+            bool jetpack=InputRouter.Mode==InputMode.Jetpack || MySession.Static?.LocalCharacter?.JetpackComp?.TurnedOn==true;
+            quickChoices=quick ? GameActions.WheelActions(PlacementControls.OwnsTools,InputRouter.Mode==InputMode.Piloting,ThirdPersonView.Active,jetpack):null;
             quickPage=0; quickPages=null; pageTitles=null; variantPages=null;
             if(quick)
             {
                 bool symmetry=SymmetrySetupControls.Active;
-                bool jetpack=InputRouter.Mode==InputMode.Jetpack || MySession.Static?.LocalCharacter?.JetpackComp?.TurnedOn==true;
                 var block=symmetry || PlacementControls.ClipboardActive ? Array.Empty<ActionChoice>():BlockActions.Capture(PlacementControls.OwnsTools);
                 ActionChoice[] Contextual(ActionChoice[] choices) => choices.Select(choice=>choice==GameActions.Quick[11] || choice==GameActions.Quick[12] ?
                     block.FirstOrDefault(c=>c.Label==choice.Label) ?? choice:choice).ToArray();
