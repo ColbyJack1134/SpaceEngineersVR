@@ -342,8 +342,14 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(local.Y<-.30f,"Right hand overlaps bottom of the radial menu");
             }
             var keys=MenuKeyboard.MakeKeys(false);
-            Require(keys.Length==51 && keys.Any(k=>k.Label=="DONE") && keys.Any(k=>k.Label=="BKSP") &&
+            Require(keys.Length==56 && keys.Any(k=>k.Label=="DONE") && keys.Any(k=>k.Label=="BKSP") && keys.Any(k=>k.Label=="[") && keys.Any(k=>k.Label=="\\") &&
                 keys.Any(k=>k.Label=="Preview") && keys.Any(k=>k.Label=="◀") && keys.Any(k=>k.Label=="▶"),"Keyboard layout incomplete");
+            var multiline=MenuKeyboard.MakeKeys(true,"DONE",true);
+            Require(multiline.Length==59 && multiline.Any(k=>k.Label=="↑") && multiline.Any(k=>k.Label=="↓") && multiline.Any(k=>k.Label=="{") && multiline.Any(k=>k.Label=="|"),"Multiline keyboard layout incomplete");
+            Require(MenuKeyboard.CaretLine("ab\ncdef\ng",6,-1)==2 && MenuKeyboard.CaretLine("ab\ncdef\ng",6,1)==9 && MenuKeyboard.CaretLine("ab\ncdef\ng",1,-1)==1 &&
+                MenuKeyboard.CaretLine("ab\ncdef\ng",9,1)==9 && MenuKeyboard.CaretLine("ab\ncdef\ng",0,1)==3,"Caret line stepping is wrong");
+            var hotkeys=MenuKeyboard.MakeHotkeys();
+            Require(hotkeys.Any(k=>k.Label=="RMB") && hotkeys.Any(k=>k.Label=="MMB") && hotkeys.Any(k=>k.Label=="Scr↑") && hotkeys.Any(k=>k.Label=="[") && hotkeys.Any(k=>k.Label=="`"),"Hotkey layout incomplete");
             foreach(var key in keys) Require(window.Window.Handle(new Vector3((key.Bounds.Center.X-.5f)*window.Width,(.5f-key.Bounds.Center.Y)*window.Height,0),true)==0,"A key overlaps a window handle");
             var surface=new SurfaceView { Keys=keys,Width=.5f,Height=.3f,Pose=MatrixD.CreateTranslation(1e9,2e9,-3e9) };
             foreach(var key in keys)

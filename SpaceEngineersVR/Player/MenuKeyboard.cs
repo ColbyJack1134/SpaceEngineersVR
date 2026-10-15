@@ -62,6 +62,29 @@ namespace SpaceEngineersVR.Player
             var selection=AccessTools.Field(type,"m_selection").GetValue(control);
             AccessTools.Method(selection.GetType(),"Reset").Invoke(selection,new object[] {control});
         }
+        // Keeps the column when stepping to the previous or next line of a multiline editor.
+        internal static int CaretLine(string text,int caret,int step)
+        {
+            caret=Math.Max(0,Math.Min(text.Length,caret));
+            int lineStart=text.LastIndexOf('\n',Math.Max(0,caret-1))+1;
+            if(caret==0) lineStart=0;
+            int column=caret-lineStart;
+            if(step<0)
+            {
+                if(lineStart==0) return caret;
+                int previousStart=lineStart>=2 ? text.LastIndexOf('\n',lineStart-2)+1 : 0;
+                return Math.Min(previousStart+column,lineStart-1);
+            }
+            int lineEnd=text.IndexOf('\n',caret);
+            if(lineEnd<0) return caret;
+            int nextEnd=text.IndexOf('\n',lineEnd+1);
+            return Math.Min(lineEnd+1+column,nextEnd<0 ? text.Length:nextEnd);
+        }
+        internal static void MoveCaretLine(MyGuiControlBase control,int step)
+        {
+            if(!(control is MyGuiControlMultilineEditableText editor)) return;
+            MoveCaret(control,CaretLine(editor.Text.ToString(),(int)CockpitRender.Member(control,"CarriagePositionIndex"),step));
+        }
         internal static int PreviewCaretAt(MyGuiControlBase control,float x)
         {
             string line=PreviewLine(control,out int start,out _);
@@ -99,30 +122,31 @@ namespace SpaceEngineersVR.Player
             void Add(string label,float left,float top,float units) => keys.Add(new SurfaceKey(label,left,top,units*step-gap,height));
             string[] function={"Esc","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12"};
             for(int i=0;i<function.Length;i++) keys.Add(new SurfaceKey(function[i],.015f+i*.074f,.195f,.068f,height));
-            string[] rows={"1234567890","qwertyuiop","asdfghjkl;","zxcvbnm,./"};
+            string[] rows={"1234567890","qwertyuiop","asdfghjkl;","zxcvbnm,./","`-=[]\\'"};
             for(int row=0;row<rows.Length;row++)
-                for(int col=0;col<rows[row].Length;col++) Add(rows[row][col].ToString(),.015f+col*step,.335f+row*.13f,1);
+                for(int col=0;col<rows[row].Length;col++) keys.Add(new SurfaceKey(rows[row][col].ToString(),.015f+col*step,.31f+row*.107f,step-gap,.098f));
             float x=.015f;
             foreach(var key in new[] {("Tab",1f),("SHIFT",1.5f),("CTRL",1.25f),("ALT",1.25f),("SPACE",2.5f),("ENTER",1.25f),("DONE",1.25f)})
             { Add(key.Item1,x,.855f,key.Item2); x+=key.Item2*step; }
-            string[,] cluster={{"Ins","Home","PgUp"},{"Del","End","PgDn"},{null,null,null},{null,"↑",null},{"←","↓","→"}};
+            string[,] cluster={{"Ins","Home","PgUp"},{"Del","End","PgDn"},{"RMB","MMB","Scr↑"},{null,"↑","Scr↓"},{"←","↓","→"}};
             for(int row=0;row<5;row++)
                 for(int col=0;col<3;col++)
-                    if(cluster[row,col]!=null) keys.Add(new SurfaceKey(cluster[row,col],nav+col*navStep,.335f+row*.13f,.068f,height));
+                    if(cluster[row,col]!=null) keys.Add(new SurfaceKey(cluster[row,col],nav+col*navStep,.31f+row*.107f,.068f,.098f));
             return keys.ToArray();
         }
         internal static SurfaceKey[] MakeKeys(bool caps,string done="DONE",bool multiline=false)
         {
             var keys=new System.Collections.Generic.List<SurfaceKey>();
-            string[] rows=caps ? new[] { "!@#$%^&*()","QWERTYUIOP","ASDFGHJKL:","ZXCVBNM<>?" } : new[] { "1234567890","qwertyuiop","asdfghjkl;","zxcvbnm,./" };
+            // Full US layout, each row staggered half a key like a physical keyboard; the shift page carries the symbols.
+            string[] rows=caps ? new[] { "~!@#$%^&*()_+","QWERTYUIOP{}|","ASDFGHJKL:\"","ZXCVBNM<>?" } : new[] { "`1234567890-=","qwertyuiop[]\\","asdfghjkl;'","zxcvbnm,./" };
+            const float pitch=.068f;
             for(int row=0;row<rows.Length;row++)
-                for(int col=0;col<rows[row].Length;col++) keys.Add(new SurfaceKey(rows[row][col].ToString(),.025f+col*.095f,.28f+row*.125f,.085f,.108f));
+                for(int col=0;col<rows[row].Length;col++) keys.Add(new SurfaceKey(rows[row][col].ToString(),.025f+row*pitch*.5f+col*pitch,.28f+row*.125f,.061f,.108f));
             string[] navigation={"<<","◀","▶",">>"};
             for(int i=0;i<navigation.Length;i++) keys.Add(new SurfaceKey(navigation[i],.29f+i*.11f,.23f,.10f,.04f));
-            keys.AddRange(new[] { new SurfaceKey(caps ? "⇧ 123" : "⇧ #@",.025f,.79f,.14f,.115f),new SurfaceKey("SPACE",.18f,.79f,multiline ? .115f:.25f,.115f),
-                new SurfaceKey("'",.445f,.79f,.08f,.115f),new SurfaceKey("-",.54f,.79f,.08f,.115f),
+            keys.AddRange(new[] { new SurfaceKey(caps ? "⇧ abc" : "⇧ ABC",.025f,.79f,.14f,.115f),new SurfaceKey("SPACE",.18f,.79f,multiline ? .115f:.43f,.115f),
                 new SurfaceKey("BKSP",.635f,.79f,.155f,.115f),new SurfaceKey(done,.805f,.79f,.17f,.115f) });
-            if(multiline) keys.Add(new SurfaceKey("ENTER",.31f,.79f,.115f,.115f));
+            if(multiline) keys.AddRange(new[] { new SurfaceKey("ENTER",.31f,.79f,.115f,.115f),new SurfaceKey("↑",.445f,.79f,.08f,.115f),new SurfaceKey("↓",.54f,.79f,.08f,.115f) });
             keys.Add(new SurfaceKey("Preview",.028f,KeyboardWindow.TopTrim+.035f*(1-KeyboardWindow.TopTrim),
                 .944f,.10f*(1-KeyboardWindow.TopTrim)) {Invisible=true});
             foreach(var key in keys)
@@ -148,7 +172,9 @@ namespace SpaceEngineersVR.Player
             }
             switch(label)
             {
-                case "⇧ 123": case "⇧ #@": shift=!shift; Keys=MakeKeys(shift,done,target is MyGuiControlMultilineEditableText); break;
+                case "⇧ ABC": case "⇧ abc": shift=!shift; Keys=MakeKeys(shift,done,target is MyGuiControlMultilineEditableText); break;
+                case "↑": MoveCaretLine(target,-1); break;
+                case "↓": MoveCaretLine(target,1); break;
                 case "BKSP": Backspace(target); break;
                 case "DONE": Close(); break;
                 case "SEND":

@@ -27,4 +27,24 @@ namespace SpaceEngineersVR.Patches
             }
         }
     }
+    [HarmonyPatch]
+    internal static class HotkeyMousePatch
+    {
+        private static readonly string[] names={"IsRightMousePressed","IsNewRightMousePressed","IsNewRightMouseReleased","IsMiddleMousePressed","IsNewMiddleMousePressed","IsNewMiddleMouseReleased"};
+        private static IEnumerable<MethodBase> TargetMethods()
+        {
+            var input=AccessTools.TypeByName("VRage.Input.MyVRageInput");
+            foreach(string name in names) yield return AccessTools.Method(input,name,new System.Type[0]);
+            foreach(string name in new[] {"IsMousePressed","IsNewMousePressed"}) yield return AccessTools.Method(input,name,new[] {typeof(MyMouseButtonsEnum)});
+            yield return AccessTools.Method(input,"DeltaMouseScrollWheelValue",new System.Type[0]);
+        }
+        private static void Postfix(MethodBase __originalMethod,object[] __args,ref object __result)
+        {
+            string name=__originalMethod.Name;
+            if(name=="DeltaMouseScrollWheelValue") { if((int)__result==0) __result=HotkeyInput.WheelDelta; return; }
+            if((bool)__result) return;
+            var button=__args.Length>0 ? (MyMouseButtonsEnum)__args[0] : name.Contains("Right") ? MyMouseButtonsEnum.Right:MyMouseButtonsEnum.Middle;
+            __result=name.Contains("NewReleased") ? HotkeyInput.MouseNewReleased(button) : name.Contains("New") ? HotkeyInput.MouseNewPressed(button) : HotkeyInput.MouseDown(button);
+        }
+    }
 }

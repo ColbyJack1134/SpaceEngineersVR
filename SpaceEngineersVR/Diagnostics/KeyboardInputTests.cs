@@ -76,7 +76,7 @@ namespace SpaceEngineersVR.Diagnostics
             Expect(left.Update(-1,backspace,start.AddSeconds(9)),-1);
             left.Reset();
             Expect(left.Update(-1,backspace,start.AddSeconds(10)),-1);
-            foreach(var label in new[] {"DONE","⇧ #@"})
+            foreach(var label in new[] {"DONE","⇧ ABC"})
             {
                 int key=Array.FindIndex(MenuKeyboard.Keys,k=>k.Label==label);
                 if(MenuKeyboard.Repeatable(key)) throw new Exception("Keyboard repeats a toggle or Done");
