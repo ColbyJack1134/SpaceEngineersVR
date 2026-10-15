@@ -21,7 +21,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Render(RemoteView.View view)
         {
-            if(view==null) { image.Dispose(); source=0; return; }
+            if(view==null) { image.Dispose(); source=0; FeedCamera.Reset(); return; }
             // Refresh every second headset frame; a new camera renders immediately.
             if(source==view.Source && (skip=!skip)) return;
             source=0;
@@ -34,7 +34,11 @@ namespace SpaceEngineersVR.Player
             {
                 using(var resources=MyRender11.Resolution==size ? null:new EyeResolution.Scene(size,true))
                 using(var exposure=new RemoteExposure())
-                using(var isolated=new RemoteScene(view)) MyRender11.DrawGameScene(feed,out ambient);
+                using(var isolated=new RemoteScene(view))
+                {
+                    MyRender11.DrawGameScene(feed,out ambient);
+                    if(WeaponCoreBridge.ApiReady) FeedCamera.Capture(view.Source);
+                }
                 var rendered=(Texture2D)feed.GetResource();
                 RemoteHud.Composite(rendered,view);
                 RemoteCombat.DrawAmmo(rendered,view);

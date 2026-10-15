@@ -165,6 +165,12 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice HudOptions=new ActionChoice("HUD",()=>MyGuiSandbox.AddScreen(new GUI.MyPluginConfigDialog(3)),true);
         public static bool AlternateTrigger { get; private set; }
         private static ActionChoice Native(string label, MyStringId control) => new ActionChoice(label, () => NativeActions.Pulse(control));
+        // WeaponCore hand weapons ignore the vanilla Reload control and only react to its raw key.
+        private static void Reload()
+        {
+            if(Patches.WeaponCoreReload.Ready) Patches.WeaponCoreReload.Tap();
+            else NativeActions.Pulse(MyControlsSpace.RELOAD);
+        }
         public static readonly ActionChoice InventoryAction = new ActionChoice("Inventory", () => MySession.Static.ControlledEntity?.ShowInventory(), true);
         public static readonly ActionChoice TerminalAction = new ActionChoice("Terminal", () => MySession.Static.ControlledEntity?.ShowTerminal(), true);
         public static readonly ActionChoice ConfigureToolbarAction = new ActionChoice("G menu / toolbar", ToolbarConfig, true);
@@ -201,7 +207,7 @@ namespace SpaceEngineersVR.Player
             InventoryAction,
             TerminalAction,
             ConfigureToolbarAction,
-            Native("Reload", MyControlsSpace.RELOAD),
+            new ActionChoice("Reload",Reload),
             LightsAction,
             HelmetAction,
             Dampeners,

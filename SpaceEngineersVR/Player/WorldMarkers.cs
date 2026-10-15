@@ -131,7 +131,7 @@ namespace SpaceEngineersVR.Player
                 var head=CameraRig.Current?.Anchor.Translation ?? Sandbox.Game.World.MySector.MainCamera.Position;
                 var now=DateTime.UtcNow;
                 var snapshot=Read(renderer,mode,head,now) ?? new View(new Marker[0],now) {Mode=mode};
-                snapshot.Lead=NativeLead.Capture(renderer);
+                snapshot.Lead=NativeLead.Capture(renderer) ?? WeaponCoreMarkers.Lead();
                 RenderFrameBridge.CaptureMarkers(snapshot);
             }
             catch (Exception ex) { RenderFrameBridge.CaptureMarkers(null); recovery.Fail(ex,"VR world markers disabled; native desktop markers retained"); }
@@ -171,6 +171,7 @@ namespace SpaceEngineersVR.Player
             IdentifyProxies(renderer,markers,now);
             ReadTarget(renderer,markers);
             ReadPlayers(renderer,markers,head);
+            WeaponCoreMarkers.Add(markers);
             return new View(markers.ToArray(),now) { Mode=mode,Reveal=(bool)reveal.GetValue(null) };
         }
 

@@ -300,6 +300,8 @@ namespace SpaceEngineersVR.Player.Components
             FlightAxes.StickTriggerAllowed(MySession.Static?.ControlledEntity is MyShipController,Common.Config.PhysicalShipControlsOnly,
                 CockpitControls.SticksAvailable,CockpitControls.AnyHeld);
         // Grip + trigger is ship secondary, as with tools on foot. A held physical stick owns the grip.
+        // Right trigger as the cockpit fires it (same gates as vanilla primary fire, grip+trigger chord excluded); mirrored to WeaponCore's left mouse.
+        internal static bool WeaponCoreFire => PrimaryPressed && !(MySession.Static?.ControlledEntity is MyShipController && ShipChord);
         private static bool ShipChord => Controls.Static.Fire.IsPressed && Controls.Static.ActionGripClick.IsPressed && !CockpitControls.Held(Handedness.ActionHand);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

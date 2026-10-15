@@ -368,6 +368,8 @@ namespace SpaceEngineersVR.Plugin
             Player.BlockInspection.Update();
             Player.DampenerTargeting.Update();
             Player.GridSelection.Update();
+            Player.TargetLock.Update();
+            Player.ShieldsPanel.Update();
             Player.ToolbarWheel.Update();
             Player.GameActions.RunScheduled();
             Player.CockpitControls.Update();
@@ -451,6 +453,15 @@ namespace SpaceEngineersVR.Plugin
             Player.MenuKeyboard.Close();
             Player.Player.Headset.RequestRecenter();
             ResetWorldState();
+            Player.TargetLock.Reset();
+            Player.WeaponCoreBridge.Unload();
+            Player.FeedCamera.Reset();
+            Player.WeaponCoreStatus.Reset();
+            Player.WeaponCoreMarkers.Reset();
+            Player.WeaponCoreInternals.Reset();
+            Player.WeaponCoreAlerts.Reset();
+            Player.ShieldsPanel.Reset();
+            Player.ShieldsBridge.Unload();
             Logger.Info("Unloading SE game");
             Player.Player.Headset.CreatePopup("Unloaded Game");
         }

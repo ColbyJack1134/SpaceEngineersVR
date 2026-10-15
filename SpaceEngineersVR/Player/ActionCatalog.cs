@@ -68,6 +68,7 @@ namespace SpaceEngineersVR.Player
         private static IEnumerable<ActionChoice> Entries()
         {
             foreach(var action in CommonEntries(SpectatorView.Active)) yield return action;
+            if(WeaponCoreBridge.ApiReady) { foreach(var action in TargetLock.Actions) yield return action; yield return Patches.WeaponCoreReload.CycleAmmoAction; }
             foreach(string category in new[] {"Character","Flight","Third person","HUD & Interface","Rendering","Controls"})
             {
                 string title=category;

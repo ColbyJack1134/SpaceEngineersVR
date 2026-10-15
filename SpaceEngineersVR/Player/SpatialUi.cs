@@ -310,6 +310,7 @@ namespace SpaceEngineersVR.Player
                 FlightPage=fold>=.99f && FlightSettings.IsOpen && FlightSettings.OnWrist,Title=FlightSettings.IsOpen ? FlightSettings.Title:null,
                 Levels=WristPanel.SeatOpen ? SeatPanel.States():null,Handle=CockpitControls.Adjusting ? 1:0,
                 HudSettings=fold>=.99f && WristPanel.HudOpen ? WristHud.Current:null,
+                ShieldsView=fold>=.99f && WristPanel.ShieldsOpen ? ShieldsPanel.Current:null,
                 ChatView=fold>=.99f && WristPanel.ChatOpen ? WristChat.Snapshot():null,Desktop=fold>=.99f && WristPanel.DesktopOpen };
             if(menu.Desktop) DesktopCapture.Request();
             return new[] {compact,menu};

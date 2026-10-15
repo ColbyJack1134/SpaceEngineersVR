@@ -78,6 +78,9 @@ namespace SpaceEngineersVR.Player
         public static bool Active => owner!=null;
         public static bool RemoteGrid => MySession.Static?.ControlledEntity is MyRemoteControl;
         public static bool OwnsInput { get; private set; }
+        // Where the pointing hand's ray meets the feed image (0..1, top-left origin); null when off the image or on the frame.
+        internal static Vector2? ImageUV { get; private set; }
+        internal static Controller PointerHand => Hand;
         public static bool Turret => IsTurret(MySession.Static?.ControlledEntity);
         internal static bool IsTurret(object entity) => entity is MyLargeTurretBase || entity is MyTurretControlBlock;
         public static MyCockpit HomeSeat => Active ? seat : null;
@@ -196,7 +199,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Update()
         {
-            OwnsInput=false; rayStart=rayEnd=null;
+            OwnsInput=false; rayStart=rayEnd=null; ImageUV=null;
             if(Current==null) { interaction.Reset(); return; }
             if(recenter) { Place(); Save(); }
             var now=DateTime.UtcNow; float seconds=(float)Math.Min(.05,Math.Max(0,(now-last).TotalSeconds)); last=now;
@@ -217,6 +220,11 @@ namespace SpaceEngineersVR.Player
             }
             interaction.Update(hand,(Matrix)aim,seconds,ExtraHit,Reachable);
             int hover=interaction.Hover;
+            if(interaction.Hit && hover==0 && !interaction.Active)
+            {
+                var point=interaction.Point;
+                if(Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2) ImageUV=window.UV(point);
+            }
             OwnsInput=interaction.Active || interaction.Released;
             if(interaction.Changed) placementDirty=true;
             if(interaction.Released) Save();

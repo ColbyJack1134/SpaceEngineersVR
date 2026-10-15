@@ -12,6 +12,8 @@ namespace SpaceEngineersVR.Player
             (!(controlled is MyCubeBlock block) || block.IsWorking && block.CubeGrid.IsPowerSwitchOn);
         internal static void SecondaryPressed(Sandbox.Game.Entities.IMyControllableEntity controlled)
         {
+            // WeaponCore grids take the grip tap as point-to-lock instead of vanilla lock-on.
+            if(TargetLock.OnGripTap()) return;
             if(!CanLock(controlled)) return;
             MySession.Static?.LocalCharacter?.Components.Get<MyTargetFocusComponent>()?.OnLockRequest();
         }
