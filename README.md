@@ -51,3 +51,5 @@ Other bindings provided but untested:
 - HP Reverb G2
 - Legacy Knuckles
 - Steam Frame Controllers
+
+Based on [SpaceEngineersVR](https://github.com/Math0424/SpaceEngineersVR) by Math0424 and contributors, licensed under GPL-2.0.
