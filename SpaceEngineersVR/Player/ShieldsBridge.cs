@@ -2,26 +2,31 @@ using System;
 using System.Collections.Generic;
 using Sandbox.ModAPI;
 using SpaceEngineersVR.Plugin;
+using SpaceEngineersVR.Util;
 using VRage;
 using VRage.Game.Entity;
 using VRage.ModAPI;
 using VRageMath;
-using SpaceEngineersVR.Util;
 
 namespace SpaceEngineersVR.Player
 {
     // Read-only client of the Defense Shields mod API. Nothing here does anything unless Defense Shields answers.
     internal static class ShieldsBridge
     {
-        private const long Channel=1365616918;
-        private static bool registered;
+        private static readonly ModApiClient api=new ModApiClient("Defense Shields",1365616918,Attach,Detach,ignoreImmutable:true);
         private static Func<MyEntity,MyTuple<bool,bool,float,float,float,int>> shieldInfo;
         private static Func<MyEntity,MyTuple<bool,bool,float,float>> modulationInfo;
         private static Func<IMyEntity,IMyTerminalBlock> shieldBlock;
         private static Func<IMyTerminalBlock,string> shieldStatus;
         private static Func<MyEntity,MyTuple<bool,Vector3I>> facesFast;
+        // The live Defense Shields session, for per-face state its API does not expose; looked up at most once a second.
+        private static Func<object> session;
+        private static DateTime sessionRetry;
+        private static bool facesFailed;
 
-        internal static bool Ready { get; private set; }
+        internal static bool Ready => api.Ready;
+        internal static void Load() => api.Load();
+        internal static void Unload() => api.Unload();
 
         internal struct Info
         {
@@ -30,41 +35,21 @@ namespace SpaceEngineersVR.Player
             public int Heat;
         }
 
-        internal static void Load()
+        private static bool Attach(IReadOnlyDictionary<string,Delegate> methods)
         {
-            if(registered || MyAPIGateway.Utilities==null) return;
-            registered=true;
-            MyAPIGateway.Utilities.RegisterMessageHandler(Channel,HandleMessage);
-            MyAPIGateway.Utilities.SendModMessage(Channel,"ApiEndpointRequest");
+            shieldInfo=ModApiClient.Get<Func<MyEntity,MyTuple<bool,bool,float,float,float,int>>>(methods,"GetShieldInfo");
+            modulationInfo=ModApiClient.Get<Func<MyEntity,MyTuple<bool,bool,float,float>>>(methods,"GetModulationInfo");
+            shieldBlock=ModApiClient.Get<Func<IMyEntity,IMyTerminalBlock>>(methods,"GetShieldBlock");
+            shieldStatus=ModApiClient.Get<Func<IMyTerminalBlock,string>>(methods,"ShieldStatus");
+            facesFast=ModApiClient.Get<Func<MyEntity,MyTuple<bool,Vector3I>>>(methods,"GetFacesFast");
+            return shieldInfo!=null;
         }
 
-        internal static void Unload()
+        private static void Detach()
         {
-            if(registered && MyAPIGateway.Utilities!=null) MyAPIGateway.Utilities.UnregisterMessageHandler(Channel,HandleMessage);
-            registered=false; Ready=false;
-            shieldInfo=null; modulationInfo=null; shieldBlock=null; shieldStatus=null; facesFast=null; instance=null; facesFailed=false;
+            shieldInfo=null; modulationInfo=null; shieldBlock=null; shieldStatus=null; facesFast=null;
+            session=null; sessionRetry=DateTime.MinValue; facesFailed=false;
         }
-
-        private static void HandleMessage(object message)
-        {
-            // Other API clients echo an ImmutableDictionary copy back on this channel for Defense Shields' tamper check; skip those.
-            if(!(message is IReadOnlyDictionary<string,Delegate> methods) || message.GetType().Name.StartsWith("Immutable")) return;
-            if(methods.Count==0) { Ready=false; return; }
-            try
-            {
-                shieldInfo=Get<Func<MyEntity,MyTuple<bool,bool,float,float,float,int>>>(methods,"GetShieldInfo");
-                modulationInfo=Get<Func<MyEntity,MyTuple<bool,bool,float,float>>>(methods,"GetModulationInfo");
-                shieldBlock=Get<Func<IMyEntity,IMyTerminalBlock>>(methods,"GetShieldBlock");
-                shieldStatus=Get<Func<IMyTerminalBlock,string>>(methods,"ShieldStatus");
-                facesFast=Get<Func<MyEntity,MyTuple<bool,Vector3I>>>(methods,"GetFacesFast");
-                Ready=shieldInfo!=null;
-                Logger.Info("Defense Shields API attached; ready="+Ready);
-            }
-            catch(Exception ex) { Ready=false; Logger.Warning(ex,"Defense Shields API attach failed; VR shield display disabled"); }
-        }
-
-        private static T Get<T>(IReadOnlyDictionary<string,Delegate> methods,string name) where T:class =>
-            methods.TryGetValue(name,out var method) ? method as T : null;
 
         // Shield state of the grid (any grid in a shielded construct resolves to its shield).
         internal static Info Of(MyEntity grid)
@@ -101,8 +86,6 @@ namespace SpaceEngineersVR.Player
             }
         }
 
-        private static Func<object> instance;
-        private static bool facesFailed;
         // Per-face health (0..1, or -1 when this client has no charge base) and online state, read from the mod's synced shield state as its own HUD does. Null when unavailable.
         internal static bool TryFaces(MyEntity grid,out float[] health,out bool[] online)
         {
@@ -110,13 +93,13 @@ namespace SpaceEngineersVR.Player
             if(!Ready || grid==null) return false;
             try
             {
-                if(instance==null)
+                if(session==null && DateTime.UtcNow>=sessionRetry)
                 {
+                    sessionRetry=DateTime.UtcNow.AddSeconds(1);
                     var type=ModReflection.LiveType("DefenseShields.Session","Instance");
-                    instance=type==null ? null : ModReflection.StaticReader(type,"Instance");
+                    session=type==null ? null : ModReflection.StaticReader(type,"Instance");
                 }
-                var session=instance?.Invoke();
-                if(!(ModReflection.Get(session,"IdToBus") is System.Collections.IDictionary bus)) return false;
+                if(!(ModReflection.Get(session?.Invoke(),"IdToBus") is System.Collections.IDictionary bus)) return false;
                 long id=grid.GetTopMostParent().EntityId;
                 if(!bus.Contains(id)) return false;
                 var logic=ModReflection.Get(bus[id],"DefenseShields");

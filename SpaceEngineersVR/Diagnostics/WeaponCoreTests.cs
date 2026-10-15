@@ -6,8 +6,8 @@ using System.Reflection.Emit;
 using System.Threading;
 using Sandbox.Game.GUI.HudViewers;
 using SpaceEngineersVR.Player;
-using VRageMath;
 using SpaceEngineersVR.Util;
+using VRageMath;
 
 namespace SpaceEngineersVR.Diagnostics
 {

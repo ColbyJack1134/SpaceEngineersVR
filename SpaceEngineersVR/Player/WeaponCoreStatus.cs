@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using SpaceEngineersVR.Plugin;
-using VRage.Game.Entity;
 using SpaceEngineersVR.Util;
+using VRage.Game.Entity;
 
 namespace SpaceEngineersVR.Player
 {
@@ -93,38 +93,6 @@ namespace SpaceEngineersVR.Player
             return row;
         }
 
-        // WeaponCore's 0-9 threat level from its offense rating (same thresholds as its target panel, without the shield-mod adjustment).
-        // With Defense Shields loaded, WeaponCore shifts the level by one for whichever side has the stronger shield.
-        internal static int ThreatLevel(float rating,int shieldBonus=0) =>
-            rating>5 ? (shieldBonus<0 ? 8:9) : rating>4 ? 8+shieldBonus : rating>3 ? 7+shieldBonus : rating>2 ? 6+shieldBonus : rating>1 ? 5+shieldBonus :
-            rating>.5f ? 4+shieldBonus : rating>.25f ? 3+shieldBonus : rating>.125f ? 2+shieldBonus : rating>.0625f ? 1+shieldBonus : rating>0 ? (shieldBonus>0 ? 1:0) : 0;
-
-        internal static int ShieldBonus(MyEntity grid,MyEntity target)
-        {
-            if(!ShieldsBridge.Ready || grid==null || target==null) return 0;
-            var mine=ShieldsBridge.Of(grid); var theirs=ShieldsBridge.Of(target);
-            bool myUp=mine.Exists && mine.Online,theirUp=theirs.Exists && theirs.Online;
-            return theirUp && myUp ? (theirs.Percent>mine.Percent ? 1:-1) : theirUp ? 1 : myUp ? -1 : 0;
-        }
-
-        // Target shield summary for labels, e.g. "S 74%" / "S down"; null when the target has no Defense Shield.
-        internal static string ShieldLabel(MyEntity target)
-        {
-            if(!ShieldsBridge.Ready || target==null) return null;
-            var info=ShieldsBridge.Of(target);
-            return !info.Exists ? null : info.Online ? "S "+Math.Round(info.Percent)+"%" : "S down";
-        }
-
-        // Threat level of an entity among the grid's tracked threats; null when WeaponCore does not rate it as a threat.
-        internal static int? Threat(MyEntity grid,MyEntity target)
-        {
-            if(grid==null || target==null) return null;
-            var top=target.GetTopMostParent();
-            foreach(var threat in WeaponCoreBridge.Threats(grid))
-                if(threat.Item1!=null && threat.Item1.GetTopMostParent()==top) return ThreatLevel(threat.Item2,ShieldBonus(grid,top as MyEntity));
-            return null;
-        }
-
         // Locked target summary: name, threat, distance, relative speed, closing speed and size.
         internal static string TargetText(MyEntity grid,MyEntity focus,out string detail,out string size)
         {
@@ -135,10 +103,11 @@ namespace SpaceEngineersVR.Player
             var relative=(focus.Physics?.LinearVelocity ?? VRageMath.Vector3.Zero)-(grid.Physics?.LinearVelocity ?? VRageMath.Vector3.Zero);
             double closing=distance>1 ? -VRageMath.Vector3D.Dot(relative,offset/distance) : 0;
             size=focus is Sandbox.Game.Entities.MyCubeGrid cubes ? cubes.BlocksCount+" blocks · "+(cubes.GridSizeEnum==VRage.Game.MyCubeSize.Large ? "large":"small") : null;
-            int? threat=Threat(grid,focus);
-            string shield=ShieldLabel(focus);
-            detail="Threat "+(threat.HasValue ? threat.Value+"/9" : "–")+(shield!=null ? "  ·  "+(shield.StartsWith("S down") ? "shield down":"shield "+shield.Substring(2)) : "")+"  ·  "+WorldMarkers.Distance(distance)+"  ·  "+Math.Round(relative.Length())+" m/s  ·  closing "+Math.Round(closing)+" m/s";
-            return string.IsNullOrWhiteSpace(focus.DisplayName) ? "Target" : focus.DisplayName;
+            int? threat=WeaponCoreThreats.Threat(grid,focus);
+            var shield=ShieldsBridge.Of(focus);
+            string shieldText=!shield.Exists ? "" : shield.Online ? "  ·  shield "+Math.Round(shield.Percent)+"%" : "  ·  shield down";
+            detail="Threat "+(threat.HasValue ? threat.Value+"/9" : "–")+shieldText+"  ·  "+WorldMarkers.Distance(distance)+"  ·  "+Math.Round(relative.Length())+" m/s  ·  closing "+Math.Round(closing)+" m/s";
+            return WeaponCoreThreats.Name(focus);
         }
 
         internal static void Keys(List<SurfaceKey> keys)

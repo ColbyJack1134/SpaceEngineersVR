@@ -34,8 +34,10 @@ namespace SpaceEngineersVR.Player
             action.Action=block =>
             {
                 // Toolbar activation runs on the activating client; only act for the local controller of this block's grid.
-                if(MyAPIGateway.Session?.ControlledObject?.Entity is IMyShipController controlled &&
-                    controlled.CubeGrid==block.CubeGrid) run();
+                if(!(MyAPIGateway.Session?.ControlledObject?.Entity is IMyShipController controlled) || controlled.CubeGrid!=block.CubeGrid) return;
+                // Runs inside the game's toolbar code, outside the WeaponCore Integration.
+                try { run(); }
+                catch(Exception ex) { Logger.Warning(ex,name+" failed"); }
             };
             action.Writer=(block,text)=>text.Append(label);
             MyAPIGateway.TerminalControls.AddAction<IMyShipController>(action);

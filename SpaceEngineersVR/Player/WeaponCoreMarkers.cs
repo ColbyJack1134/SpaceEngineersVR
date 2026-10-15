@@ -4,9 +4,9 @@ using System.Linq;
 using Sandbox.Game.Entities;
 using Sandbox.Game.World;
 using SpaceEngineersVR.Plugin;
+using SpaceEngineersVR.Util;
 using VRage.Game.Entity;
 using VRageMath;
-using SpaceEngineersVR.Util;
 
 namespace SpaceEngineersVR.Player
 {
@@ -42,10 +42,10 @@ namespace SpaceEngineersVR.Player
             refresh=now.AddSeconds(.1);
             var next=new Snapshot {Grid=grid,Focus=WeaponCoreBridge.Focus(grid),Manual=WeaponCoreAim.ManualActive};
             if(next.Focus!=null)
-                next.FocusName="LOCKED  "+Name(next.Focus)+(WeaponCoreStatus.Threat(grid,next.Focus) is int level ? "  T"+level:"")+Shield(next.Focus);
+                next.FocusName="LOCKED  "+WeaponCoreThreats.Name(next.Focus)+(WeaponCoreThreats.Threat(grid,next.Focus) is int level ? "  T"+level:"")+Shield(next.Focus);
             foreach(var threat in TargetLock.RankedThreats(grid).Where(t=>t.Item1!=next.Focus).Take(MaxThreats))
                 next.Threats.Add(new KeyValuePair<MyEntity,string>(threat.Item1,
-                    Name(threat.Item1)+"  T"+WeaponCoreStatus.ThreatLevel(threat.Item2,WeaponCoreStatus.ShieldBonus(grid,threat.Item1))+Shield(threat.Item1)));
+                    WeaponCoreThreats.Name(threat.Item1)+"  T"+WeaponCoreThreats.ThreatLevel(threat.Item2,WeaponCoreThreats.ShieldBonus(grid,threat.Item1))+Shield(threat.Item1)));
             if(WeaponCoreAim.Painted) WeaponCoreInternals.PaintMark(out next.PaintedEntity,out next.PaintedLocal);
             return snapshot=next;
         }
@@ -141,9 +141,7 @@ namespace SpaceEngineersVR.Player
         // Same rule as the lock actions: a WeaponCore seat or turret, or on foot a guided hand weapon.
         private static MyEntity Shooter() => TargetLock.ShooterGrid() ?? HandLock.Shooter();
 
-        private static string Shield(MyEntity entity) { string label=WeaponCoreStatus.ShieldLabel(entity); return label==null ? "" : "  "+label; }
-
-        private static string Name(MyEntity entity) => string.IsNullOrWhiteSpace(entity.DisplayName) ? "Target" : entity.DisplayName;
+        private static string Shield(MyEntity entity) { string label=WeaponCoreThreats.ShieldLabel(entity); return label==null ? "" : "  "+label; }
 
         internal static void Reset() { leadWeapon=null; snapshot=null; }
     }

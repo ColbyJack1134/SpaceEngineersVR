@@ -7,9 +7,9 @@ using HarmonyLib;
 using Sandbox.Game.World;
 using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Plugin;
+using SpaceEngineersVR.Util;
 using VRageMath;
 using VRageRender;
-using SpaceEngineersVR.Util;
 
 namespace SpaceEngineersVR.Patches
 {

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Sandbox.ModAPI;
 using SpaceEngineersVR.Plugin;
+using SpaceEngineersVR.Util;
 using VRage;
 using VRage.Game.Entity;
 
@@ -11,59 +12,37 @@ namespace SpaceEngineersVR.Player
     // the public focus API only works on the server.
     internal static class WeaponCoreBridge
     {
-        private const long Channel=67549756549;
-        private static bool registered;
+        private static readonly ModApiClient api=new ModApiClient("WeaponCore",67549756549,Attach,Detach);
         private static Func<MyEntity,int,MyEntity> getAiFocus;
         private static Func<MyEntity,MyEntity,int,bool> setAiFocus;
         private static Func<MyEntity,long,bool> releaseAiFocus;
         private static Action<MyEntity,ICollection<MyTuple<MyEntity,float>>> getSortedThreats;
         private static Func<MyEntity,bool> hasGridAi;
         private static Func<MyEntity,MyEntity,int,VRageMath.Vector3D?> predictedPosition;
-
         private static Func<MyEntity,MyTuple<bool,int,int>> projectilesLockedOn;
-
         private static readonly List<MyTuple<MyEntity,float>> threatBuffer=new List<MyTuple<MyEntity,float>>();
 
-        internal static bool ApiReady { get; private set; }
+        internal static bool ApiReady => api.Ready;
+        internal static void Load() => api.Load();
+        internal static void Unload() => api.Unload();
 
-        internal static void Load()
+        private static bool Attach(IReadOnlyDictionary<string,Delegate> methods)
         {
-            if(registered || MyAPIGateway.Utilities==null) return;
-            registered=true;
-            MyAPIGateway.Utilities.RegisterMessageHandler(Channel,HandleMessage);
-            MyAPIGateway.Utilities.SendModMessage(Channel,"ApiEndpointRequest");
+            getAiFocus=ModApiClient.Get<Func<MyEntity,int,MyEntity>>(methods,"GetAiFocusBase");
+            setAiFocus=ModApiClient.Get<Func<MyEntity,MyEntity,int,bool>>(methods,"SetAiFocusBase");
+            releaseAiFocus=ModApiClient.Get<Func<MyEntity,long,bool>>(methods,"ReleaseAiFocusBase");
+            getSortedThreats=ModApiClient.Get<Action<MyEntity,ICollection<MyTuple<MyEntity,float>>>>(methods,"GetSortedThreatsBase");
+            hasGridAi=ModApiClient.Get<Func<MyEntity,bool>>(methods,"HasGridAiBase");
+            predictedPosition=ModApiClient.Get<Func<MyEntity,MyEntity,int,VRageMath.Vector3D?>>(methods,"GetPredictedTargetPositionBase");
+            projectilesLockedOn=ModApiClient.Get<Func<MyEntity,MyTuple<bool,int,int>>>(methods,"GetProjectilesLockedOnBase");
+            return getAiFocus!=null && getSortedThreats!=null;
         }
 
-        internal static void Unload()
+        private static void Detach()
         {
-            if(registered && MyAPIGateway.Utilities!=null) MyAPIGateway.Utilities.UnregisterMessageHandler(Channel,HandleMessage);
-            registered=false; ApiReady=false;
             getAiFocus=null; setAiFocus=null; releaseAiFocus=null; getSortedThreats=null; hasGridAi=null; predictedPosition=null; projectilesLockedOn=null;
             threatBuffer.Clear();
         }
-
-        private static void HandleMessage(object message)
-        {
-            // Our own "ApiEndpointRequest" string echoes back on this channel; only dictionaries are endpoints.
-            if(!(message is IReadOnlyDictionary<string,Delegate> methods)) return;
-            if(methods.Count==0) { ApiReady=false; return; }
-            try
-            {
-                getAiFocus=Get<Func<MyEntity,int,MyEntity>>(methods,"GetAiFocusBase");
-                setAiFocus=Get<Func<MyEntity,MyEntity,int,bool>>(methods,"SetAiFocusBase");
-                releaseAiFocus=Get<Func<MyEntity,long,bool>>(methods,"ReleaseAiFocusBase");
-                getSortedThreats=Get<Action<MyEntity,ICollection<MyTuple<MyEntity,float>>>>(methods,"GetSortedThreatsBase");
-                hasGridAi=Get<Func<MyEntity,bool>>(methods,"HasGridAiBase");
-                predictedPosition=Get<Func<MyEntity,MyEntity,int,VRageMath.Vector3D?>>(methods,"GetPredictedTargetPositionBase");
-                projectilesLockedOn=Get<Func<MyEntity,MyTuple<bool,int,int>>>(methods,"GetProjectilesLockedOnBase");
-                ApiReady=getAiFocus!=null && getSortedThreats!=null;
-                Logger.Info("WeaponCore API attached; ready="+ApiReady);
-            }
-            catch(Exception ex) { ApiReady=false; Logger.Warning(ex,"WeaponCore API attach failed; VR target lock disabled"); }
-        }
-
-        private static T Get<T>(IReadOnlyDictionary<string,Delegate> methods,string name) where T:class =>
-            methods.TryGetValue(name,out var method) ? method as T : null;
 
         internal static bool HasAi(MyEntity grid) => ApiReady && grid!=null && (hasGridAi?.Invoke(grid) ?? true);
 
@@ -73,7 +52,8 @@ namespace SpaceEngineersVR.Player
         internal static VRageMath.Vector3D? PredictedPosition(MyEntity weapon,MyEntity target) =>
             ApiReady && weapon!=null && target!=null && predictedPosition!=null ? predictedPosition(weapon,target,0) : null;
 
-        internal static List<MyTuple<MyEntity,float>> Threats(MyEntity grid)
+        // The grid's tracked threats, sorted by WeaponCore. A shared buffer: valid until the next call.
+        internal static IReadOnlyList<MyTuple<MyEntity,float>> Threats(MyEntity grid)
         {
             threatBuffer.Clear();
             if(ApiReady && grid!=null) getSortedThreats(grid,threatBuffer);

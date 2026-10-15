@@ -98,7 +98,7 @@ namespace SpaceEngineersVR.Player
             var current=WeaponCoreBridge.Focus(grid);
             int index=current==null ? -1 : threats.FindIndex(t=>t.GetTopMostParent()==current.GetTopMostParent());
             int next=index<0 ? (step>0 ? 0:threats.Count-1) : ((index+step)%threats.Count+threats.Count)%threats.Count;
-            EssentialHud.Notify(WeaponCoreBridge.SetFocus(grid,threats[next]) ? "Target locked: "+Name(threats[next])+"  ("+(next+1)+"/"+threats.Count+")" : "Lock refused");
+            EssentialHud.Notify(WeaponCoreBridge.SetFocus(grid,threats[next]) ? "Target locked: "+WeaponCoreThreats.Name(threats[next])+"  ("+(next+1)+"/"+threats.Count+")" : "Lock refused");
             WeaponCoreMarkers.Invalidate();
         }
 
@@ -198,9 +198,8 @@ namespace SpaceEngineersVR.Player
                 if(WeaponCoreBridge.ReleaseFocus(grid)) EssentialHud.Notify("Target released");
                 return;
             }
-            EssentialHud.Notify(WeaponCoreBridge.SetFocus(grid,picked) ? "Target locked: "+Name(picked) : "Lock refused");
+            EssentialHud.Notify(WeaponCoreBridge.SetFocus(grid,picked) ? "Target locked: "+WeaponCoreThreats.Name(picked) : "Lock refused");
         }
 
-        private static string Name(MyEntity entity) => string.IsNullOrWhiteSpace(entity.DisplayName) ? entity.GetType().Name : entity.DisplayName;
     }
 }
