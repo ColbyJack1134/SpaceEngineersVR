@@ -158,6 +158,31 @@ namespace SpaceEngineersVR.Diagnostics
             Require(RemoteView.Owner(home,null)==null,"Returning to the home cockpit retained remote context");
             log("PASS remote ownership: home seat/keypad, native/custom turret, camera transfer, no camera, camera power/deletion, remote deletion and A-exit policy");
 
+            var previousSession=Sandbox.Game.World.MySession.Static;
+            var currentView=AccessTools.Field(typeof(RemoteView),"<Current>k__BackingField");
+            object previousView=currentView.GetValue(null);
+            try
+            {
+                Sandbox.Game.World.MySession.Static=(Sandbox.Game.World.MySession)FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.World.MySession));
+                currentView.SetValue(null,null);
+                Require(GameActions.RemoteWheelActions().SequenceEqual(new[] {GameActions.PauseAction,GameActions.TerminalAction,GameActions.ExitFeed,
+                    GameActions.ConfigureToolbarAction,GameActions.Inspect}),"Turret wheel without a feed is not pause, terminal, exit, toolbar and block info");
+                Set(Sandbox.Game.World.MySession.Static,"m_cameraController",camera);
+                currentView.SetValue(null,new RemoteView.View());
+                Require(GameActions.RemoteWheelActions().SequenceEqual(new[] {GameActions.PauseAction,GameActions.TerminalAction,GameActions.ExitFeed,GameActions.ResetFeed,
+                    GameActions.ConfigureToolbarAction,GameActions.PreviousCamera,GameActions.NextCamera,GameActions.Inspect}),"Camera feed lost its screen reset or camera cycling");
+            }
+            finally { Sandbox.Game.World.MySession.Static=previousSession; currentView.SetValue(null,previousView); }
+            var terminalShow=AccessTools.Method(typeof(Sandbox.Game.Gui.MyGuiScreenTerminal),nameof(Sandbox.Game.Gui.MyGuiScreenTerminal.Show));
+            Require(!PatchProcessor.GetOriginalInstructions(AccessTools.Method(typeof(MyTurretControlBlock),nameof(MyTurretControlBlock.ShowInventory))).Any(i=>i.Calls(terminalShow)),
+                "Custom turret controller now opens an inventory of its own; the terminal fallback is obsolete");
+            foreach(var opens in new[] {AccessTools.Method(typeof(MyCockpit),nameof(MyCockpit.ShowInventory)),
+                AccessTools.Method(typeof(MyLargeTurretBase),nameof(MyLargeTurretBase.ShowInventory)),
+                AccessTools.Method(typeof(MyTurretControlBlock),nameof(MyTurretControlBlock.ShowTerminal))})
+                Require(PatchProcessor.GetOriginalInstructions(opens).Any(i=>i.Calls(terminalShow)),
+                    "Native inventory or turret terminal no longer opens the terminal screen: "+opens.DeclaringType.Name+"."+opens.Name);
+            log("PASS feed wheel drops camera cycling and screen reset without a feed; custom turret inventory stays empty while cockpit, native turret and turret terminal open the terminal screen");
+
             var type=typeof(RemoteView);
             var window=(MenuWindow)AccessTools.Field(type,"window").GetValue(null);
             Matrix oldPose=window.Pose; float oldWidth=window.Width,oldAspect=window.Aspect;

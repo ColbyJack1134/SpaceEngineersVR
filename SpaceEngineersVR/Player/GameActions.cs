@@ -112,8 +112,13 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice AllActions=new ActionChoice("All actions",()=>MyGuiSandbox.AddScreen(new GUI.ActionBrowser()),true);
         public static readonly ActionChoice RelativeDampeners=new ActionChoice("Auto dampeners",DampenerTargeting.Activate);
         public static readonly ActionChoice Dampeners=Native("Dampeners",MyControlsSpace.DAMPING);
-        public static readonly ActionChoice ResetFeed=new ActionChoice("Reset camera screen",RemoteView.Recenter);
-        public static readonly ActionChoice ExitFeed=new ActionChoice(()=>RemoteView.RemoteGrid ? "Exit remote control":"Exit camera control",RemoteView.Exit,historyKey:"Exit feed");
+        public static readonly ActionChoice ResetFeed=new ActionChoice("Reset camera screen",RemoteView.Recenter,enabled:()=>RemoteView.Current!=null);
+        public static readonly ActionChoice ExitFeed=new ActionChoice(()=>RemoteView.RemoteGrid ? "Exit remote control":RemoteView.Turret ? "Exit turret":"Exit camera control",
+            RemoteView.Exit,historyKey:"Exit feed");
+        // Native camera cycling only answers while a camera block is the active camera (MyGridCameraSystem.Update).
+        private static bool CameraFeed => MySession.Static?.CameraController is MyCameraBlock;
+        public static readonly ActionChoice PreviousCamera=Native("Previous camera",MyControlsSpace.SWITCH_LEFT,()=>CameraFeed);
+        public static readonly ActionChoice NextCamera=Native("Next camera",MyControlsSpace.SWITCH_RIGHT,()=>CameraFeed);
         public static readonly ActionChoice Inspect=new ActionChoice(()=>Common.Config?.InspectWithoutGrip==true ? "Block info: automatic" : "Block info: hold grip",()=>Common.Config.InspectWithoutGrip=!Common.Config.InspectWithoutGrip,historyKey:"Block info");
         public static readonly ActionChoice PlayPosture=new ActionChoice(()=>Common.Config?.SeatedPlay==true ? "Switch to standing play":"Switch to seated play",()=>BodyFit.SetSeated(!Common.Config.SeatedPlay),historyKey:"Play posture");
         public static readonly ActionChoice Tablet=new ActionChoice("Tablet",SpatialUi.Expand);
@@ -156,7 +161,8 @@ namespace SpaceEngineersVR.Player
             return new[] {Building[17],PlacementAction,Building[8],PaletteAction,SymmetryAction,SymmetrySetupAction,BuildShapeAction,Building[9],Building[10]};
         }
         internal static ActionChoice[] CockpitBuildActions() => new[] { PauseAction,TerminalAction,CockpitBuild,ConfigureToolbarAction,PaletteAction,Building[17],Building[8],PlacementAction,BuildShapeAction };
-        internal static ActionChoice[] RemoteWheelActions() => new[] { PauseAction,TerminalAction,ExitFeed,ResetFeed,ConfigureToolbarAction,Native("Previous camera",MyControlsSpace.SWITCH_LEFT),Native("Next camera",MyControlsSpace.SWITCH_RIGHT),Inspect };
+        internal static ActionChoice[] RemoteWheelChoices() => new[] { PauseAction,TerminalAction,ExitFeed,ResetFeed,ConfigureToolbarAction,PreviousCamera,NextCamera,Inspect };
+        internal static ActionChoice[] RemoteWheelActions() => RemoteWheelChoices().Where(choice=>choice.Enabled).ToArray();
         internal static ActionChoice[] ClipboardActions(bool grid=true) => grid ?
             new[] { PauseAction,TerminalAction,AlignGravity,Building[21],Building[20],Building[6],Building[7],BlueprintsAction } :
             new[] { PauseAction,TerminalAction,Building[20],Building[6],Building[7],BlueprintsAction };
@@ -165,8 +171,18 @@ namespace SpaceEngineersVR.Player
             NativeSprites.Hud("ActiveBuff"),()=>MySession.Static!=null && SpaceEngineers.Game.EntityComponents.GameLogic.Buffs.MySurvivalBuffsProgression.BuffsEnabled,"survival buffs");
         public static readonly ActionChoice HudOptions=new ActionChoice("HUD",()=>MyGuiSandbox.AddScreen(new GUI.MyPluginConfigDialog(3)),true);
         public static bool AlternateTrigger { get; private set; }
-        private static ActionChoice Native(string label, MyStringId control) => new ActionChoice(label, () => NativeActions.Pulse(control));
-        public static readonly ActionChoice InventoryAction = new ActionChoice("Inventory", () => MySession.Static.ControlledEntity?.ShowInventory(), true);
+        private static ActionChoice Native(string label, MyStringId control,Func<bool> enabled=null) => new ActionChoice(label, () => NativeActions.Pulse(control),enabled:enabled);
+        public static readonly ActionChoice InventoryAction = new ActionChoice("Inventory", ShowInventoryOrTerminal, true);
+        // Blocks such as the custom turret controller leave ShowInventory empty; their terminal still reaches every inventory.
+        // The character path always answers, and asking it twice would repeat a refusal on a block the player cannot open.
+        private static void ShowInventoryOrTerminal()
+        {
+            var controlled=MySession.Static?.ControlledEntity;
+            if(controlled==null) return;
+            controlled.ShowInventory();
+            if(!ReferenceEquals(controlled,MySession.Static.LocalCharacter) && !MyGuiScreenTerminal.IsOpen && MyGuiScreenGamePlay.ActiveGameplayScreen==null)
+                controlled.ShowTerminal();
+        }
         public static readonly ActionChoice TerminalAction = new ActionChoice("Terminal", () => MySession.Static.ControlledEntity?.ShowTerminal(), true);
         public static readonly ActionChoice ConfigureToolbarAction = new ActionChoice("G menu / toolbar", ToolbarConfig, true);
         public static readonly ActionChoice LightsAction = new ActionChoice("Lights", () => new MyActionToggleLights().ExecuteAction());
@@ -212,7 +228,7 @@ namespace SpaceEngineersVR.Player
             new ActionChoice("Controller help", () => MyGuiSandbox.AddScreen(new GUI.BindingHelp()), true),
             new ActionChoice("Add missing components", AddToPlanner,searchTerms:"add build planner unfinished block"),
             BuildPlannerActions.Shortcuts[0],
-            new ActionChoice("Planner / deposit UI", () => MySession.Static.ControlledEntity?.ShowInventory(), true),
+            new ActionChoice("Planner / deposit UI", ShowInventoryOrTerminal, true),
             ParkAction,
             ParkAction,
             PowerAction,
