@@ -27,6 +27,8 @@ namespace SpaceEngineersVR.Player
             public int Ammo=-1,Capacity;
             public long Source;
             public Vector3D? RayStart,RayEnd;
+            // The WeaponCore target a grip release would lock, on the image: centre and half extents in uv.
+            public Vector4? Pointed;
             public bool LeftHand;
             public uint Character=uint.MaxValue;
             public string[] FirstPersonMaterials;
@@ -259,9 +261,15 @@ namespace SpaceEngineersVR.Player
             if(!Active || source==null) { Current=null; return; }
             RemoteCombat.ReadAmmo(source as MyLargeTurretBase,out int ammo,out int capacity);
             var character=MySession.Static?.LocalCharacter;
+            long feed=(source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0;
+            // WeaponCore's own HUD on the image does not follow the VR pointer, so the target an aimed release would lock is marked.
+            var pointed=TargetLock.Preview;
+            Vector4? pointedRect=null;
+            if(pointed!=null && !pointed.Closed && FeedCamera.TryProject(feed,pointed.PositionComp.WorldVolume.Center,pointed.PositionComp.WorldVolume.Radius,out var rect))
+                pointedRect=rect;
             Current=new View { Pose=(MatrixD)window.Pose,Width=window.Width,Height=window.Height,Hover=hover<0 ? window.Drag!=0 ? window.Drag:lastHover : hover,
-                SignalMode=ReadSignalMode(),Ammo=ammo,Capacity=capacity,
-                RayStart=rayStart,RayEnd=rayEnd,LeftHand=left,Source=(source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0,
+                SignalMode=ReadSignalMode(),Ammo=ammo,Capacity=capacity,Pointed=pointedRect,
+                RayStart=rayStart,RayEnd=rayEnd,LeftHand=left,Source=feed,
                 Character=character?.Render.GetRenderObjectID() ?? uint.MaxValue,FirstPersonMaterials=FirstPersonMaterials(character?.Definition) };
         }
         private static Sandbox.Definitions.MyCharacterDefinition materialsDefinition;

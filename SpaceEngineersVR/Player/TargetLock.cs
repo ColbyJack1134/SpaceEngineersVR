@@ -13,14 +13,14 @@ using VRageMath;
 namespace SpaceEngineersVR.Player
 {
     // WeaponCore target locking while seated: holding the cockpit grip shows a pointer and releasing it locks what the action
-    // hand points at (a grip tap on a camera feed locks what the feed image shows), and actions lock ahead, cycle, release
-    // and toggle focus lock. On foot, see HandLock.
+    // hand points at (on a camera feed, what the feed image shows there), and actions lock ahead, cycle, release and toggle
+    // focus lock. On foot, see HandLock.
     internal static class TargetLock
     {
         private const double ConeDegrees=2.0;
         private static readonly double coneCos=Math.Cos(MathHelper.ToRadians(ConeDegrees));
 
-        // Pointing at a camera feed claims the hand's grip, so the cockpit grip tap never completes; this tap covers that case.
+        // Pointing at a camera feed claims the hand's grip, so the cockpit grip never completes; this covers that case.
         private static readonly GripTap feedTap=new GripTap();
         private static bool feedGripWas;
 
@@ -65,17 +65,21 @@ namespace SpaceEngineersVR.Player
         internal static void Update()
         {
             var hand=Handedness.ActionHand;
-            Aiming=aimHeld; aimHeld=false;
-            Preview=null; Feedback=null;
-            if(Aiming) UpdateAim(hand);
-            else aimSince=null;
+            var now=DateTime.UtcNow;
             bool grip=hand.pose.isTracked && Controls.Static.GripClick(hand).RawPressed;
             bool released=feedGripWas && !grip;
             feedGripWas=grip;
             // Mirrors RemoteView's claim rule: camera feeds claim the pointing hand, turret and remote-grid feeds do not.
             bool claimedFeed=RemoteView.Current!=null && RemoteView.ImageUV.HasValue && RemoteView.PointerHand==hand &&
                 !RemoteView.Turret && !RemoteView.RemoteGrid && InputRouter.Gameplay && !Main.MenuOpen && ShooterGrid()!=null;
-            if(feedTap.Update(claimedFeed && grip,released,!claimedFeed,DateTime.UtcNow)) PointAndToggle(hand);
+            // A grip held on the feed image aims like the cockpit grip, through the image, and its release locks.
+            bool feedReleased=feedTap.Update(claimedFeed && grip,released,!claimedFeed,now,double.MaxValue);
+            bool feedHeld=feedReleased && aimSince.HasValue && (now-aimSince.Value).TotalSeconds>GripTap.MaxSeconds;
+            Aiming=aimHeld || feedTap.Holding; aimHeld=false;
+            Preview=null; Feedback=null;
+            if(Aiming) { if(!aimSince.HasValue) aimSince=now; UpdateAim(hand); }
+            if(feedReleased) { aimSince=null; PointAndToggle(hand,feedHeld); }
+            else if(!Aiming) aimSince=null;
         }
 
         // Same ray as the release, so the red marker is what locks. A feed image is its own pointer, so the line is world-only.

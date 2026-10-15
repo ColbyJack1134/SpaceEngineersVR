@@ -52,5 +52,21 @@ namespace SpaceEngineersVR.Player
 
         internal static bool TryCentre(long source,out Vector3D origin,out Vector3D direction) =>
             TryRay(source,new Vector2(.5f,.5f),out origin,out direction);
+
+        // The reverse of TryRay for a sphere: its centre on the image (uv) and half extents (uv), at least a small square;
+        // false when the centre is behind the camera or off the image.
+        internal static bool TryProject(long source,Vector3D centre,double radius,out Vector4 rect)
+        {
+            rect=Vector4.Zero;
+            var snapshot=latest;
+            if(snapshot==null || snapshot.Source!=source || (DateTime.UtcNow-snapshot.Time).TotalSeconds>MaxAgeSeconds) return false;
+            var view=Vector3D.TransformNormal(centre-snapshot.Position,MatrixD.Transpose(snapshot.Rotation));
+            if(view.Z>-.1) return false;
+            double depth=-view.Z,ndcX=view.X/depth/snapshot.TanX,ndcY=view.Y/depth/snapshot.TanY;
+            if(Math.Abs(ndcX)>1 || Math.Abs(ndcY)>1) return false;
+            double angle=Math.Max(radius/depth,.03*snapshot.TanX);
+            rect=new Vector4((float)((ndcX+1)/2),(float)((1-ndcY)/2),(float)Math.Min(.5,angle/snapshot.TanX/2),(float)Math.Min(.5,angle/snapshot.TanY/2));
+            return true;
+        }
     }
 }

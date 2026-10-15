@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
 using SpaceEngineersVR.Plugin;
@@ -60,6 +61,28 @@ namespace SpaceEngineersVR.Player
         }
         internal static void Paint(OverlayCanvas canvas,RemoteView.View view) => WindowFrame.Paint(canvas,
             new WindowFrame.Snapshot {Width=view.Width,Height=view.Height,Hover=view.Hover,Zoom=true,SignalMode=view.SignalMode});
+        // Red corner brackets on the image around the target an aimed grip release would lock, like its world marker.
+        private const float BracketWidth=.004f;
+        private static readonly Vector4 pointedColor=new Vector4(1,0,0,1);
+        private static void AddPointed(List<NativeSprite> sprites,RemoteView.View remote,MatrixD view,MatrixD projection)
+        {
+            if(!remote.Pointed.HasValue) return;
+            var p=remote.Pointed.Value;
+            float cx=-remote.Width/2+p.X*remote.Width,cy=remote.Height/2-p.Y*remote.Height,hx=p.Z*remote.Width,hy=p.W*remote.Height;
+            float arm=Math.Min(hx,hy)*.45f,w=BracketWidth;
+            for(int corner=0;corner<4;corner++)
+            {
+                float sx=corner%2==0 ? -1:1,sy=corner<2 ? 1:-1,x=cx+sx*hx,y=cy+sy*hy;
+                sprites.Add(Bar(remote.Pose,new VRageMath.RectangleF(Math.Min(x,x-sx*arm)-w/2,y+w/2,arm+w,w),view,projection));
+                sprites.Add(Bar(remote.Pose,new VRageMath.RectangleF(x-w/2,Math.Max(y,y-sy*arm)+w/2,w,arm+w),view,projection));
+            }
+        }
+        private static NativeSprite Bar(MatrixD pose,VRageMath.RectangleF bounds,MatrixD view,MatrixD projection)
+        {
+            var bar=PhysicalSurface.Quad(null,pose,bounds,new Vector4(0,0,1,1),pointedColor,view,projection);
+            bar.Path=@"Textures\GUI\Blank.dds";
+            return bar;
+        }
         public static void Draw(Texture2D target,RemoteView.View remote,MatrixD view,MatrixD projection)
         {
             if(remote==null || image.View==null || source!=remote.Source) return;
@@ -68,7 +91,9 @@ namespace SpaceEngineersVR.Player
         internal static void DrawPanel(Texture2D target,ShaderResourceView image,RemoteView.View remote,MatrixD view,MatrixD projection,ShaderResourceView hands=null)
         {
             var picture=PhysicalSurface.Quad(image,remote.Pose,new VRageMath.RectangleF(-remote.Width/2,remote.Height/2,remote.Width,remote.Height),new Vector4(0,0,1,1),Vector4.One,view,projection);
-            NativeSprites.Draw(target,new[] {picture},handDepth:hands);
+            var sprites=new List<NativeSprite> {picture};
+            AddPointed(sprites,remote,view,projection);
+            NativeSprites.Draw(target,sprites,handDepth:hands);
             WindowFrame.Draw(target,"Remote",new WindowFrame.Snapshot {Pose=(Matrix)remote.Pose,Width=remote.Width,Height=remote.Height,Hover=remote.Hover,Zoom=true,SignalMode=remote.SignalMode},view,projection,hands);
             if(remote.RayStart.HasValue && remote.RayEnd.HasValue)
             {
