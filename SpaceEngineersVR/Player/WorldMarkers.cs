@@ -46,6 +46,21 @@ namespace SpaceEngineersVR.Player
             public bool Reveal;
             public NativeLead.View Lead;
             public View(Marker[] markers,DateTime time) { Markers=markers; Time=time; Generation=generation; }
+            private View(Marker[] markers,DateTime time,int capturedGeneration) { Markers=markers; Time=time; Generation=capturedGeneration; }
+            internal View With(Marker[] extra,NativeLead.View lead) =>
+                new View(Markers.Concat(extra).ToArray(),Time,Generation) {Mode=Mode,Reveal=Reveal,Lead=lead};
+        }
+
+        // WeaponCore markers join the latest native capture on the main thread each frame, so a lock shows even when the
+        // native HUD skips its marker draw, and WeaponCore is never read from the parallel HUD draw.
+        private static readonly List<Marker> weaponCore=new List<Marker>();
+        internal static View WithWeaponCore(View native)
+        {
+            if(native==null) return null;
+            weaponCore.Clear();
+            WeaponCoreMarkers.Add(weaponCore);
+            var lead=native.Lead ?? WeaponCoreMarkers.Lead();
+            return weaponCore.Count==0 && lead==native.Lead ? native : native.With(weaponCore.ToArray(),lead);
         }
         private static readonly FieldInfo points = AccessTools.Field(typeof(MyHudMarkerRender), "m_pointsOfInterest");
         private static readonly Type point = AccessTools.Inner(typeof(MyHudMarkerRender), "PointOfInterest");
@@ -137,7 +152,7 @@ namespace SpaceEngineersVR.Player
                 var head=CameraRig.Current?.Anchor.Translation ?? Sandbox.Game.World.MySector.MainCamera.Position;
                 var now=DateTime.UtcNow;
                 var snapshot=Read(renderer,mode,head,now) ?? new View(new Marker[0],now) {Mode=mode};
-                snapshot.Lead=NativeLead.Capture(renderer) ?? WeaponCoreMarkers.Lead();
+                snapshot.Lead=NativeLead.Capture(renderer);
                 RenderFrameBridge.CaptureMarkers(snapshot);
             }
             catch (Exception ex) { RenderFrameBridge.CaptureMarkers(null); recovery.Fail(ex,"VR world markers disabled; native desktop markers retained"); }
@@ -177,7 +192,6 @@ namespace SpaceEngineersVR.Player
             IdentifyProxies(renderer,markers,now);
             ReadTarget(renderer,markers);
             ReadPlayers(renderer,markers,head);
-            WeaponCoreMarkers.Add(markers);
             return new View(markers.ToArray(),now) { Mode=mode,Reveal=(bool)reveal.GetValue(null) };
         }
 

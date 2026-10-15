@@ -201,12 +201,14 @@ namespace SpaceEngineersVR.Player.Components
             else virtualStickHeld = false;
 
             CockpitControls.ApplyFlight(RotationSpeed,ref move,ref rotate,ref roll);
+            // With nothing selected the trigger is the throttle, except on WeaponCore grids, where it fires without a selection.
+            bool triggerThrottle=!ThirdPersonView.Manipulating && PrimaryPressed && TargetLock.ShooterGrid()==null;
             if(CockpitControls.VehicleFlight)
             {
-                if(!ThirdPersonView.Manipulating && PrimaryPressed && ship.Toolbar?.SelectedItem==null)
+                if(triggerThrottle && ship.Toolbar?.SelectedItem==null)
                     move.Z=-System.Math.Max(-move.Z,MathHelper.Clamp(controls.FirePressure.Position.X,0,1));
             }
-            else move=DriveInput.Update(ship,move,!ThirdPersonView.Manipulating && PrimaryPressed ? MathHelper.Clamp(controls.FirePressure.Position.X,0,1):0,
+            else move=DriveInput.Update(ship,move,triggerThrottle ? MathHelper.Clamp(controls.FirePressure.Position.X,0,1):0,
                 ThirdPersonView.Manipulating || CockpitControls.Adjusting ? 0:CockpitControls.Throttle);
             ApplyMoveAndRotation(move, rotate, roll);
         }

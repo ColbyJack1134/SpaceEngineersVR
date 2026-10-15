@@ -17,7 +17,7 @@ namespace SpaceEngineersVR.Player
         private const int MaxThreats=8;
         private static readonly Vector4 focusColor=new Vector4(1,.25f,.2f,1),threatColor=new Vector4(1,.55f,.2f,.85f),pointedColor=new Vector4(1,0,0,1),
             aimColor=new Vector4(.85f,.95f,1,.9f),paintColor=new Vector4(1,.35f,.9f,1);
-        private static MyEntity leadWeapon;
+        private static MyEntity leadWeapon,leadFocus;
         private static DateTime leadWeaponTime;
 
         // Names, threat levels, shield labels and the ranking cost WeaponCore / Defense Shields calls and allocations; they
@@ -109,7 +109,7 @@ namespace SpaceEngineersVR.Player
             return (float)MathHelper.Clamp(diameter/icon*1.1,minimum,12);
         }
 
-        // Lead pip for the focused target, predicted for the first fixed (non-turret) WeaponCore weapon; null when none applies.
+        // Lead pip for the focused target, predicted for a fixed (non-turret) WeaponCore weapon; null when none applies.
         internal static NativeLead.View Lead()
         {
             if(!WeaponCoreBridge.ApiReady) return null;
@@ -118,7 +118,7 @@ namespace SpaceEngineersVR.Player
                 var grid=Shooter();
                 var focus=grid==null ? null:WeaponCoreBridge.Focus(grid);
                 if(focus==null || focus.Closed || focus.MarkedForClose) return null;
-                var weapon=LeadWeapon();
+                var weapon=LeadWeapon(focus);
                 if(weapon==null) return null;
                 var predicted=WeaponCoreBridge.PredictedPosition(weapon,focus);
                 var center=focus.PositionComp.WorldAABB.Center;
@@ -129,21 +129,24 @@ namespace SpaceEngineersVR.Player
             catch(Exception ex) { Logger.Warning(ex,"WeaponCore VR lead failed this frame"); return null; }
         }
 
-        private static MyEntity LeadWeapon()
+        // Turrets aim themselves, so the pip is for fixed weapons only: the first that can reach the focus, else the first fixed
+        // one (grey, out of range). A turret-only grid shows no pip. Re-chosen every 2 s or when the focus changes.
+        private static MyEntity LeadWeapon(MyEntity focus)
         {
             var now=DateTime.UtcNow;
-            if(leadWeapon!=null && !leadWeapon.Closed && (now-leadWeaponTime).TotalSeconds<2) return leadWeapon;
-            leadWeapon=null; leadWeaponTime=now;
+            if(leadFocus==focus && (leadWeapon==null || !leadWeapon.Closed) && (now-leadWeaponTime).TotalSeconds<2) return leadWeapon;
+            leadWeapon=null; leadFocus=focus; leadWeaponTime=now;
             if(!WeaponCoreInternals.Available) return null;
-            MyEntity turret=null;
+            MyEntity first=null;
             foreach(var comp in WeaponCoreInternals.WeaponComps())
             {
+                if(ModReflection.Value(comp,false,"HasTurret") || ModReflection.Value(comp,false,"HasScanTrackOnly")) continue;
                 var entity=WeaponCoreInternals.CompEntity(comp);
                 if(entity==null || entity.Closed || entity.MarkedForClose) continue;
-                if(!ModReflection.Value(comp,false,"HasTurret")) { leadWeapon=entity; return entity; }
-                if(turret==null) turret=entity;
+                if(WeaponCoreBridge.PredictedPosition(entity,focus).HasValue) return leadWeapon=entity;
+                if(first==null) first=entity;
             }
-            return leadWeapon=turret;
+            return leadWeapon=first;
         }
 
         // Same rule as the lock actions: a WeaponCore seat or turret, or on foot a guided hand weapon.
@@ -151,6 +154,6 @@ namespace SpaceEngineersVR.Player
 
         private static string Shield(MyEntity entity) { string label=WeaponCoreThreats.ShieldLabel(entity); return label==null ? "" : "  "+label; }
 
-        internal static void Reset() { leadWeapon=null; snapshot=null; }
+        internal static void Reset() { leadWeapon=leadFocus=null; snapshot=null; }
     }
 }
