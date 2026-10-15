@@ -72,7 +72,7 @@ namespace SpaceEngineersVR.Player
                 bool hasOpenXr=TryComponent(name,"openxr_grip",source,out var openXr);
                 gripResolved=TryGrip(name,IsLeft,hasOpenXr ? openXr:(Matrix?)null,hasHandgrip ? handgrip:(Matrix?)null,out var grip,out var gripSource);
                 if(gripResolved) { gripOffset=grip; GripSource=gripSource; }
-                if(gripResolved && hasHandgrip) Logger.Info("Hand grip differs from handgrip by "+Difference(gripOffset,handgrip)+" on "+handPath);
+                if(gripResolved && hasHandgrip && GripSource=="openxr_grip") Logger.Info("Hand grip differs from handgrip by "+Difference(gripOffset,handgrip)+" on "+handPath);
                 if(gripResolved) Logger.Info("SteamVR hand-grip alignment loaded from "+GripSource+": "+handPath+" / "+name);
                 else if(aimRetry==1) Logger.Warning("SteamVR grip unavailable for "+handPath+" / "+name+" (components: "+Components(name)+"); arms use raw controller origin and retry.");
             }

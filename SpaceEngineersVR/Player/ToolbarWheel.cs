@@ -15,7 +15,9 @@ namespace SpaceEngineersVR.Player
     internal static class ToolbarWheel
     {
         internal const string ControlsHint="Hold B · A: assign / G menu · Empty slot: assign · Release B confirms\nEither stick selects · Left / right trigger: page · Center cancels";
-        internal static string QuickControlsHint(bool pages) => "Hold Y · Either stick selects · X: inventory · Release Y confirms · B: cancel"+(pages ? "\nLeft / right trigger: previous / next page":"");
+        internal const string BumperControlsHint="Bumper · A: assign / G menu · Empty slot: assign · Close to confirm\nEither stick selects · Left / right trigger: page · Center cancels";
+        internal static string QuickControlsHint(bool pages,bool bumper=false) => (bumper ? "Bumper · Either stick selects · X: inventory · Close to confirm · B: cancel" :
+            "Hold Y · Either stick selects · X: inventory · Release Y confirms · B: cancel")+(pages ? "\nLeft / right trigger: previous / next page":"");
         internal enum SlotResult { Ignored, Assigned, Activated, Unavailable }
         internal sealed class View
         {
@@ -271,7 +273,7 @@ namespace SpaceEngineersVR.Player
                 Title = group == 0 ? "Toolbar " + ((toolbar?.CurrentPage ?? 0) + 1) + "/" + (toolbar?.PageCount ?? 0)
                     : pageTitles?[quickPage] ?? "Quick actions",
                 Variants=group==1 && variantPages?[quickPage]==true,Group=group,Page=group==0 ? toolbar?.CurrentPage ?? 0 : quickPage,Pages=group==0 ? toolbar?.PageCount ?? 1 : quickPages?.Length ?? 1,
-                Hint = group==0 ? ControlsHint : QuickControlsHint(quickPages?.Length>1) };
+                Hint = group==0 ? (holder==Controls.Static.ToolbarWheel ? BumperControlsHint:ControlsHint) : QuickControlsHint(quickPages?.Length>1,holder==Controls.Static.ActionsWheel) };
             if (!next.SameAs(view)) view=next;
         }
 

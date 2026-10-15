@@ -118,6 +118,7 @@ float4 PS() : SV_Target { return Depth.y; }";
 
         internal static void Create(Device target,RawVector2[][] eyes,ComputeShader[] histogram,bool complementary,bool visibleOnly=false,RawVector2[] centers=null)
         {
+            DisposeResources();
             device=target;
             context=new DeviceContext(device);
             using(var vs=ShaderBytecode.Compile(Shader,"VS","vs_4_0"))
@@ -139,7 +140,6 @@ float4 PS() : SV_Target { return Depth.y; }";
             histograms[0]=histogram[0]; histograms[1]=histogram[1];
             near=complementary ? 1:0; clear=complementary ? 0:1;
             exposureOnly=visibleOnly;
-            for(int i=0;i<2;i++) { visibleViews[i]?.Dispose(); visibleTargets[i]?.Dispose(); visible[i]?.Dispose(); visibleViews[i]=null; visibleTargets[i]=null; visible[i]=null; }
             initialized=true;
         }
 
@@ -307,6 +307,17 @@ float4 PS() : SV_Target { return Depth.y; }";
             int count=0;
             for(int i=text.IndexOf(value,StringComparison.Ordinal);i>=0;i=text.IndexOf(value,i+value.Length,StringComparison.Ordinal)) count++;
             return count;
+        }
+
+        private static void DisposeResources()
+        {
+            context?.Dispose(); vertex?.Dispose(); pixel?.Dispose(); layout?.Dispose(); constants?.Dispose(); centerConstants?.Dispose();
+            writeDepth?.Dispose(); rasterizer?.Dispose();
+            for(int i=0;i<2;i++)
+            {
+                meshes[i]?.Dispose(); visibleViews[i]?.Dispose(); visibleTargets[i]?.Dispose(); visible[i]?.Dispose();
+                meshes[i]=null; visibleViews[i]=null; visibleTargets[i]=null; visible[i]=null; counts[i]=0;
+            }
         }
 
         private static void Fail(Exception ex)

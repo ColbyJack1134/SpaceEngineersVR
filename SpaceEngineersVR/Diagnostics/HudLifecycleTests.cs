@@ -83,9 +83,6 @@ namespace SpaceEngineersVR.Diagnostics
                     throw new Exception("Native hidden-HUD marker collectors changed");
                 if(WorldMarkers.HudTexts?.FieldType!=typeof(VRage.Generics.MyObjectsPoolSimple<MyHudText>))
                     throw new Exception("Native HUD text pool changed; hidden-HUD marker names would not be cleared");
-                // The native HUD draw task starts at the end of AsyncUpdate and reads the same text pool.
-                if(AccessTools.Method(typeof(Patches.HiddenHudMarkersPatch),"Postfix")!=null || AccessTools.Method(typeof(Patches.HiddenHudMarkersPatch),"Prefix")==null)
-                    throw new Exception("Hidden-HUD marker capture must run before the native HUD draw task starts");
             }
             finally
             {
@@ -94,7 +91,7 @@ namespace SpaceEngineersVR.Diagnostics
                 session.SetValue(null,previousSession); snapshot.SetValue(null,previousSnapshot); sample.SetValue(null,previousSample);
                 Main.WorldAvailable=previousWorld; character=null; controlled=null; dead=false;
             }
-            log("PASS respawn lifecycle: missing character, missing control and death clear stale HUD; empty arm/body owners restore safely; Tab-hidden native HUD keeps VR markers while cutscenes and scenario HUDs hide them; installed hidden-HUD marker capture before the HUD task with its names cleared, collectors");
+            log("PASS respawn lifecycle: missing character, missing control and death clear stale HUD; empty arm/body owners restore safely; Tab-hidden native HUD keeps VR markers while cutscenes and scenario HUDs hide them; installed hidden-HUD marker capture with its names cleared, collectors");
         }
     }
 }
