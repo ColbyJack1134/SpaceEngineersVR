@@ -34,8 +34,8 @@ namespace SpaceEngineersVR.GUI
             new Topic("3rd Person", new Diagram("view", 1600, 760)),
             new Topic("Floating Menus", new Diagram("menus", 1600, 650)),
             new Topic("Other", new Diagram("seat-panel", 1600, 760), new Diagram("other", 1600, 809), new Diagram("other-end", 1600, 160)),
-            new Topic("WeaponCore & Shields", new Diagram("weaponcore", 1600, 720), new Diagram("weaponcore-actions", 1600, 940),
-                new Diagram("weaponcore-aim", 1600, 652), new Diagram("weaponcore-info", 1600, 924)),
+            new Topic("WeaponCore & Shields", new Diagram("weaponcore", 1600, 760), new Diagram("weaponcore-actions", 1600, 1156),
+                new Diagram("weaponcore-aim", 1600, 652), new Diagram("weaponcore-info", 1600, 960)),
         };
         internal static int TopicCount => topics.Length;
         private static string GuideFolder => Path.Combine(Common.AssetFolder ?? Util.Util.GetDefaultAssetFolder(),"Guide");

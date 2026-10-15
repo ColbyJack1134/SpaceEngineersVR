@@ -193,7 +193,7 @@ namespace SpaceEngineersVR.Player
 
             keys.Add(new SurfaceKey("Back",.025f,.91f,.15f,.07f) {Action=new ActionChoice("Back",()=>WristPanel.Show(0))});
             keys.Add(new SurfaceKey("Lock ahead",.19f,.91f,.25f,.07f) {Action=TargetLock.LockAheadAction,Enabled=grid!=null});
-            keys.Add(new SurfaceKey(WeaponCoreAim.PaintArmed ? "Cancel paint":"Paint",.455f,.91f,.25f,.07f) {Action=TargetLock.PaintAction,Enabled=grid!=null,Active=WeaponCoreAim.PaintArmed || WeaponCoreAim.Painted});
+            keys.Add(new SurfaceKey(WeaponCoreAim.PaintArmed ? "Cancel paint":"Paint",.455f,.91f,.25f,.07f) {Action=TargetLock.PaintAction,Enabled=grid!=null && !WeaponCoreAim.PaintProhibited,Active=WeaponCoreAim.PaintArmed || WeaponCoreAim.Painted});
             keys.Add(new SurfaceKey("Clear paint",.72f,.91f,.255f,.07f) {Action=TargetLock.ClearPaintAction,Enabled=grid!=null && WeaponCoreAim.Painted});
         }
     }

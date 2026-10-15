@@ -19,6 +19,39 @@ namespace SpaceEngineersVR.Player
         private static MyEntity leadWeapon;
         private static DateTime leadWeaponTime;
 
+        // Names, threat levels, shield labels and the ranking cost WeaponCore / Defense Shields calls and allocations; they
+        // refresh at 10 Hz while positions and bracket sizes follow every frame.
+        private sealed class Snapshot
+        {
+            public MyEntity Grid,Focus,PaintedEntity;
+            public string FocusName;
+            public readonly List<KeyValuePair<MyEntity,string>> Threats=new List<KeyValuePair<MyEntity,string>>();
+            public Vector3D PaintedLocal;
+            public bool Manual;
+        }
+        private static Snapshot snapshot;
+        private static DateTime refresh;
+
+        // Lock, cycle, release and paint changes show on the next frame instead of the next refresh.
+        internal static void Invalidate() { refresh=DateTime.MinValue; }
+
+        private static Snapshot Current(MyEntity grid)
+        {
+            var now=DateTime.UtcNow;
+            if(snapshot!=null && snapshot.Grid==grid && now<refresh) return snapshot;
+            refresh=now.AddSeconds(.1);
+            var next=new Snapshot {Grid=grid,Focus=WeaponCoreBridge.Focus(grid),Manual=WeaponCoreAim.ManualActive};
+            if(next.Focus!=null)
+                next.FocusName="LOCKED  "+Name(next.Focus)+(WeaponCoreStatus.Threat(grid,next.Focus) is int level ? "  T"+level:"")+Shield(next.Focus);
+            foreach(var threat in TargetLock.RankedThreats(grid).Where(t=>t.Item1!=next.Focus).Take(MaxThreats))
+                next.Threats.Add(new KeyValuePair<MyEntity,string>(threat.Item1,
+                    Name(threat.Item1)+"  T"+WeaponCoreStatus.ThreatLevel(threat.Item2,WeaponCoreStatus.ShieldBonus(grid,threat.Item1))+Shield(threat.Item1)));
+            if(WeaponCoreAim.Painted) WeaponCoreInternals.PaintMark(out next.PaintedEntity,out next.PaintedLocal);
+            return snapshot=next;
+        }
+
+        private static bool Alive(MyEntity entity) => entity!=null && !entity.Closed && !entity.MarkedForClose;
+
         internal static void Add(List<WorldMarkers.Marker> markers)
         {
             if(!WeaponCoreBridge.ApiReady) return;
@@ -27,28 +60,28 @@ namespace SpaceEngineersVR.Player
                 var grid=Shooter();
                 if(grid==null) return;
                 var head=CameraRig.Current?.Anchor.Translation ?? MySector.MainCamera.Position;
-                var focus=WeaponCoreBridge.Focus(grid);
-                if(focus!=null && !focus.Closed && !focus.MarkedForClose)
+                var data=Current(grid);
+                if(Alive(data.Focus))
                 {
-                    var position=focus.PositionComp.WorldAABB.Center;
-                    var locked=Marker("wcfocus:"+focus.EntityId,"LOCKED  "+Name(focus)+(WeaponCoreStatus.Threat(grid,focus) is int level ? "  T"+level:"")+Shield(focus),
-                        focusColor,position,head,Span(focus,head,2.2f),pinned:true);
+                    var locked=Marker("wcfocus:"+data.Focus.EntityId,data.FocusName,focusColor,data.Focus.PositionComp.WorldAABB.Center,head,Span(data.Focus,head,2.2f),pinned:true);
                     // Lays out first, so the other names move around it.
                     locked.LockState="Locked";
                     markers.Add(locked);
                 }
-                foreach(var threat in TargetLock.RankedThreats(grid).Where(t=>t.Item1!=focus).Take(MaxThreats))
+                foreach(var threat in data.Threats)
                 {
-                    var target=threat.Item1;
-                    var position=target.PositionComp.WorldAABB.Center;
-                    markers.Add(Marker("wcthreat:"+target.EntityId,Name(target)+"  T"+WeaponCoreStatus.ThreatLevel(threat.Item2,WeaponCoreStatus.ShieldBonus(grid,target))+Shield(target),
-                        threatColor,position,head,Span(target,head,1.7f)));
+                    var target=threat.Key;
+                    if(!Alive(target)) continue;
+                    markers.Add(Marker("wcthreat:"+target.EntityId,threat.Value,threatColor,target.PositionComp.WorldAABB.Center,head,Span(target,head,1.7f)));
                 }
-                if(WeaponCoreAim.AimPoint.HasValue && (DateTime.UtcNow-WeaponCoreAim.AimTime).TotalSeconds<.25 && WeaponCoreAim.ManualActive)
+                if(WeaponCoreAim.AimPoint.HasValue && (DateTime.UtcNow-WeaponCoreAim.AimTime).TotalSeconds<.25 && data.Manual)
                     markers.Add(Marker("wcaim","AIM",aimColor,WeaponCoreAim.AimPoint.Value,head,1,pinned:true,symbol:"cross",side:"below"));
-                // WeaponCore's own paint mark is part of its hidden HUD.
-                var painted=WeaponCoreAim.Painted ? WeaponCoreInternals.PaintedPosition : null;
-                if(painted.HasValue) markers.Add(Marker("wcpainted","PAINTED",paintColor,painted.Value,head,.9f,pinned:true,side:"upleft"));
+                // WeaponCore's own paint mark is part of its hidden HUD; it rides on the painted entity.
+                if(Alive(data.PaintedEntity))
+                    markers.Add(Marker("wcpainted","PAINTED",paintColor,Vector3D.Transform(data.PaintedLocal,data.PaintedEntity.PositionComp.WorldMatrixRef),head,.9f,pinned:true,side:"upleft"));
+                var lockPreview=TargetLock.HandLockPreview;
+                if(Alive(lockPreview))
+                    markers.Add(Marker("wclock","LOCK  pull trigger",paintColor,lockPreview.PositionComp.WorldAABB.Center,head,1.2f,pinned:true,symbol:"cross",side:"upright"));
                 if(WeaponCoreAim.PaintArmed && WeaponCoreAim.PaintPreview.HasValue)
                     markers.Add(Marker("wcpaint","PAINT  pull trigger",paintColor,WeaponCoreAim.PaintPreview.Value,head,1.2f,pinned:true,symbol:"cross",side:"upright"));
             }
@@ -109,13 +142,14 @@ namespace SpaceEngineersVR.Player
         {
             var controlled=MySession.Static?.ControlledEntity?.Entity as MyCubeBlock;
             var grid=controlled?.CubeGrid;
-            return WeaponCoreBridge.HasAi(grid) ? grid:null;
+            // On foot, a smart hand weapon tracks targets like a grid.
+            return WeaponCoreBridge.HasAi(grid) ? grid:TargetLock.HandShooter();
         }
 
         private static string Shield(MyEntity entity) { string label=WeaponCoreStatus.ShieldLabel(entity); return label==null ? "" : "  "+label; }
 
         private static string Name(MyEntity entity) => string.IsNullOrWhiteSpace(entity.DisplayName) ? "Target" : entity.DisplayName;
 
-        internal static void Reset() { leadWeapon=null; }
+        internal static void Reset() { leadWeapon=null; snapshot=null; }
     }
 }

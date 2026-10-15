@@ -146,19 +146,20 @@ namespace SpaceEngineersVR.Player
 
         internal static bool UpdateManualTarget(Vector3D position,MyEntity hit) => UpdateFake("ManualTarget",position,hit);
         internal static long PaintedEntity => Value(FakeTarget("PaintedTarget"),0L,"EntityId");
-        // World position of the paint mark, which WeaponCore keeps relative to the painted entity.
-        internal static Vector3D? PaintedPosition
+        // The painted entity and the mark's offset in its frame, as WeaponCore keeps it; false when nothing is painted.
+        internal static bool PaintMark(out MyEntity entity,out Vector3D local)
         {
-            get
-            {
-                var target=FakeTarget("PaintedTarget");
-                if(!(Get(target,"TmpEntity") is MyEntity entity) || entity.Closed || entity.MarkedForClose || Value(target,0L,"EntityId")!=entity.EntityId) return null;
-                return Get(target,"LocalPosition") is Vector3D local ? Vector3D.Transform(local,entity.PositionComp.WorldMatrixRef) : (Vector3D?)null;
-            }
+            var target=FakeTarget("PaintedTarget");
+            entity=Get(target,"TmpEntity") as MyEntity;
+            local=Get(target,"LocalPosition") is Vector3D offset ? offset:Vector3D.Zero;
+            if(entity==null || entity.Closed || entity.MarkedForClose || Value(target,0L,"EntityId")!=entity.EntityId) { entity=null; return false; }
+            return true;
         }
 
         // A WeaponCore hand weapon is the active weapon AI (the player is not seated).
         internal static bool HandheldActive => Get(TrackingAi,"AiType")?.ToString()=="Player";
+        // A guided hand weapon that takes a selected target, as WeaponCore's middle-click selection does on desktop.
+        internal static bool SmartHandheld => Value(TrackingAi,false,"SmartHandheld");
         internal static bool DroneAlert => Value(TrackingAi,false,"Construct","DroneAlert");
         // WeaponCore's hand-weapon reload key (tap: reload, hold one second: cycle ammo).
         internal static VRage.Input.MyKeys ReloadKey => Value(Session,VRage.Input.MyKeys.None,"UiInput","ReloadKey");

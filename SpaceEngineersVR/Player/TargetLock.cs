@@ -33,20 +33,58 @@ namespace SpaceEngineersVR.Player
         internal static readonly ActionChoice PreviousTargetAction=new ActionChoice("Previous target",()=>Cycle(-1),
             enabled:()=>ShooterGrid()!=null,searchTerms:"weaponcore wc target cycle previous focus");
         internal static readonly ActionChoice ReleaseTargetAction=new ActionChoice("Release target",Release,
-            enabled:()=>ShooterGrid()!=null,searchTerms:"weaponcore wc target release unlock focus clear");
+            enabled:()=>ShooterGrid()!=null || HandShooter()!=null,searchTerms:"weaponcore wc target release unlock focus clear");
         internal static readonly ActionChoice FocusLockAction=new ActionChoice("Toggle focus lock",ToggleFocusLock,
             enabled:()=>ShooterGrid()!=null,searchTerms:"weaponcore wc focus lock hold keep target");
         internal static readonly ActionChoice PaintAction=new ActionChoice("Paint target",WeaponCoreAim.RequestPaint,
-            enabled:()=>ShooterGrid()!=null,searchTerms:"weaponcore wc painter paint mark guided");
+            enabled:()=>ShooterGrid()!=null && !WeaponCoreAim.PaintProhibited,searchTerms:"weaponcore wc painter paint mark guided");
         internal static readonly ActionChoice ClearPaintAction=new ActionChoice("Clear paint",WeaponCoreAim.RequestClearPaint,
             enabled:()=>ShooterGrid()!=null,searchTerms:"weaponcore wc painter paint clear");
-        internal static readonly ActionChoice[] Actions={LockAheadAction,NextTargetAction,PreviousTargetAction,ReleaseTargetAction,FocusLockAction,PaintAction,ClearPaintAction};
+        // Smart (guided) WeaponCore hand weapons: the action arms, and the next trigger pull locks the tracked target the gun
+        // points at, or releases on the locked target or empty space. On foot the grip is the weapon's secondary action.
+        private static readonly TriggerArm handLockArm=new TriggerArm(10);
+        internal static bool HandLockArmed => handLockArm.Armed;
+        // The target a pull would lock now.
+        internal static MyEntity HandLockPreview { get; private set; }
+        internal static readonly ActionChoice HandLockAction=new ActionChoice(()=>HandLockArmed ? "Cancel lock":"Lock target",ToggleHandLock,
+            ()=>HandShooter()!=null,"WeaponCore hand lock");
+        internal static readonly ActionChoice[] Actions={LockAheadAction,NextTargetAction,PreviousTargetAction,ReleaseTargetAction,FocusLockAction,PaintAction,ClearPaintAction,HandLockAction};
 
         internal static void Reset()
         {
             feedTap.Update(false,false,true,DateTime.UtcNow);
             feedGripWas=false;
+            handLockArm.Disarm(); HandLockPreview=null;
         }
+
+        private static void ToggleHandLock()
+        {
+            if(HandLockArmed) { handLockArm.Disarm(); HandLockPreview=null; EssentialHud.Notify("Lock cancelled"); return; }
+            if(HandShooter()==null) return;
+            handLockArm.Arm();
+            EssentialHud.Notify("Lock armed: aim and pull the trigger");
+            Handedness.ActionHand.Vibrate(0,.03f,120,.15f);
+        }
+
+        private static void UpdateHandLock()
+        {
+            HandLockPreview=null;
+            if(!HandLockArmed) return;
+            var shooter=HandShooter();
+            if(shooter==null) { handLockArm.Disarm(); return; }
+            if(handLockArm.Expired) { handLockArm.Disarm(); EssentialHud.Notify("Lock cancelled"); return; }
+            var hand=Handedness.ActionHand;
+            if(GridSelection.TryPointer(hand,out var pose)) HandLockPreview=Pick(shooter,pose.Translation,pose.Forward);
+            if(!handLockArm.Pulled()) return;
+            Toggle(shooter,HandLockPreview,true);
+            hand.Vibrate(0,.025f,90,HandLockPreview!=null ? .25f:.12f);
+            HandLockPreview=null;
+        }
+
+        // The local character while it holds a smart (guided) WeaponCore hand weapon; null otherwise.
+        internal static MyEntity HandShooter() =>
+            WeaponCoreBridge.ApiReady && WeaponCoreInternals.Available && WeaponCoreInternals.HandheldActive && WeaponCoreInternals.SmartHandheld ?
+                MySession.Static?.LocalCharacter : null;
 
         internal static void Update()
         {
@@ -55,6 +93,7 @@ namespace SpaceEngineersVR.Player
             TargetLockToolbar.Register();
             WeaponCoreAlerts.Update(ShooterGrid());
             WeaponCoreAim.UpdatePaintArm();
+            UpdateHandLock();
             var hand=Player.HandR;
             bool grip=hand.pose.isTracked && Controls.Static.GripClick(hand).RawPressed;
             bool released=feedGripWas && !grip;
@@ -107,12 +146,14 @@ namespace SpaceEngineersVR.Player
             int index=current==null ? -1 : threats.FindIndex(t=>t.GetTopMostParent()==current.GetTopMostParent());
             int next=index<0 ? (step>0 ? 0:threats.Count-1) : ((index+step)%threats.Count+threats.Count)%threats.Count;
             EssentialHud.Notify(WeaponCoreBridge.SetFocus(grid,threats[next]) ? "Target locked: "+Name(threats[next])+"  ("+(next+1)+"/"+threats.Count+")" : "Lock refused");
+            WeaponCoreMarkers.Invalidate();
         }
 
         internal static void Release()
         {
-            var grid=ShooterGrid();
+            var grid=ShooterGrid() ?? HandShooter();
             if(grid!=null && WeaponCoreBridge.Focus(grid)!=null && WeaponCoreBridge.ReleaseFocus(grid)) EssentialHud.Notify("Target released");
+            WeaponCoreMarkers.Invalidate();
         }
 
         internal static void ToggleFocusLock()
@@ -193,6 +234,7 @@ namespace SpaceEngineersVR.Player
 
         private static void Toggle(MyEntity grid,MyEntity picked,bool releaseOnEmpty)
         {
+            WeaponCoreMarkers.Invalidate();
             var current=WeaponCoreBridge.Focus(grid);
             if(picked==null)
             {

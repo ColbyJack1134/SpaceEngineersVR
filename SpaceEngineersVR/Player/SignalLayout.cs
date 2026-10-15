@@ -33,6 +33,8 @@ namespace SpaceEngineersVR.Player
             public WorldMarkers.Marker Primary => Members[0];
             public Vector3D Position;
             public Vector2 Point;
+            // Non-zero for an off-screen lock drawn as an edge arrow: the screen direction (y down) toward the target.
+            public Vector2 Arrow;
             public Vector4 Color;
             public RectangleF SymbolBounds;
             public string Id,Relation;
@@ -114,7 +116,7 @@ namespace SpaceEngineersVR.Player
                 if(group==null) groups.Add(new List<WorldMarkers.Marker> {m}); else group.Add(m);
             }
             // Off-view bearings belong to the wrist window, never the world HUD.
-            var entries=groups.Select(g=>Create(g,head,options)).Where(e=>!e.Edge).ToList();
+            var entries=groups.Select(g=>Create(g,head,options)).Where(e=>!e.Edge || LockArrow(e,head,options)).ToList();
             var result=entries.ToArray();
             int budget=64;
             var placed=new List<RectangleF>();
@@ -138,7 +140,7 @@ namespace SpaceEngineersVR.Player
                     float width=MathHelper.Clamp(Math.Max(SignalFont.Width(row.Name,31),SignalFont.Width(row.Distance,29))*.025f/31+.015f,.12f,.8f)*options.TextScale;
                     row.LineHeight=.025f*options.TextScale;
                     bool weaponCore=e.Primary.Kind=="WeaponCore";
-                    float half=GroupUnit(e.IconScale)*.5f*(weaponCore ? e.Primary.Span:1);
+                    float half=GroupUnit(e.IconScale)*.5f*(weaponCore && e.Arrow==Vector2.Zero ? e.Primary.Span:1);
                     float offset=e.Ring ? .048f:half+GroupUnit(e.IconScale)*.4375f;
                     row.NameY=e.Point.Y-offset-row.LineHeight/2;
                     row.DistanceY=e.Point.Y+offset*(.7f+.3f*e.NameAlpha)-row.LineHeight*row.DistanceScale/2;
@@ -161,6 +163,22 @@ namespace SpaceEngineersVR.Player
                 foreach(var label in e.Labels) placed.AddRange(Ink(label));
             }
             return result;
+        }
+        // Edge arrows sit this far ahead of the eye; they ignore scene depth, so cockpit geometry cannot hide them.
+        internal const double ArrowDepth=3;
+        // A WeaponCore lock out of view stays on the HUD as an arrow inside the view edge, pointing toward the target.
+        private static bool LockArrow(Entry e,MatrixD head,Options options)
+        {
+            var m=e.Primary;
+            if(m.Kind!="WeaponCore" || m.LockState!="Locked") return false;
+            var local=Vector3D.Transform(e.Position,MatrixD.Invert(head));
+            var direction=new Vector2((float)local.X,(float)-local.Y);
+            direction=direction.LengthSquared()<1e-8f ? Vector2.UnitY:Vector2.Normalize(direction);
+            float reach=Math.Min(options.LimitX*.8f/Math.Max(Math.Abs(direction.X),1e-4f),options.LimitY*.8f/Math.Max(Math.Abs(direction.Y),1e-4f));
+            e.Point=direction*reach; e.Arrow=direction; e.Edge=false;
+            e.Position=Vector3D.Transform(new Vector3D(e.Point.X,-e.Point.Y,-1)*ArrowDepth,head);
+            e.SymbolBounds=SymbolBounds(e.Point,false,e.IconScale);
+            return true;
         }
         private static void Focus(Entry e,WorldMarkers.View source,Options options)
         {

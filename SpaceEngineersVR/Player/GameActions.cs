@@ -145,9 +145,12 @@ namespace SpaceEngineersVR.Player
             if(building && PlacementControls.ClipboardActive) return ClipboardActions(PlacementControls.GridClipboardActive);
             if(building) return VoxelTools.Current?.Actions() ?? BuildingWheelActions();
             if(seated) return new[] { PauseAction,TerminalAction,LightsAction,Dampeners,PowerAction,ParkAction,HelmetAction,BroadcastAction,CockpitBuild };
-            if(jetpack) return new[] { PauseAction,BlueprintsAction,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,BroadcastAction };
-            return new[] { PauseAction,BlueprintsAction,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],Quick[12] };
+            if(jetpack) return WithHandLock(new[] { PauseAction,BlueprintsAction,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,BroadcastAction },BlueprintsAction,BroadcastAction);
+            return WithHandLock(new[] { PauseAction,BlueprintsAction,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],Quick[12] },Quick[11],Quick[12]);
         }
+        // A smart WeaponCore hand weapon swaps two wheel slots for target lock and release.
+        private static ActionChoice[] WithHandLock(ActionChoice[] actions,ActionChoice first,ActionChoice second) =>
+            TargetLock.HandShooter()==null ? actions : actions.Select(a=>a==first ? TargetLock.HandLockAction : a==second ? TargetLock.ReleaseTargetAction : a).ToArray();
         internal static ActionChoice[] BuildingWheelActions(bool? symmetrySetup=null)
         {
             bool setup=symmetrySetup ?? (MySession.Static!=null && MyCubeBuilder.Static?.IsSymmetrySetupMode()==true);

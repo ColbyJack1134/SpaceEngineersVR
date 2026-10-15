@@ -66,6 +66,25 @@ namespace SpaceEngineersVR.Player
                 foreach(float sy in new[] {-1f,1f})
                 { bar(sx*half,sy*half,sx*(half-arm),sy*half); bar(sx*half,sy*half,sx*half,sy*(half-arm)); }
         }
+        // Chevron pointing along direction (screen space, y down), drawn over everything like the HUD.
+        private static void Arrow(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,Vector4 color,Vector2 direction)
+        {
+            var tip=direction*.55f;
+            Func<float,Vector2> wing=angle=>tip-new Vector2(direction.X*(float)Math.Cos(angle)-direction.Y*(float)Math.Sin(angle),
+                direction.X*(float)Math.Sin(angle)+direction.Y*(float)Math.Cos(angle))*.7f;
+            Bar(output,board,tip,wing(.6f),.09f,color,view,projection);
+            Bar(output,board,tip,wing(-.6f),.09f,color,view,projection);
+        }
+        private static void Bar(List<NativeSprite> output,MarkerBillboard board,Vector2 from,Vector2 to,float width,Vector4 color,MatrixD view,MatrixD projection)
+        {
+            var along=to-from;
+            if(along.LengthSquared()<1e-8f) return;
+            var normal=Vector2.Normalize(new Vector2(-along.Y,along.X))*width/2;
+            MatrixD transform=view*projection;
+            Func<Vector2,Vector4> clip=p=>(Vector4)Vector4D.Transform(new Vector4D(board.Point(p.X,p.Y),1),transform);
+            output.Add(new NativeSprite(@"Textures\GUI\Blank.dds",default(RectangleF),color.ToLinearRGB()) {Projected=true,Premultiplied=true,IgnoreSceneDepth=true,
+                TopLeft=clip(from-normal),TopRight=clip(to-normal),BottomLeft=clip(from+normal),BottomRight=clip(to+normal)});
+        }
         internal static void GroupIcon(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,WorldMarkers.Marker[] values,Vector4 color,float expansion=0,float compactShift=0,WorldMarkers.Marker[] representatives=null)
         {
             Project(output,Atlas(MyHudTexturesEnum.Target_neutral,color),board,new RectangleF(-.5f,-.5f,1,1),view,projection);
@@ -118,7 +137,8 @@ namespace SpaceEngineersVR.Player
                 board.Scale*=e.Primary.Kind=="Objective" ? 1.1:.55;
                 if(e.Ring) e.Primary.Ring?.AddNative(sprites,e.Position,view,projection,target.Description.Width,facingUp,faceViewer);
                 board.Scale*=e.IconScale;
-                if(e.Members.Length==1) Icon(sprites,board,view,projection,e.Primary,alpha:e.SymbolAlpha);
+                if(e.Arrow!=Vector2.Zero) Arrow(sprites,board,view,projection,e.Primary.Color,e.Arrow);
+                else if(e.Members.Length==1) Icon(sprites,board,view,projection,e.Primary,alpha:e.SymbolAlpha);
                 else
                 {
                     GroupIcon(sprites,board,view,projection,e.Members,e.Color,e.Expansion,e.CompactShift,e.Representatives);
