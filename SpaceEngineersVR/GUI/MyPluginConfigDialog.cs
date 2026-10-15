@@ -73,6 +73,7 @@ namespace SpaceEngineersVR.GUI
                     Link(-.17f,"Third-person sensitivity",()=>new SettingsPage("Third person"));
                     Link(-.075f,"Release glide",()=>new SettingsPage("Release glide"));
                     Link(.02f,"Turret aim & camera zoom",()=>new SettingsPage("Turrets and cameras"));
+                    Link(.115f,"Weapon & shield warnings",()=>new SettingsPage("Weapon & shield warnings"));
                     break;
                 case 3:
                     c.InitializeHudProfiles();

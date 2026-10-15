@@ -55,7 +55,7 @@ namespace SpaceEngineersVR.Player
             var found=new List<Candidate>();
             foreach(var m in snapshot.Markers)
             {
-                if(!options.Allows(m) || m.Kind=="Target") continue;
+                if(!options.Allows(m) || m.Kind=="Target" || m.Kind=="WeaponCore") continue;
                 var t=Vector3D.TransformNormal(m.Position-panel.Pose.Translation,inverse);
                 if(!t.IsValid() || t.Z>=0) continue;
                 double fraction=h.Z/(h.Z-t.Z);
@@ -84,7 +84,7 @@ namespace SpaceEngineersVR.Player
                 Vector3D.Dot(panel.Pose.Backward,head.Translation-panel.Pose.Translation)>.015)
             {
                 var candidates=copy.Signals.Candidates.ToList();
-                foreach(var marker in snapshot.Markers.Where(m=>options.Allows(m) && m.Kind!="Target"))
+                foreach(var marker in snapshot.Markers.Where(m=>options.Allows(m) && m.Kind!="Target" && m.Kind!="WeaponCore"))
                 {
                     var local=Vector3D.Transform(marker.Position,MatrixD.Invert(head));
                     if(!local.IsValid() || local.LengthSquared()<.01) continue;

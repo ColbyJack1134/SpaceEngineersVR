@@ -30,6 +30,10 @@ namespace SpaceEngineersVR.Player
             public float LockProgress;
             public SignalRing Ring;
             public double Distance;
+            // WeaponCore markers: "brackets" or "cross" in thin lines, size in standard icons, and name placement
+            // (null above, "upleft", "upright" or "below") so coincident markers do not stack their names.
+            public string Symbol, LabelSide;
+            public float Span=1;
         }
         internal sealed class View
         {

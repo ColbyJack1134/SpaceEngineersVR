@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using VRage;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Weapons;
 using Sandbox.Game.World;
@@ -51,6 +54,7 @@ namespace SpaceEngineersVR.Player
             if(!WeaponCoreBridge.ApiReady) { feedGripWas=false; return; }
             TargetLockToolbar.Register();
             WeaponCoreAlerts.Update(ShooterGrid());
+            WeaponCoreAim.UpdatePaintArm();
             var hand=Player.HandR;
             bool grip=hand.pose.isTracked && Controls.Static.GripClick(hand).RawPressed;
             bool released=feedGripWas && !grip;
@@ -92,18 +96,12 @@ namespace SpaceEngineersVR.Player
             return direction.IsValid() && direction.LengthSquared()>.5;
         }
 
-        // Steps the focus through WeaponCore's tracked threats (sorted by threat), wrapping at either end.
+        // Steps the focus through WeaponCore's tracked threats in the order the markers rank them, wrapping at either end.
         internal static void Cycle(int step)
         {
             var grid=ShooterGrid();
             if(grid==null) return;
-            var own=grid.GetTopMostParent();
-            var threats=new System.Collections.Generic.List<MyEntity>();
-            foreach(var threat in WeaponCoreBridge.Threats(grid))
-            {
-                var target=threat.Item1;
-                if(target!=null && !target.Closed && !target.MarkedForClose && target.GetTopMostParent()!=own) threats.Add(target);
-            }
+            var threats=RankedThreats(grid).Select(t=>t.Item1).ToList();
             if(threats.Count==0) { EssentialHud.Notify("No targets tracked"); return; }
             var current=WeaponCoreBridge.Focus(grid);
             int index=current==null ? -1 : threats.FindIndex(t=>t.GetTopMostParent()==current.GetTopMostParent());
@@ -146,6 +144,19 @@ namespace SpaceEngineersVR.Player
             return true;
         }
 
+        // WeaponCore's targeting range for the controlled grid; Range when unknown.
+        private static double TargetRange { get { double range=WeaponCoreInternals.MaxTargetingRange; return range>0 ? range:Range; } }
+
+        // Tracked threats other than the own construct, nearest first; equal distances put the higher threat first.
+        internal static List<MyTuple<MyEntity,float>> RankedThreats(MyEntity grid)
+        {
+            var own=grid.GetTopMostParent();
+            var centre=grid.PositionComp.WorldAABB.Center;
+            return WeaponCoreBridge.Threats(grid)
+                .Where(t=>t.Item1!=null && !t.Item1.Closed && !t.Item1.MarkedForClose && t.Item1.GetTopMostParent()!=own)
+                .OrderBy(t=>Vector3D.DistanceSquared(t.Item1.PositionComp.WorldAABB.Center,centre)).ThenByDescending(t=>t.Item2).ToList();
+        }
+
         internal static MyEntity ShooterGrid()
         {
             if(!WeaponCoreBridge.ApiReady) return null;
@@ -163,7 +174,8 @@ namespace SpaceEngineersVR.Player
         {
             var own=grid.GetTopMostParent();
             var threats=WeaponCoreBridge.Threats(grid);
-            var hitEntity=GridSelection.Cast(new LineD(origin,origin+direction*Range),out _)?.GetTopMostParent() as MyEntity;
+            double range=TargetRange;
+            var hitEntity=GridSelection.Cast(new LineD(origin,origin+direction*range),out _)?.GetTopMostParent() as MyEntity;
             MyEntity best=null; double bestCos=coneCos;
             foreach(var threat in threats)
             {
@@ -172,7 +184,7 @@ namespace SpaceEngineersVR.Player
                 if(hitEntity!=null && target.GetTopMostParent()==hitEntity) return target;
                 var toTarget=target.PositionComp.WorldAABB.Center-origin;
                 double distance=toTarget.Length();
-                if(distance<1 || distance>Range) continue;
+                if(distance<1 || distance>range) continue;
                 double cos=Vector3D.Dot(toTarget/distance,direction);
                 if(cos>bestCos) { bestCos=cos; best=target; }
             }

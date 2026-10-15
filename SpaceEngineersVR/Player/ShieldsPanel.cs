@@ -80,6 +80,7 @@ namespace SpaceEngineersVR.Player
         private static void Warn(string text,float amplitude)
         {
             EssentialHud.Notify(text);
+            if(Common.Config?.WarningPulse==false) return;
             if(Player.HandL.pose.isTracked) Player.HandL.Vibrate(0,.1f,140,amplitude);
             if(Player.HandR.pose.isTracked) Player.HandR.Vibrate(0,.1f,140,amplitude);
         }

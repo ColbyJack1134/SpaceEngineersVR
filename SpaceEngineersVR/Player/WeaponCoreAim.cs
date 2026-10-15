@@ -61,6 +61,7 @@ namespace SpaceEngineersVR.Player
             if(patched!=null) Common.Plugin.Harmony.Unpatch(patched,AccessTools.Method(typeof(WeaponCoreAim),nameof(AfterSelect)));
             if(input!=null) Common.Plugin.Harmony.Unpatch(input,AccessTools.Method(typeof(WeaponCoreAim),nameof(BeforeInput)));
             patched=input=null; aimPositionField=aimDirectionField=null; AimPoint=null; paintRequest=PaintRequest.None;
+            PaintArmed=false; PaintPreview=null;
         }
 
         // manualSelect=false is WeaponCore's per-frame aim update; selection clicks and probes are left alone.
@@ -82,9 +83,62 @@ namespace SpaceEngineersVR.Player
         // step so it syncs the mark to the server on that tick. Paints along the VR aim (or ahead in Ship mode).
         private enum PaintRequest { None, Paint, Clear }
         private static volatile PaintRequest paintRequest;
-        internal static void RequestPaint() => paintRequest=PaintRequest.Paint;
         internal static void RequestClearPaint() => paintRequest=PaintRequest.Clear;
         internal static bool Painted => WeaponCoreInternals.PaintedEntity!=0;
+
+        // The Paint action only arms the painter: the hand that pressed a wrist or cockpit button is not aiming. The next
+        // right-trigger pull marks along the aim instead of firing; the action again, or ArmSeconds without a pull, cancels.
+        private const double ArmSeconds=10;
+        private static DateTime armedUntil;
+        private static bool armReleaseWait;
+        internal static bool PaintArmed { get; private set; }
+        // Where a pull would mark now; null when the aim hits nothing.
+        internal static Vector3D? PaintPreview { get; private set; }
+
+        internal static void RequestPaint()
+        {
+            if(PaintArmed) { Disarm("Paint cancelled"); return; }
+            if(TargetLock.ShooterGrid()==null) return;
+            Arm();
+            EssentialHud.Notify("Paint armed: pull the trigger to mark");
+            if(Player.HandR.pose.isTracked) Player.HandR.Vibrate(0,.03f,120,.15f);
+        }
+
+        private static void Arm()
+        {
+            PaintArmed=true; armedUntil=DateTime.UtcNow.AddSeconds(ArmSeconds);
+            // The trigger that pressed the button may still be down; a mark needs a fresh pull.
+            armReleaseWait=true;
+        }
+
+        private static void Disarm(string notice)
+        {
+            PaintArmed=false; PaintPreview=null;
+            if(notice!=null) EssentialHud.Notify(notice);
+        }
+
+        // Main thread, after controls are polled. Firing is held off by VRMovementComponent while armed.
+        internal static void UpdatePaintArm()
+        {
+            if(!PaintArmed) return;
+            if(TargetLock.ShooterGrid()==null) { Disarm(null); return; }
+            if(DateTime.UtcNow>armedUntil) { Disarm("Paint cancelled"); return; }
+            PaintPreview=null;
+            if(TryRay(out var origin,out var direction) || TargetLock.TryAheadRay(out origin,out direction))
+            {
+                double range=WeaponCoreInternals.MaxTargetingRange; if(range<=0) range=5000;
+                if(Cast(new LineD(origin,origin+direction*range),out var point)!=null) PaintPreview=point;
+            }
+            var fire=Controls.Static.Fire;
+            if(armReleaseWait) { if(!fire.RawPressed) armReleaseWait=false; return; }
+            var hand=Handedness.ActionHand;
+            bool free=!Main.MenuOpen && InputRouter.Gameplay && !HelmetHud.ProtectsFire && !FloatingWindows.OwnsInput && !SpatialUi.Owns(hand) &&
+                !CockpitTouch.Owns(hand) && !HandInteraction.Consumes(hand) && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(hand);
+            if(!free || !fire.HasPressed) return;
+            fire.BlockUntilRelease();
+            Disarm(null);
+            paintRequest=PaintRequest.Paint;
+        }
 
         private static void ApplyPaint()
         {
@@ -97,10 +151,11 @@ namespace SpaceEngineersVR.Player
                     if(WeaponCoreInternals.UpdateFake("PaintedTarget",Vector3D.Zero,null)) EssentialHud.Notify("Paint cleared");
                     return;
                 }
-                if(!TryRay(out var origin,out var direction) && !TargetLock.TryAheadRay(out origin,out direction)) { EssentialHud.Notify("No aim direction"); return; }
+                // A missed pull stays armed so the player can simply aim again.
+                if(!TryRay(out var origin,out var direction) && !TargetLock.TryAheadRay(out origin,out direction)) { Arm(); EssentialHud.Notify("No aim direction; paint still armed"); return; }
                 double range=WeaponCoreInternals.MaxTargetingRange; if(range<=0) range=5000;
                 var hit=Cast(new LineD(origin,origin+direction*range),out var point);
-                if(hit==null) { EssentialHud.Notify("Nothing to paint"); return; }
+                if(hit==null) { Arm(); EssentialHud.Notify("Nothing to paint; still armed"); return; }
                 if(WeaponCoreInternals.UpdateFake("PaintedTarget",point,hit)) { EssentialHud.Notify("Painted "+(hit.DisplayName ?? "target")); Player.HandR.Vibrate(0,.03f,120,.2f); }
             }
             catch(Exception ex) { Logger.Warning(ex,"WeaponCore VR paint failed"); }

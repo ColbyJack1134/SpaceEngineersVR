@@ -5,8 +5,8 @@ using VRage.Game.Entity;
 namespace SpaceEngineersVR.Player
 {
     // WeaponCore warnings that its (hidden in VR) HUD would show: projectiles homing on the ship and drones inbound.
-    // Surfaced as a notice and a strong pulse on both controllers when they start, a light pulse every 1.5 s while they
-    // last, and a line on the wrist Weapons page. Independent of the visor, since these are warnings.
+    // Surfaced as a notice and a strong pulse on both controllers when they start, a light pulse at the configured interval
+    // while they last, and a line on the wrist Weapons page. Independent of the visor, since these are warnings.
     internal static class WeaponCoreAlerts
     {
         internal static int Incoming { get; private set; }
@@ -35,12 +35,12 @@ namespace SpaceEngineersVR.Player
             bool started=incoming>Incoming || drones && !Drones;
             Incoming=incoming; Drones=drones;
             if(Incoming==0 && !Drones) return;
-            if(started)
-            {
-                EssentialHud.Notify(Text);
-                Pulse(.6f,.12f); nextPulse=now.AddSeconds(1.5);
-            }
-            else if(now>=nextPulse) { Pulse(.25f,.05f); nextPulse=now.AddSeconds(1.5); }
+            if(started) EssentialHud.Notify(Text);
+            var config=Common.Config;
+            if(config==null || !config.WarningPulse) return;
+            float interval=config.WarningPulseInterval;
+            if(started) { Pulse(.6f,.12f); nextPulse=now.AddSeconds(interval); }
+            else if(interval>0 && now>=nextPulse) { Pulse(.25f,.05f); nextPulse=now.AddSeconds(interval); }
         }
 
         private static void Pulse(float amplitude,float duration)

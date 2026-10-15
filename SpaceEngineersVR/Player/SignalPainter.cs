@@ -39,6 +39,7 @@ namespace SpaceEngineersVR.Player
         internal static void Icon(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,WorldMarkers.Marker m,bool box=true,float alpha=1)
         {
             if(m.Kind=="OffscreenTarget") return;
+            if(m.Kind=="WeaponCore") { Lines(output,board,view,projection,m); return; }
             if(m.Kind=="Target") { Project(output,Atlas(MyHudTexturesEnum.TargetTurret,Vector4.One),board,new RectangleF(-.5f,-.5f,1,1),view,projection); return; }
             if(box && m.Kind!="Objective") Project(output,Atlas(MyHudTexturesEnum.Target_neutral,m.Color),board,new RectangleF(-.5f,-.5f,1,1),view,projection);
             if(m.Kind=="ContractGPS" || m.Kind=="ButtonMarker") return;
@@ -46,6 +47,24 @@ namespace SpaceEngineersVR.Player
             var icon=m.Kind=="Ore" ? Atlas(MyHudTexturesEnum.HudOre,color):m.Kind=="Hack" ? Atlas(MyHudTexturesEnum.hit_confirmation,color):new NativeSprite(m.Icon,default(RectangleF),color);
             float scale=m.Kind=="Ore" || m.Kind=="Hack" ? .8f:.625f;
             Project(output,icon,board,new RectangleF(-scale/2,-scale/2,scale,scale),view,projection);
+        }
+        // Line width stays constant in icon units, so a larger Span frames the target instead of drawing a heavier icon.
+        private const float LineWidth=.05f;
+        private static void Lines(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,WorldMarkers.Marker m)
+        {
+            float half=m.Span/2,w=LineWidth/2;
+            Action<float,float,float,float> bar=(x0,y0,x1,y1)=>Project(output,new NativeSprite(@"Textures\GUI\Blank.dds",default(RectangleF),m.Color),board,
+                new RectangleF(Math.Min(x0,x1)-w,Math.Min(y0,y1)-w,Math.Abs(x1-x0)+2*w,Math.Abs(y1-y0)+2*w),view,projection);
+            if(m.Symbol=="cross")
+            {
+                float gap=half*.35f;
+                bar(-half,0,-gap,0); bar(gap,0,half,0); bar(0,-half,0,-gap); bar(0,gap,0,half);
+                return;
+            }
+            float arm=Math.Min(half*.45f,.6f);
+            foreach(float sx in new[] {-1f,1f})
+                foreach(float sy in new[] {-1f,1f})
+                { bar(sx*half,sy*half,sx*(half-arm),sy*half); bar(sx*half,sy*half,sx*half,sy*(half-arm)); }
         }
         internal static void GroupIcon(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,WorldMarkers.Marker[] values,Vector4 color,float expansion=0,float compactShift=0,WorldMarkers.Marker[] representatives=null)
         {

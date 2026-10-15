@@ -301,7 +301,7 @@ namespace SpaceEngineersVR.Player.Components
                 CockpitControls.SticksAvailable,CockpitControls.AnyHeld);
         // Grip + trigger is ship secondary, as with tools on foot. A held physical stick owns the grip.
         // Right trigger as the cockpit fires it (same gates as vanilla primary fire, grip+trigger chord excluded); mirrored to WeaponCore's left mouse.
-        internal static bool WeaponCoreFire => PrimaryPressed && !(MySession.Static?.ControlledEntity is MyShipController && ShipChord);
+        internal static bool WeaponCoreFire => PrimaryPressed && !WeaponCoreAim.PaintArmed && !(MySession.Static?.ControlledEntity is MyShipController && ShipChord);
         private static bool ShipChord => Controls.Static.Fire.IsPressed && Controls.Static.ActionGripClick.IsPressed && !CockpitControls.Held(Handedness.ActionHand);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -316,7 +316,8 @@ namespace SpaceEngineersVR.Player.Components
                 !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Player.HandL) && !FloatingWindows.OwnsInput && Player.HandL.pose.isTracked;
             stickSecondary.Update(stickAction && controls.LeftTriggerPressure.Active && controls.LeftTriggerPressure.CanPress,
                 controls.LeftTriggerPressure.RawPosition.X>.55f);
-            bool primaryPressed=PrimaryPressed;
+            // An armed painter takes the next pull instead of firing.
+            bool primaryPressed=PrimaryPressed && !WeaponCoreAim.PaintArmed;
             bool ship=controlledEntity is MyShipController;
             var action=Handedness.ActionHand;
             var grip=controls.ActionGripClick;

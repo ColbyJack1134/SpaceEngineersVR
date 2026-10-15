@@ -15,7 +15,7 @@ namespace SpaceEngineersVR.Player
     internal static class WeaponCoreMarkers
     {
         private const int MaxThreats=8;
-        private static readonly Vector4 focusColor=new Vector4(1,.25f,.2f,1),threatColor=new Vector4(1,.55f,.2f,.85f),aimColor=new Vector4(.85f,.95f,1,.9f);
+        private static readonly Vector4 focusColor=new Vector4(1,.25f,.2f,1),threatColor=new Vector4(1,.55f,.2f,.85f),aimColor=new Vector4(.85f,.95f,1,.9f),paintColor=new Vector4(1,.35f,.9f,1);
         private static MyEntity leadWeapon;
         private static DateTime leadWeaponTime;
 
@@ -27,32 +27,45 @@ namespace SpaceEngineersVR.Player
                 var grid=Shooter();
                 if(grid==null) return;
                 var head=CameraRig.Current?.Anchor.Translation ?? MySector.MainCamera.Position;
-                var own=grid.GetTopMostParent();
                 var focus=WeaponCoreBridge.Focus(grid);
                 if(focus!=null && !focus.Closed && !focus.MarkedForClose)
                 {
                     var position=focus.PositionComp.WorldAABB.Center;
-                    markers.Add(new WorldMarkers.Marker {Kind="Target",Id="wcfocus:"+focus.EntityId,Name="LOCKED  "+Name(focus)+(WeaponCoreStatus.Threat(grid,focus) is int level ? "  T"+level:"")+Shield(focus),Relation="Enemies",
-                        Color=focusColor,FontColor=focusColor,Pinned=true,LockState="Locked",LockProgress=1,Position=position,Distance=Vector3D.Distance(position,head)});
+                    var locked=Marker("wcfocus:"+focus.EntityId,"LOCKED  "+Name(focus)+(WeaponCoreStatus.Threat(grid,focus) is int level ? "  T"+level:"")+Shield(focus),
+                        focusColor,position,head,Span(focus,head,2.2f),pinned:true);
+                    // Lays out first, so the other names move around it.
+                    locked.LockState="Locked";
+                    markers.Add(locked);
                 }
-                int shown=0;
-                foreach(var threat in WeaponCoreBridge.Threats(grid))
+                foreach(var threat in TargetLock.RankedThreats(grid).Where(t=>t.Item1!=focus).Take(MaxThreats))
                 {
                     var target=threat.Item1;
-                    if(target==null || target.Closed || target.MarkedForClose || target==focus || target.GetTopMostParent()==own) continue;
-                    if(++shown>MaxThreats) break;
                     var position=target.PositionComp.WorldAABB.Center;
-                    markers.Add(new WorldMarkers.Marker {Kind="Target",Id="wcthreat:"+target.EntityId,Name=Name(target)+"  T"+WeaponCoreStatus.ThreatLevel(threat.Item2,WeaponCoreStatus.ShieldBonus(grid,target))+Shield(target),Relation="Enemies",
-                        Color=threatColor,FontColor=threatColor,Position=position,Distance=Vector3D.Distance(position,head)});
+                    markers.Add(Marker("wcthreat:"+target.EntityId,Name(target)+"  T"+WeaponCoreStatus.ThreatLevel(threat.Item2,WeaponCoreStatus.ShieldBonus(grid,target))+Shield(target),
+                        threatColor,position,head,Span(target,head,1.7f)));
                 }
                 if(WeaponCoreAim.AimPoint.HasValue && (DateTime.UtcNow-WeaponCoreAim.AimTime).TotalSeconds<.25 && WeaponCoreAim.ManualActive)
-                {
-                    var position=WeaponCoreAim.AimPoint.Value;
-                    markers.Add(new WorldMarkers.Marker {Kind="Target",Id="wcaim",Name="AIM",Relation="Neutral",Color=aimColor,FontColor=aimColor,
-                        Pinned=true,Position=position,Distance=Vector3D.Distance(position,head)});
-                }
+                    markers.Add(Marker("wcaim","AIM",aimColor,WeaponCoreAim.AimPoint.Value,head,1,pinned:true,symbol:"cross",side:"below"));
+                // WeaponCore's own paint mark is part of its hidden HUD.
+                var painted=WeaponCoreAim.Painted ? WeaponCoreInternals.PaintedPosition : null;
+                if(painted.HasValue) markers.Add(Marker("wcpainted","PAINTED",paintColor,painted.Value,head,.9f,pinned:true,side:"upleft"));
+                if(WeaponCoreAim.PaintArmed && WeaponCoreAim.PaintPreview.HasValue)
+                    markers.Add(Marker("wcpaint","PAINT  pull trigger",paintColor,WeaponCoreAim.PaintPreview.Value,head,1.2f,pinned:true,symbol:"cross",side:"upright"));
             }
             catch(Exception ex) { Logger.Warning(ex,"WeaponCore VR markers failed this frame"); }
+        }
+
+        private static WorldMarkers.Marker Marker(string id,string name,Vector4 color,Vector3D position,Vector3D head,float span,bool pinned=false,string symbol="brackets",string side=null) =>
+            new WorldMarkers.Marker {Kind="WeaponCore",Id=id,Name=name,Relation="Enemies",Color=color,FontColor=color,Pinned=pinned,Position=position,
+                Distance=Vector3D.Distance(position,head),Symbol=symbol,Span=span,LabelSide=side};
+
+        // Brackets frame the target's apparent size, never smaller than minimum (in standard marker icons).
+        private static float Span(MyEntity target,Vector3D head,float minimum)
+        {
+            double distance=Math.Max(1,Vector3D.Distance(target.PositionComp.WorldAABB.Center,head));
+            double diameter=2*Math.Atan(target.PositionComp.WorldVolume.Radius/distance);
+            double icon=MarkerBillboard.IconAngle*.55*Math.Max(.1f,Common.Config.SignalIconScale);
+            return (float)MathHelper.Clamp(diameter/icon*1.1,minimum,12);
         }
 
         // Lead pip for the focused target, predicted for the first fixed (non-turret) WeaponCore weapon; null when none applies.

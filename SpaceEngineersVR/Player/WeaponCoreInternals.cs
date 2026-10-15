@@ -146,6 +146,16 @@ namespace SpaceEngineersVR.Player
 
         internal static bool UpdateManualTarget(Vector3D position,MyEntity hit) => UpdateFake("ManualTarget",position,hit);
         internal static long PaintedEntity => Value(FakeTarget("PaintedTarget"),0L,"EntityId");
+        // World position of the paint mark, which WeaponCore keeps relative to the painted entity.
+        internal static Vector3D? PaintedPosition
+        {
+            get
+            {
+                var target=FakeTarget("PaintedTarget");
+                if(!(Get(target,"TmpEntity") is MyEntity entity) || entity.Closed || entity.MarkedForClose || Value(target,0L,"EntityId")!=entity.EntityId) return null;
+                return Get(target,"LocalPosition") is Vector3D local ? Vector3D.Transform(local,entity.PositionComp.WorldMatrixRef) : (Vector3D?)null;
+            }
+        }
 
         // A WeaponCore hand weapon is the active weapon AI (the player is not seated).
         internal static bool HandheldActive => Get(TrackingAi,"AiType")?.ToString()=="Player";

@@ -20,6 +20,8 @@ namespace SpaceEngineersVR.Player
             public bool Allows(WorldMarkers.Marker m)
             {
                 if(m.Kind=="OffscreenTarget") return Contacts && Rings && m.Ring!=null;
+                // Combat targeting, shown while the HUD shows markers at all.
+                if(m.Kind=="WeaponCore") return true;
                 if(m.Kind=="Ore" || m.Kind=="Hack") return Resources;
                 if(m.Kind=="GPS" || m.Kind=="ContractGPS" || m.Kind=="Objective" || m.Kind=="Scenario") return Gps;
                 return m.Kind=="ButtonMarker" || Contacts;
@@ -95,7 +97,7 @@ namespace SpaceEngineersVR.Player
             var relations=values.Select(Relation).Distinct().ToArray();
             return new Entry { Members=values,Representatives=Representatives(values),Position=position,Point=p,Edge=edge,Color=relations.Length==1 ? values[0].Color : Vector4.One,
                 Id=string.Join("|",values.Select(m=>m.Id).OrderBy(id=>id,StringComparer.Ordinal)),Relation=relations.Length==1 ? relations[0]:"Mixed",
-                IconScale=options.IconScale,TextScale=options.TextScale,SymbolBounds=SymbolBounds(p,values.Any(m=>m.Ring!=null),options.IconScale*(values[0].Kind=="Objective" ? 2:1)),
+                IconScale=options.IconScale,TextScale=options.TextScale,SymbolBounds=SymbolBounds(p,values.Any(m=>m.Ring!=null),options.IconScale*(values[0].Kind=="Objective" ? 2:values[0].Kind=="WeaponCore" ? values[0].Span:1)),
                 Ring=options.Rings && values.Any(m=>m.Ring!=null) };
         }
         private static RectangleF SymbolBounds(Vector2 p,bool ring,float scale) => ring ? new RectangleF(p.X-.048f,p.Y-.048f,.096f,.096f):new RectangleF(p.X-.011f*scale,p.Y-.011f*scale,.022f*scale,.022f*scale);
@@ -115,6 +117,7 @@ namespace SpaceEngineersVR.Player
             var entries=groups.Select(g=>Create(g,head,options)).Where(e=>!e.Edge).ToList();
             var result=entries.ToArray();
             int budget=64;
+            var placed=new List<RectangleF>();
             foreach(var e in entries)
             {
                 Focus(e,source,options);
@@ -134,14 +137,28 @@ namespace SpaceEngineersVR.Player
                     row.DistanceScale=(.5f+.2f*e.NameAlpha)/.7f;
                     float width=MathHelper.Clamp(Math.Max(SignalFont.Width(row.Name,31),SignalFont.Width(row.Distance,29))*.025f/31+.015f,.12f,.8f)*options.TextScale;
                     row.LineHeight=.025f*options.TextScale;
-                    float offset=e.Ring ? .048f:GroupUnit(e.IconScale)*.9375f;
+                    bool weaponCore=e.Primary.Kind=="WeaponCore";
+                    float half=GroupUnit(e.IconScale)*.5f*(weaponCore ? e.Primary.Span:1);
+                    float offset=e.Ring ? .048f:half+GroupUnit(e.IconScale)*.4375f;
                     row.NameY=e.Point.Y-offset-row.LineHeight/2;
                     row.DistanceY=e.Point.Y+offset*(.7f+.3f*e.NameAlpha)-row.LineHeight*row.DistanceScale/2;
-                    row.Bounds=new RectangleF(e.Point.X-width/2,string.IsNullOrEmpty(row.Name) ? row.DistanceY:row.NameY,width,
+                    float x=e.Point.X-width/2;
+                    if(weaponCore && e.Primary.LabelSide!=null)
+                    {
+                        // Name and distance stacked beside or below the symbol.
+                        if(e.Primary.LabelSide=="below") row.NameY=e.Point.Y+offset-row.LineHeight/2;
+                        else { row.NameY=e.Point.Y-half-row.LineHeight*2; x=e.Primary.LabelSide=="upleft" ? e.Point.X-half-width:e.Point.X+half; }
+                        row.DistanceY=row.NameY+row.LineHeight;
+                    }
+                    row.Bounds=new RectangleF(x,string.IsNullOrEmpty(row.Name) ? row.DistanceY:row.NameY,width,
                         string.IsNullOrEmpty(row.Name) ? row.LineHeight:row.DistanceY+row.LineHeight-row.NameY);
+                    // Raise a WeaponCore name clear of names already placed (entries arrive in priority order).
+                    for(int tries=0;weaponCore && tries<4 && Ink(row).Any(r=>placed.Any(p=>Overlaps(p,r)));tries++)
+                    { float step=row.LineHeight*1.05f; row.NameY-=step; row.DistanceY-=step; row.Bounds.Y-=step; }
                     e.Labels=new[] {row};
                 }
                 budget-=e.Labels.Length;
+                foreach(var label in e.Labels) placed.AddRange(Ink(label));
             }
             return result;
         }

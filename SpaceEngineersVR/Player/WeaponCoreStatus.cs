@@ -20,6 +20,8 @@ namespace SpaceEngineersVR.Player
 
         private const int MaxRows=12;
         private static Row[] rows=new Row[0];
+        // Weapon list page on the wrist; rows are sorted worst first, so page 1 shows what needs attention.
+        private static int page;
         private static DateTime next;
 
         internal static Row[] Rows
@@ -35,7 +37,7 @@ namespace SpaceEngineersVR.Player
             }
         }
 
-        internal static void Reset() { rows=new Row[0]; next=DateTime.MinValue; }
+        internal static void Reset() { rows=new Row[0]; next=DateTime.MinValue; page=0; }
 
         private static Row[] Collect()
         {
@@ -123,18 +125,18 @@ namespace SpaceEngineersVR.Player
         }
 
         // Locked target summary: name, threat, distance, relative speed, closing speed and size.
-        internal static string TargetText(MyEntity grid,MyEntity focus,out string detail)
+        internal static string TargetText(MyEntity grid,MyEntity focus,out string detail,out string size)
         {
-            detail=null;
+            detail=size=null;
             if(grid==null || focus==null || focus.Closed) return null;
             var self=grid.PositionComp.WorldAABB.Center; var target=focus.PositionComp.WorldAABB.Center;
             var offset=target-self; double distance=offset.Length();
             var relative=(focus.Physics?.LinearVelocity ?? VRageMath.Vector3.Zero)-(grid.Physics?.LinearVelocity ?? VRageMath.Vector3.Zero);
             double closing=distance>1 ? -VRageMath.Vector3D.Dot(relative,offset/distance) : 0;
-            string size=focus is Sandbox.Game.Entities.MyCubeGrid cubes ? cubes.BlocksCount+" blocks · "+(cubes.GridSizeEnum==VRage.Game.MyCubeSize.Large ? "large":"small") : "";
+            size=focus is Sandbox.Game.Entities.MyCubeGrid cubes ? cubes.BlocksCount+" blocks · "+(cubes.GridSizeEnum==VRage.Game.MyCubeSize.Large ? "large":"small") : null;
             int? threat=Threat(grid,focus);
             string shield=ShieldLabel(focus);
-            detail="Threat "+(threat.HasValue ? threat.Value+"/9" : "–")+(shield!=null ? "  ·  "+(shield.StartsWith("S down") ? "shield down":"shield "+shield.Substring(2)) : "")+"  ·  "+WorldMarkers.Distance(distance)+"  ·  "+Math.Round(relative.Length())+" m/s  ·  closing "+Math.Round(closing)+" m/s"+(size.Length>0 ? "  ·  "+size:"");
+            detail="Threat "+(threat.HasValue ? threat.Value+"/9" : "–")+(shield!=null ? "  ·  "+(shield.StartsWith("S down") ? "shield down":"shield "+shield.Substring(2)) : "")+"  ·  "+WorldMarkers.Distance(distance)+"  ·  "+Math.Round(relative.Length())+" m/s  ·  closing "+Math.Round(closing)+" m/s";
             return string.IsNullOrWhiteSpace(focus.DisplayName) ? "Target" : focus.DisplayName;
         }
 
@@ -149,11 +151,13 @@ namespace SpaceEngineersVR.Player
             if(alert!=null) { keys.Add(new SurfaceKey("⚠  "+alert,.025f,y,.95f,.07f) {Enabled=false}); y+=.08f; }
 
             var focus=grid==null ? null:WeaponCoreBridge.Focus(grid);
-            string name=TargetText(grid,focus,out string detail);
+            string name=TargetText(grid,focus,out string detail,out string size);
             if(name!=null)
             {
-                keys.Add(new SurfaceKey("Target: "+name,.025f,y,.95f,.07f) {Enabled=false,Value=detail});
-                y+=.08f;
+                // The detail line is too long to share the name's key.
+                keys.Add(new SurfaceKey("Target: "+name,.025f,y,.95f,.07f) {Enabled=false,Value=size});
+                keys.Add(new SurfaceKey(detail,.035f,y+.075f,.93f,.05f) {Caption=true,Enabled=false});
+                y+=.135f;
             }
             bool? locked=WeaponCoreBridge.FocusLocked();
             keys.Add(new SurfaceKey("Focus lock",.025f,y,.30f,.07f) {Action=TargetLock.FocusLockAction,Enabled=grid!=null && locked.HasValue,Value=locked==true ? "On":"Off"});
@@ -166,20 +170,30 @@ namespace SpaceEngineersVR.Player
             int room=Math.Max(1,(int)((.895f-y)/.082f));
             if(current.Length==0)
                 keys.Add(new SurfaceKey(WeaponCoreInternals.TrackingAi==null ? "Not controlling a WeaponCore grid" : "No weapons",.025f,y,.95f,.075f) {Enabled=false});
-            for(int i=0;i<current.Length && i<room;i++)
+            // More weapon types than fit: page the list with a column of ▲ / page / ▼ keys to its right.
+            int pages=Math.Max(1,(current.Length+room-1)/room);
+            page=Math.Max(0,Math.Min(page,pages-1));
+            float width=pages>1 ? .86f:.95f;
+            for(int i=0;i<room && page*room+i<current.Length;i++)
             {
-                var row=current[i];
+                var row=current[page*room+i];
                 string label=row.Count>1 ? row.Name+"  ×"+row.Count : row.Name;
                 string value=string.IsNullOrEmpty(row.Ammo) ? row.Status : row.Status+"   "+row.Ammo;
-                var key=new SurfaceKey(label,.025f,y+i*.082f,.95f,.076f) {Enabled=false,Value=value};
+                var key=new SurfaceKey(label,.025f,y+i*.082f,width,.076f) {Enabled=false,Value=value};
                 if(row.Progress.HasValue) key.Slider=row.Progress.Value;
                 keys.Add(key);
             }
-            if(current.Length>room) keys.Add(new SurfaceKey("+"+(current.Length-room)+" more",.025f,y+room*.082f-.01f,.3f,.05f) {Caption=true,Enabled=false});
+            if(pages>1)
+            {
+                float x=.895f,arrow=room>1 ? .076f:.036f,last=room>1 ? y+(room-1)*.082f:y+.04f;
+                keys.Add(new SurfaceKey("▲",x,y,.08f,arrow) {Enabled=page>0,Action=new ActionChoice("Previous weapons",()=>page--)});
+                keys.Add(new SurfaceKey("▼",x,last,.08f,arrow) {Enabled=page+1<pages,Action=new ActionChoice("Next weapons",()=>page++)});
+                if(room>2) keys.Add(new SurfaceKey((page+1)+" / "+pages,x,y+.082f,.08f,(room-2)*.082f-.006f) {Enabled=false});
+            }
 
             keys.Add(new SurfaceKey("Back",.025f,.91f,.15f,.07f) {Action=new ActionChoice("Back",()=>WristPanel.Show(0))});
             keys.Add(new SurfaceKey("Lock ahead",.19f,.91f,.25f,.07f) {Action=TargetLock.LockAheadAction,Enabled=grid!=null});
-            keys.Add(new SurfaceKey("Paint",.455f,.91f,.25f,.07f) {Action=TargetLock.PaintAction,Enabled=grid!=null,Active=WeaponCoreAim.Painted});
+            keys.Add(new SurfaceKey(WeaponCoreAim.PaintArmed ? "Cancel paint":"Paint",.455f,.91f,.25f,.07f) {Action=TargetLock.PaintAction,Enabled=grid!=null,Active=WeaponCoreAim.PaintArmed || WeaponCoreAim.Painted});
             keys.Add(new SurfaceKey("Clear paint",.72f,.91f,.255f,.07f) {Action=TargetLock.ClearPaintAction,Enabled=grid!=null && WeaponCoreAim.Painted});
         }
     }
