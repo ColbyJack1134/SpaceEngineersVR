@@ -42,7 +42,7 @@ namespace SpaceEngineersVR.Player
             {
                 packet.Markers=latestMarkers;
                 packet.Surfaces=surfaces;
-                packet.Selection=GridSelection.Feedback;
+                packet.Selection=GridSelection.Feedback ?? TargetLock.Feedback;
                 packet.Planets=PlacementControls.ClipboardActive ? PlanetPreview.Current:null;
                 packet.Symmetry=SymmetryPlanes.Current.Length>0 && Sandbox.Game.Entities.MyCubeBuilder.Static?.IsActivated==true ? SymmetryPlanes.Current:null;
             }

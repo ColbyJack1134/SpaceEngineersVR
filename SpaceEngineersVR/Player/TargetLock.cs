@@ -12,8 +12,9 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
-    // WeaponCore target locking while seated: the cockpit grip tap (or a grip tap on a camera feed) locks what the action
-    // hand points at, and actions lock ahead, cycle, release and toggle focus lock. On foot, see HandLock.
+    // WeaponCore target locking while seated: holding the cockpit grip shows a pointer and releasing it locks what the action
+    // hand points at (a grip tap on a camera feed locks what the feed image shows), and actions lock ahead, cycle, release
+    // and toggle focus lock. On foot, see HandLock.
     internal static class TargetLock
     {
         private const double ConeDegrees=2.0;
@@ -22,6 +23,21 @@ namespace SpaceEngineersVR.Player
         // Pointing at a camera feed claims the hand's grip, so the cockpit grip tap never completes; this tap covers that case.
         private static readonly GripTap feedTap=new GripTap();
         private static bool feedGripWas;
+
+        // The cockpit reports each frame whether the grip is held toward a lock; a frame without a report ends the aim.
+        private static bool aimHeld;
+        // When the current hold began; kept through the release so the lock can tell a held aim from a tap.
+        private static DateTime? aimSince;
+        internal static bool Aiming { get; private set; }
+        // The tracked target a grip release would lock (or release) now, and the pointer drawn toward it.
+        internal static MyEntity Preview { get; private set; }
+        internal static TargetFeedback.View Feedback { get; private set; }
+
+        internal static void Aim(bool held)
+        {
+            aimHeld=held;
+            if(held && !aimSince.HasValue) aimSince=DateTime.UtcNow;
+        }
 
         internal static readonly ActionChoice LockAheadAction=new ActionChoice("Lock target ahead",LockAhead,
             enabled:()=>ShooterGrid()!=null,searchTerms:"weaponcore wc target lock focus ahead reticle");
@@ -43,11 +59,16 @@ namespace SpaceEngineersVR.Player
         {
             feedTap.Update(false,false,true,DateTime.UtcNow);
             feedGripWas=false;
+            aimHeld=Aiming=false; aimSince=null; Preview=null; Feedback=null;
         }
 
         internal static void Update()
         {
             var hand=Handedness.ActionHand;
+            Aiming=aimHeld; aimHeld=false;
+            Preview=null; Feedback=null;
+            if(Aiming) UpdateAim(hand);
+            else aimSince=null;
             bool grip=hand.pose.isTracked && Controls.Static.GripClick(hand).RawPressed;
             bool released=feedGripWas && !grip;
             feedGripWas=grip;
@@ -57,32 +78,45 @@ namespace SpaceEngineersVR.Player
             if(feedTap.Update(claimedFeed && grip,released,!claimedFeed,DateTime.UtcNow)) PointAndToggle(hand);
         }
 
-        // Called from the cockpit's action-hand grip tap. Returns true when WeaponCore handled it.
+        // Same ray as the release, so the red marker is what locks. A feed image is its own pointer, so the line is world-only.
+        private static void UpdateAim(Controller hand)
+        {
+            var grid=ShooterGrid();
+            if(grid==null || !TryHandRay(hand,out var origin,out var direction,out bool feed)) return;
+            Preview=Pick(grid,origin,direction,out var hit);
+            if(!feed) Feedback=new TargetFeedback.View(MatrixD.CreateTranslation(origin),hit,null,CameraRig.Current?.UnitsPerMeter ?? 1);
+        }
+
+        // Called from the cockpit's action-hand grip release. Returns true when WeaponCore handled it.
         internal static bool OnGripTap()
         {
             if(ShooterGrid()==null) return false;
-            PointAndToggle(Handedness.ActionHand);
+            bool held=aimSince.HasValue && (DateTime.UtcNow-aimSince.Value).TotalSeconds>GripTap.MaxSeconds;
+            aimSince=null;
+            PointAndToggle(Handedness.ActionHand,held);
             return true;
         }
 
-        private static void PointAndToggle(Controller hand)
+        // A tap on nothing releases the lock; a held aim released on nothing only cancels, since the grip also rolls the ship.
+        private static void PointAndToggle(Controller hand,bool held=false)
         {
             var grid=ShooterGrid();
             if(grid==null) return;
             MyEntity picked=null;
-            if(TryHandRay(hand,out var origin,out var direction)) picked=Pick(grid,origin,direction);
+            if(TryHandRay(hand,out var origin,out var direction,out _)) picked=Pick(grid,origin,direction);
+            if(held && picked==null) return;
             Toggle(grid,picked,true);
             hand.Vibrate(0,.025f,90,picked!=null ? .25f:.12f);
         }
 
         // Feed image first (when this hand is pointing at it), otherwise the free world pointer.
-        private static bool TryHandRay(Controller hand,out Vector3D origin,out Vector3D direction)
+        private static bool TryHandRay(Controller hand,out Vector3D origin,out Vector3D direction,out bool feed)
         {
-            origin=direction=Vector3D.Zero;
+            origin=direction=Vector3D.Zero; feed=false;
             if(!hand.pose.isTracked) return false;
             var remote=RemoteView.Current;
             if(remote!=null && RemoteView.ImageUV.HasValue && RemoteView.PointerHand==hand &&
-                FeedCamera.TryRay(remote.Source,RemoteView.ImageUV.Value,out origin,out direction)) return true;
+                FeedCamera.TryRay(remote.Source,RemoteView.ImageUV.Value,out origin,out direction)) return feed=true;
             if(!GridSelection.TryPointer(hand,out var pose)) return false;
             origin=pose.Translation; direction=pose.Forward;
             return direction.IsValid() && direction.LengthSquared()>.5;
@@ -162,12 +196,15 @@ namespace SpaceEngineersVR.Player
         // Only targets WeaponCore's own AI already tracks are eligible, so VR can never focus something WC's UI could not
         // (the server does not re-check range or detection on focus requests). An exact ray hit on one of them wins;
         // otherwise the tracked threat nearest the ray inside a small cone.
-        internal static MyEntity Pick(MyEntity grid,Vector3D origin,Vector3D direction)
+        internal static MyEntity Pick(MyEntity grid,Vector3D origin,Vector3D direction) => Pick(grid,origin,direction,out _);
+
+        // hit: where the ray meets the world, or its end at targeting range.
+        internal static MyEntity Pick(MyEntity grid,Vector3D origin,Vector3D direction,out Vector3D hit)
         {
             var own=grid.GetTopMostParent();
             var threats=WeaponCoreBridge.Threats(grid);
             double range=WeaponCoreInternals.TargetingRange;
-            var hitEntity=GridSelection.Cast(new LineD(origin,origin+direction*range),out _)?.GetTopMostParent() as MyEntity;
+            var hitEntity=GridSelection.Cast(new LineD(origin,origin+direction*range),out hit)?.GetTopMostParent() as MyEntity;
             MyEntity best=null; double bestCos=coneCos;
             foreach(var threat in threats)
             {

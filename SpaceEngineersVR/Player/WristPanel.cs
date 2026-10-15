@@ -99,9 +99,11 @@ namespace SpaceEngineersVR.Player
                 if(WeaponCoreBridge.ApiReady && seated) { utilities=utilities.Concat(new[] {WeaponsAction}).ToArray(); names=names.Concat(new[] {"Weapons"}).ToArray(); }
                 if(ShieldsBridge.Ready && seated) { utilities=utilities.Concat(new[] {ShieldsAction}).ToArray(); names=names.Concat(new[] {"Shields"}).ToArray(); }
                 float pitch=.98f/utilities.Length,width=pitch-.016f;
+                // Past five keys a name beside its icon wraps, so the icon goes above the name and the row grows into the gap above it.
+                bool stacked=utilities.Length>5;
                 for(int i=0;i<utilities.Length;i++)
-                    keys.Add(new SurfaceKey(names[i],.02f+i*pitch,.84f,width,.12f) {
-                        Action=utilities[i],Icons=new[] {utilities[i]==GameActions.DoNotDisturb ? DoNotDisturbIcon:utilities[i].Icon},Horizontal=true,Enabled=utilities[i].Enabled,
+                    keys.Add(new SurfaceKey(names[i],.02f+i*pitch,stacked ? .82f:.84f,width,stacked ? .14f:.12f) {
+                        Action=utilities[i],Icons=new[] {utilities[i]==GameActions.DoNotDisturb ? DoNotDisturbIcon:utilities[i].Icon},Horizontal=!stacked,Enabled=utilities[i].Enabled,
                         Active=utilities[i]==GameActions.DoNotDisturb && Common.Config?.DoNotDisturb==true });
             }
             return keys.ToArray();

@@ -15,7 +15,8 @@ namespace SpaceEngineersVR.Player
     internal static class WeaponCoreMarkers
     {
         private const int MaxThreats=8;
-        private static readonly Vector4 focusColor=new Vector4(1,.25f,.2f,1),threatColor=new Vector4(1,.55f,.2f,.85f),aimColor=new Vector4(.85f,.95f,1,.9f),paintColor=new Vector4(1,.35f,.9f,1);
+        private static readonly Vector4 focusColor=new Vector4(1,.25f,.2f,1),threatColor=new Vector4(1,.55f,.2f,.85f),pointedColor=new Vector4(1,0,0,1),
+            aimColor=new Vector4(.85f,.95f,1,.9f),paintColor=new Vector4(1,.35f,.9f,1);
         private static MyEntity leadWeapon;
         private static DateTime leadWeaponTime;
 
@@ -24,7 +25,7 @@ namespace SpaceEngineersVR.Player
         private sealed class Snapshot
         {
             public MyEntity Grid,Focus,PaintedEntity;
-            public string FocusName;
+            public string FocusName,FocusRelease;
             public readonly List<KeyValuePair<MyEntity,string>> Threats=new List<KeyValuePair<MyEntity,string>>();
             public Vector3D PaintedLocal;
             public bool Manual;
@@ -42,7 +43,10 @@ namespace SpaceEngineersVR.Player
             refresh=now.AddSeconds(.1);
             var next=new Snapshot {Grid=grid,Focus=WeaponCoreBridge.Focus(grid),Manual=WeaponCoreAim.ManualActive};
             if(next.Focus!=null)
-                next.FocusName="LOCKED  "+WeaponCoreThreats.Name(next.Focus)+(WeaponCoreThreats.Threat(grid,next.Focus) is int level ? "  T"+level:"")+Shield(next.Focus);
+            {
+                string name=WeaponCoreThreats.Name(next.Focus)+(WeaponCoreThreats.Threat(grid,next.Focus) is int level ? "  T"+level:"")+Shield(next.Focus);
+                next.FocusName="LOCKED  "+name; next.FocusRelease="RELEASE  "+name;
+            }
             foreach(var threat in TargetLock.RankedThreats(grid).Where(t=>t.Item1!=next.Focus).Take(MaxThreats))
                 next.Threats.Add(new KeyValuePair<MyEntity,string>(threat.Item1,
                     WeaponCoreThreats.Name(threat.Item1)+"  T"+WeaponCoreThreats.ThreatLevel(threat.Item2,WeaponCoreThreats.ShieldBonus(grid,threat.Item1))+Shield(threat.Item1)));
@@ -61,9 +65,12 @@ namespace SpaceEngineersVR.Player
                 if(grid==null) return;
                 var head=CameraRig.Current?.Anchor.Translation ?? MySector.MainCamera.Position;
                 var data=Current(grid);
+                // While the cockpit grip aims, the threat a release would lock turns red, and a release on the lock itself unlocks.
+                var pointed=TargetLock.Preview?.GetTopMostParent();
                 if(Alive(data.Focus))
                 {
-                    var locked=Marker("wcfocus:"+data.Focus.EntityId,data.FocusName,focusColor,data.Focus.PositionComp.WorldAABB.Center,head,Span(data.Focus,head,2.2f),pinned:true);
+                    string name=pointed!=null && data.Focus.GetTopMostParent()==pointed ? data.FocusRelease:data.FocusName;
+                    var locked=Marker("wcfocus:"+data.Focus.EntityId,name,focusColor,data.Focus.PositionComp.WorldAABB.Center,head,Span(data.Focus,head,2.2f),pinned:true);
                     // Lays out first, so the other names move around it, and stays on the HUD as an arrow when out of view.
                     locked.LockState="Locked"; locked.EdgeArrow=true;
                     markers.Add(locked);
@@ -72,7 +79,8 @@ namespace SpaceEngineersVR.Player
                 {
                     var target=threat.Key;
                     if(!Alive(target)) continue;
-                    markers.Add(Marker("wcthreat:"+target.EntityId,threat.Value,threatColor,target.PositionComp.WorldAABB.Center,head,Span(target,head,1.7f)));
+                    var color=pointed!=null && target.GetTopMostParent()==pointed ? pointedColor:threatColor;
+                    markers.Add(Marker("wcthreat:"+target.EntityId,threat.Value,color,target.PositionComp.WorldAABB.Center,head,Span(target,head,1.7f)));
                 }
                 if(WeaponCoreAim.AimPoint.HasValue && (DateTime.UtcNow-WeaponCoreAim.AimTime).TotalSeconds<.25 && data.Manual)
                     markers.Add(Marker("wcaim","AIM",aimColor,WeaponCoreAim.AimPoint.Value,head,1,pinned:true,symbol:"cross",side:"below"));

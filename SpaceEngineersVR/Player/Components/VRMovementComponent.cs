@@ -328,8 +328,15 @@ namespace SpaceEngineersVR.Player.Components
             bool uiOwnsAction=SpatialUi.Owns(action) || CockpitTouch.Owns(action) || HandInteraction.Consumes(action) || FloatingWindows.OwnsInput || TouchScreenBridge.OwnsInput || ArthurLcdBridge.Owns(action);
             bool chord=ship && ShipChord && !uiOwnsAction;
             if(chord) primaryPressed=false;
-            bool gripTap=secondaryTap.Update((ship || turret) && grip.IsPressed,(ship || turret) && grip.HasReleased,!gripSecondary || uiOwnsAction || chord,System.DateTime.UtcNow);
-            bool secondaryPressed=!HelmetHud.ProtectsFire && (!turret || ShipTargeting.CanLock(controlledEntity)) && !FloatingWindows.OwnsInput && !BlockInspection.ConsumesSecondary && (stickSecondary.Held || chord || (ship || turret ? gripTap && gripSecondary:grip.IsPressed && gripSecondary) || controls.Fire.IsPressed && GameActions.AlternateTrigger) && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(action);
+            // WeaponCore grids aim the lock while the grip is held and lock on release, so the hold has no time limit.
+            // The WeaponCore check runs only while the grip is down or just released.
+            bool lockAim=(ship || turret) && (grip.IsPressed || grip.HasReleased) && TargetLock.ShooterGrid()!=null;
+            bool gripTap=secondaryTap.Update((ship || turret) && grip.IsPressed,(ship || turret) && grip.HasReleased,!gripSecondary || uiOwnsAction || chord,System.DateTime.UtcNow,
+                lockAim ? double.MaxValue:Control.GripTap.MaxSeconds);
+            bool secondaryAllowed=!HelmetHud.ProtectsFire && (!turret || ShipTargeting.CanLock(controlledEntity)) && !FloatingWindows.OwnsInput && !BlockInspection.ConsumesSecondary &&
+                !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(action);
+            bool secondaryPressed=secondaryAllowed && (stickSecondary.Held || chord || (ship || turret ? gripTap && gripSecondary:grip.IsPressed && gripSecondary) || controls.Fire.IsPressed && GameActions.AlternateTrigger);
+            TargetLock.Aim(lockAim && secondaryAllowed && gripSecondary && secondaryTap.Holding);
             if(controlledEntity is Sandbox.Game.Entities.Character.MyCharacter character && character.CurrentWeapon==null)
                 secondaryPressed=false;
 

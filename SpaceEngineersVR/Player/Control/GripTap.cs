@@ -7,16 +7,18 @@ namespace SpaceEngineersVR.Player.Control
         public const double MaxSeconds=.4;
         private DateTime? pressed;
         private bool cancelled;
+        // Pressed and still able to complete: no cancel and within the time limit.
+        public bool Holding => pressed.HasValue && !cancelled;
         // A blocked button drops Held without Released, so view gestures never complete a tap.
-        public bool Update(bool held,bool released,bool cancel,DateTime now)
+        public bool Update(bool held,bool released,bool cancel,DateTime now,double maxSeconds=MaxSeconds)
         {
             if(held)
             {
                 if(!pressed.HasValue) { pressed=now; cancelled=false; }
-                if(cancel || (now-pressed.Value).TotalSeconds>MaxSeconds) cancelled=true;
+                if(cancel || (now-pressed.Value).TotalSeconds>maxSeconds) cancelled=true;
                 return false;
             }
-            bool tap=released && pressed.HasValue && !cancelled && (now-pressed.Value).TotalSeconds<=MaxSeconds;
+            bool tap=released && pressed.HasValue && !cancelled && (now-pressed.Value).TotalSeconds<=maxSeconds;
             pressed=null;
             return tap;
         }
