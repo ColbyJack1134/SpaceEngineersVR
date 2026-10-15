@@ -46,6 +46,9 @@ namespace SpaceEngineersVR.Multiplayer
         internal const float EndZone=.02f;
         internal static float FromLever(float position) => MathHelper.Clamp((position-EndZone)/(1-2*EndZone),0,1);
         internal static float ToLever(float fraction) => fraction<=0 ? 0 : fraction>=1 ? 1 : EndZone+fraction*(1-2*EndZone);
+        // Levers report in 0.1% steps, so a still hand sends nothing and the host skips values a block already holds.
+        internal const float LeverStep=.001f;
+        internal static float Quantize(float position) => (float)Math.Round(position/LeverStep)*LeverStep;
         internal sealed class Channel
         {
             internal Block Block;
@@ -189,9 +192,13 @@ namespace SpaceEngineersVR.Multiplayer
                     // Respect sliders the terminal disables, such as jump distance while a GPS target is selected.
                     if(channel.Property is IMyTerminalControl control && control.Enabled?.Invoke((Sandbox.ModAPI.IMyTerminalBlock)channel.Block)==false) continue;
                     if(channel.Property.Id=="Velocity") motions.Remove(channel.Block.EntityId);
-                    channel.Property.SetValue(channel.Block,value);
+                    if(Math.Abs(channel.Property.GetValue(channel.Block)-value)>LeverStep*.1f) channel.Property.SetValue(channel.Block,value);
                 }
-                else if(channel.Type==Kind.Thrust) ((IMyThrust)channel.Block).ThrustOverridePercentage=value;
+                else if(channel.Type==Kind.Thrust)
+                {
+                    var thrust=(IMyThrust)channel.Block;
+                    if(Math.Abs(thrust.ThrustOverridePercentage-value)>LeverStep*.1f) thrust.ThrustOverridePercentage=value;
+                }
                 else
                 {
                     var motion=new Motion { Channel=channel,Seat=seat,Pilot=seat.Pilot.EntityId,Identity=identity,Target=value };
