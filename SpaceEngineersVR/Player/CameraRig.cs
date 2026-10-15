@@ -40,6 +40,12 @@ namespace SpaceEngineersVR.Player
         private static double standingEye;
         private static readonly EyeHeightCalibration eyeHeight=new EyeHeightCalibration();
         private static bool onLadder;
+        // On magnetic boots the game turns the body to each voxel triangle underfoot; the view's up follows through a spring.
+        // On voxels small tilts are ignored outright; grids already get the game's own ray-cast smoothing.
+        internal const double BootsSmoothing=.2;
+        internal static readonly double BootsDeadband=MathHelper.ToRadians(3),BootsMaxLag=MathHelper.ToRadians(60);
+        private static Vector3D bootsUp,bootsSpin,bootsTarget;
+        private static long bootsTime;
         private static object activeDefinition;
         private static bool restoreBag, restoreHead;
         private static readonly System.Reflection.FieldInfo bagField=AccessTools.Field(typeof(MyCharacter),"m_enableBag");
@@ -53,7 +59,7 @@ namespace SpaceEngineersVR.Player
             var previous=owner;
             if(previous!=null && !previous.Closed) { previous.EnableBag(restoreBag); previous.EnableHead(restoreHead); }
             owner=null; activeDefinition=null; Volatile.Write(ref frame,null); crouchDrop=0; crouchTime=0;
-            onLadder=false;
+            onLadder=false; ResetBoots();
             if(previous!=null && !previous.Closed && MySession.Static!=null) refreshDepth(previous);
             if(forgetHeight) eyeHeight.Clear();
         }
@@ -81,7 +87,8 @@ namespace SpaceEngineersVR.Player
             bool thrusts=((IMyCharacter)character).EnabledThrusts;
             Vector3D gravity=character.Physics?.Gravity ?? Vector3.Zero;
             bool gravityUp=!thrusts && gravity.LengthSquared()>0.01;
-            Vector3D up=gravityUp ? -Vector3D.Normalize(gravity) : body.Up;
+            Vector3D up=gravityUp ? -Vector3D.Normalize(gravity) : character.IsMagneticBootsEnabled ? BootsUp(character,body.Up) : body.Up;
+            if(gravityUp || !character.IsMagneticBootsEnabled) ResetBoots();
             if (owner!=character || !ReferenceEquals(activeDefinition,character.Definition))
             {
                 Reset();
@@ -124,6 +131,16 @@ namespace SpaceEngineersVR.Player
             // Installed ladder clips lean the head toward the ladder; the eye follows the animated head.
             anchor.Translation=VrMath.EyePosition(body,anchor,eyeOffset,character.Physics?.Center.Y ?? 0)+body.Forward*LadderClimb.ViewLead(character);
         }
+        private static Vector3D BootsUp(MyCharacter character,Vector3D bodyUp)
+        {
+            long now=System.Diagnostics.Stopwatch.GetTimestamp();
+            double seconds=bootsTime==0 ? 0 : (now-bootsTime)/(double)System.Diagnostics.Stopwatch.Frequency;
+            bootsTime=now;
+            bootsTarget=character.SoundComp?.StandingOnVoxel!=null ? VrMath.Deadband(bootsTarget,bodyUp,BootsDeadband) : bodyUp;
+            bootsUp=VrMath.SpringUp(bootsUp,ref bootsSpin,bootsTarget,Math.Min(seconds,1),BootsSmoothing,BootsMaxLag);
+            return bootsUp;
+        }
+        private static void ResetBoots() { bootsUp=bootsSpin=bootsTarget=Vector3D.Zero; bootsTime=0; }
         private static double crouchDrop;
         private static long crouchTime;
         private static double CrouchDrop(MyCharacter character)

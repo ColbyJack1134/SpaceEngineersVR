@@ -307,6 +307,26 @@ namespace SpaceEngineersVR.Diagnostics
                 Near(Vector3D.Distance(facing.Forward,heading.Forward),0,"body facing at pitch "+pitch,1e-9);
             }
             if(VrMath.TryFacing(MatrixD.CreateRotationZ(MathHelper.PiOver2)*heading,Vector3D.Up,out _)) throw new Exception("Body facing guessed a heading for a head on its side");
+            // Magnetic boots: the view's up springs toward the body's from rest, at the same pace at any frame rate, within its lag limit.
+            var tiltedUp=Vector3D.Normalize(new Vector3D(.3,1,-.2));
+            Vector3D Spring(int steps,double seconds)
+            {
+                Vector3D value=Vector3D.Up,spin=Vector3D.Zero;
+                for(int i=0;i<steps;i++) value=VrMath.SpringUp(value,ref spin,tiltedUp,seconds/steps,CameraRig.BootsSmoothing,Math.PI);
+                return value;
+            }
+            Near(Vector3D.Distance(Spring(1,.1),Spring(9,.1)),0,"boots view up depends on frame rate",1e-9);
+            Near(Spring(9,.1).Length(),1,"boots view up length",1e-9);
+            double start=Math.Acos(Vector3D.Dot(Spring(1,.005),Vector3D.Up)),gap=Math.Acos(Vector3D.Dot(tiltedUp,Vector3D.Up));
+            if(start>gap*.01) throw new Exception("Boots view up does not start the turn from rest");
+            Near(Vector3D.Distance(Spring(30,3),tiltedUp),0,"boots view up settles",1e-6);
+            var spinLimit=Vector3D.Zero;
+            Near(Math.Acos(Vector3D.Dot(VrMath.SpringUp(Vector3D.Up,ref spinLimit,Vector3D.Down,0,CameraRig.BootsSmoothing,1),Vector3D.Down)),1,"boots view up lag limit on a reversed surface",1e-9);
+            // Small voxel tilts leave the reference still; larger ones are trailed at the limit.
+            var smallTilt=Vector3D.Transform(Vector3D.Up,QuaternionD.CreateFromAxisAngle(Vector3D.Right,CameraRig.BootsDeadband*.9));
+            Near(Vector3D.Distance(VrMath.Deadband(Vector3D.Up,smallTilt,CameraRig.BootsDeadband),Vector3D.Up),0,"boots small tilt ignored",1e-12);
+            var slope=Vector3D.Transform(Vector3D.Up,QuaternionD.CreateFromAxisAngle(Vector3D.Right,.5));
+            Near(Math.Acos(MathHelper.Clamp(Vector3D.Dot(VrMath.Deadband(Vector3D.Up,slope,CameraRig.BootsDeadband),slope),-1,1)),CameraRig.BootsDeadband,"boots slope trailed at the limit",1e-9);
             log("PASS stand-up keeps heading and eye position on the capsule centre");
 
             // Standing sway affects the eyes without touching the capsule. The old

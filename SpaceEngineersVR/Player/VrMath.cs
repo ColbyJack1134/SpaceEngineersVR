@@ -45,6 +45,41 @@ namespace SpaceEngineersVR.Player
             facing=MatrixD.CreateWorld(head.Translation,Vector3D.Cross(up,Vector3D.Normalize(right)),up);
             return true;
         }
+        // Critically damped spring from current toward target, solved exactly for the step so it does not depend on frame rate.
+        // The turn starts from rest instead of at full speed. Velocity is the angular velocity in radians per second.
+        public static Vector3D SpringUp(Vector3D current,ref Vector3D velocity,Vector3D target,double seconds,double smoothTime,double maxLag)
+        {
+            target.Normalize();
+            if(!current.IsValid() || current.LengthSquared()<1e-12 || !velocity.IsValid()) { velocity=Vector3D.Zero; return target; }
+            Vector3D error=RotationVector(target,current);
+            double omega=2/smoothTime,step=Math.Max(0,seconds),decay=Math.Exp(-omega*step);
+            Vector3D drive=(velocity+omega*error)*step;
+            error=(error+drive)*decay;
+            velocity=(velocity-omega*drive)*decay;
+            velocity-=target*Vector3D.Dot(velocity,target);
+            double angle=error.Length();
+            if(angle<1e-9) { velocity=Vector3D.Zero; return target; }
+            if(angle>maxLag) { error*=maxLag/angle; angle=maxLag; }
+            return Vector3D.Transform(target,QuaternionD.CreateFromAxisAngle(error/angle,angle));
+        }
+        // Holds the reference still until value moves more than limit from it, then trails value at that distance.
+        public static Vector3D Deadband(Vector3D held,Vector3D value,double limit)
+        {
+            value.Normalize();
+            if(!held.IsValid() || held.LengthSquared()<1e-12) return value;
+            held.Normalize();
+            Vector3D offset=RotationVector(value,held);
+            double angle=offset.Length();
+            return angle<=limit ? held : Vector3D.Transform(value,QuaternionD.CreateFromAxisAngle(offset/angle,limit));
+        }
+        // Axis times angle of the shortest turn taking from onto to.
+        private static Vector3D RotationVector(Vector3D from,Vector3D to)
+        {
+            Vector3D axis=Vector3D.Cross(from,to);
+            double sin=axis.Length(),cos=Vector3D.Dot(from,to),angle=Math.Atan2(sin,cos);
+            if(sin>1e-12) return axis*(angle/sin);
+            return cos<0 ? Vector3D.CalculatePerpendicularVector(from)*Math.PI : Vector3D.Zero;
+        }
         public static float PlanarYaw(Vector3 forward)
         {
             if (forward.X*forward.X+forward.Z*forward.Z<0.0001f) return 0;
