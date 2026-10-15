@@ -85,7 +85,8 @@ namespace SpaceEngineersVR.Player
             catch(Exception) { return null; }
         }
         internal static bool CollectorsResolved => gpsMarkers!=null && buttonMarkers!=null && oreMarkers!=null && turretTargets!=null && hackingMarkers!=null && worldBorder!=null;
-        // Tab skips the native marker collection and draws; rerun them without desktop sprites so VR captures and the list clears.
+        internal static readonly FieldInfo HudTexts=AccessTools.Field(typeof(Sandbox.Game.Gui.MyGuiScreenHudBase),"m_texts");
+        // Tab skips the native marker collection and draws; rerun them without desktop sprites so VR captures, the list clears and no names stay queued.
         internal static void CaptureHidden(MyGuiScreenHudSpace hud,MyHudMarkerRender renderer)
         {
             if(failed || !MyHud.IsHudMinimal || HelmetHud.NativeSuppressed) return;
@@ -101,7 +102,7 @@ namespace SpaceEngineersVR.Player
                 if(MyHud.OffscreenTargetMarker.Visible) renderer.AddOffscreenTarget(MyHud.OffscreenTargetMarker.Position,MyHud.OffscreenTargetMarker.TargetPlayerRelation);
                 RemoteHud.Discarding++;
                 try { renderer.DrawTargetIndicatorRender(); renderer.Draw(); }
-                finally { RemoteHud.Discarding--; }
+                finally { RemoteHud.Discarding--; (HudTexts?.GetValue(hud) as VRage.Generics.MyObjectsPoolSimple<Sandbox.Game.Gui.MyHudText>)?.ClearAllAllocated(); }
             }
             catch(Exception ex) { ((IList)points.GetValue(renderer)).Clear(); RenderFrameBridge.CaptureMarkers(null); recovery.Fail(ex,"VR markers with a hidden native HUD disabled"); }
         }

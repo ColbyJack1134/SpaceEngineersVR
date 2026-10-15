@@ -20,10 +20,11 @@ namespace SpaceEngineersVR.Patches
             config.WaypointMode=mode==MyHudMarkerRender.SignalMode.Off ? 0:mode==MyHudMarkerRender.SignalMode.NoNames ? 1:2;
         }
     }
+    // AsyncUpdate ends by starting the parallel HUD draw, so the capture must run before it.
     [HarmonyPatch(typeof(Sandbox.Game.Gui.MyGuiScreenHudSpace),"AsyncUpdate")]
     internal static class HiddenHudMarkersPatch
     {
-        private static void Postfix(Sandbox.Game.Gui.MyGuiScreenHudSpace __instance,MyHudMarkerRender ___m_markerRender)
+        private static void Prefix(Sandbox.Game.Gui.MyGuiScreenHudSpace __instance,MyHudMarkerRender ___m_markerRender)
         {
             if(SpaceEngineersVR.Plugin.Main.VrActive) WorldMarkers.CaptureHidden(__instance,___m_markerRender);
         }
