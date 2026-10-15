@@ -9,6 +9,13 @@ namespace SpaceEngineersVR.Player
 
         public static bool ControllerInputAllowed(bool ship,bool thirdPerson,bool physicalOnly) => !ship || thirdPerson || !physicalOnly;
 
+        // In physical-only mode the controller still supplies the axes of a stick the seat does not have.
+        public static void MissingStickAxes(bool controllerFlight,bool needsTranslation,bool needsRotation,ref Vector3 move,ref Vector2 rotate,ref float roll)
+        {
+            if(controllerFlight) return;
+            if(!needsTranslation) move=Vector3.Zero;
+            if(!needsRotation) { rotate=Vector2.Zero; roll=0; }
+        }
         // Physical-only seats with a modeled stick need it in hand before the trigger fires or drives.
         public static bool StickTriggerAllowed(bool ship,bool physicalOnly,bool sticksAvailable,bool stickHeld) =>
             !ship || !physicalOnly || !sticksAvailable || stickHeld;

@@ -177,10 +177,10 @@ namespace SpaceEngineersVR.Player.Components
 
             Vector3 move=Vector3.Zero; Vector2 rotate=Vector2.Zero; float roll=0;
             bool controllerFlight=FlightAxes.ControllerInputAllowed(true,ThirdPersonView.Active || RemoteView.RemoteGrid && RemoteView.HomeSeat==null,Common.Config.PhysicalShipControlsOnly);
-            if(controllerFlight || CockpitControls.NeedsControllerTranslation)
+            if(controllerFlight || CockpitControls.NeedsControllerTranslation || CockpitControls.NeedsControllerRotation)
             {
                 ReadFlightInput(true,out move,out rotate,out roll);
-                if(!controllerFlight) { rotate=Vector2.Zero; roll=0; }
+                FlightAxes.MissingStickAxes(controllerFlight,CockpitControls.NeedsControllerTranslation,CockpitControls.NeedsControllerRotation,ref move,ref rotate,ref roll);
             }
 
             if (controllerFlight && !ThirdPersonView.Active && !CockpitControls.RotationOwned && !CockpitControls.IsSteering && Common.Config.LegacyShipTilt && controls.ThrustRoll.IsPressed && Player.HandR.pose.isTracked)
