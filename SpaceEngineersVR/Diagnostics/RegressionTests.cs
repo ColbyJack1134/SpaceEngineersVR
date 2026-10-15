@@ -18,6 +18,8 @@ namespace SpaceEngineersVR.Diagnostics
             if(VRage.Utils.MyLog.Default==null) VRage.Utils.MyLog.Default=new VRage.Utils.MyLog();
             var platform=Assembly.LoadFrom(System.IO.Path.Combine(game,"VRage.Platform.Windows.dll")).GetType("VRage.Platform.Windows.MyVRageWindows");
             string data=System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"SEVRPrototype","Reports","renderer-data");
+            // The platform starts .NET startup profiling; replaying a saved profile compiles methods before the fixtures patch them.
+            System.IO.File.Delete(System.IO.Path.Combine(data,"ProfileOptimization","Startup.profile"));
             platform.GetMethod("Init").Invoke(null,new object[] {"SEVR.Diagnostics",VRage.Utils.MyLog.Default,data,false,false});
         }
         private static void Near(double actual,double expected,string name,double epsilon=0.00001)
