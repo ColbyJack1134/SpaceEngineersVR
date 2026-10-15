@@ -45,6 +45,20 @@ namespace SpaceEngineersVR.Diagnostics
                         Math.Max(Math.Abs(reference.M31-ours.M31),Math.Abs(reference.M32-ours.M32)));
                     log(eye+" projection XY difference vs runtime="+difference.ToString("G6")+"; raw="+l+","+r+","+t+","+b);
                     if (difference>0.0001) throw new InvalidOperationException("Eye projection disagrees with SteamVR");
+                    foreach(EHiddenAreaMeshType type in new[] { EHiddenAreaMeshType.k_eHiddenAreaMesh_Standard,EHiddenAreaMeshType.k_eHiddenAreaMesh_Inverse,EHiddenAreaMeshType.k_eHiddenAreaMesh_LineLoop })
+                    {
+                        var mesh=OpenVR.System.GetHiddenAreaMesh(eye,type);
+                        int count=(int)mesh.unTriangleCount*(type==EHiddenAreaMeshType.k_eHiddenAreaMesh_LineLoop ? 1:3);
+                        var tangents=new StringBuilder();
+                        int size=System.Runtime.InteropServices.Marshal.SizeOf<HmdVector2_t>();
+                        for(int v=0;v<count && mesh.pVertexData!=IntPtr.Zero;v++)
+                        {
+                            var uv=System.Runtime.InteropServices.Marshal.PtrToStructure<HmdVector2_t>(mesh.pVertexData+v*size);
+                            tangents.Append((l+uv.v0*(r-l)).ToString("R",System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                                .Append((t+uv.v1*(b-t)).ToString("R",System.Globalization.CultureInfo.InvariantCulture)).Append(';');
+                        }
+                        log("  hidden area "+type+": "+mesh.unTriangleCount+" tangents="+tangents);
+                    }
                 }
                 var poses = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
                 OpenVR.System.GetDeviceToAbsoluteTrackingPose(ETrackingUniverseOrigin.TrackingUniverseStanding, 0, poses);

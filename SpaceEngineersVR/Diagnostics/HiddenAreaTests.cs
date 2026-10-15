@@ -28,11 +28,34 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 // Left half of the target is hidden.
                 var left=new[] { new RawVector2(-1,1),new RawVector2(0,1),new RawVector2(-1,-1),new RawVector2(0,1),new RawVector2(0,-1),new RawVector2(-1,-1) };
-                HiddenAreaMask.Create(device,new[] { left,left },HiddenAreaMask.CompileHistograms(device,shaders),true);
+                var histograms=HiddenAreaMask.CompileHistograms(device,shaders);
+                HiddenAreaMask.Create(device,new[] { left,left },histograms,true);
                 Depth(device);
-                Exposure(device);
+                Exposure(device,Size*Size/2);
+                // A visible-area mesh keeps what it covers: only the top-left quarter counts.
+                var quarter=new[] { new RawVector2(-1,1),new RawVector2(0,1),new RawVector2(-1,0),new RawVector2(0,1),new RawVector2(0,0),new RawVector2(-1,0) };
+                HiddenAreaMask.Create(device,new[] { quarter,quarter },histograms,true,true);
+                Exposure(device,Size*Size/4);
             }
-            log("PASS hidden-area mask: clip-space mesh, exact near-depth mark and clear restore, installed histogram shader patch, hidden pixels carry no exposure weight");
+            QuestFallback();
+            log("PASS hidden-area mask: clip-space mesh, exact near-depth mark and clear restore, installed histogram shader patch, hidden pixels carry no exposure weight, Quest visible-area fallback and eye-axis centers");
+        }
+
+        private static void QuestFallback()
+        {
+            // Raw tangents SteamVR reported for Quest 3 and Steam Frame left eyes.
+            float[] quest={-1.376382f,.8390996f,-1.428148f,.9656888f},frame={-1.663923f,1.210223f,-1.723953f,1.174302f};
+            var own=HiddenAreaMask.QuestVisibleArea(true,quest[0],quest[1],quest[2],quest[3]);
+            foreach(var p in own) if(Math.Abs(p.X)>1.001f || Math.Abs(p.Y)>1.001f) throw new Exception("Quest outline leaves its own render: "+p.X+","+p.Y);
+            float nasal=float.MinValue;
+            foreach(var p in own) nasal=Math.Max(nasal,p.X);
+            if(Math.Abs(nasal-1)>.001f) throw new Exception("Quest outline does not reach the nasal edge of its own render: "+nasal);
+            foreach(var p in HiddenAreaMask.QuestVisibleArea(false,-frame[1],-frame[0],frame[2],frame[3]))
+                if(Math.Abs(p.X)>=1 || Math.Abs(p.Y)>=1) throw new Exception("Quest outline does not fit inside the Frame render");
+            var center=HiddenAreaMask.AxisCenter(frame[0],frame[1],frame[2],frame[3]);
+            var axis=HiddenAreaMask.QuestVisibleArea(true,frame[0],frame[1],frame[2],frame[3])[0];
+            if(Math.Abs(center.X*2-1-axis.X)>1e-5f || Math.Abs(1-center.Y*2-axis.Y)>1e-5f || center.X<.55f || center.Y<.55f)
+                throw new Exception("Eye-axis center disagrees with the projection: "+center.X+","+center.Y);
         }
 
         private static void Depth(Device device)
@@ -54,7 +77,7 @@ namespace SpaceEngineersVR.Diagnostics
             }
         }
 
-        private static void Exposure(Device device)
+        private static void Exposure(Device device,int expected)
         {
             var context=device.ImmediateContext;
             var gray=new byte[Size*Size*4];
@@ -73,7 +96,7 @@ namespace SpaceEngineersVR.Diagnostics
                 HiddenAreaMask.Histogram(context,0,false,constants,uav,sourceView,depthView,Size/16,Size/16,1);
                 long total=0;
                 foreach(uint bin in Read<uint>(device,histogram)) total+=bin;
-                if(total!=Size*Size/2) throw new Exception("Histogram counted "+total+" pixels; expected only the visible "+Size*Size/2);
+                if(total!=expected) throw new Exception("Histogram counted "+total+" pixels; expected only the visible "+expected);
             }
         }
 

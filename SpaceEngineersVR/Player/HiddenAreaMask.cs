@@ -23,17 +23,26 @@ namespace SpaceEngineersVR.Player
         private const string Shader=@"
 cbuffer Constants : register(b0) { float4 Depth; };
 float4 VS(float2 position : POSITION) : SV_Position { return float4(position,Depth.x,1); }
-float4 PS() : SV_Target { return 0; }";
+float4 PS() : SV_Target { return Depth.y; }";
         // Motion smoothing samples just outside the visible edge; keep a rendered margin there.
         internal const float OutwardScale=1.1f;
-        private const string DepthDeclaration="Texture2D<float> Depth : register(t1);",Weight="weight *= depthWeight;";
+        private const string DepthDeclaration="Texture2D<float> Depth : register(t1);",Weight="weight *= depthWeight;",Center="uv = abs(uv - 0.5);";
+        // Quest 3 visible-area outline in left-eye projection tangents (the right eye mirrors it), captured from SteamVR.
+        // Headsets that report no mesh measure exposure over this area instead of the whole render.
+        internal static readonly float[] QuestVisible={
+            0f,-1.39f, .172f,-1.3062f, .3276f,-1.2226f, .4712f,-1.1375f, .6052f,-1.0482f, .7302f,-.9516f, .8391f,-.845f, .8391f,-.7358f,
+            .8391f,-.6231f, .8391f,-.4953f, .8391f,-.347f, .8391f,-.179f, .8391f,0f, .8391f,.1767f, .8391f,.3422f, .8391f,.4898f,
+            .8391f,.6145f, .8391f,.7125f, .7814f,.7814f, .6337f,.8259f, .4942f,.8559f, .3638f,.8783f, .2411f,.8999f, .1221f,.9272f,
+            0f,.965f, -.1326f,.9657f, -.2791f,.9657f, -.4396f,.9657f, -.6116f,.9657f, -.7902f,.9657f, -.9687f,.9657f, -1.1195f,.859f,
+            -1.2208f,.7048f, -1.2802f,.5303f, -1.3129f,.3518f, -1.3391f,.1763f, -1.3764f,0f, -1.3764f,-.1882f, -1.3764f,-.3911f, -1.3764f,-.6046f,
+            -1.3764f,-.82f, -1.335f,-1.0244f, -1.2021f,-1.2021f, -1.0287f,-1.3407f, -.8293f,-1.4281f, -.6159f,-1.4281f, -.4001f,-1.4281f, -.1921f,-1.4281f };
         private static readonly Type renderer=AccessTools.TypeByName("VRageRender.MyRender11"),postprocess=AccessTools.TypeByName("VRageRender.MyPostprocessSettingsWrapper");
         private static Device device;
         private static DeviceContext context;
         private static VertexShader vertex;
         private static PixelShader pixel;
         private static InputLayout layout;
-        private static Buffer constants;
+        private static Buffer constants,centerConstants;
         private static DepthStencilState writeDepth;
         private static RasterizerState rasterizer;
         private static readonly Buffer[] meshes=new Buffer[2];
@@ -42,21 +51,19 @@ float4 PS() : SV_Target { return 0; }";
         private static readonly Texture2D[] visible=new Texture2D[2];
         private static readonly ShaderResourceView[] visibleViews=new ShaderResourceView[2];
         private static readonly RenderTargetView[] visibleTargets=new RenderTargetView[2];
-        private static bool initialized,failed;
+        private static bool initialized,failed,exposureOnly;
         private static float near,clear;
         private static DepthStencilView marked;
         private static int markedEye;
         [ThreadStatic] private static int exposureEye;
 
-        internal static int Eye
+        internal static int Eye => Resolve(false);
+        private static int Resolve(bool exposure)
         {
-            get
-            {
-                int eye=StereoRenderState.Active ? StereoRenderState.View : -1;
-                if(eye<0 || eye>1 || failed || Common.Config?.HiddenAreaMask!=true) return -1;
-                if(!initialized) Initialize();
-                return failed || counts[eye]==0 ? -1 : eye;
-            }
+            int eye=StereoRenderState.Active ? StereoRenderState.View : -1;
+            if(eye<0 || eye>1 || failed || Common.Config?.HiddenAreaMask!=true) return -1;
+            if(!initialized) Initialize();
+            return failed || counts[eye]==0 || exposureOnly && !exposure ? -1 : eye;
         }
 
         internal static RawVector2[] Triangles(HmdVector2_t[] uv)
@@ -66,11 +73,32 @@ float4 PS() : SV_Target { return 0; }";
             return result;
         }
 
+        // Native center weighting measures from the texture center, which sits off each eye's axis in an asymmetric projection.
         internal static string PatchHistogram(string source)
         {
-            if(Count(source,DepthDeclaration)!=1 || Count(source,Weight)!=1) return null;
-            return source.Replace(DepthDeclaration,DepthDeclaration+"\nTexture2D<float> HiddenAreaVisible : register(t2);")
+            if(Count(source,DepthDeclaration)!=1 || Count(source,Weight)!=1 || Count(source,Center)!=1) return null;
+            return source.Replace(DepthDeclaration,DepthDeclaration+"\nTexture2D<float> HiddenAreaVisible : register(t2);\ncbuffer HiddenAreaConstants : register(b2) { float4 HiddenAreaCenter; };")
+                .Replace(Center,"uv = abs(uv - HiddenAreaCenter.xy);")
                 .Replace(Weight,Weight+"\n        if (HiddenAreaVisible[dispatchId] < 0.5f) weight = 0;");
+        }
+
+        internal static RawVector2 AxisCenter(float left,float right,float top,float bottom) => new RawVector2(-left/(right-left),-top/(bottom-top));
+
+        // Fan of the Quest outline in clip space for a projection given as raw tangents.
+        internal static RawVector2[] QuestVisibleArea(bool leftEye,float left,float right,float top,float bottom)
+        {
+            int count=QuestVisible.Length/2;
+            RawVector2 Clip(float x,float y) => new RawVector2((x-left)/(right-left)*2-1,1-(y-top)/(bottom-top)*2);
+            var center=Clip(0,0);
+            var result=new RawVector2[count*3];
+            for(int i=0;i<count;i++)
+            {
+                int next=(i+1)%count;
+                result[i*3]=center;
+                result[i*3+1]=Clip(leftEye ? QuestVisible[i*2]:-QuestVisible[i*2],QuestVisible[i*2+1]);
+                result[i*3+2]=Clip(leftEye ? QuestVisible[next*2]:-QuestVisible[next*2],QuestVisible[next*2+1]);
+            }
+            return result;
         }
 
         internal static ComputeShader[] CompileHistograms(Device target,string shaders)
@@ -88,7 +116,7 @@ float4 PS() : SV_Target { return 0; }";
             return result;
         }
 
-        internal static void Create(Device target,RawVector2[][] eyes,ComputeShader[] histogram,bool complementary)
+        internal static void Create(Device target,RawVector2[][] eyes,ComputeShader[] histogram,bool complementary,bool visibleOnly=false,RawVector2[] centers=null)
         {
             device=target;
             context=new DeviceContext(device);
@@ -99,6 +127,8 @@ float4 PS() : SV_Target { return 0; }";
                 layout=new InputLayout(device,ShaderSignature.GetInputSignature(vs),new[] { new InputElement("POSITION",0,Format.R32G32_Float,0) });
             }
             constants=new Buffer(device,16,ResourceUsage.Default,BindFlags.ConstantBuffer,CpuAccessFlags.None,ResourceOptionFlags.None,0);
+            centerConstants=Buffer.Create(device,BindFlags.ConstantBuffer,new[] {
+                new RawVector4(centers?[0].X ?? .5f,centers?[0].Y ?? .5f,0,0),new RawVector4(centers?[1].X ?? .5f,centers?[1].Y ?? .5f,0,0) });
             writeDepth=new DepthStencilState(device,new DepthStencilStateDescription { IsDepthEnabled=true,DepthWriteMask=DepthWriteMask.All,DepthComparison=Comparison.Always });
             rasterizer=new RasterizerState(device,new RasterizerStateDescription { FillMode=FillMode.Solid,CullMode=CullMode.None,IsDepthClipEnabled=false });
             for(int i=0;i<2;i++)
@@ -108,6 +138,8 @@ float4 PS() : SV_Target { return 0; }";
             }
             histograms[0]=histogram[0]; histograms[1]=histogram[1];
             near=complementary ? 1:0; clear=complementary ? 0:1;
+            exposureOnly=visibleOnly;
+            for(int i=0;i<2;i++) { visibleViews[i]?.Dispose(); visibleTargets[i]?.Dispose(); visible[i]?.Dispose(); visibleViews[i]=null; visibleTargets[i]=null; visible[i]=null; }
             initialized=true;
         }
 
@@ -117,8 +149,14 @@ float4 PS() : SV_Target { return 0; }";
             try
             {
                 var eyes=new RawVector2[2][];
+                var projections=new float[2][];
+                var centers=new RawVector2[2];
                 for(int i=0;i<2;i++)
                 {
+                    float l=0,r=0,t=0,b=0;
+                    OpenVR.System.GetProjectionRaw((EVREye)i,ref l,ref r,ref t,ref b);
+                    projections[i]=new[] {l,r,t,b};
+                    centers[i]=AxisCenter(l,r,t,b);
                     var mesh=OpenVR.System.GetHiddenAreaMesh((EVREye)i,EHiddenAreaMeshType.k_eHiddenAreaMesh_Standard);
                     if(mesh.unTriangleCount==0 || mesh.pVertexData==IntPtr.Zero) continue;
                     var uv=new HmdVector2_t[mesh.unTriangleCount*3];
@@ -126,11 +164,14 @@ float4 PS() : SV_Target { return 0; }";
                     for(int v=0;v<uv.Length;v++) uv[v]=Marshal.PtrToStructure<HmdVector2_t>(mesh.pVertexData+v*size);
                     eyes[i]=Triangles(uv);
                 }
-                if(eyes[0]==null && eyes[1]==null) { Logger.Info("Hidden-area mask unavailable: SteamVR reported no mesh"); failed=true; return; }
+                bool fallback=eyes[0]==null && eyes[1]==null;
+                if(fallback)
+                    for(int i=0;i<2;i++) eyes[i]=QuestVisibleArea(i==0,projections[i][0],projections[i][1],projections[i][2],projections[i][3]);
                 var target=Wrappers.MyRender11.DeviceInstance;
                 Create(target,eyes,CompileHistograms(target,Path.Combine(MyFileSystem.ShadersBasePath,"Shaders")),
-                    (bool)AccessTools.Field(renderer,"UseComplementaryDepthBuffer").GetValue(null));
-                Logger.Info($"Hidden-area mask: {counts[0]/3} left and {counts[1]/3} right triangles");
+                    (bool)AccessTools.Field(renderer,"UseComplementaryDepthBuffer").GetValue(null),fallback,centers);
+                Logger.Info(fallback ? "Hidden-area mask unavailable: SteamVR reported no mesh; exposure uses the Quest 3 visible area" :
+                    $"Hidden-area mask: {counts[0]/3} left and {counts[1]/3} right triangles");
             }
             catch(Exception ex) { Fail(ex); }
         }
@@ -163,21 +204,22 @@ float4 PS() : SV_Target { return 0; }";
             context.OutputMerger.SetDepthStencilState(writeDepth);
             context.Rasterizer.State=rasterizer;
             context.Rasterizer.SetViewport(0,0,width,height);
-            Mesh(eye,depth);
+            Mesh(eye,depth,0);
             context.PixelShader.Set(null);
             context.Draw(counts[eye],0);
             Execute(immediate);
         }
 
-        private static void Mesh(int eye,float depth)
+        private static void Mesh(int eye,float depth,float value)
         {
-            var data=new RawVector4(depth,0,0,0);
+            var data=new RawVector4(depth,value,0,0);
             context.UpdateSubresource(ref data,constants);
             context.InputAssembler.InputLayout=layout;
             context.InputAssembler.PrimitiveTopology=PrimitiveTopology.TriangleList;
             context.InputAssembler.SetVertexBuffers(0,new VertexBufferBinding(meshes[eye],8,0));
             context.VertexShader.Set(vertex);
             context.VertexShader.SetConstantBuffer(0,constants);
+            context.PixelShader.SetConstantBuffer(0,constants);
         }
 
         // The engine's state cache stays valid because the immediate context state is restored.
@@ -187,7 +229,7 @@ float4 PS() : SV_Target { return 0; }";
         }
 
         internal static bool ExposurePending => exposureEye>0;
-        internal static void BeginExposure() => exposureEye=Eye+1;
+        internal static void BeginExposure() => exposureEye=Resolve(true)+1;
         internal static void EndExposure() => exposureEye=0;
 
         // Replaces the native histogram dispatch so hidden pixels carry no exposure weight.
@@ -223,6 +265,7 @@ float4 PS() : SV_Target { return 0; }";
             context.ClearState();
             context.ComputeShader.Set(histograms[center ? 1:0]);
             context.ComputeShader.SetConstantBuffer(1,histogramConstants);
+            context.ComputeShader.SetConstantBuffer(2,centerConstants);
             context.ComputeShader.SetUnorderedAccessView(0,histogram);
             context.ComputeShader.SetShaderResources(0,source,depth,mask);
             context.Dispatch(x,y,z);
@@ -239,12 +282,14 @@ float4 PS() : SV_Target { return 0; }";
                 SampleDescription=new SampleDescription(1,0),Usage=ResourceUsage.Default,BindFlags=BindFlags.RenderTarget|BindFlags.ShaderResource });
             visibleViews[eye]=new ShaderResourceView(device,texture);
             visibleTargets[eye]=new RenderTargetView(device,texture);
+            // A visible-area mesh draws the area to keep; a hidden-area mesh draws the area to drop.
+            float keep=exposureOnly ? 0:1;
             context.ClearState();
-            context.ClearRenderTargetView(visibleTargets[eye],new RawColor4(1,1,1,1));
+            context.ClearRenderTargetView(visibleTargets[eye],new RawColor4(keep,keep,keep,keep));
             context.OutputMerger.SetTargets(visibleTargets[eye]);
             context.Rasterizer.State=rasterizer;
             context.Rasterizer.SetViewport(0,0,width,height);
-            Mesh(eye,0);
+            Mesh(eye,0,1-keep);
             context.PixelShader.Set(pixel);
             context.Draw(counts[eye],0);
             Execute(immediate);
