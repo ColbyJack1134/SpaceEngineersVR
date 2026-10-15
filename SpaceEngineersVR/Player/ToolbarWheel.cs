@@ -43,7 +43,7 @@ namespace SpaceEngineersVR.Player
         private static DateTime nextSnapshot;
         private static readonly RenderRecovery recovery=new RenderRecovery("Toolbar wheel");
         private static bool failed => recovery.Failed;
-        private static readonly ToolbarGesture gesture=new ToolbarGesture();
+        private static readonly ToolbarGesture gesture=new ToolbarGesture(),quickGesture=new ToolbarGesture();
         private const double TapSeconds=.28;
         private static Button holder;
         private static bool latched;
@@ -140,8 +140,11 @@ namespace SpaceEngineersVR.Player
                 return;
             }
             bool available=InputRouter.Gameplay && !Main.MenuOpen;
-            if(available && controls.QuickMenu.HasPressed) { Open(true,controls.QuickMenu); return; }
+            if(available && controls.ActionsWheel.HasPressed) { Open(true,controls.ActionsWheel); return; }
             if(available && controls.ToolbarWheel.HasPressed) { Open(false,controls.ToolbarWheel); return; }
+            var quick=quickGesture.Update(available,controls.QuickMenu.HasPressed,controls.QuickMenu.IsPressed,controls.QuickMenu.HasReleased,
+                MySession.Static?.ControlledEntity,-1,DateTime.UtcNow);
+            if(quick==ToolbarGesture.Action.OpenWheel) { Open(true,controls.QuickMenu); return; }
             var action=gesture.Update(InputRouter.Gameplay && !Main.MenuOpen,
                 controls.Unequip.HasPressed,controls.Unequip.IsPressed,controls.Unequip.HasReleased,
                 MySession.Static?.ControlledEntity,CockpitBuilding.Active ? -1:CockpitButtons.HoveredSwitch,DateTime.UtcNow,ThirdPersonView.Active && !ThirdPersonView.Character && !CockpitBuilding.Active);
@@ -154,8 +157,9 @@ namespace SpaceEngineersVR.Player
             Open(false,controls.Unequip);
         }
         private static bool Confirming(DateTime now) =>
-            Confirms(holder!=Controls.Static.Unequip,holder.RawPressed,holder.HasPressed,(now-openedAt).TotalSeconds,ref latched);
-        // Holding confirms on release. A quick tap keeps the wheel open until the next tap, except on Unequip, whose tap unequips.
+            Confirms(holder==Controls.Static.ActionsWheel || holder==Controls.Static.ToolbarWheel,holder.RawPressed,holder.HasPressed,(now-openedAt).TotalSeconds,ref latched);
+        // Holding confirms on release. On the dedicated wheel buttons a quick tap keeps the wheel open until the next tap;
+        // Touch Y and B open only on a hold, since a B tap unequips.
         internal static bool Confirms(bool tapLatches,bool held,bool pressed,double seconds,ref bool latched)
         {
             if(latched) return pressed;
@@ -294,7 +298,7 @@ namespace SpaceEngineersVR.Player
 
         public static void Close(bool resume = true)
         {
-            gesture.Reset(); navigation.Reset(); selection = -1; view = null; holder=null; latched=false;
+            gesture.Reset(); quickGesture.Reset(); navigation.Reset(); selection = -1; view = null; holder=null; latched=false;
             quickChoices=null; quickPages=null;
             InputRouter.RadialOpen = false;
             InputRouter.Reset();

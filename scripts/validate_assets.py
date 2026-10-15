@@ -27,7 +27,7 @@ mode_types = {
 }
 required = {
     "/actions/common": ("Primary", "LeftClick", "Secondary", "Interact", "Unequip", "Jetpack", "Recenter",
-                        "QuickMenu", "PointerPressure", "LeftTriggerPressure", "LeftGripPressure", "RightGripPressure"),
+                        "PointerPressure", "LeftTriggerPressure", "LeftGripPressure", "RightGripPressure"),
     "/actions/walking": ("WalkLongitudinal", "WalkRotate", "JumpOrClimbUp", "CrouchOrClimbDown"),
     "/actions/flying": ("ThrustLRFB", "ThrustRotate", "ThrustUp", "ThrustDown", "ThrustRoll", "SeatTerminal"),
     "/actions/menu": ("Navigate", "Page", "KeyboardFallback", "WheelNextPage", "WheelPreviousPage"),
@@ -77,7 +77,7 @@ def validate(binding, name):
         assert item["parameters"] == {"click_activate_threshold": "0.25", "click_deactivate_threshold": "0.20"}, name
     for item in common:
         for value in item["inputs"].values():
-            if value["output"].lower().endswith("/quickmenu"):
+            if value["output"].lower().endswith(("/quickmenu", "/actionswheel")):
                 assert item["path"].startswith("/user/hand/left/"), f"Action wheel moved off left hand in {name}"
     for hand in ("left", "right"):
         action = f"/actions/common/in/{hand}grippressure"
@@ -100,9 +100,10 @@ def validate(binding, name):
     common_outputs = {v["output"].lower() for s in common for v in s["inputs"].values()}
     assert "/actions/common/in/jetpack" in common_outputs, f"Inventory chord unavailable in {name}"
     wheel = {(s["path"], key) for s in common for key, v in s["inputs"].items()
-             if v["output"].lower().endswith("/quickmenu")}
+             if v["output"].lower().endswith(("/quickmenu", "/actionswheel"))}
     keyboard = {(s["path"], key) for s in menu for key, v in s["inputs"].items()
                 if v["output"].lower().endswith("/keyboardfallback")}
+    assert wheel, f"Action wheel unbound in {name}"
     assert wheel == keyboard, f"Wheel/menu button differs in {name}"
 
 

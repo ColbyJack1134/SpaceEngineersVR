@@ -109,6 +109,11 @@ def generate():
                    left + "joystick": left + "thumbstick",
                    right + "joystick": right + "thumbstick"}
     frame = profile("frame_controller", "Steam Frame", frame_paths)
+    # Bumper wheels open on a tap or a hold; Touch Y keeps its hold-only QuickMenu.
+    for item in frame["bindings"]["/actions/common"]["sources"]:
+        for value in item["inputs"].values():
+            if value["output"] == NAMES["/actions/common/in/quickmenu"]:
+                value["output"] = NAMES["/actions/common/in/actionswheel"]
     frame["bindings"]["/actions/common"]["sources"] += [
         source(right + "bumper", "button", {"click": "/actions/common/in/ToolbarWheel"}),
         source(right + "y", "button", {"click": "/actions/common/in/Dampener"}),

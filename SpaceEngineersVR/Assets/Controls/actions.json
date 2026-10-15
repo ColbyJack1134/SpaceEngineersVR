@@ -387,6 +387,11 @@
       "requirement": "optional"
     },
     {
+      "name": "/actions/common/in/ActionsWheel",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
       "name": "/actions/common/in/ToolbarWheel",
       "type": "boolean",
       "requirement": "optional"
@@ -459,6 +464,7 @@
       "/actions/common/in/Terminal": "Terminal",
       "/actions/common/in/Inventory": "Inventory (hold: terminal)",
       "/actions/common/in/ToolbarWheel": "Toolbar wheel",
+      "/actions/common/in/ActionsWheel": "Actions wheel",
       "/actions/common/in/ColorSelector": "Color selector",
       "/actions/common/in/ColorPicker": "Color picker",
       "/actions/common/in/BuildPlanner": "Build planner",

@@ -127,7 +127,7 @@
           "mode": "button",
           "inputs": {
             "click": {
-              "output": "/actions/common/in/QuickMenu"
+              "output": "/actions/common/in/ActionsWheel"
             }
           }
         },
