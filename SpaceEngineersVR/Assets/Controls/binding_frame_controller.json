@@ -93,7 +93,7 @@
             }
           },
           "mode": "button",
-          "path": "/user/hand/left/input/dpad_down"
+          "path": "/user/hand/right/input/x"
         },
         {
           "inputs": {
@@ -123,7 +123,7 @@
           "path": "/user/hand/left/input/trigger"
         },
         {
-          "path": "/user/hand/left/input/dpad_up",
+          "path": "/user/hand/left/input/bumper",
           "mode": "button",
           "inputs": {
             "click": {
@@ -132,11 +132,38 @@
           }
         },
         {
+          "path": "/user/hand/right/input/bumper",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/ToolbarWheel"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/y",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/Dampener"
+            }
+          }
+        },
+        {
           "path": "/user/hand/left/input/view",
           "mode": "button",
           "inputs": {
             "click": {
-              "output": "/actions/common/in/Terminal"
+              "output": "/actions/common/in/Inventory"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/menu",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/Pause"
             }
           }
         }
@@ -262,7 +289,7 @@
           }
         },
         {
-          "path": "/user/hand/left/input/dpad_up",
+          "path": "/user/hand/left/input/bumper",
           "mode": "button",
           "inputs": {
             "click": {
@@ -293,7 +320,7 @@
   },
   "category": "steamvr_input",
   "controller_type": "frame_controller",
-  "description": "Touch-style controls: left D-pad up is Y; left D-pad down is X.",
+  "description": "Bumpers open the wheels; X jetpack, Y dampeners, View inventory, Menu pause.",
   "name": "SEVR Steam Frame",
   "options": {},
   "simulated_actions": []

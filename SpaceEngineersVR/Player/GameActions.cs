@@ -282,8 +282,9 @@ namespace SpaceEngineersVR.Player
             new MyActionUnequip().ExecuteAction();
         }
         private static readonly Control.JumpHold jumpHold=new Control.JumpHold();
+        private static readonly Control.JumpHold dampenerHold=new Control.JumpHold(),inventoryHold=new Control.JumpHold();
         private static readonly Control.DoubleTap dampenerTap=new Control.DoubleTap();
-        internal static void ResetJumpHold() { jumpHold.Reset(); dampenerTap.Reset(); }
+        internal static void ResetJumpHold() { jumpHold.Reset(); dampenerTap.Reset(); dampenerHold.Reset(); inventoryHold.Reset(); }
         public static void Reset() { AlternateTrigger=false; ResetJumpHold(); GridSelection.Clear(); DampenerTargeting.Cancel(); }
         public static void ToolbarConfig() => ToolbarConfig(-1);
         public static void AssignToolbarSlot(int slot)
@@ -340,6 +341,8 @@ namespace SpaceEngineersVR.Player
                 if(taps==1) Execute(Dampeners);
                 else if(taps==2) Execute(RelativeDampeners);
             }
+            if(dampenerHold.Update(InputRouter.Gameplay,c.Dampener.HasPressed,c.Dampener.IsPressed,now)) Execute(RelativeDampeners);
+            else if(dampenerHold.Tapped) Execute(Dampeners);
             HandInteraction.UpdateSupportUse();
             bool interact=c.Interact.HasPressed && !ArthurLcdBridge.Owns(Player.HandR);
             if (interact && !PlacementControls.Painting || c.Terminal.HasPressed || c.Inventory.HasPressed)
@@ -368,7 +371,8 @@ namespace SpaceEngineersVR.Player
             if (c.Power.HasPressed) Execute(PowerAction);
             if (c.Broadcasting.HasPressed) BroadcastAction.Run();
             if (c.Terminal.HasPressed) { Execute(TerminalAction); return; }
-            if (c.Inventory.HasPressed) { Execute(InventoryAction); return; }
+            if (inventoryHold.Update(InputRouter.Gameplay,c.Inventory.HasPressed,c.Inventory.IsPressed,now)) { Execute(TerminalAction); return; }
+            if (inventoryHold.Tapped) { Execute(InventoryAction); return; }
             if (c.ToolbarConfig.HasPressed || c.BlockSelector.HasPressed) { Execute(ConfigureToolbarAction); return; }
             if (c.Pause.HasPressed) { Execute(PauseAction); return; }
             if (c.CubeSize.HasPressed) NativeActions.Pulse(MyControlsSpace.CUBE_BUILDER_CUBESIZE_MODE);

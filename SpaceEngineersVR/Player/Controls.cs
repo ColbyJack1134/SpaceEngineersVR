@@ -23,7 +23,7 @@ namespace SpaceEngineersVR.Player
         public Button Recenter;
         public Button Options;
         public readonly Button MenuKeyboardFallback;
-        public readonly Button QuickMenu;
+        public readonly Button QuickMenu,ToolbarWheel;
         public readonly Analog MenuNavigate;
         public readonly Analog MenuPage;
         public readonly Button WheelNextPage, WheelPreviousPage;
@@ -138,6 +138,7 @@ namespace SpaceEngineersVR.Player
             Logger.Info("SteamVR action manifest loaded: " + Common.ActionJsonPath);
 
             QuickMenu = new Button("/actions/common/in/QuickMenu");
+            ToolbarWheel = new Button("/actions/common/in/ToolbarWheel");
             MenuKeyboardFallback = new Button("/actions/menu/in/KeyboardFallback");
             MenuNavigate = new Analog("/actions/menu/in/Navigate");
             MenuPage = new Analog("/actions/menu/in/Page");
@@ -159,7 +160,7 @@ namespace SpaceEngineersVR.Player
             ThrustBackward = new Analog("/actions/flying/in/ThrustBackward");
             ThrustRotate = new Analog("/actions/flying/in/ThrustRotate");
             ThrustRoll = new Button("/actions/flying/in/ThrustRoll");
-            Dampener = new Button("/actions/flying/in/Dampener");
+            Dampener = new Button("/actions/common/in/Dampener");
             FlightJump = new Button("/actions/flying/in/SeatTerminal");
             Primary = new Button("/actions/common/in/Primary");
             LeftClick = new Button("/actions/common/in/LeftClick");

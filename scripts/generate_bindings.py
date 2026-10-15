@@ -105,12 +105,16 @@ def generate():
     for controller, name in (("pico_controller", "PICO"), ("vive_focus3_controller", "Vive Focus")):
         save(profile(controller, name))
 
-    frame_paths = {left + "x": left + "dpad_down", left + "y": left + "dpad_up",
+    frame_paths = {left + "x": right + "x", left + "y": left + "bumper",
                    left + "joystick": left + "thumbstick",
                    right + "joystick": right + "thumbstick"}
     frame = profile("frame_controller", "Steam Frame", frame_paths)
-    terminal(frame, left + "view")
-    frame["description"] = "Touch-style controls: left D-pad up is Y; left D-pad down is X."
+    frame["bindings"]["/actions/common"]["sources"] += [
+        source(right + "bumper", "button", {"click": "/actions/common/in/ToolbarWheel"}),
+        source(right + "y", "button", {"click": "/actions/common/in/Dampener"}),
+        source(left + "view", "button", {"click": "/actions/common/in/Inventory"}),
+        source(right + "menu", "button", {"click": "/actions/common/in/Pause"})]
+    frame["description"] = "Bumpers open the wheels; X jetpack, Y dampeners, View inventory, Menu pause."
     save(frame)
 
     wmr_paths = {left + "x": left + "trackpad", left + "y": left + "trackpad",

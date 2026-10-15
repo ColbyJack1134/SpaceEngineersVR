@@ -110,7 +110,7 @@
       "type": "boolean"
     },
     {
-      "name": "/actions/flying/in/Dampener",
+      "name": "/actions/common/in/Dampener",
       "requirement": "suggested",
       "type": "boolean"
     },
@@ -385,6 +385,11 @@
       "name": "/actions/common/in/QuickMenu",
       "type": "boolean",
       "requirement": "optional"
+    },
+    {
+      "name": "/actions/common/in/ToolbarWheel",
+      "type": "boolean",
+      "requirement": "optional"
     }
   ],
   "action_sets": [
@@ -428,7 +433,7 @@
       "/actions/flying/in/ThrustBackward": "Backward",
       "/actions/flying/in/ThrustRotate": "Rotate",
       "/actions/flying/in/ThrustRoll": "Roll",
-      "/actions/flying/in/Dampener": "Dampener",
+      "/actions/common/in/Dampener": "Dampeners (hold: auto)",
       "/actions/common": "Common",
       "/actions/common/in/Primary": "Use primary",
       "/actions/common/in/LeftClick": "Left trigger click",
@@ -452,7 +457,8 @@
       "/actions/common/in/PlacementMode": "Placement mode",
       "/actions/common/in/CubeSize": "Cube size",
       "/actions/common/in/Terminal": "Terminal",
-      "/actions/common/in/Inventory": "Inventory",
+      "/actions/common/in/Inventory": "Inventory (hold: terminal)",
+      "/actions/common/in/ToolbarWheel": "Toolbar wheel",
       "/actions/common/in/ColorSelector": "Color selector",
       "/actions/common/in/ColorPicker": "Color picker",
       "/actions/common/in/BuildPlanner": "Build planner",

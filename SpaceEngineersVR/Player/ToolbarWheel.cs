@@ -43,7 +43,11 @@ namespace SpaceEngineersVR.Player
         private static DateTime nextSnapshot;
         private static readonly RenderRecovery recovery=new RenderRecovery("Toolbar wheel");
         private static bool failed => recovery.Failed;
-        private static readonly ToolbarGesture gesture=new ToolbarGesture(),quickGesture=new ToolbarGesture();
+        private static readonly ToolbarGesture gesture=new ToolbarGesture();
+        private const double TapSeconds=.28;
+        private static Button holder;
+        private static bool latched;
+        private static DateTime openedAt;
         private static ActionChoice[] quickChoices;
         private static ActionChoice[][] quickPages;
         private static int quickPage;
@@ -78,7 +82,7 @@ namespace SpaceEngineersVR.Player
                     !ReferenceEquals(owner, MySession.Static?.ControlledEntity) || MySession.Static?.LocalCharacter?.IsDead != false)
                 { Close(); return; }
                 var stick=navigation.Update(controls.MenuPage.Position,controls.MenuNavigate.Position,group==0 ? 0:1);
-                if(group==1 && controls.Unequip.HasPressed) { Close(); return; }
+                if(holder!=controls.Unequip && controls.Unequip.HasPressed) { Close(); return; }
                 if(group==1 && controls.Jetpack.HasPressed)
                 { Close(); GameActions.Execute(GameActions.InventoryAction); return; }
                 if (group==0 && controls.Interact.HasPressed)
@@ -90,7 +94,7 @@ namespace SpaceEngineersVR.Player
                         SelectSlot(target,slot,true,GameActions.AssignToolbarSlot);
                     return;
                 }
-                if (!(group==0 ? controls.Unequip.RawPressed : controls.QuickMenu.RawPressed))
+                if (Confirming(DateTime.UtcNow))
                 {
                     int chosen = RadialMath.Sector(stick, group == 0 ? Slots(toolbar) : 9);
                     int chosenGroup = group;
@@ -135,11 +139,9 @@ namespace SpaceEngineersVR.Player
                 Publish();
                 return;
             }
-            var quick=quickGesture.Update(InputRouter.Gameplay && !Main.MenuOpen,
-                controls.QuickMenu.HasPressed,controls.QuickMenu.IsPressed,controls.QuickMenu.HasReleased,
-                MySession.Static?.ControlledEntity,-1,DateTime.UtcNow);
-            if(controls.Dampener.HasPressed) GameActions.Execute(GameActions.Dampeners);
-            if(quick==ToolbarGesture.Action.OpenWheel) { Open(true); return; }
+            bool available=InputRouter.Gameplay && !Main.MenuOpen;
+            if(available && controls.QuickMenu.HasPressed) { Open(true,controls.QuickMenu); return; }
+            if(available && controls.ToolbarWheel.HasPressed) { Open(false,controls.ToolbarWheel); return; }
             var action=gesture.Update(InputRouter.Gameplay && !Main.MenuOpen,
                 controls.Unequip.HasPressed,controls.Unequip.IsPressed,controls.Unequip.HasReleased,
                 MySession.Static?.ControlledEntity,CockpitBuilding.Active ? -1:CockpitButtons.HoveredSwitch,DateTime.UtcNow,ThirdPersonView.Active && !ThirdPersonView.Character && !CockpitBuilding.Active);
@@ -149,7 +151,17 @@ namespace SpaceEngineersVR.Player
             if(action==ToolbarGesture.Action.FirstPerson) { ThirdPersonView.Toggle(); InputRouter.Update(); return; }
             if(action==ToolbarGesture.Action.AssignSwitch) { CockpitActions.Configure(gesture.Switch); InputRouter.Update(); return; }
             if(action==ToolbarGesture.Action.Unequip) { GameActions.Unequip(); InputRouter.Update(); return; }
-            Open(false);
+            Open(false,controls.Unequip);
+        }
+        private static bool Confirming(DateTime now) =>
+            Confirms(holder!=Controls.Static.Unequip,holder.RawPressed,holder.HasPressed,(now-openedAt).TotalSeconds,ref latched);
+        // Holding confirms on release. A quick tap keeps the wheel open until the next tap, except on Unequip, whose tap unequips.
+        internal static bool Confirms(bool tapLatches,bool held,bool pressed,double seconds,ref bool latched)
+        {
+            if(latched) return pressed;
+            if(held) return false;
+            if(tapLatches && seconds<TapSeconds) { latched=true; return false; }
+            return true;
         }
         internal static ActionChoice[][] WithRecents(ActionChoice[][] pages,ActionChoice[] recent)
         {
@@ -157,8 +169,9 @@ namespace SpaceEngineersVR.Player
             Array.Copy(recent,last,Math.Min(9,recent.Length));
             return pages.Concat(new[] {last}).ToArray();
         }
-        private static void Open(bool quick)
+        private static void Open(bool quick,Button button)
         {
+            holder=button; latched=false; openedAt=DateTime.UtcNow;
             bool jetpack=InputRouter.Mode==InputMode.Jetpack || MySession.Static?.LocalCharacter?.JetpackComp?.TurnedOn==true;
             quickChoices=quick ? GameActions.WheelActions(PlacementControls.OwnsTools,InputRouter.Mode==InputMode.Piloting,ThirdPersonView.Active,jetpack):null;
             quickPage=0; quickPages=null; pageTitles=null; variantPages=null;
@@ -281,7 +294,7 @@ namespace SpaceEngineersVR.Player
 
         public static void Close(bool resume = true)
         {
-            gesture.Reset(); quickGesture.Reset(); navigation.Reset(); selection = -1; view = null;
+            gesture.Reset(); navigation.Reset(); selection = -1; view = null; holder=null; latched=false;
             quickChoices=null; quickPages=null;
             InputRouter.RadialOpen = false;
             InputRouter.Reset();

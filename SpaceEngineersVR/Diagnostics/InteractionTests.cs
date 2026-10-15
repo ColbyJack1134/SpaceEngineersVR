@@ -206,6 +206,14 @@ namespace SpaceEngineersVR.Diagnostics
             Require(taps.Update(true,true,true,false,holdTime.AddSeconds(window+.05))==1,"Slow second press joined a double click");
             taps.Update(true,false,false,true,holdTime);
             Require(taps.Update(false,false,false,false,holdTime.AddSeconds(window/2))==0 && taps.Update(true,false,false,false,holdTime.AddSeconds(window+.3))==0,"Leaving flight kept a pending dampener tap");
+            bool latched=false;
+            Require(!ToolbarWheel.Confirms(true,true,false,.1,ref latched) && !latched,"Wheel confirmed while its button was still held");
+            Require(!ToolbarWheel.Confirms(true,false,false,.1,ref latched) && latched,"A quick bumper tap closed the wheel instead of keeping it open");
+            Require(!ToolbarWheel.Confirms(true,false,false,2,ref latched),"An open tapped wheel closed without a second tap");
+            Require(ToolbarWheel.Confirms(true,true,true,2.1,ref latched),"A second tap did not confirm the tapped wheel");
+            latched=false;
+            Require(ToolbarWheel.Confirms(true,false,false,.5,ref latched) && !latched,"Releasing a held bumper did not confirm the wheel");
+            Require(ToolbarWheel.Confirms(false,false,false,.05,ref latched) && !latched,"Hold-B wheel latched open; a B tap must stay unequip");
             var gesture=new ToolbarGesture(); var cockpit=new object(); var now=DateTime.UtcNow;
             foreach(int slot in new[] {0,3,8,9,12})
             {
