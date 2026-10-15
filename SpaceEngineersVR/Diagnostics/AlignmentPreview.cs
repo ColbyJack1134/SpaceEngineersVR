@@ -16,7 +16,7 @@ namespace SpaceEngineersVR.Diagnostics
     // Hand alignment target glove with installed SteamVR controller meshes, held at the grip pose the plugin resolves for each.
     public static class AlignmentPreview
     {
-        private static readonly string[] Models={"oculus_quest2_controller_right","valve_controller_knu_1_0_right","vr_controller_vive_1_5",
+        private static readonly string[] Models={"oculus_quest_plus_controller_right","oculus_quest2_controller_right","valve_controller_knu_1_0_right","vr_controller_vive_1_5",
             "frame_controller_right","vive_focus3_controller_right","pico_4_controller_right"};
         public static void Export(string game,string output,string steamVr,Action<string> log)
         {
