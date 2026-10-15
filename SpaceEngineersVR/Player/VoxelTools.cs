@@ -258,13 +258,13 @@ namespace SpaceEngineersVR.Player
             MySession.Static?.LocalCharacter is MyCharacter character && MySession.Static.ControlledEntity==character;
         internal override string Title => Terrain ? "Terrain tool":"Concrete tool";
         internal override MyStringId PaintControl => MyControlsSpace.CUBE_COLOR_CHANGE;
-        // The wheel latch or a held grip is the mod's Ctrl removal modifier. Ctrl is also its rotation step,
-        // so it is dropped while the sticks turn the box unless the trigger is already part way through a removal.
         private bool removeLatched;
         private string RemoveAction => Terrain ? "Remove terrain":"Remove concrete";
         internal bool Removing { get; private set; }
         internal override void Queue(ActionFrame frame,bool primary,bool secondary)
         {
+            // Ctrl removes in the mod and is also its 90 degree rotation step, so it drops while the sticks turn the box
+            // unless the trigger is already part way through a removal.
             Removing=(removeLatched || secondary) && (primary || !VoxelTools.Rotating);
             if(primary) frame.Queue(MyControlsSpace.PRIMARY_TOOL_ACTION);
         }
@@ -275,7 +275,6 @@ namespace SpaceEngineersVR.Player
             matrix=(MatrixD)placeMatrix.GetValue(mod);
             return true;
         }
-        // With Ctrl held the mod reads rotation as single 90 degree presses instead of its own steps.
         internal override void Rotate(int control,float dt)
         {
             if(Removing) return;

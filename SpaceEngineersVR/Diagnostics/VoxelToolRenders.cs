@@ -67,7 +67,6 @@ namespace SpaceEngineersVR.Diagnostics
                 {
                     model.Selected=terrainChoices[2].Label; model.Icons=new[] {terrainChoices[2].Icon}; model.Ammo="38";
                     UiTests.Render(hud,()=>EssentialHud.Paint(hud,model)); UiTests.Save(hud.Texture,Path.Combine(output,"hud-terrain-tool.png"));
-                    // The latched remove state reaches the slot the same way the selected type does.
                     VoxelToolTests.Attach(); remove.Run();
                     try
                     {

@@ -171,8 +171,6 @@ namespace SpaceEngineersVR.Diagnostics
             finally { DigiFixture.Instance=null; }
         }
 
-        // Ctrl removes in the mod and also turns its rotation into single 90 degree presses, so it must not
-        // reach the mod while the sticks rotate, and must not drop during a hold, which would place terrain instead.
         private static void RemoveMode(DigiTool tool)
         {
             var frame=new Player.Control.ActionFrame();
