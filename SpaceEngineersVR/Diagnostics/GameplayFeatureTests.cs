@@ -18,8 +18,24 @@ namespace SpaceEngineersVR.Diagnostics
         { [DataMember] public Dictionary<string,float[]> absolute=new Dictionary<string,float[]>(); }
         private static void Near(float actual,float expected,string message,float tolerance=.0002f)
         { if(!actual.IsValid() || Math.Abs(actual-expected)>tolerance) throw new Exception(message+": "+actual); }
+        // The head-driven bend writes the native leaning value; the installed astronaut must bend its spine from it on the jetpack too.
+        private static void HeadLean(Action<string> log)
+        {
+            var field=HarmonyLib.AccessTools.Field(typeof(Sandbox.Game.Entities.Character.MyCharacter),"m_animLeaning");
+            if(field?.FieldType!=typeof(VRage.Sync.Sync<float,VRage.Sync.SyncDirection.BothWays>)) throw new Exception("Native character leaning value changed");
+            var controller=System.Xml.Linq.XDocument.Load(Path.Combine(VRage.FileSystem.MyFileSystem.ContentPath,"Data","AnimationControllers","AC_Astronaut.sbc"));
+            var layer=controller.Descendants("Layer").FirstOrDefault(l=>(string)l.Element("Name")=="Leaning");
+            var machine=controller.Descendants("StateMachine").FirstOrDefault(m=>(string)m.Element("Name")==(string)layer?.Element("StateMachine") && m.Element("Nodes")!=null);
+            var node=machine?.Element("Nodes")?.Elements("Node").FirstOrDefault(n=>(string)n.Element("Name")==(string)layer?.Element("InitialSMNode"));
+            var exits=machine?.Descendants("Transition").Where(t=>(string)t.Attribute("From")==(string)node?.Element("Name")).ToArray();
+            if(layer==null || !((string)layer.Element("BoneMask")).Contains("SE_RigSpine") || node==null ||
+                !node.Descendants("ParameterName").Any(p=>(string)p=="lean") || exits.Any(t=>t.Descendants("Condition").Any(c=>(string)c.Attribute("Lhs")!="crouch")))
+                throw new Exception("Installed astronaut no longer bends its spine from lean outside a crouch");
+            log("PASS head lean: native leaning value drives the astronaut's spine layer in every state but a crouch");
+        }
         public static void Run(Action<string> log,string output=null)
         {
+            HeadLean(log);
             foreach(bool selected in new[] {false,true})
                 if(BodyFit.UseFit(true,selected,true) || BodyFit.UseFit(false,selected,false) || BodyFit.UseFit(true,selected,false)!=selected)
                     throw new Exception("Body fitting changed native cockpit size or ignored opt-in");

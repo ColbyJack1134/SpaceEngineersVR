@@ -34,6 +34,17 @@ namespace SpaceEngineersVR.Player
             forward.Normalize();
             return MatrixD.CreateWorld(value.Translation,forward,up);
         }
+        // Heading from the head's right axis, which pitch never turns: looking straight down, or past it, keeps the heading.
+        // False only with the head rolled onto its side, where the heading is undefined.
+        public static bool TryFacing(MatrixD head,Vector3D up,out MatrixD facing)
+        {
+            facing=MatrixD.Identity;
+            up.Normalize();
+            Vector3D right=head.Right-up*Vector3D.Dot(head.Right,up);
+            if(right.LengthSquared()<0.04) return false;
+            facing=MatrixD.CreateWorld(head.Translation,Vector3D.Cross(up,Vector3D.Normalize(right)),up);
+            return true;
+        }
         public static float PlanarYaw(Vector3 forward)
         {
             if (forward.X*forward.X+forward.Z*forward.Z<0.0001f) return 0;

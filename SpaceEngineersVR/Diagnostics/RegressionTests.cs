@@ -298,6 +298,15 @@ namespace SpaceEngineersVR.Diagnostics
             var centre=new Vector3D(3,4,5);
             MatrixD tiltedFeet=tilted; tiltedFeet.Translation=centre-tilted.Up*0.9;
             Near(Vector3D.Distance(VrMath.EyePosition(tiltedFeet,sideways,eye,0.9),centre+Vector3D.Up*0.8),0,"tilted body cannot move the eye",1e-9);
+            // The body faces where the head faces at any pitch, including straight down and past it, where the forward flattens or reverses.
+            var heading=MatrixD.CreateRotationY(.7);
+            foreach(double pitch in new[] {-30.0,-89.9,-90,-135,-170,60,135})
+            {
+                var look=MatrixD.CreateRotationX(MathHelper.ToRadians(pitch))*MatrixD.CreateRotationZ(.2)*heading;
+                if(!VrMath.TryFacing(look,Vector3D.Up,out var facing)) throw new Exception("Body facing lost at pitch "+pitch);
+                Near(Vector3D.Distance(facing.Forward,heading.Forward),0,"body facing at pitch "+pitch,1e-9);
+            }
+            if(VrMath.TryFacing(MatrixD.CreateRotationZ(MathHelper.PiOver2)*heading,Vector3D.Up,out _)) throw new Exception("Body facing guessed a heading for a head on its side");
             log("PASS stand-up keeps heading and eye position on the capsule centre");
 
             // Standing sway affects the eyes without touching the capsule. The old

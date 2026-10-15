@@ -26,10 +26,10 @@ namespace SpaceEngineersVR.Player
                 if (Common.Config.UseHeadRotationForCharacter)
                 {
                     MatrixD head=(MatrixD)Player.Headset.deviceToPlayer*CameraRig.Anchor;
-                    MatrixD body=VrMath.Level(head,character.WorldMatrix.Up);
-                    body.Translation=character.WorldMatrix.Translation;
-                    if(Vector3D.DistanceSquared(body.Forward,character.WorldMatrix.Forward)>0.000001)
+                    if(VrMath.TryFacing(head,character.WorldMatrix.Up,out MatrixD body) &&
+                        Vector3D.DistanceSquared(body.Forward,character.WorldMatrix.Forward)>0.000001)
                     {
+                        body.Translation=character.WorldMatrix.Translation;
                         character.Physics.CharacterProxy.SetForwardAndUp(body.Forward,body.Up);
                         // Physics already owns the transform. Do not teleport its capsule to
                         // the animated/IK-offset visual position on every head turn.
