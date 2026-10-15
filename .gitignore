@@ -21,3 +21,4 @@ __pycache__/
 /docs/
 /*.md
 !/CONTROLS.md
+!/CONTROLS-FRAME.md

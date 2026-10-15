@@ -39,9 +39,9 @@ Flatscreen multiplayer hosts and clients can install the optional `SpaceEngineer
 
 ## Controls
 
-[Controls guide](CONTROLS.md). Also available in game.
+[Controls guide](CONTROLS.md) • [Steam Frame controls guide](CONTROLS-FRAME.md). Also available in game.
 
-Controls guide made for Quest 3. Touch controllers (All quests and Rift S) are fully supported. Full Steam Frame support coming soon once mine arrives.
+Controls guide made for Quest 3. Touch controllers (All quests and Rift S) and Steam Frame controllers are fully supported.
 
 Other bindings provided but untested:
 - Index Controllers
@@ -50,6 +50,5 @@ Other bindings provided but untested:
 - WMR controllers
 - HP Reverb G2
 - Legacy Knuckles
-- Steam Frame Controllers
 
 Based on [SpaceEngineersVR](https://github.com/Math0424/SpaceEngineersVR) by Math0424 and contributors, licensed under GPL-2.0.
