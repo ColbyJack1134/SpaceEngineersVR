@@ -1,167 +1,122 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
-using HarmonyLib;
 using SpaceEngineersVR.Plugin;
+using SpaceEngineersVR.Util;
 using VRage.Game.Entity;
 using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
-    // Read-only views into WeaponCore's client session for data its public API does not expose
-    // (per-weapon ammo, reload and heat, the player's manual aim target). Every lookup is by name and
-    // cached; a missing member disables only the feature that needs it.
+    // WeaponCore's client session, for what its public API does not expose: per-weapon state, the player's fake targets
+    // (manual aim, paint) and client focus requests. Reads by name through ModReflection.
     internal static class WeaponCoreInternals
     {
-        private static readonly Dictionary<(Type,string),Func<object,object>> readers=new Dictionary<(Type,string),Func<object,object>>();
+        // Used when WeaponCore reports no targeting range for the tracked AI.
+        private const double FallbackRange=5000;
         private static Func<object> session;
         private static bool resolved,failed;
 
         internal static bool Available => WeaponCoreBridge.ApiReady && Resolve() && Session!=null;
         internal static object Session => session?.Invoke();
-        internal static Type SessionType { get; private set; }
 
         private static bool Resolve()
         {
             if(resolved) return true;
             if(failed) return false;
-            SessionType=LiveType("CoreSystems.Session","I");
-            session=SessionType==null ? null : StaticReader(SessionType,"I");
+            var type=ModReflection.LiveType("CoreSystems.Session","I");
+            session=type==null ? null : ModReflection.StaticReader(type,"I");
             if(session==null) { failed=true; Logger.Info("WeaponCore session not found; VR weapon status and aim disabled"); return false; }
             resolved=true;
             return true;
         }
 
-        internal static void Reset()
-        {
-            readers.Clear(); session=null; SessionType=null; fakeUpdate=null; fakeUpdateType=null; resolved=failed=false;
-        }
-
-        // Mods are recompiled into a new assembly on every world load and the old assemblies stay loaded, so a lookup by
-        // name alone can return a previous world's dead copy. Returns the newest copy whose static instance is set.
-        internal static Type LiveType(string fullName,string instance)
-        {
-            foreach(var assembly in Util.Util.NewestAssemblies())
-            {
-                var type=assembly.GetType(fullName,false);
-                if(type!=null && StaticReader(type,instance)?.Invoke()!=null) return type;
-            }
-            return null;
-        }
-
-        // Getter for a static field or property; null when neither exists.
-        internal static Func<object> StaticReader(Type type,string name)
-        {
-            var field=AccessTools.Field(type,name);
-            if(field!=null && field.IsStatic) return ()=>field.GetValue(null);
-            var getter=AccessTools.Property(type,name)?.GetGetMethod(true);
-            return getter!=null && getter.IsStatic ? ()=>getter.Invoke(null,null) : (Func<object>)null;
-        }
-
-        // Reads a field or property by name on the runtime type of obj. Returns null when missing.
-        internal static object Get(object obj,string name)
-        {
-            if(obj==null) return null;
-            var type=obj.GetType();
-            var key=(type,name);
-            if(!readers.TryGetValue(key,out var reader))
-            {
-                var field=AccessTools.Field(type,name);
-                if(field!=null) reader=o=>field.GetValue(o);
-                else
-                {
-                    var property=AccessTools.Property(type,name);
-                    var getter=property?.GetGetMethod(true);
-                    reader=getter!=null ? (Func<object,object>)(o=>getter.Invoke(o,null)) : (o=>null);
-                }
-                readers[key]=reader;
-            }
-            try { return reader(obj); }
-            catch(Exception) { return null; }
-        }
-
-        internal static object Path(object obj,params string[] names)
-        {
-            foreach(string name in names) { obj=Get(obj,name); if(obj==null) return null; }
-            return obj;
-        }
-
-        internal static T Value<T>(object obj,T fallback,params string[] names) => Path(obj,names) is T value ? value : fallback;
+        internal static void Reset() { session=null; resolved=failed=false; }
 
         internal static object TrackingAi
         {
             get
             {
                 var session=Session;
-                if(session==null || !Value(session,false,"InGridAiBlock")) return null;
-                var ai=Get(session,"TrackingAi");
-                return ai==null || Value(ai,false,"MarkedForClose") ? null : ai;
+                if(session==null || !ModReflection.Value(session,false,"InGridAiBlock")) return null;
+                var ai=ModReflection.Get(session,"TrackingAi");
+                return ai==null || ModReflection.Value(ai,false,"MarkedForClose") ? null : ai;
             }
         }
 
-        internal static uint Tick => Value(Session,0u,"Tick");
-        internal static long PlayerId => Value(Session,0L,"PlayerId");
-        internal static double MaxTargetingRange => Value(TrackingAi,0d,"MaxTargetingRange");
+        internal static uint Tick => ModReflection.Value(Session,0u,"Tick");
+        internal static long PlayerId => ModReflection.Value(Session,0L,"PlayerId");
+        internal static double TargetingRange { get { double range=ModReflection.Value(TrackingAi,0d,"MaxTargetingRange"); return range>0 ? range:FallbackRange; } }
+
+        // Client focus requests, the path WeaponCore's own target selection uses; its public focus API only works on the server.
+        internal static bool RequestFocus(MyEntity target) => FocusCall("RequestAddFocus",target,true);
+        internal static bool RequestRelease() => FocusCall("RequestReleaseActive",null,false);
+        internal static bool RequestFocusLock() => FocusCall("RequestAddLock",null,false);
+        private static bool FocusCall(string method,MyEntity target,bool withTarget)
+        {
+            var ai=TrackingAi;
+            var focus=ModReflection.Path(ai,"Construct","Focus");
+            if(focus==null) return false;
+            var types=withTarget ? new[] {typeof(MyEntity),ai.GetType(),typeof(long)}:new[] {ai.GetType(),typeof(long)};
+            var arguments=withTarget ? new object[] {target,ai,PlayerId}:new object[] {ai,PlayerId};
+            return ModReflection.Call(focus,method,types,arguments);
+        }
 
         internal static IEnumerable<object> WeaponComps()
         {
-            if(!(Get(TrackingAi,"WeaponComps") is IList comps)) yield break;
+            if(!(ModReflection.Get(TrackingAi,"WeaponComps") is IList comps)) yield break;
             for(int i=0;i<comps.Count;i++) if(comps[i]!=null) yield return comps[i];
         }
 
         internal static IEnumerable<object> Weapons(object comp)
         {
-            if(!(Get(comp,"Collection") is IList weapons)) yield break;
+            if(!(ModReflection.Get(comp,"Collection") is IList weapons)) yield break;
             for(int i=0;i<weapons.Count;i++) if(weapons[i]!=null) yield return weapons[i];
         }
 
-        internal static MyEntity CompEntity(object comp) => Get(comp,"CoreEntity") as MyEntity;
+        internal static MyEntity CompEntity(object comp) => ModReflection.Get(comp,"CoreEntity") as MyEntity;
 
         // The player's fake targets: "ManualTarget" (Manual-mode aim point) and "PaintedTarget" (painter mark).
-        internal static object FakeTarget(string which)
+        private static object FakeTarget(string which)
         {
-            var session=Session;
-            if(!(Get(session,"PlayerDummyTargets") is IDictionary targets)) return null;
+            if(!(ModReflection.Get(Session,"PlayerDummyTargets") is IDictionary targets)) return null;
             long id=PlayerId;
-            return targets.Contains(id) ? Get(targets[id],which) : null;
+            return targets.Contains(id) ? ModReflection.Get(targets[id],which) : null;
         }
 
-        private static MethodInfo fakeUpdate;
-        private static Type fakeUpdateType;
         // WeaponCore syncs a fake target to the server when it was updated on the current tick, so call this from its input step.
-        internal static bool UpdateFake(string which,Vector3D position,MyEntity hit)
-        {
-            var target=FakeTarget(which);
-            if(target==null) return false;
-            if(fakeUpdateType!=target.GetType())
-            {
-                fakeUpdateType=target.GetType();
-                fakeUpdate=AccessTools.Method(fakeUpdateType,"Update",new[] {typeof(Vector3D),typeof(uint),typeof(MyEntity),typeof(long)});
-            }
-            if(fakeUpdate==null) return false;
-            fakeUpdate.Invoke(target,new object[] {position,Tick,hit,0L});
-            return true;
-        }
+        internal static bool UpdateFake(string which,Vector3D position,MyEntity hit) =>
+            ModReflection.Call(FakeTarget(which),"Update",new[] {typeof(Vector3D),typeof(uint),typeof(MyEntity),typeof(long)},position,Tick,hit,0L);
 
-        internal static bool UpdateManualTarget(Vector3D position,MyEntity hit) => UpdateFake("ManualTarget",position,hit);
-        internal static long PaintedEntity => Value(FakeTarget("PaintedTarget"),0L,"EntityId");
+        internal static long PaintedEntity => ModReflection.Value(FakeTarget("PaintedTarget"),0L,"EntityId");
         // The painted entity and the mark's offset in its frame, as WeaponCore keeps it; false when nothing is painted.
         internal static bool PaintMark(out MyEntity entity,out Vector3D local)
         {
             var target=FakeTarget("PaintedTarget");
-            entity=Get(target,"TmpEntity") as MyEntity;
-            local=Get(target,"LocalPosition") is Vector3D offset ? offset:Vector3D.Zero;
-            if(entity==null || entity.Closed || entity.MarkedForClose || Value(target,0L,"EntityId")!=entity.EntityId) { entity=null; return false; }
+            entity=ModReflection.Get(target,"TmpEntity") as MyEntity;
+            local=ModReflection.Get(target,"LocalPosition") is Vector3D offset ? offset:Vector3D.Zero;
+            if(entity==null || entity.Closed || entity.MarkedForClose || ModReflection.Value(target,0L,"EntityId")!=entity.EntityId) { entity=null; return false; }
             return true;
         }
 
+        internal static object TargetUi => ModReflection.Get(Session,"TargetUi");
         // A WeaponCore hand weapon is the active weapon AI (the player is not seated).
-        internal static bool HandheldActive => Get(TrackingAi,"AiType")?.ToString()=="Player";
+        internal static bool HandheldActive => ModReflection.Get(TrackingAi,"AiType")?.ToString()=="Player";
         // A guided hand weapon that takes a selected target, as WeaponCore's middle-click selection does on desktop.
-        internal static bool SmartHandheld => Value(TrackingAi,false,"SmartHandheld");
-        internal static bool DroneAlert => Value(TrackingAi,false,"Construct","DroneAlert");
+        internal static bool SmartHandheld => ModReflection.Value(TrackingAi,false,"SmartHandheld");
+        internal static bool DroneAlert => ModReflection.Value(TrackingAi,false,"Construct","DroneAlert");
+        // Servers can disable HUD painting; WeaponCore then ignores the mark.
+        internal static bool PaintProhibited => ModReflection.Value(Session,false,"Settings","Enforcement","ProhibitHUDPainter");
         // WeaponCore's hand-weapon reload key (tap: reload, hold one second: cycle ammo).
-        internal static VRage.Input.MyKeys ReloadKey => Value(Session,VRage.Input.MyKeys.None,"UiInput","ReloadKey");
+        internal static VRage.Input.MyKeys ReloadKey => ModReflection.Value(Session,VRage.Input.MyKeys.None,"UiInput","ReloadKey");
+        // Focus lock mode: when locked, the focus is kept even out of view. Null when unavailable.
+        internal static bool? FocusLocked
+        {
+            get
+            {
+                var mode=ModReflection.Path(TrackingAi,"Construct","Data","Repo","FocusData","Locked");
+                return mode==null ? (bool?)null : mode.ToString()!="None";
+            }
+        }
     }
 }

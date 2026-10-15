@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using SpaceEngineersVR.Plugin;
 using VRage.Game.Entity;
+using SpaceEngineersVR.Util;
 
 namespace SpaceEngineersVR.Player
 {
@@ -57,28 +58,28 @@ namespace SpaceEngineersVR.Player
 
         private static Row Read(object weapon,MyEntity entity,uint tick)
         {
-            string name=WeaponCoreInternals.Value(weapon,"","FriendlyName");
+            string name=ModReflection.Value(weapon,"","FriendlyName");
             if(string.IsNullOrWhiteSpace(name)) name=(entity as Sandbox.ModAPI.IMyTerminalBlock)?.CustomName ?? entity.DisplayName ?? "Weapon";
-            int ammo=WeaponCoreInternals.Value(weapon,-1,"ProtoWeaponAmmo","CurrentAmmo");
-            int magazine=WeaponCoreInternals.Value(weapon,0,"ActiveAmmoDef","AmmoDef","Const","MagazineSize");
-            bool mustCharge=WeaponCoreInternals.Value(weapon,false,"ActiveAmmoDef","AmmoDef","Const","MustCharge");
-            bool loading=WeaponCoreInternals.Value(weapon,false,"Loading");
-            bool outOfAmmo=WeaponCoreInternals.Value(weapon,false,"OutOfAmmo");
-            bool overheated=WeaponCoreInternals.Value(weapon,false,"PartState","Overheated");
-            float heat=WeaponCoreInternals.Value(weapon,0f,"HeatPerc");
+            int ammo=ModReflection.Value(weapon,-1,"ProtoWeaponAmmo","CurrentAmmo");
+            int magazine=ModReflection.Value(weapon,0,"ActiveAmmoDef","AmmoDef","Const","MagazineSize");
+            bool mustCharge=ModReflection.Value(weapon,false,"ActiveAmmoDef","AmmoDef","Const","MustCharge");
+            bool loading=ModReflection.Value(weapon,false,"Loading");
+            bool outOfAmmo=ModReflection.Value(weapon,false,"OutOfAmmo");
+            bool overheated=ModReflection.Value(weapon,false,"PartState","Overheated");
+            float heat=ModReflection.Value(weapon,0f,"HeatPerc");
             var row=new Row {Name=name,Count=1,Ammo=ammo>=0 && magazine>0 ? ammo+" / "+magazine : ammo>=0 ? ammo.ToString() : ""};
 
             if(mustCharge && loading)
             {
-                float charge=WeaponCoreInternals.Value(weapon,0f,"ProtoWeaponAmmo","CurrentCharge");
-                float max=WeaponCoreInternals.Value(weapon,0f,"MaxCharge");
+                float charge=ModReflection.Value(weapon,0f,"ProtoWeaponAmmo","CurrentCharge");
+                float max=ModReflection.Value(weapon,0f,"MaxCharge");
                 row.Progress=max>0 ? Math.Max(0,Math.Min(1,charge/max)) : (float?)null;
                 row.Status="Charging"; row.Severity=1;
             }
             else if(loading)
             {
-                uint end=WeaponCoreInternals.Value(weapon,uint.MaxValue,"ReloadEndTick");
-                int time=WeaponCoreInternals.Value(weapon,0,"System","WConst","ReloadTime");
+                uint end=ModReflection.Value(weapon,uint.MaxValue,"ReloadEndTick");
+                int time=ModReflection.Value(weapon,0,"System","WConst","ReloadTime");
                 if(end<uint.MaxValue-1 && time>0) row.Progress=Math.Max(0,Math.Min(1,1-(float)((long)end-tick)/time));
                 row.Status="Reloading"; row.Severity=1;
             }
@@ -159,7 +160,7 @@ namespace SpaceEngineersVR.Player
                 keys.Add(new SurfaceKey(detail,.035f,y+.075f,.93f,.05f) {Caption=true,Enabled=false});
                 y+=.135f;
             }
-            bool? locked=WeaponCoreBridge.FocusLocked();
+            bool? locked=WeaponCoreInternals.FocusLocked;
             keys.Add(new SurfaceKey("Focus lock",.025f,y,.30f,.07f) {Action=TargetLock.FocusLockAction,Enabled=grid!=null && locked.HasValue,Value=locked==true ? "On":"Off"});
             keys.Add(new SurfaceKey("Prev",.34f,y,.15f,.07f) {Action=TargetLock.PreviousTargetAction,Enabled=grid!=null});
             keys.Add(new SurfaceKey("Next",.50f,y,.15f,.07f) {Action=TargetLock.NextTargetAction,Enabled=grid!=null});
@@ -193,7 +194,7 @@ namespace SpaceEngineersVR.Player
 
             keys.Add(new SurfaceKey("Back",.025f,.91f,.15f,.07f) {Action=new ActionChoice("Back",()=>WristPanel.Show(0))});
             keys.Add(new SurfaceKey("Lock ahead",.19f,.91f,.25f,.07f) {Action=TargetLock.LockAheadAction,Enabled=grid!=null});
-            keys.Add(new SurfaceKey(WeaponCoreAim.PaintArmed ? "Cancel paint":"Paint",.455f,.91f,.25f,.07f) {Action=TargetLock.PaintAction,Enabled=grid!=null && !WeaponCoreAim.PaintProhibited,Active=WeaponCoreAim.PaintArmed || WeaponCoreAim.Painted});
+            keys.Add(new SurfaceKey(WeaponCoreAim.PaintArmed ? "Cancel paint":"Paint",.455f,.91f,.25f,.07f) {Action=TargetLock.PaintAction,Enabled=grid!=null && !WeaponCoreInternals.PaintProhibited,Active=WeaponCoreAim.PaintArmed || WeaponCoreAim.Painted});
             keys.Add(new SurfaceKey("Clear paint",.72f,.91f,.255f,.07f) {Action=TargetLock.ClearPaintAction,Enabled=grid!=null && WeaponCoreAim.Painted});
         }
     }

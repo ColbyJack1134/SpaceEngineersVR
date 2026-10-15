@@ -12,13 +12,10 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
-    // WeaponCore target locking from VR:
-    //  - Tap the right grip while pointing (at the world, or at the camera feed image): lock / unlock.
-    //    This reuses the plugin's existing cockpit grip tap (ship secondary / vanilla lock); WC grids are routed here instead.
-    //  - "Lock target ahead" action: lock along the feed centre (where WC draws its camera reticle) or the cockpit nose.
+    // WeaponCore target locking while seated: the cockpit grip tap (or a grip tap on a camera feed) locks what the action
+    // hand points at, and actions lock ahead, cycle, release and toggle focus lock. On foot, see HandLock.
     internal static class TargetLock
     {
-        private const double Range=20000;
         private const double ConeDegrees=2.0;
         private static readonly double coneCos=Math.Cos(MathHelper.ToRadians(ConeDegrees));
 
@@ -33,68 +30,24 @@ namespace SpaceEngineersVR.Player
         internal static readonly ActionChoice PreviousTargetAction=new ActionChoice("Previous target",()=>Cycle(-1),
             enabled:()=>ShooterGrid()!=null,searchTerms:"weaponcore wc target cycle previous focus");
         internal static readonly ActionChoice ReleaseTargetAction=new ActionChoice("Release target",Release,
-            enabled:()=>ShooterGrid()!=null || HandShooter()!=null,searchTerms:"weaponcore wc target release unlock focus clear");
+            enabled:()=>ShooterGrid()!=null || HandLock.Shooter()!=null,searchTerms:"weaponcore wc target release unlock focus clear");
         internal static readonly ActionChoice FocusLockAction=new ActionChoice("Toggle focus lock",ToggleFocusLock,
             enabled:()=>ShooterGrid()!=null,searchTerms:"weaponcore wc focus lock hold keep target");
         internal static readonly ActionChoice PaintAction=new ActionChoice("Paint target",WeaponCoreAim.RequestPaint,
-            enabled:()=>ShooterGrid()!=null && !WeaponCoreAim.PaintProhibited,searchTerms:"weaponcore wc painter paint mark guided");
+            enabled:()=>ShooterGrid()!=null && !WeaponCoreInternals.PaintProhibited,searchTerms:"weaponcore wc painter paint mark guided");
         internal static readonly ActionChoice ClearPaintAction=new ActionChoice("Clear paint",WeaponCoreAim.RequestClearPaint,
             enabled:()=>ShooterGrid()!=null,searchTerms:"weaponcore wc painter paint clear");
-        // Smart (guided) WeaponCore hand weapons: the action arms, and the next trigger pull locks the tracked target the gun
-        // points at, or releases on the locked target or empty space. On foot the grip is the weapon's secondary action.
-        private static readonly TriggerArm handLockArm=new TriggerArm(10);
-        internal static bool HandLockArmed => handLockArm.Armed;
-        // The target a pull would lock now.
-        internal static MyEntity HandLockPreview { get; private set; }
-        internal static readonly ActionChoice HandLockAction=new ActionChoice(()=>HandLockArmed ? "Cancel lock":"Lock target",ToggleHandLock,
-            ()=>HandShooter()!=null,"WeaponCore hand lock");
-        internal static readonly ActionChoice[] Actions={LockAheadAction,NextTargetAction,PreviousTargetAction,ReleaseTargetAction,FocusLockAction,PaintAction,ClearPaintAction,HandLockAction};
+        internal static readonly ActionChoice[] Actions={LockAheadAction,NextTargetAction,PreviousTargetAction,ReleaseTargetAction,FocusLockAction,PaintAction,ClearPaintAction,HandLock.Action};
 
         internal static void Reset()
         {
             feedTap.Update(false,false,true,DateTime.UtcNow);
             feedGripWas=false;
-            handLockArm.Disarm(); HandLockPreview=null;
         }
-
-        private static void ToggleHandLock()
-        {
-            if(HandLockArmed) { handLockArm.Disarm(); HandLockPreview=null; EssentialHud.Notify("Lock cancelled"); return; }
-            if(HandShooter()==null) return;
-            handLockArm.Arm();
-            EssentialHud.Notify("Lock armed: aim and pull the trigger");
-            Handedness.ActionHand.Vibrate(0,.03f,120,.15f);
-        }
-
-        private static void UpdateHandLock()
-        {
-            HandLockPreview=null;
-            if(!HandLockArmed) return;
-            var shooter=HandShooter();
-            if(shooter==null) { handLockArm.Disarm(); return; }
-            if(handLockArm.Expired) { handLockArm.Disarm(); EssentialHud.Notify("Lock cancelled"); return; }
-            var hand=Handedness.ActionHand;
-            if(GridSelection.TryPointer(hand,out var pose)) HandLockPreview=Pick(shooter,pose.Translation,pose.Forward);
-            if(!handLockArm.Pulled()) return;
-            Toggle(shooter,HandLockPreview,true);
-            hand.Vibrate(0,.025f,90,HandLockPreview!=null ? .25f:.12f);
-            HandLockPreview=null;
-        }
-
-        // The local character while it holds a smart (guided) WeaponCore hand weapon; null otherwise.
-        internal static MyEntity HandShooter() =>
-            WeaponCoreBridge.ApiReady && WeaponCoreInternals.Available && WeaponCoreInternals.HandheldActive && WeaponCoreInternals.SmartHandheld ?
-                MySession.Static?.LocalCharacter : null;
 
         internal static void Update()
         {
-            if(Main.WorldAvailable) WeaponCoreBridge.Load();
-            if(!WeaponCoreBridge.ApiReady) { feedGripWas=false; return; }
-            TargetLockToolbar.Register();
-            WeaponCoreAlerts.Update(ShooterGrid());
-            WeaponCoreAim.UpdatePaintArm();
-            UpdateHandLock();
-            var hand=Player.HandR;
+            var hand=Handedness.ActionHand;
             bool grip=hand.pose.isTracked && Controls.Static.GripClick(hand).RawPressed;
             bool released=feedGripWas && !grip;
             feedGripWas=grip;
@@ -104,11 +57,11 @@ namespace SpaceEngineersVR.Player
             if(feedTap.Update(claimedFeed && grip,released,!claimedFeed,DateTime.UtcNow)) PointAndToggle(hand);
         }
 
-        // Called from the cockpit's existing right-grip tap. Returns true when WeaponCore handled it.
+        // Called from the cockpit's action-hand grip tap. Returns true when WeaponCore handled it.
         internal static bool OnGripTap()
         {
             if(ShooterGrid()==null) return false;
-            PointAndToggle(Player.HandR);
+            PointAndToggle(Handedness.ActionHand);
             return true;
         }
 
@@ -151,7 +104,7 @@ namespace SpaceEngineersVR.Player
 
         internal static void Release()
         {
-            var grid=ShooterGrid() ?? HandShooter();
+            var grid=ShooterGrid() ?? HandLock.Shooter();
             if(grid!=null && WeaponCoreBridge.Focus(grid)!=null && WeaponCoreBridge.ReleaseFocus(grid)) EssentialHud.Notify("Target released");
             WeaponCoreMarkers.Invalidate();
         }
@@ -159,8 +112,8 @@ namespace SpaceEngineersVR.Player
         internal static void ToggleFocusLock()
         {
             if(ShooterGrid()==null) return;
-            bool? locked=WeaponCoreBridge.FocusLocked();
-            if(WeaponCoreBridge.ToggleFocusLock()) EssentialHud.Notify(locked==true ? "Focus lock off" : "Focus lock on");
+            bool? locked=WeaponCoreInternals.FocusLocked;
+            if(WeaponCoreInternals.RequestFocusLock()) EssentialHud.Notify(locked==true ? "Focus lock off" : "Focus lock on");
         }
 
         internal static void LockAhead()
@@ -185,9 +138,6 @@ namespace SpaceEngineersVR.Player
             return true;
         }
 
-        // WeaponCore's targeting range for the controlled grid; Range when unknown.
-        private static double TargetRange { get { double range=WeaponCoreInternals.MaxTargetingRange; return range>0 ? range:Range; } }
-
         // Tracked threats other than the own construct, nearest first; equal distances put the higher threat first.
         internal static List<MyTuple<MyEntity,float>> RankedThreats(MyEntity grid)
         {
@@ -198,6 +148,7 @@ namespace SpaceEngineersVR.Player
                 .OrderBy(t=>Vector3D.DistanceSquared(t.Item1.PositionComp.WorldAABB.Center,centre)).ThenByDescending(t=>t.Item2).ToList();
         }
 
+        // The WeaponCore grid the player fires from: a ship controller, turret or turret controller on a grid with a WeaponCore AI.
         internal static MyEntity ShooterGrid()
         {
             if(!WeaponCoreBridge.ApiReady) return null;
@@ -211,11 +162,11 @@ namespace SpaceEngineersVR.Player
         // Only targets WeaponCore's own AI already tracks are eligible, so VR can never focus something WC's UI could not
         // (the server does not re-check range or detection on focus requests). An exact ray hit on one of them wins;
         // otherwise the tracked threat nearest the ray inside a small cone.
-        private static MyEntity Pick(MyEntity grid,Vector3D origin,Vector3D direction)
+        internal static MyEntity Pick(MyEntity grid,Vector3D origin,Vector3D direction)
         {
             var own=grid.GetTopMostParent();
             var threats=WeaponCoreBridge.Threats(grid);
-            double range=TargetRange;
+            double range=WeaponCoreInternals.TargetingRange;
             var hitEntity=GridSelection.Cast(new LineD(origin,origin+direction*range),out _)?.GetTopMostParent() as MyEntity;
             MyEntity best=null; double bestCos=coneCos;
             foreach(var threat in threats)
@@ -232,7 +183,7 @@ namespace SpaceEngineersVR.Player
             return best;
         }
 
-        private static void Toggle(MyEntity grid,MyEntity picked,bool releaseOnEmpty)
+        internal static void Toggle(MyEntity grid,MyEntity picked,bool releaseOnEmpty)
         {
             WeaponCoreMarkers.Invalidate();
             var current=WeaponCoreBridge.Focus(grid);

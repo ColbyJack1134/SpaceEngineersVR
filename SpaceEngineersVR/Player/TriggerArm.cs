@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using SpaceEngineersVR.Plugin;
 
 namespace SpaceEngineersVR.Player
@@ -9,15 +7,20 @@ namespace SpaceEngineersVR.Player
     // pressed the button is free to aim first. The pull is consumed and never fires; firing is held off while any arm is set.
     internal sealed class TriggerArm
     {
-        private static readonly List<TriggerArm> all=new List<TriggerArm>();
-        internal static bool AnyArmed => all.Any(a=>a.Armed);
+        private static int armedCount;
+        internal static bool AnyArmed => armedCount>0;
 
         private readonly double seconds;
         private DateTime until;
         private bool releaseWait;
-        internal bool Armed { get; private set; }
+        private bool armed;
+        internal bool Armed
+        {
+            get => armed;
+            private set { if(armed==value) return; armed=value; armedCount+=value ? 1:-1; }
+        }
 
-        internal TriggerArm(double seconds) { this.seconds=seconds; all.Add(this); }
+        internal TriggerArm(double seconds) { this.seconds=seconds; }
 
         internal void Arm()
         {

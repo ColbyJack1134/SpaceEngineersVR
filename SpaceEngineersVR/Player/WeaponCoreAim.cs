@@ -4,20 +4,15 @@ using HarmonyLib;
 using Sandbox.Game.Entities;
 using Sandbox.Game.World;
 using SpaceEngineersVR.Plugin;
+using SpaceEngineersVR.Util;
 using VRage.Game.Entity;
 using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
-    // WeaponCore "Manual" control mode makes weapons track the player's aim point. On desktop that point follows the
-    // cockpit nose, or the mouse pointer with Alt / in third person / through a camera. In VR it follows:
-    //   Head  - where the headset looks (default)
-    //   Hand  - the right-hand pointer
-    //   Ship  - WeaponCore's own rule (cockpit nose / camera centre)
-    // With a camera feed open, pointing at the feed image aims through that camera; otherwise the camera centre is kept.
-    // WeaponCore only refreshes the aim point in a first-person seat while Alt is held (its "free look" pointer), so the VR
-    // aim is written every tick from WeaponCore's input step, before it syncs the point to the server, and again right after
-    // WeaponCore computes its own (camera, third person, Alt), so its weapons and multiplayer sync always see the VR point.
+    // Manual-mode aim and painting. Manual weapons follow the head, the action hand's pointer or WeaponCore's own rule
+    // (Mode). WeaponCore refreshes its aim point in a seat only while Alt is held, so the VR point is written before its
+    // input step syncs it to the server and again after it computes its own.
     internal static class WeaponCoreAim
     {
         internal enum Mode { Head, Hand, Ship }
@@ -32,8 +27,7 @@ namespace SpaceEngineersVR.Player
         {
             get
             {
-                var targetUi=WeaponCoreInternals.Get(WeaponCoreInternals.Session,"TargetUi");
-                uint last=WeaponCoreInternals.Value(targetUi,0u,"LastManualTick");
+                uint last=ModReflection.Value(WeaponCoreInternals.TargetUi,0u,"LastManualTick");
                 return last!=0 && WeaponCoreInternals.Tick-last<=2;
             }
         }
@@ -43,7 +37,8 @@ namespace SpaceEngineersVR.Player
 
         internal static void Attach(Type targetUi)
         {
-            if(patched!=null || targetUi==null) return;
+            if(patched!=null) return;
+            if(targetUi==null) { Logger.Info("WeaponCore TargetUi not found; VR manual aim and painting disabled"); return; }
             var method=AccessTools.Method(targetUi,"SelectTarget",new[] {typeof(bool),typeof(bool),typeof(bool)});
             if(method==null) { Logger.Info("WeaponCore SelectTarget not found; VR manual aim disabled"); return; }
             Common.Plugin.Harmony.Patch(method,postfix:new HarmonyMethod(typeof(WeaponCoreAim),nameof(AfterSelect)));
@@ -76,7 +71,7 @@ namespace SpaceEngineersVR.Player
             if(WeaponCoreInternals.TrackingAi==null) { paintRequest=PaintRequest.None; return; }
             ApplyPaint();
             // Hand weapons aim with the hand itself; only seated (grid) weapons take the VR aim point.
-            if(!WeaponCoreInternals.HandheldActive) Apply(WeaponCoreInternals.Get(WeaponCoreInternals.Session,"TargetUi"));
+            if(!WeaponCoreInternals.HandheldActive) Apply(WeaponCoreInternals.TargetUi);
         }
 
         // Painter: marks a point on a target for painter-mode / guided weapons. Requests are applied in WeaponCore's input
@@ -92,17 +87,15 @@ namespace SpaceEngineersVR.Player
         internal static bool PaintArmed => paintArm.Armed;
         // Where a pull would mark now; null when the aim hits nothing.
         internal static Vector3D? PaintPreview { get; private set; }
-        // Servers can disable HUD painting; WeaponCore then ignores the mark.
-        internal static bool PaintProhibited => WeaponCoreInternals.Value(WeaponCoreInternals.Session,false,"Settings","Enforcement","ProhibitHUDPainter");
 
         internal static void RequestPaint()
         {
             if(PaintArmed) { Disarm("Paint cancelled"); return; }
             if(TargetLock.ShooterGrid()==null) return;
-            if(PaintProhibited) { EssentialHud.Notify("Painting is disabled on this server"); return; }
+            if(WeaponCoreInternals.PaintProhibited) { EssentialHud.Notify("Painting is disabled on this server"); return; }
             paintArm.Arm();
             EssentialHud.Notify("Paint armed: pull the trigger to mark");
-            if(Player.HandR.pose.isTracked) Player.HandR.Vibrate(0,.03f,120,.15f);
+            Handedness.ActionHand.Vibrate(0,.03f,120,.15f);
         }
 
         private static void Disarm(string notice)
@@ -120,8 +113,7 @@ namespace SpaceEngineersVR.Player
             PaintPreview=null;
             if(TryRay(out var origin,out var direction) || TargetLock.TryAheadRay(out origin,out direction))
             {
-                double range=WeaponCoreInternals.MaxTargetingRange; if(range<=0) range=5000;
-                if(Cast(new LineD(origin,origin+direction*range),out var point)!=null) PaintPreview=point;
+                if(Cast(new LineD(origin,origin+direction*WeaponCoreInternals.TargetingRange),out var point)!=null) PaintPreview=point;
             }
             if(!paintArm.Pulled()) return;
             PaintPreview=null;
@@ -141,10 +133,9 @@ namespace SpaceEngineersVR.Player
                 }
                 // A missed pull stays armed so the player can simply aim again.
                 if(!TryRay(out var origin,out var direction) && !TargetLock.TryAheadRay(out origin,out direction)) { paintArm.Arm(); EssentialHud.Notify("No aim direction; paint still armed"); return; }
-                double range=WeaponCoreInternals.MaxTargetingRange; if(range<=0) range=5000;
-                var hit=Cast(new LineD(origin,origin+direction*range),out var point);
+                var hit=Cast(new LineD(origin,origin+direction*WeaponCoreInternals.TargetingRange),out var point);
                 if(hit==null) { paintArm.Arm(); EssentialHud.Notify("Nothing to paint; still armed"); return; }
-                if(WeaponCoreInternals.UpdateFake("PaintedTarget",point,hit)) { EssentialHud.Notify("Painted "+(hit.DisplayName ?? "target")); Player.HandR.Vibrate(0,.03f,120,.2f); WeaponCoreMarkers.Invalidate(); }
+                if(WeaponCoreInternals.UpdateFake("PaintedTarget",point,hit)) { EssentialHud.Notify("Painted "+(hit.DisplayName ?? "target")); Handedness.ActionHand.Vibrate(0,.03f,120,.2f); WeaponCoreMarkers.Invalidate(); }
             }
             catch(Exception ex) { Logger.Warning(ex,"WeaponCore VR paint failed"); }
         }
@@ -155,11 +146,9 @@ namespace SpaceEngineersVR.Player
             try
             {
                 if(!TryRay(out var origin,out var direction)) return;
-                double range=WeaponCoreInternals.MaxTargetingRange;
-                if(range<=0) range=5000;
-                var end=origin+direction*range;
+                var end=origin+direction*WeaponCoreInternals.TargetingRange;
                 var hit=Cast(new LineD(origin,end),out var point);
-                if(!WeaponCoreInternals.UpdateManualTarget(hit!=null ? point:end,hit)) return;
+                if(!WeaponCoreInternals.UpdateFake("ManualTarget",hit!=null ? point:end,hit)) return;
                 // Keep WeaponCore's own reticle state consistent with the aim it now uses.
                 if(targetUi!=null) { aimPositionField?.SetValue(targetUi,origin); aimDirectionField?.SetValue(targetUi,direction); }
                 AimPoint=hit!=null ? point:end; AimTime=DateTime.UtcNow;
@@ -180,7 +169,7 @@ namespace SpaceEngineersVR.Player
             if(Current==Mode.Ship) return false;
             if(Current==Mode.Hand)
             {
-                if(!GridSelection.TryPointer(Player.HandR,out var pose)) return false;
+                if(!GridSelection.TryPointer(Handedness.ActionHand,out var pose)) return false;
                 origin=pose.Translation; direction=pose.Forward;
             }
             else

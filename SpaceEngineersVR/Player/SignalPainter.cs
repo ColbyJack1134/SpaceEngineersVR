@@ -39,7 +39,7 @@ namespace SpaceEngineersVR.Player
         internal static void Icon(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,WorldMarkers.Marker m,bool box=true,float alpha=1)
         {
             if(m.Kind=="OffscreenTarget") return;
-            if(m.Kind=="WeaponCore") { Lines(output,board,view,projection,m); return; }
+            if(m.Symbol!=null) { Lines(output,board,view,projection,m); return; }
             if(m.Kind=="Target") { Project(output,Atlas(MyHudTexturesEnum.TargetTurret,Vector4.One),board,new RectangleF(-.5f,-.5f,1,1),view,projection); return; }
             if(box && m.Kind!="Objective") Project(output,Atlas(MyHudTexturesEnum.Target_neutral,m.Color),board,new RectangleF(-.5f,-.5f,1,1),view,projection);
             if(m.Kind=="ContractGPS" || m.Kind=="ButtonMarker") return;
@@ -50,41 +50,57 @@ namespace SpaceEngineersVR.Player
         }
         // Line width stays constant in icon units, so a larger Span frames the target instead of drawing a heavier icon.
         private const float LineWidth=.05f;
+        private const string Blank=@"Textures\GUI\Blank.dds";
         private static void Lines(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,WorldMarkers.Marker m)
         {
-            float half=m.Span/2,w=LineWidth/2;
-            Action<float,float,float,float> bar=(x0,y0,x1,y1)=>Project(output,new NativeSprite(@"Textures\GUI\Blank.dds",default(RectangleF),m.Color),board,
-                new RectangleF(Math.Min(x0,x1)-w,Math.Min(y0,y1)-w,Math.Abs(x1-x0)+2*w,Math.Abs(y1-y0)+2*w),view,projection);
+            float half=m.Span/2;
             if(m.Symbol=="cross")
             {
                 float gap=half*.35f;
-                bar(-half,0,-gap,0); bar(gap,0,half,0); bar(0,-half,0,-gap); bar(0,gap,0,half);
+                Line(output,board,view,projection,m.Color,-half,0,-gap,0); Line(output,board,view,projection,m.Color,gap,0,half,0);
+                Line(output,board,view,projection,m.Color,0,-half,0,-gap); Line(output,board,view,projection,m.Color,0,gap,0,half);
                 return;
             }
             float arm=Math.Min(half*.45f,.6f);
-            foreach(float sx in new[] {-1f,1f})
-                foreach(float sy in new[] {-1f,1f})
-                { bar(sx*half,sy*half,sx*(half-arm),sy*half); bar(sx*half,sy*half,sx*half,sy*(half-arm)); }
+            for(int corner=0;corner<4;corner++)
+            {
+                float x=corner%2==0 ? -half:half,y=corner<2 ? -half:half;
+                Line(output,board,view,projection,m.Color,x,y,x-Math.Sign(x)*arm,y);
+                Line(output,board,view,projection,m.Color,x,y,x,y-Math.Sign(y)*arm);
+            }
+        }
+        // An axis-aligned line between two points in icon units.
+        private static void Line(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,Vector4 color,float x0,float y0,float x1,float y1)
+        {
+            const float w=LineWidth/2;
+            Project(output,new NativeSprite(Blank,default(RectangleF),color),board,
+                new RectangleF(Math.Min(x0,x1)-w,Math.Min(y0,y1)-w,Math.Abs(x1-x0)+2*w,Math.Abs(y1-y0)+2*w),view,projection);
         }
         // Chevron pointing along direction (screen space, y down), drawn over everything like the HUD.
         private static void Arrow(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,Vector4 color,Vector2 direction)
         {
             var tip=direction*.55f;
-            Func<float,Vector2> wing=angle=>tip-new Vector2(direction.X*(float)Math.Cos(angle)-direction.Y*(float)Math.Sin(angle),
-                direction.X*(float)Math.Sin(angle)+direction.Y*(float)Math.Cos(angle))*.7f;
-            Bar(output,board,tip,wing(.6f),.09f,color,view,projection);
-            Bar(output,board,tip,wing(-.6f),.09f,color,view,projection);
+            Bar(output,board,tip,tip-Rotate(direction,.6f)*.7f,.09f,color,view,projection);
+            Bar(output,board,tip,tip-Rotate(direction,-.6f)*.7f,.09f,color,view,projection);
         }
+        private static Vector2 Rotate(Vector2 value,float angle)
+        {
+            float cos=(float)Math.Cos(angle),sin=(float)Math.Sin(angle);
+            return new Vector2(value.X*cos-value.Y*sin,value.X*sin+value.Y*cos);
+        }
+        // A line of any direction between two points in icon units.
         private static void Bar(List<NativeSprite> output,MarkerBillboard board,Vector2 from,Vector2 to,float width,Vector4 color,MatrixD view,MatrixD projection)
         {
             var along=to-from;
             if(along.LengthSquared()<1e-8f) return;
             var normal=Vector2.Normalize(new Vector2(-along.Y,along.X))*width/2;
             MatrixD transform=view*projection;
-            Func<Vector2,Vector4> clip=p=>(Vector4)Vector4D.Transform(new Vector4D(board.Point(p.X,p.Y),1),transform);
-            output.Add(new NativeSprite(@"Textures\GUI\Blank.dds",default(RectangleF),color.ToLinearRGB()) {Projected=true,Premultiplied=true,IgnoreSceneDepth=true,
-                TopLeft=clip(from-normal),TopRight=clip(to-normal),BottomLeft=clip(from+normal),BottomRight=clip(to+normal)});
+            output.Add(new NativeSprite(Blank,default(RectangleF),color.ToLinearRGB()) {Projected=true,Premultiplied=true,IgnoreSceneDepth=true,
+                TopLeft=Clip(board,from-normal,transform),TopRight=Clip(board,to-normal,transform),
+                BottomLeft=Clip(board,from+normal,transform),BottomRight=Clip(board,to+normal,transform)});
         }
+        private static Vector4 Clip(MarkerBillboard board,Vector2 point,MatrixD transform) =>
+            (Vector4)Vector4D.Transform(new Vector4D(board.Point(point.X,point.Y),1),transform);
         internal static void GroupIcon(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,WorldMarkers.Marker[] values,Vector4 color,float expansion=0,float compactShift=0,WorldMarkers.Marker[] representatives=null)
         {
             Project(output,Atlas(MyHudTexturesEnum.Target_neutral,color),board,new RectangleF(-.5f,-.5f,1,1),view,projection);

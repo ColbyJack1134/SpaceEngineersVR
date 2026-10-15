@@ -33,7 +33,7 @@ namespace SpaceEngineersVR.Player
             public WorldMarkers.Marker Primary => Members[0];
             public Vector3D Position;
             public Vector2 Point;
-            // Non-zero for an off-screen lock drawn as an edge arrow: the screen direction (y down) toward the target.
+            // Non-zero while an EdgeArrow marker is out of view: the screen direction (y down) toward it.
             public Vector2 Arrow;
             public Vector4 Color;
             public RectangleF SymbolBounds;
@@ -99,7 +99,7 @@ namespace SpaceEngineersVR.Player
             var relations=values.Select(Relation).Distinct().ToArray();
             return new Entry { Members=values,Representatives=Representatives(values),Position=position,Point=p,Edge=edge,Color=relations.Length==1 ? values[0].Color : Vector4.One,
                 Id=string.Join("|",values.Select(m=>m.Id).OrderBy(id=>id,StringComparer.Ordinal)),Relation=relations.Length==1 ? relations[0]:"Mixed",
-                IconScale=options.IconScale,TextScale=options.TextScale,SymbolBounds=SymbolBounds(p,values.Any(m=>m.Ring!=null),options.IconScale*(values[0].Kind=="Objective" ? 2:values[0].Kind=="WeaponCore" ? values[0].Span:1)),
+                IconScale=options.IconScale,TextScale=options.TextScale,SymbolBounds=SymbolBounds(p,values.Any(m=>m.Ring!=null),options.IconScale*(values[0].Kind=="Objective" ? 2:values[0].Span)),
                 Ring=options.Rings && values.Any(m=>m.Ring!=null) };
         }
         private static RectangleF SymbolBounds(Vector2 p,bool ring,float scale) => ring ? new RectangleF(p.X-.048f,p.Y-.048f,.096f,.096f):new RectangleF(p.X-.011f*scale,p.Y-.011f*scale,.022f*scale,.022f*scale);
@@ -116,7 +116,7 @@ namespace SpaceEngineersVR.Player
                 if(group==null) groups.Add(new List<WorldMarkers.Marker> {m}); else group.Add(m);
             }
             // Off-view bearings belong to the wrist window, never the world HUD.
-            var entries=groups.Select(g=>Create(g,head,options)).Where(e=>!e.Edge || LockArrow(e,head,options)).ToList();
+            var entries=groups.Select(g=>Create(g,head,options)).Where(e=>!e.Edge || EdgeArrow(e,head,options)).ToList();
             var result=entries.ToArray();
             int budget=64;
             var placed=new List<RectangleF>();
@@ -139,23 +139,23 @@ namespace SpaceEngineersVR.Player
                     row.DistanceScale=(.5f+.2f*e.NameAlpha)/.7f;
                     float width=MathHelper.Clamp(Math.Max(SignalFont.Width(row.Name,31),SignalFont.Width(row.Distance,29))*.025f/31+.015f,.12f,.8f)*options.TextScale;
                     row.LineHeight=.025f*options.TextScale;
-                    bool weaponCore=e.Primary.Kind=="WeaponCore";
-                    float half=GroupUnit(e.IconScale)*.5f*(weaponCore && e.Arrow==Vector2.Zero ? e.Primary.Span:1);
+                    var primary=e.Primary;
+                    float half=GroupUnit(e.IconScale)*.5f*(e.Arrow==Vector2.Zero ? primary.Span:1);
                     float offset=e.Ring ? .048f:half+GroupUnit(e.IconScale)*.4375f;
                     row.NameY=e.Point.Y-offset-row.LineHeight/2;
                     row.DistanceY=e.Point.Y+offset*(.7f+.3f*e.NameAlpha)-row.LineHeight*row.DistanceScale/2;
                     float x=e.Point.X-width/2;
-                    if(weaponCore && e.Primary.LabelSide!=null)
+                    if(primary.LabelSide!=null)
                     {
                         // Name and distance stacked beside or below the symbol.
-                        if(e.Primary.LabelSide=="below") row.NameY=e.Point.Y+offset-row.LineHeight/2;
-                        else { row.NameY=e.Point.Y-half-row.LineHeight*2; x=e.Primary.LabelSide=="upleft" ? e.Point.X-half-width:e.Point.X+half; }
+                        if(primary.LabelSide=="below") row.NameY=e.Point.Y+offset-row.LineHeight/2;
+                        else { row.NameY=e.Point.Y-half-row.LineHeight*2; x=primary.LabelSide=="upleft" ? e.Point.X-half-width:e.Point.X+half; }
                         row.DistanceY=row.NameY+row.LineHeight;
                     }
                     row.Bounds=new RectangleF(x,string.IsNullOrEmpty(row.Name) ? row.DistanceY:row.NameY,width,
                         string.IsNullOrEmpty(row.Name) ? row.LineHeight:row.DistanceY+row.LineHeight-row.NameY);
-                    // Raise a WeaponCore name clear of names already placed (entries arrive in priority order).
-                    for(int tries=0;weaponCore && tries<4 && Ink(row).Any(r=>placed.Any(p=>Overlaps(p,r)));tries++)
+                    // Entries arrive in priority order, so earlier names keep their place.
+                    for(int tries=0;primary.AvoidOverlap && tries<4 && Ink(row).Any(r=>placed.Any(p=>Overlaps(p,r)));tries++)
                     { float step=row.LineHeight*1.05f; row.NameY-=step; row.DistanceY-=step; row.Bounds.Y-=step; }
                     e.Labels=new[] {row};
                 }
@@ -166,11 +166,11 @@ namespace SpaceEngineersVR.Player
         }
         // Edge arrows sit this far ahead of the eye; they ignore scene depth, so cockpit geometry cannot hide them.
         internal const double ArrowDepth=3;
-        // A WeaponCore lock out of view stays on the HUD as an arrow inside the view edge, pointing toward the target.
-        private static bool LockArrow(Entry e,MatrixD head,Options options)
+        // A marker out of view stays on the HUD as an arrow inside the view edge, pointing toward it.
+        private static bool EdgeArrow(Entry e,MatrixD head,Options options)
         {
             var m=e.Primary;
-            if(m.Kind!="WeaponCore" || m.LockState!="Locked") return false;
+            if(!m.EdgeArrow) return false;
             var local=Vector3D.Transform(e.Position,MatrixD.Invert(head));
             var direction=new Vector2((float)local.X,(float)-local.Y);
             direction=direction.LengthSquared()<1e-8f ? Vector2.UnitY:Vector2.Normalize(direction);

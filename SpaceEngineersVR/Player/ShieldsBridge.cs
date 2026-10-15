@@ -6,6 +6,7 @@ using VRage;
 using VRage.Game.Entity;
 using VRage.ModAPI;
 using VRageMath;
+using SpaceEngineersVR.Util;
 
 namespace SpaceEngineersVR.Player
 {
@@ -41,7 +42,7 @@ namespace SpaceEngineersVR.Player
         {
             if(registered && MyAPIGateway.Utilities!=null) MyAPIGateway.Utilities.UnregisterMessageHandler(Channel,HandleMessage);
             registered=false; Ready=false;
-            shieldInfo=null; modulationInfo=null; shieldBlock=null; shieldStatus=null; facesFast=null; instance=null;
+            shieldInfo=null; modulationInfo=null; shieldBlock=null; shieldStatus=null; facesFast=null; instance=null; facesFailed=false;
         }
 
         private static void HandleMessage(object message)
@@ -101,6 +102,7 @@ namespace SpaceEngineersVR.Player
         }
 
         private static Func<object> instance;
+        private static bool facesFailed;
         // Per-face health (0..1, or -1 when this client has no charge base) and online state, read from the mod's synced shield state as its own HUD does. Null when unavailable.
         internal static bool TryFaces(MyEntity grid,out float[] health,out bool[] online)
         {
@@ -110,30 +112,34 @@ namespace SpaceEngineersVR.Player
             {
                 if(instance==null)
                 {
-                    var type=WeaponCoreInternals.LiveType("DefenseShields.Session","Instance");
-                    instance=type==null ? null : WeaponCoreInternals.StaticReader(type,"Instance");
+                    var type=ModReflection.LiveType("DefenseShields.Session","Instance");
+                    instance=type==null ? null : ModReflection.StaticReader(type,"Instance");
                 }
                 var session=instance?.Invoke();
-                if(!(WeaponCoreInternals.Get(session,"IdToBus") is System.Collections.IDictionary bus)) return false;
+                if(!(ModReflection.Get(session,"IdToBus") is System.Collections.IDictionary bus)) return false;
                 long id=grid.GetTopMostParent().EntityId;
                 if(!bus.Contains(id)) return false;
-                var logic=WeaponCoreInternals.Get(bus[id],"DefenseShields");
-                var sides=WeaponCoreInternals.Path(logic,"DsState","State","ShieldSides") as Array;
-                float total=WeaponCoreInternals.Value(logic,0f,"ShieldChargeBase");
+                var logic=ModReflection.Get(bus[id],"DefenseShields");
+                var sides=ModReflection.Path(logic,"DsState","State","ShieldSides") as Array;
+                float total=ModReflection.Value(logic,0f,"ShieldChargeBase");
                 if(sides==null || sides.Length!=6) return false;
                 health=new float[6]; online=new bool[6];
                 float max=total/6;
                 for(int i=0;i<6;i++)
                 {
                     var side=sides.GetValue(i);
-                    online[i]=WeaponCoreInternals.Value(side,false,"Online");
-                    var charge=WeaponCoreInternals.Get(side,"Charge");
+                    online[i]=ModReflection.Value(side,false,"Online");
+                    var charge=ModReflection.Get(side,"Charge");
                     double value=charge==null ? 0 : Convert.ToDouble(charge);
                     health[i]=total>0 ? (float)Math.Max(0,Math.Min(1,value/max)) : -1;
                 }
                 return true;
             }
-            catch(Exception) { return false; }
+            catch(Exception ex)
+            {
+                if(!facesFailed) { facesFailed=true; Logger.Warning(ex,"Defense Shields face read failed; the Shields page shows totals only"); }
+                return false;
+            }
         }
 
         internal static string Status(MyEntity grid)

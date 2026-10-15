@@ -41,8 +41,10 @@ namespace SpaceEngineersVR.Plugin
         private static object failedSession,failedCharacter,failedControl;
         private static bool fallbackSawDialog;
         private static readonly Integration touchScreens=new Integration("TouchScreenAPI",Player.TouchScreenBridge.Reset,Player.TouchScreenBridge.RefreshRegistrations,Player.TouchScreenBridge.Update,Player.TouchScreenBridge.Draw),
-            arthurLcd=new Integration("Arthur's LCD",Player.ArthurLcdBridge.Reset,Player.ArthurLcdBridge.RefreshRegistrations,Player.ArthurLcdBridge.Update,Player.ArthurLcdBridge.Draw);
-        internal static readonly Integration[] Integrations={touchScreens,arthurLcd,
+            arthurLcd=new Integration("Arthur's LCD",Player.ArthurLcdBridge.Reset,Player.ArthurLcdBridge.RefreshRegistrations,Player.ArthurLcdBridge.Update,Player.ArthurLcdBridge.Draw),
+            weaponCore=new Integration("WeaponCore",Player.WeaponCoreIntegration.Reset,Player.WeaponCoreIntegration.Refresh,Player.WeaponCoreIntegration.Update),
+            shields=new Integration("Defense Shields",Player.ShieldsIntegration.Reset,Player.ShieldsIntegration.Refresh,Player.ShieldsIntegration.Update);
+        internal static readonly Integration[] Integrations={touchScreens,arthurLcd,weaponCore,shields,
             new Integration("Mod HUD",Patches.ModHud.Reset,Patches.ModHud.RefreshRegistrations),
             new Integration("Voxel tool mods",Patches.DigiTools.Reset,Patches.DigiTools.RefreshRegistrations)};
         private static int recoveryAttempts;
@@ -368,8 +370,8 @@ namespace SpaceEngineersVR.Plugin
             Player.BlockInspection.Update();
             Player.DampenerTargeting.Update();
             Player.GridSelection.Update();
-            Player.TargetLock.Update();
-            Player.ShieldsPanel.Update();
+            weaponCore.Update();
+            shields.Update();
             Player.ToolbarWheel.Update();
             Player.GameActions.RunScheduled();
             Player.CockpitControls.Update();
@@ -453,15 +455,6 @@ namespace SpaceEngineersVR.Plugin
             Player.MenuKeyboard.Close();
             Player.Player.Headset.RequestRecenter();
             ResetWorldState();
-            Player.TargetLock.Reset();
-            Player.WeaponCoreBridge.Unload();
-            Player.FeedCamera.Reset();
-            Player.WeaponCoreStatus.Reset();
-            Player.WeaponCoreMarkers.Reset();
-            Player.WeaponCoreInternals.Reset();
-            Player.WeaponCoreAlerts.Reset();
-            Player.ShieldsPanel.Reset();
-            Player.ShieldsBridge.Unload();
             Logger.Info("Unloading SE game");
             Player.Player.Headset.CreatePopup("Unloaded Game");
         }

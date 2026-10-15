@@ -9,6 +9,7 @@ using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Plugin;
 using VRageMath;
 using VRageRender;
+using SpaceEngineersVR.Util;
 
 namespace SpaceEngineersVR.Patches
 {
@@ -59,10 +60,10 @@ namespace SpaceEngineersVR.Patches
                 var rich=assembly.GetType("RichHudFramework.UI.Rendering.BillBoardUtils",false);
                 if(rich!=null && AccessTools.Field(rich,"instance")?.GetValue(null)!=null) AttachRich(rich);
                 var weaponCore=assembly.GetType("CoreSystems.Session",false);
-                if(weaponCore!=null && WeaponCoreInternals.StaticReader(weaponCore,"I")?.Invoke()!=null) AttachWeaponCore(assembly,weaponCore);
+                if(weaponCore!=null && ModReflection.StaticReader(weaponCore,"I")?.Invoke()!=null) AttachWeaponCore(assembly,weaponCore);
                 var shields=assembly.GetType("DefenseShields.Session",false);
                 // Instance may be a property; a field-only lookup would never attach.
-                if(shields!=null && ShieldsBridge.Ready && WeaponCoreInternals.StaticReader(shields,"Instance")?.Invoke()!=null) AttachShields(assembly,shields);
+                if(shields!=null && ShieldsBridge.Ready && ModReflection.StaticReader(shields,"Instance")?.Invoke()!=null) AttachShields(assembly,shields);
             }
         }
         private static void Patch(MethodBase method,string prefix=null,string postfix=null,string finalizer=null)
@@ -86,16 +87,11 @@ namespace SpaceEngineersVR.Patches
             }
             catch(Exception ex) { Rollback(start); Logger.Warning(ex,"Text HUD API VR adapter unavailable"); }
         }
-        // WeaponCore projects its reticle, target boxes, lead marks and top HUD to screen space and redraws them 10 cm in front
-        // of the camera, which cannot be made right in both eyes. In VR its own HUD is dropped: WeaponCoreMarkers draws the
-        // targeting in the world and the wrist Weapons page carries the top HUD. While a camera feed is open the game camera
-        // is the camera block, so WC's HUD lines up in the feed; it is then left untouched.
+        // WeaponCore draws its HUD 10 cm in front of the camera, which cannot be right in both eyes, so the headset drops it for
+        // WeaponCoreMarkers and the wrist Weapons page. Camera feeds keep it: there the game camera is the camera block.
         private static void AttachWeaponCore(Assembly assembly,Type session)
         {
             if(!attempted.Add(session)) return;
-            // Independent of the HUD hooks: VR fire and reload must reach WeaponCore even if its HUD layout changed.
-            try { WeaponCoreScope.Attach(session); }
-            catch(Exception ex) { WeaponCoreScope.Detach(); Logger.Warning(ex,"WeaponCore VR input scope unavailable; VR fire and reload will not reach WeaponCore"); }
             int start=patched.Count;
             try
             {
@@ -106,9 +102,8 @@ namespace SpaceEngineersVR.Patches
                     assembly.GetType("WeaponCore.Data.Scripts.CoreSystems.Ui.Hud.Hud",false)?.GetMethod("DrawText",flags,null,Type.EmptyTypes,null),
                 };
                 if(methods.Any(method=>method==null)) { Logger.Info("WeaponCore HUD draw methods not found; WC HUD left unchanged in VR"); return; }
-                foreach(var method in methods) Patch(method,nameof(BeginWeaponCore),finalizer:nameof(EndWeaponCore));
+                foreach(var method in methods) Patch(method,nameof(BeginSuppressed),finalizer:nameof(EndSuppressed));
                 Logger.Info("WeaponCore VR HUD adapter attached to "+assembly.GetName().Name);
-                WeaponCoreAim.Attach(assembly.GetType("WeaponCore.Data.Scripts.CoreSystems.Ui.Targeting.TargetUi",false));
             }
             catch(Exception ex) { Rollback(start); Logger.Warning(ex,"WeaponCore VR HUD adapter unavailable"); }
         }
@@ -127,7 +122,7 @@ namespace SpaceEngineersVR.Patches
                     session.GetMethod("DrawText",flags,null,Type.EmptyTypes,null),
                 };
                 if(methods.Any(method=>method==null)) { Logger.Info("Defense Shields HUD draw methods not found; its HUD left unchanged in VR"); return; }
-                foreach(var method in methods) Patch(method,nameof(BeginWeaponCore),finalizer:nameof(EndWeaponCore));
+                foreach(var method in methods) Patch(method,nameof(BeginSuppressed),finalizer:nameof(EndSuppressed));
                 Logger.Info("Defense Shields VR HUD adapter attached to "+assembly.GetName().Name);
             }
             catch(Exception ex) { Rollback(start); Logger.Warning(ex,"Defense Shields VR HUD adapter unavailable"); }
@@ -151,17 +146,17 @@ namespace SpaceEngineersVR.Patches
         private static void Rollback(int start)
         {
             foreach(var method in patched.Skip(start).ToArray())
-                foreach(string name in new[] {nameof(Begin),nameof(BeginWeaponCore),nameof(End),nameof(EndWeaponCore),nameof(RichUpdated)})
+                foreach(string name in new[] {nameof(Begin),nameof(BeginSuppressed),nameof(End),nameof(EndSuppressed),nameof(RichUpdated)})
                     Common.Plugin.Harmony.Unpatch(method,AccessTools.Method(typeof(ModHud),name));
             patched.RemoveRange(start,patched.Count-start);
         }
         internal static void Reset()
         {
-            Rollback(0); WeaponCoreAim.Detach(); WeaponCoreScope.Detach(); attempted.Clear(); richPools.Clear(); drawing=0; suppressing=0; retry=DateTime.MinValue;
+            Rollback(0); attempted.Clear(); richPools.Clear(); drawing=0; suppressing=0; retry=DateTime.MinValue;
         }
         private static void Begin(out int __state) { __state=drawing; if(Main.VrActive) drawing++; }
-        private static void BeginWeaponCore(out int __state) { __state=suppressing; if(Main.VrActive && RemoteView.Current==null) suppressing++; }
-        private static Exception EndWeaponCore(Exception __exception,int __state) { suppressing=__state; return __exception; }
+        private static void BeginSuppressed(out int __state) { __state=suppressing; if(Main.VrActive && RemoteView.Current==null) suppressing++; }
+        private static Exception EndSuppressed(Exception __exception,int __state) { suppressing=__state; return __exception; }
         private static Exception End(Exception __exception,int __state) { drawing=__state; return __exception; }
         private static void RichUpdated(object __instance)
         {

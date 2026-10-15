@@ -7,6 +7,7 @@ using System.Threading;
 using Sandbox.Game.GUI.HudViewers;
 using SpaceEngineersVR.Player;
 using VRageMath;
+using SpaceEngineersVR.Util;
 
 namespace SpaceEngineersVR.Diagnostics
 {
@@ -18,7 +19,7 @@ namespace SpaceEngineersVR.Diagnostics
 
         internal static void Run(Action<string> log)
         {
-            TriggerOwnership(); log("PASS WeaponCore trigger: panel pulls never reach firing, between keys included");
+            TriggerOwnership(); log("PASS WeaponCore trigger: panel pulls never reach firing, between keys only while WeaponCore is loaded");
             ArmThenPull(); log("PASS WeaponCore arm: held trigger ignored, fresh pull completes once, UI pulls and expiry do not");
             LiveTypes(); log("PASS WeaponCore reload: newest live mod session wins, stale copies and property instances resolve");
             MarkerLayout(); log("PASS WeaponCore markers: labelled, apart, sided, edge arrow for an off-screen lock, no 2 km or contacts cut");
@@ -26,12 +27,13 @@ namespace SpaceEngineersVR.Diagnostics
 
         private static void TriggerOwnership()
         {
-            Require(!SpatialUi.SwallowsTrigger(true,-1,false,false,-1),"Trigger swallowed with no panel under the ray");
-            Require(SpatialUi.SwallowsTrigger(true,3,false,false,-1),"Pull on a wrist key reached firing");
-            Require(SpatialUi.SwallowsTrigger(true,-1,true,false,-1),"Pull between wrist keys reached firing");
-            Require(SpatialUi.SwallowsTrigger(true,-1,false,true,-1),"Pull between seat panel keys reached firing");
-            Require(SpatialUi.SwallowsTrigger(false,-1,false,false,2),"Held seat key released the trigger to firing");
-            Require(!SpatialUi.SwallowsTrigger(false,3,true,true,-1),"Hover alone blocked a trigger that was not pulled");
+            Require(!SpatialUi.SwallowsTrigger(true,-1,false,false,-1,true),"Trigger swallowed with no panel under the ray");
+            Require(SpatialUi.SwallowsTrigger(true,3,false,false,-1,false),"Pull on a wrist key reached firing");
+            Require(SpatialUi.SwallowsTrigger(true,-1,true,false,-1,true),"Pull between wrist keys reached WeaponCore firing");
+            Require(SpatialUi.SwallowsTrigger(true,-1,false,true,-1,true),"Pull between seat panel keys reached WeaponCore firing");
+            Require(!SpatialUi.SwallowsTrigger(true,-1,true,true,-1,false),"Panel pull between keys swallowed without WeaponCore");
+            Require(SpatialUi.SwallowsTrigger(false,-1,false,false,2,false),"Held seat key released the trigger to firing");
+            Require(!SpatialUi.SwallowsTrigger(false,3,true,true,-1,true),"Hover alone blocked a trigger that was not pulled");
         }
 
         private static void ArmThenPull()
@@ -80,12 +82,12 @@ namespace SpaceEngineersVR.Diagnostics
             try
             {
                 first.GetField("I").SetValue(null,new object());
-                Require(WeaponCoreInternals.LiveType(name,"I")==first,"Only live session not found");
+                Require(ModReflection.LiveType(name,"I")==first,"Only live session not found");
                 second.GetField("I").SetValue(null,new object());
-                Require(WeaponCoreInternals.LiveType(name,"I")==second,"Stale session from a previous world chosen over the newest");
+                Require(ModReflection.LiveType(name,"I")==second,"Stale session from a previous world chosen over the newest");
                 first.GetField("I").SetValue(null,null);
                 second.GetField("I").SetValue(null,null);
-                Require(WeaponCoreInternals.LiveType(name,"I")==null,"Session found with no world loaded");
+                Require(ModReflection.LiveType(name,"I")==null,"Session found with no world loaded");
             }
             finally { first.GetField("I").SetValue(null,null); second.GetField("I").SetValue(null,null); }
             var shields=Build("SevrTests.World3",true);
@@ -93,8 +95,8 @@ namespace SpaceEngineersVR.Diagnostics
             shields.GetField("instance").SetValue(null,session);
             try
             {
-                Require(WeaponCoreInternals.StaticReader(shields,"Instance")?.Invoke()==session,"Static property instance not read");
-                Require(WeaponCoreInternals.StaticReader(shields,"Missing")==null,"Missing member produced a reader");
+                Require(ModReflection.StaticReader(shields,"Instance")?.Invoke()==session,"Static property instance not read");
+                Require(ModReflection.StaticReader(shields,"Missing")==null,"Missing member produced a reader");
             }
             finally { shields.GetField("instance").SetValue(null,null); }
         }
@@ -103,7 +105,7 @@ namespace SpaceEngineersVR.Diagnostics
         {
             var color=new Vector4(1,.4f,.2f,1);
             return new WorldMarkers.Marker {Kind="WeaponCore",Id=id,Name=name,Relation="Enemies",Color=color,FontColor=color,Pinned=pinned,LockState=locked,
-                Position=position,Distance=Vector3D.Distance(position,head.Translation),Symbol=symbol,Span=span,LabelSide=side};
+                Position=position,Distance=Vector3D.Distance(position,head.Translation),Symbol=symbol,Span=span,LabelSide=side,AvoidOverlap=true,EdgeArrow=locked!=null};
         }
 
         private static void MarkerLayout()

@@ -83,7 +83,7 @@ namespace SpaceEngineersVR.Player
             else
             {
                 // A WeaponCore hand weapon has no magazine to grab; Cycle ammo takes Blueprints' slot (still on the wheel and in search).
-                var actions=new[] {!seated && Patches.WeaponCoreReload.Ready ? Patches.WeaponCoreReload.CycleAmmoAction:GameActions.BlueprintsAction,
+                var actions=new[] {!seated && Patches.WeaponCoreReload.Ready ? GameActions.CycleAmmoAction:GameActions.BlueprintsAction,
                     GameActions.InventoryAction,GameActions.TerminalAction,
                     seated ? (thirdPerson ? GameActions.Quick[22]:SeatAction):GameActions.Quick[3],
                     GameActions.LightsAction,seated ? GameActions.ParkAction:GameActions.HelmetAction,
@@ -124,7 +124,7 @@ namespace SpaceEngineersVR.Player
         {
             if(value==0) return true;
             if(value==1) return action==GameActions.JetpackAction || action==GameActions.HelmetAction || action==GameActions.LightsAction || action==GameActions.BroadcastAction ||
-                action==GameActions.DetachBootsAction || action==GameActions.Dampeners || action==GameActions.RelativeDampeners || action==GameActions.Quick[3] || action==Patches.WeaponCoreReload.CycleAmmoAction || action==GameActions.InventoryAction;
+                action==GameActions.DetachBootsAction || action==GameActions.Dampeners || action==GameActions.RelativeDampeners || action==GameActions.Quick[3] || action==GameActions.CycleAmmoAction || action==GameActions.InventoryAction;
             if(value==2) return action==GameActions.PowerAction || action==GameActions.ParkAction || action==GameActions.Dampeners || action==GameActions.RelativeDampeners ||
                 action==GameActions.TerminalAction || action==GameActions.BroadcastAction || action==GameActions.CockpitBuild || action==GameActions.ExitFeed || action==GameActions.ResetFeed || action.Label.StartsWith("Toolbar ");
             if(value==3) return GameActions.Building.Contains(action) || action==GameActions.BlueprintsAction || action==GameActions.CockpitBuild;

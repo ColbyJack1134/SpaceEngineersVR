@@ -49,9 +49,10 @@ namespace SpaceEngineersVR.Player
         }
         private static MatrixD SurfacePose(Matrix tracking) => CameraRig.Detached || !Main.WorldAvailable ? (MatrixD)tracking:DeviceWorld(tracking);
         public static void Expand() { expanded=true; }
-        // A pull aimed at a panel is never a shot, even between keys: weapons on hand or head aim would fire at the panel.
-        internal static bool SwallowsTrigger(bool trigger,int wristHover,bool rayTargeted,bool seatRayTargeted,int seatPressed) =>
-            seatPressed>=0 || trigger && (wristHover>=0 || rayTargeted || seatRayTargeted);
+        // With WeaponCore, a pull aimed at a panel is never a shot, even between keys: its hand- or head-aimed weapons would
+        // fire at the panel.
+        internal static bool SwallowsTrigger(bool trigger,int wristHover,bool rayTargeted,bool seatRayTargeted,int seatPressed,bool weaponCore) =>
+            seatPressed>=0 || trigger && (wristHover>=0 || weaponCore && (rayTargeted || seatRayTargeted));
         public static void Collapse() { if(FlightSettings.IsOpen && FlightSettings.OnWrist) FlightSettings.Close(); expanded=false; wristTouch.Reset(); heldKey=null; wristHover=wristPressed=-1; WristPanel.StopEditing(); }
         public static bool CollapseIfOpen() { if(!expanded || WristPanel.DesktopOpen && !DesktopPointed) return false; Collapse(); return true; }
         private static DateTime desktopSeen;
@@ -174,7 +175,7 @@ namespace SpaceEngineersVR.Player
             else { seatRayPress.Block(); seatRayTargeted=false; }
             // A touch owns its input while the finger is on a surface, preventing tool use.
             if(wristTouch.Consumed) InteractionInput.Read(Player.HandR,wristDirect).Consume();
-            if(SwallowsTrigger(trigger,wristHover,RayTargeted,seatRayTargeted,seatPressed)) { c.Primary.BlockUntilRelease(); c.BlockTriggerRoles(Player.HandR); }
+            if(SwallowsTrigger(trigger,wristHover,RayTargeted,seatRayTargeted,seatPressed,WeaponCoreBridge.ApiReady)) { c.Primary.BlockUntilRelease(); c.BlockTriggerRoles(Player.HandR); }
             Publish();
         }
         private static int Interact(SurfaceView s,MatrixD pointer,ref int hover,ref int pressed)

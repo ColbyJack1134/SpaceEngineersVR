@@ -50,10 +50,10 @@ namespace SpaceEngineersVR.Patches
     internal static class VirtualMouse
     {
         private static int frame=int.MinValue;
-        private static bool left,prevLeft;
+        private static bool left,prevLeft,failed;
 
         // Seated or on a turret; on foot only while a WeaponCore hand weapon is out.
-        private static bool Active => WeaponCoreBridge.ApiReady && Plugin.Main.VrActive && !Plugin.Main.MenuOpen &&
+        private static bool Active => WeaponCoreBridge.ApiReady && Main.VrActive && !Main.MenuOpen &&
             (InputRouter.Mode==InputMode.Piloting || InputRouter.Mode==InputMode.Turret ||
              (InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Jetpack) && WeaponCoreInternals.Available && WeaponCoreInternals.HandheldActive);
 
@@ -62,10 +62,13 @@ namespace SpaceEngineersVR.Patches
         {
             int now=MySession.Static?.GameplayFrameCounter ?? 0;
             if(now==frame) return;
-            prevLeft=left;
-            left=Active && SpaceEngineersVR.Player.Components.VRMovementComponent.WeaponCoreFire;
-            frame=now;
+            frame=now; prevLeft=left;
+            // Runs inside the game's input checks, where Integration cannot catch a failure.
+            try { left=!failed && Active && SpaceEngineersVR.Player.Components.VRMovementComponent.PrimaryFire; }
+            catch(Exception ex) { failed=true; left=prevLeft=false; Logger.Warning(ex,"WeaponCore VR fire disabled until the next world"); }
         }
+
+        internal static void Reset() { frame=int.MinValue; left=prevLeft=failed=false; }
 
         internal static bool Down(MyMouseButtonsEnum button) { Sample(); return WeaponCoreScope.Inside && button==MyMouseButtonsEnum.Left && left; }
         internal static bool Any() { Sample(); return WeaponCoreScope.Inside && left; }

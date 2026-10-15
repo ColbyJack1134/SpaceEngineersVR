@@ -44,8 +44,11 @@ namespace SpaceEngineersVR.Player
             !WeaponHandling.ConsumesSupportGrip && ThirdPersonView.DescentReady && !PlacementControls.Adjusting;
         internal static bool WheelJumpAllowed => InputRouter.Mode==InputMode.Piloting && MySession.Static?.ControlledEntity is MyShipController ship &&
             ship.ControlWheels && !ToolbarWheel.QuickPending && !FloatingWindows.OwnsInput && !PlacementControls.Adjusting && !CockpitControls.Adjusting && !ThirdPersonView.Manipulating;
+        // Controls a mod or script has blacklisted for the player stay blocked for VR presses too.
         public static bool Read(MyStringId action, MyControlStateType type) =>
-            Main.VrActive && InputRouter.Gameplay && !Main.MenuOpen && frame.Read(action, type);
+            Main.VrActive && InputRouter.Gameplay && !Main.MenuOpen && frame.Read(action, type) && !Blocked(action);
+
+        internal static bool Blocked(MyStringId action) => MyInput.Static?.IsControlBlocked(action)==true;
 
         private static bool WasHeld(MyStringId action) => frame.Read(action, MyControlStateType.PRESSED) || frame.Read(action, MyControlStateType.NEW_RELEASED);
         public static void Reset()

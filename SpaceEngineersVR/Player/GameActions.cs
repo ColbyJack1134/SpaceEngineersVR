@@ -150,7 +150,7 @@ namespace SpaceEngineersVR.Player
         }
         // A smart WeaponCore hand weapon swaps two wheel slots for target lock and release.
         private static ActionChoice[] WithHandLock(ActionChoice[] actions,ActionChoice first,ActionChoice second) =>
-            TargetLock.HandShooter()==null ? actions : actions.Select(a=>a==first ? TargetLock.HandLockAction : a==second ? TargetLock.ReleaseTargetAction : a).ToArray();
+            HandLock.Shooter()==null ? actions : actions.Select(a=>a==first ? HandLock.Action : a==second ? TargetLock.ReleaseTargetAction : a).ToArray();
         internal static ActionChoice[] BuildingWheelActions(bool? symmetrySetup=null)
         {
             bool setup=symmetrySetup ?? (MySession.Static!=null && MyCubeBuilder.Static?.IsSymmetrySetupMode()==true);
@@ -168,6 +168,8 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice HudOptions=new ActionChoice("HUD",()=>MyGuiSandbox.AddScreen(new GUI.MyPluginConfigDialog(3)),true);
         public static bool AlternateTrigger { get; private set; }
         private static ActionChoice Native(string label, MyStringId control) => new ActionChoice(label, () => NativeActions.Pulse(control));
+        internal static readonly ActionChoice CycleAmmoAction=new ActionChoice("Cycle ammo",Patches.WeaponCoreReload.Cycle,enabled:()=>Patches.WeaponCoreReload.Ready,
+            searchTerms:"weaponcore wc ammo cycle switch magazine type");
         // WeaponCore hand weapons ignore the vanilla Reload control and only react to its raw key.
         private static void Reload()
         {

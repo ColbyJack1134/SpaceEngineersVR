@@ -35,27 +35,25 @@ namespace SpaceEngineersVR.Player
                 if(now<viewTime) return view;
                 viewTime=now.AddSeconds(.2);
                 var entity=ControlledGrid;
-                var next=new View();
-                next.Known=ShieldsBridge.TryFaces(entity,out var health,out var online);
-                if(next.Known) { next.Health=health; next.Online=online; }
+                var fresh=new View();
+                fresh.Known=ShieldsBridge.TryFaces(entity,out var health,out var online);
+                if(fresh.Known) { fresh.Health=health; fresh.Online=online; }
                 var shunting=ShieldsBridge.Shunting(entity);
-                next.Shunting=shunting.HasValue;
-                for(int i=0;i<6;i++) next.Shunted[i]=shunting.HasValue && ShieldsBridge.FaceShunted(shunting.Value,i);
-                var key=new System.Text.StringBuilder(next.Known ? "k":"u");
-                for(int i=0;i<6;i++) key.Append('|').Append(Math.Round(next.Health[i]*50)).Append(next.Online[i] ? 'o':'x').Append(next.Shunted[i] ? 's':'-');
-                next.Key=key.ToString();
-                return view=next;
+                fresh.Shunting=shunting.HasValue;
+                for(int i=0;i<6;i++) fresh.Shunted[i]=shunting.HasValue && ShieldsBridge.FaceShunted(shunting.Value,i);
+                var key=new System.Text.StringBuilder(fresh.Known ? "k":"u");
+                for(int i=0;i<6;i++) key.Append('|').Append(Math.Round(fresh.Health[i]*50)).Append(fresh.Online[i] ? 'o':'x').Append(fresh.Shunted[i] ? 's':'-');
+                fresh.Key=key.ToString();
+                return view=fresh;
             }
         }
         private static bool wasOnline,low,hot;
         private static long grid;
 
         internal static MyEntity ControlledGrid => (MySession.Static?.ControlledEntity?.Entity as MyCubeBlock)?.CubeGrid;
-        internal static bool Available => ShieldsBridge.Ready && ShieldsBridge.Of(ControlledGrid).Exists;
 
         internal static void Update()
         {
-            if(Main.WorldAvailable) ShieldsBridge.Load();
             if(!ShieldsBridge.Ready) return;
             var now=DateTime.UtcNow;
             if(now<next) return;
@@ -85,7 +83,7 @@ namespace SpaceEngineersVR.Player
             if(Player.HandR.pose.isTracked) Player.HandR.Vibrate(0,.1f,140,amplitude);
         }
 
-        internal static void Reset() { grid=0; wasOnline=low=hot=false; next=DateTime.MinValue; }
+        internal static void Reset() { grid=0; wasOnline=low=hot=false; next=viewTime=DateTime.MinValue; view=new View {Key=""}; }
 
         internal static void Keys(List<SurfaceKey> keys)
         {

@@ -30,10 +30,12 @@ namespace SpaceEngineersVR.Player
             public float LockProgress;
             public SignalRing Ring;
             public double Distance;
-            // WeaponCore markers: "brackets" or "cross" in thin lines, size in standard icons, and name placement
-            // (null above, "upleft", "upright" or "below") so coincident markers do not stack their names.
+            // Optional drawing: Symbol "brackets" or "cross" in thin lines, Span its size in standard icons, LabelSide where the
+            // name sits (null above, "upleft", "upright" or "below"); AvoidOverlap raises the name clear of names placed before
+            // it, and EdgeArrow keeps the marker as an arrow inside the view edge while it is out of view.
             public string Symbol, LabelSide;
             public float Span=1;
+            public bool AvoidOverlap, EdgeArrow;
         }
         internal sealed class View
         {

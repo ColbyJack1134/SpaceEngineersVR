@@ -6,12 +6,12 @@ using Sandbox.Game.World;
 using SpaceEngineersVR.Plugin;
 using VRage.Game.Entity;
 using VRageMath;
+using SpaceEngineersVR.Util;
 
 namespace SpaceEngineersVR.Player
 {
-    // WeaponCore targeting drawn by the VR marker renderer, so it is correct in both eyes and visible alongside a camera feed:
-    // the focused (locked) target, tracked threats, the lead pip for the focus, and the manual aim point.
-    // Uses WeaponCore's public API except for picking a reference weapon for the lead (WeaponCoreInternals).
+    // WeaponCore targeting drawn by the VR marker renderer, correct in both eyes: the lock, the nearest threats, the lead pip,
+    // the manual aim point and the paint mark and previews.
     internal static class WeaponCoreMarkers
     {
         private const int MaxThreats=8;
@@ -64,8 +64,8 @@ namespace SpaceEngineersVR.Player
                 if(Alive(data.Focus))
                 {
                     var locked=Marker("wcfocus:"+data.Focus.EntityId,data.FocusName,focusColor,data.Focus.PositionComp.WorldAABB.Center,head,Span(data.Focus,head,2.2f),pinned:true);
-                    // Lays out first, so the other names move around it.
-                    locked.LockState="Locked";
+                    // Lays out first, so the other names move around it, and stays on the HUD as an arrow when out of view.
+                    locked.LockState="Locked"; locked.EdgeArrow=true;
                     markers.Add(locked);
                 }
                 foreach(var threat in data.Threats)
@@ -79,7 +79,7 @@ namespace SpaceEngineersVR.Player
                 // WeaponCore's own paint mark is part of its hidden HUD; it rides on the painted entity.
                 if(Alive(data.PaintedEntity))
                     markers.Add(Marker("wcpainted","PAINTED",paintColor,Vector3D.Transform(data.PaintedLocal,data.PaintedEntity.PositionComp.WorldMatrixRef),head,.9f,pinned:true,side:"upleft"));
-                var lockPreview=TargetLock.HandLockPreview;
+                var lockPreview=HandLock.Preview;
                 if(Alive(lockPreview))
                     markers.Add(Marker("wclock","LOCK  pull trigger",paintColor,lockPreview.PositionComp.WorldAABB.Center,head,1.2f,pinned:true,symbol:"cross",side:"upright"));
                 if(WeaponCoreAim.PaintArmed && WeaponCoreAim.PaintPreview.HasValue)
@@ -90,7 +90,7 @@ namespace SpaceEngineersVR.Player
 
         private static WorldMarkers.Marker Marker(string id,string name,Vector4 color,Vector3D position,Vector3D head,float span,bool pinned=false,string symbol="brackets",string side=null) =>
             new WorldMarkers.Marker {Kind="WeaponCore",Id=id,Name=name,Relation="Enemies",Color=color,FontColor=color,Pinned=pinned,Position=position,
-                Distance=Vector3D.Distance(position,head),Symbol=symbol,Span=span,LabelSide=side};
+                Distance=Vector3D.Distance(position,head),Symbol=symbol,Span=span,LabelSide=side,AvoidOverlap=true};
 
         // Brackets frame the target's apparent size, never smaller than minimum (in standard marker icons).
         private static float Span(MyEntity target,Vector3D head,float minimum)
@@ -132,19 +132,14 @@ namespace SpaceEngineersVR.Player
             {
                 var entity=WeaponCoreInternals.CompEntity(comp);
                 if(entity==null || entity.Closed || entity.MarkedForClose) continue;
-                if(!WeaponCoreInternals.Value(comp,false,"HasTurret")) { leadWeapon=entity; return entity; }
+                if(!ModReflection.Value(comp,false,"HasTurret")) { leadWeapon=entity; return entity; }
                 if(turret==null) turret=entity;
             }
             return leadWeapon=turret;
         }
 
-        private static MyEntity Shooter()
-        {
-            var controlled=MySession.Static?.ControlledEntity?.Entity as MyCubeBlock;
-            var grid=controlled?.CubeGrid;
-            // On foot, a smart hand weapon tracks targets like a grid.
-            return WeaponCoreBridge.HasAi(grid) ? grid:TargetLock.HandShooter();
-        }
+        // Same rule as the lock actions: a WeaponCore seat or turret, or on foot a guided hand weapon.
+        private static MyEntity Shooter() => TargetLock.ShooterGrid() ?? HandLock.Shooter();
 
         private static string Shield(MyEntity entity) { string label=WeaponCoreStatus.ShieldLabel(entity); return label==null ? "" : "  "+label; }
 
