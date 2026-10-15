@@ -20,6 +20,8 @@ namespace SpaceEngineersVR.Diagnostics
     // An isolated main-menu scene in an explicitly launched diagnostic process. No world/save is loaded.
     internal static partial class PhysicalRendererProbe
     {
+        // Gallery indices 0-8 are guide topics and 9+ are other screens; later topics are not captured so those indices stay fixed.
+        private const int GalleryGuideTopics=9;
         private sealed class CameraHudPreview : GUI.MyPluginConfigDialog
         {
             private Sandbox.Game.GUI.MyHudCameraOverlay overlay;
@@ -486,7 +488,7 @@ namespace SpaceEngineersVR.Diagnostics
             }
             if(phase%2==0)
             {
-                if(index>0 && index<GUI.BindingHelp.TopicCount && options is GUI.BindingHelp guide)
+                if(index>0 && index<GalleryGuideTopics && options is GUI.BindingHelp guide)
                 { guide.SelectTopic(index);next=DateTime.UtcNow.AddSeconds(2);phase++;return; }
                 if((index==9 || index>=24 && index<29) && options is GUI.BindingHelp scrolledGuide)
                 {
@@ -497,7 +499,7 @@ namespace SpaceEngineersVR.Diagnostics
                 if(index>=13 && index<=16 && options is GUI.MyPluginConfigDialog settings)
                 { settings.SelectPage(new[] {1,2,4,3}[index-13]);next=DateTime.UtcNow.AddSeconds(2);phase++;return; }
                 options?.CloseScreenNow();
-                options=index<GUI.BindingHelp.TopicCount ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.BindingHelp(index) :
+                options=index<GalleryGuideTopics ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.BindingHelp(index) :
                     index==10 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.HudStateOptions() : new GUI.BindingOptions();
                 if(index>=24 && index<29)
                 {
