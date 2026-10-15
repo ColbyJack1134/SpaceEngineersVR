@@ -97,19 +97,21 @@ namespace SpaceEngineersVR.Player
             return null;
         }
         internal Vector3 SupportContact(MatrixD nativeLeft) => Mirrored ? Flip(source.SupportContact(nativeLeft),SupportAxis,FlipUp):(Vector3)Vector3D.Transform(WeaponPose.GrabOffset,Palm(nativeLeft,true));
-        internal int Grab(Vector3 point,Vector3 supportPoint)
+        // The zone already hovered keeps a 20% larger radius, so a hand resting at a boundary does not flicker between zones.
+        internal const float HoverHysteresis=1.2f;
+        internal int Grab(Vector3 point,Vector3 supportPoint,int current=0)
         {
-            bool magazine=ReloadAt(point);
+            bool magazine=ReloadAt(point,current==2 ? HoverHysteresis:1);
             float supportDistance=Vector3.Distance(point,supportPoint),magazineDistance=Vector3.Distance(point,Magazine);
             if(magazine && (Kind==ItemKind.Pistol || magazineDistance<supportDistance)) return 2;
-            return supportDistance<.12f ? 1:magazine ? 2:0;
+            return supportDistance<.12f*(current==1 ? HoverHysteresis:1) ? 1:magazine ? 2:0;
         }
-        internal bool ReloadAt(Vector3 point)
+        internal bool ReloadAt(Vector3 point,float scale=1)
         {
             if(Tool) return false;
             var d=point-Magazine;
             // Pistol support wraps the side; reload can only be acquired below its magazine end face.
-            return Kind==ItemKind.Pistol ? Math.Abs(d.X)<.075f && Math.Abs(d.Z)<.08f && d.Y<.012f && d.Y>-.12f : d.LengthSquared()<.105f*.105f;
+            return Kind==ItemKind.Pistol ? Math.Abs(d.X)<.075f*scale && Math.Abs(d.Z)<.08f*scale && d.Y<.012f*scale && d.Y>-.12f*scale : d.LengthSquared()<.105f*.105f*scale*scale;
         }
         internal Quaternion FingerRotation(string name,float trigger,bool support,Quaternion? native=null)
         {

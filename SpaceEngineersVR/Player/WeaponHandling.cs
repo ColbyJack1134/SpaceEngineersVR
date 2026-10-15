@@ -78,7 +78,7 @@ namespace SpaceEngineersVR.Player
                 !character.CurrentWeapon.IsReloading && !CockpitTouch.Owns(supportHand) && !HandInteraction.Owns(supportHand) &&
                 !FloatingWindows.PointingFor(supportHand) && !TouchScreenBridge.PointingFor(supportHand) && !ArthurLcdBridge.PointingFor(supportHand) && !HelmetHud.Consumes(supportHand));
             var supportPoint=profile.SupportContact(character.HandItemDefinition.LeftHand);
-            int candidate=interaction && !ConsumesSupportGrip ? profile.Grab(local,supportPoint):0;
+            int candidate=interaction && !ConsumesSupportGrip ? profile.Grab(local,supportPoint,hover):0;
             if(candidate==1 && !reachable) candidate=0;
             bool near=candidate==1,mag=candidate==2;
             if(candidate!=hover && candidate!=0) CockpitFeedback.Hover(supportHand);
