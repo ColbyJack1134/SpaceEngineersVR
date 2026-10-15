@@ -416,8 +416,8 @@ new CockpitRig("CockpitOpen","Models/Cubes/Large/CockpitOpen.mwm","Models/Cubes/
                     new Bar(new Vector3(.000076294f,-.424560547f,-.117378173f),new Vector3(0,.7071068f,.7071068f),Vector3.Up,.030f,.080f,.028f,4,-.455f,contactNormal:Vector3.Backward),
                 },steering:new Steering(new Vector3(0.000000000f,-0.150650000f,-0.110210000f),new Vector3(0.000000000f,0.500000000f,0.866025400f),new Vector3(-0.151000000f,-0.139000000f,-0.090000000f),new Vector3(0.151000000f,-0.139000000f,-0.090000000f),new Vector3(0.000000000f,0.866025400f,-0.500000000f),new Vector3(0.000000000f,0.866025400f,-0.500000000f),3,1.047197550f),defaultSeatOffset:new Vector3(0,-.08f,.22f)),
             new CockpitRig("OpenCockpitSmall","Models/Cubes/Small/OpenCockpitSmall.mwm","Models/Cubes/small/OpenCockpitSmall_LOD0.mwm",new Vector3(0.000000000f,-0.210000000f,0.240000000f),new Vector3(0.000000000f,0.900000000f,0.435889900f),
-                new Stick(new Vector3(-0.320841626f,0.078925535f,-0.002151319f),new Vector3(-0.321228025f,-0.040374756f,0.012436390f),new Vector3(0.003214916f,0.992601812f,-0.121372597f),1,2,gripLift:.025f,gripInset:.015f),
-                new Stick(new Vector3(0.321151109f,0.078102197f,-0.002357841f),new Vector3(0.321228025f,-0.040374756f,0.012436390f),new Vector3(-0.000644202f,0.992293525f,-0.123907808f),3,4,gripLift:.025f,gripInset:.015f),
+                new Stick(new Vector3(-0.320841626f,0.078925535f,-0.002151319f),new Vector3(-0.321228025f,-0.040374756f,0.012436390f),new Vector3(0.003214916f,0.992601812f,-0.121372597f),1,2,.05f,gripLift:.025f,gripInset:.015f,curl:new float[] {.1f,1,.9f,.8f,.85f}),
+                new Stick(new Vector3(0.321151109f,0.078102197f,-0.002357841f),new Vector3(0.321228025f,-0.040374756f,0.012436390f),new Vector3(-0.000644202f,0.992293525f,-0.123907808f),3,4,.05f,gripLift:.025f,gripInset:.015f,curl:new float[] {.1f,1,.9f,.8f,.85f}),
                 new Piece[] {
                     new Piece("BlackMattePlastic",1668,828,new Vector3(-0.321167000f,0.079589844f,0.002777100f),1),
                     new Piece("Chrome",14178,12,new Vector3(-0.321166993f,-0.020791054f,0.012436867f),1),
@@ -492,8 +492,8 @@ new CockpitRig("CockpitOpen","Models/Cubes/Large/CockpitOpen.mwm","Models/Cubes/
                     new Lever(new Vector3(0.486572265f,-0.144714356f,0.176330565f),new Vector3(0.486460507f,-0.150726273f,0.173420488f),new Vector3(-0.001806746f,0.999935996f,0.011168702f),new Vector3(-0.999992197f,-0.001845858f,0.003492662f),43,new Vector3(0.486572265f,-0.132751465f,0.155944824f),new Vector3(0.486385397f,-0.149043955f,0.156164802f),44,1f),
                 }),
             new CockpitRig("OpenCockpitLarge","Models/Cubes/Large/OpenCockpitLarge.mwm","Models/Cubes/large/OpenCockpitLarge_LOD0.mwm",new Vector3(0.000000000f,-0.640000000f,-0.420000000f),new Vector3(0.000000000f,0.900000000f,0.435889900f),
-                new Stick(new Vector3(-0.308087921f,-0.402247620f,-0.401349640f),new Vector3(-0.339233395f,-0.523071295f,-0.365417475f),new Vector3(0.239868004f,0.930527944f,-0.276732877f),1,2,gripLift:.025f,gripInset:.015f),
-                new Stick(new Vector3(0.294082507f,-0.399757588f,-0.417839118f),new Vector3(0.333544916f,-0.519531250f,-0.373950192f),new Vector3(-0.295540539f,0.897004857f,-0.328691461f),3,4,gripLift:.025f,gripInset:.015f),
+                new Stick(new Vector3(-0.308087921f,-0.402247620f,-0.401349640f),new Vector3(-0.339233395f,-0.523071295f,-0.365417475f),new Vector3(0.239868004f,0.930527944f,-0.276732877f),1,2,.05f,gripLift:.025f,gripInset:.01f,curl:new float[] {.2f,1,1,.9f,.85f}),
+                new Stick(new Vector3(0.294082507f,-0.399757588f,-0.417839118f),new Vector3(0.333544916f,-0.519531250f,-0.373950192f),new Vector3(-0.295540539f,0.897004857f,-0.328691461f),3,4,.05f,gripLift:.025f,gripInset:.01f,curl:new float[] {.2f,1,1,.9f,.85f}),
                 new Piece[] {
                     new Piece("PaintedMetal_Darker",8052,5,new Vector3(-0.299316406f,-0.365966792f,-0.432128907f),1),
                     new Piece("Rubber",6295,828,new Vector3(-0.309448250f,-0.410034185f,-0.391845703f),1),
@@ -1686,7 +1686,7 @@ new CockpitRig("CockpitOpen","Models/Cubes/Large/CockpitOpen.mwm","Models/Cubes/
                 },steering:new Steering(new Vector3(0.000000000f,0.050000000f,-0.085000000f),new Vector3(0.000000000f,0.500000000f,0.866025400f),new Vector3(-0.136000000f,0.090000000f,-0.060000000f),new Vector3(0.136000000f,0.090000000f,-0.062000000f),new Vector3(0.000000000f,0.866025400f,-0.500000000f),new Vector3(0.000000000f,0.866025400f,-0.500000000f),1,1.047197550f,gripPitch:.8726646f),defaultSeatOffset:new Vector3(0,0,.10f)),
             new CockpitRig("SmallBlockStandingCockpit","Models/Cubes/Small/StandingBridge.mwm","Models/Cubes/small/StandingBridge_LOD0.mwm",new Vector3(-.32f,.03f,-.15f),new Vector3(0.000000000f,0.900000000f,0.435889900f),
                 null,
-                new Stick(new Vector3(0.292930312f,0.228222136f,-0.310784782f),new Vector3(0.293334964f,0.130004883f,-0.300109863f),new Vector3(-0.004095810f,0.994137070f,-0.108049578f),1,2,gripLift:.025f),
+                new Stick(new Vector3(0.292930312f,0.228222136f,-0.310784782f),new Vector3(0.293334964f,0.130004883f,-0.300109863f),new Vector3(-0.004095810f,0.994137070f,-0.108049578f),1,2,-.05f,gripLift:.025f,curl:new float[] {.1f,1,1,.95f,1}),
                 new Piece[] {
                     new Piece("PaintedMetal_VeryDark",3678,828,new Vector3(0.293334958f,0.235717774f,-0.308715824f),1),
                     new Piece("Chrome",2774,12,new Vector3(0.293334967f,0.147216797f,-0.300170899f),1),
@@ -1758,7 +1758,7 @@ new CockpitRig("CockpitOpen","Models/Cubes/Large/CockpitOpen.mwm","Models/Cubes/
                 }),
             new CockpitRig("LargeBlockStandingCockpit","Models/Cubes/Large/StandingBridge.mwm","Models/Cubes/large/StandingBridge_LOD0.mwm",new Vector3(-.32f,-.22f,-.65f),new Vector3(0.000000000f,0.900000000f,0.435889900f),
                 null,
-                new Stick(new Vector3(0.292850784f,-0.021996482f,-0.810932575f),new Vector3(0.293334964f,-0.119995117f,-0.800170902f),new Vector3(-0.004911096f,0.994012390f,-0.109156994f),1,2,gripLift:.025f),
+                new Stick(new Vector3(0.292850784f,-0.021996482f,-0.810932575f),new Vector3(0.293334964f,-0.119995117f,-0.800170902f),new Vector3(-0.004911096f,0.994012390f,-0.109156994f),1,2,-.05f,gripLift:.025f,curl:new float[] {.1f,1,1,.95f,1}),
                 new Piece[] {
                     new Piece("PaintedMetal_VeryDark",3724,828,new Vector3(0.293334958f,-0.014373780f,-0.808593750f),1),
                     new Piece("PaintedMetal_VeryDark",3724,40,new Vector3(0.305297850f,0.053802490f,-0.817138678f),1),

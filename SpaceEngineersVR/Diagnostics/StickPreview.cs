@@ -119,7 +119,7 @@ namespace SpaceEngineersVR.Diagnostics
                     using(var file=File.Create(Path.Combine(output,(left ? "L-":"R-")+pose.Key+".json")))
                         new DataContractJsonSerializer(typeof(ModelInspection.Report)).WriteObject(file,report);
                     Matrix visual=stick.Visual(pose.Value);
-                    CockpitHandTests.ExportGrip(output,subtype,left,stick.Palm(left)*visual,0,"-"+pose.Key);
+                    CockpitHandTests.ExportGrip(output,subtype,left,stick.Palm(left)*visual,0,"-"+pose.Key,stick.Curl);
                 }
             }
         }

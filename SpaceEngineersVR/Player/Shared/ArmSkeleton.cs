@@ -97,7 +97,7 @@ namespace SpaceEngineersVR.Player
             for(var node=child.Parent;node!=null;node=node.Parent) if(node==parent) return true;
             return false;
         }
-        internal static bool Apply(Arm arm, Matrix target, bool adaptive, float rigidity, float scale, Fingers fingers, float trigger,float[] curls=null,WeaponProfile item=null,bool support=false)
+        internal static bool Apply(Arm arm, Matrix target, bool adaptive, float rigidity, float scale, Fingers fingers, float trigger,float[] curls=null,WeaponProfile item=null,bool support=false,float[] stickCurl=null)
         {
             if(arm==null || !target.IsValid()) return false;
             arm.Upper.Save(); arm.Lower.Save(); arm.Palm.Save();
@@ -110,7 +110,7 @@ namespace SpaceEngineersVR.Player
             if(fingers!=Fingers.Native)
                 foreach(var finger in arm.Fingers)
                 {
-                    finger.Bone.Rotation=item!=null && fingers==Fingers.Stick ? item.FingerRotation(finger.Bone.Name,trigger,support,finger.Original):curls!=null ? CockpitHandPose.FreeRotation(finger.Bone.Name,curls):fingers==Fingers.Stick ? CockpitHandPose.StickRotation(finger.Bone.Name,trigger)
+                    finger.Bone.Rotation=item!=null && fingers==Fingers.Stick ? item.FingerRotation(finger.Bone.Name,trigger,support,finger.Original):curls!=null ? CockpitHandPose.FreeRotation(finger.Bone.Name,curls):fingers==Fingers.Stick ? CockpitHandPose.StickRotation(finger.Bone.Name,trigger,stickCurl)
                         : CockpitHandPose.Rotation(finger.Bone.Name,fingers==Fingers.Pinch);
                     finger.Bone.ComputeAbsoluteTransform(true,true);
                 }

@@ -20,14 +20,16 @@ namespace SpaceEngineersVR.Player
             float closed=finger==0 ? .45f:name.EndsWith("_2") ? 1.1f:name.EndsWith("_3") ? .85f:.8f;
             return Quaternion.CreateFromAxisAngle(Vector3.Backward,MathHelper.Lerp(.04f,closed,MathHelper.Clamp(curls[finger],0,1)));
         }
-        internal static Quaternion StickRotation(string name,float trigger)
+        internal static Quaternion StickRotation(string name,float trigger,float[] curl=null)
         {
-            if(!name.Contains("Index")) return Quaternion.CreateFromAxisAngle(Vector3.Backward,name.Contains("Thumb") ? .35f:.95f);
+            int finger=name.Contains("Thumb") ? 0:name.Contains("Index") ? 1:name.Contains("Middle") ? 2:name.Contains("Ring") ? 3:4;
+            float scale=curl==null ? 1:curl[finger];
+            if(finger!=1) return Quaternion.CreateFromAxisAngle(Vector3.Backward,(finger==0 ? .35f:.95f)*scale);
             float rest,pressed;
             if(name.EndsWith("_1")) { rest=.35f; pressed=.65f; }
             else if(name.EndsWith("_2")) { rest=.55f; pressed=1.1f; }
             else { rest=.45f; pressed=.85f; }
-            return Quaternion.CreateFromAxisAngle(Vector3.Backward,MathHelper.Lerp(rest,pressed,MathHelper.Clamp(trigger,0,1)));
+            return Quaternion.CreateFromAxisAngle(Vector3.Backward,MathHelper.Lerp(rest,pressed,MathHelper.Clamp(trigger,0,1))*scale);
         }
         internal static Matrix FingerPose(MyCharacterBone palm,MyCharacterBone tip,bool pinch)
         {

@@ -54,6 +54,7 @@ namespace SpaceEngineersVR.Player
         private static bool SingleLeft => !IsSteering && Rig!=null && Rig.Right==null;
         internal static bool OwnsRightThumb => seat!=null && !IsSteering && !Adjusting && (right.Held || SingleLeft && left.Held);
         public static bool Held(Controller hand) => hand==Player.HandL ? left.Held : right.Held;
+        internal static float[] HeldCurl(Controller hand) => IsSteering || !Held(hand) ? null : (hand==Player.HandL ? Rig?.Left:Rig?.Right)?.Curl;
         internal static bool AnyHeld => left.Held || right.Held;
         // Only modeled joysticks gate the action trigger; wheels and handlebars are not a stick to hold.
         internal static bool SticksAvailable => Grabbable && Rig?.HasSticks==true;

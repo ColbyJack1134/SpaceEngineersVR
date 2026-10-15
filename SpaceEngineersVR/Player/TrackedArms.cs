@@ -99,7 +99,7 @@ namespace SpaceEngineersVR.Player
             Matrix target=(Matrix)(world*character.PositionComp.WorldMatrixNormalizedInv);
             if(!target.IsValid()) return false;
             bool posed=ArmSkeleton.Apply(arm,target,Common.Config.AdaptiveArms,hand==Player.HandL ? WristLock(arm,target,character):0,
-                BodyFit.ScaleFor(character),FingerMode(character,hand),Trigger(hand),FreeFingers(character,hand) ? hand.Fingers.Curls:null, WeaponHandling.Profile, hand==Handedness.SupportHand);
+                BodyFit.ScaleFor(character),FingerMode(character,hand),Trigger(hand),FreeFingers(character,hand) ? hand.Fingers.Curls:null, WeaponHandling.Profile, hand==Handedness.SupportHand,CockpitControls.HeldCurl(hand));
             if(posed) Diagnostics.ArmPoseCapture.Record(character,hand,arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone);
             return posed;
         }

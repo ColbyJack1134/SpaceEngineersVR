@@ -32,11 +32,11 @@ namespace SpaceEngineersVR.Diagnostics
             using(var file=File.Create(Path.Combine(output,name+"-"+side+".json")))
                 new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
         }
-        internal static void ExportGrip(string output,string name,bool left,Matrix pose,float trigger,string suffix)
+        internal static void ExportGrip(string output,string name,bool left,Matrix pose,float trigger,string suffix,float[] curl=null)
         {
             var arm=ArmTests.InstalledBones(); string side=left ? "L":"R";
             arm.Single(b=>b.Name=="SE_Rig"+side+"Palm").SetCompleteTransformFromAbsoluteMatrix(ref pose,false);
-            Curl(arm,side,false,true,trigger);
+            Curl(arm,side,false,true,trigger,curl);
             var export=new PoseExport(); foreach(var bone in arm) export.absolute[bone.Name]=Elements(bone.AbsoluteTransform);
             using(var file=File.Create(Path.Combine(output,"stick-grip-"+name+"-"+side+suffix+".json")))
                 new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
@@ -50,9 +50,9 @@ namespace SpaceEngineersVR.Diagnostics
         }
         private static float[] Elements(Matrix m) => new[] {m.M11,m.M12,m.M13,m.M14,m.M21,m.M22,m.M23,m.M24,m.M31,m.M32,m.M33,m.M34,m.M41,m.M42,m.M43,m.M44};
         private static Vector3 Tip(MyCharacterBone bone,bool pinch=false) => Vector3.Transform(new Vector3(pinch ? -.025f:CockpitHandPose.Tip,0,0),bone.AbsoluteTransform);
-        private static void Curl(MyCharacterBone[] bones,string side,bool pinch,bool stick=false,float trigger=0)
+        private static void Curl(MyCharacterBone[] bones,string side,bool pinch,bool stick=false,float trigger=0,float[] curl=null)
         {
-            foreach(var bone in bones.Where(b=>b.Name.StartsWith("SE_Rig"+side+"_"))) bone.Rotation=stick ? CockpitHandPose.StickRotation(bone.Name,trigger):CockpitHandPose.Rotation(bone.Name,pinch);
+            foreach(var bone in bones.Where(b=>b.Name.StartsWith("SE_Rig"+side+"_"))) bone.Rotation=stick ? CockpitHandPose.StickRotation(bone.Name,trigger,curl):CockpitHandPose.Rotation(bone.Name,pinch);
             bones.Single(b=>b.Name=="SE_Rig"+side+"Palm").ComputeAbsoluteTransform(true,true);
         }
         public static void Run(Action<string> log)
