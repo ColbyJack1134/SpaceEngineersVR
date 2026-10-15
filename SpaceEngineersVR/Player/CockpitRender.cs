@@ -179,8 +179,8 @@ namespace SpaceEngineersVR.Player
                         SetRigFeedback(check,activeRig.Wheel.ThrottleActor,rightHeld ? 2:0);
                     }
                 }
-                UpdateRigStick(check,activeRig.Left,left,leftOffset,leftHeld,world);
-                UpdateRigStick(check,activeRig.Right,right,rightOffset,rightHeld,world);
+                UpdateRigStick(check,activeRig.Left,left,leftOffset,leftHeld,world,nativeRest);
+                UpdateRigStick(check,activeRig.Right,right,rightOffset,rightHeld,world,nativeRest);
                 string subtype=activeRig.Subtype;
                 int State(int slot,bool cover)
                 {
@@ -278,9 +278,11 @@ namespace SpaceEngineersVR.Player
                 return (MatrixD)CockpitControls.SteeringVisual*block.WorldMatrix;
             return block.WorldMatrix;
         }
-        private static void UpdateRigStick(Verification check,CockpitRig.Stick stick,Matrix visual,Vector3 offset,bool held,MatrixD world)
+        private static void UpdateRigStick(Verification check,CockpitRig.Stick stick,Matrix visual,Vector3 offset,bool held,MatrixD world,bool nativeRest=false)
         {
             if(stick==null) return;
+            // A mirrored stick has no native counterpart, so the native-rest comparison hides it.
+            if(stick.Source!=null) { SetVisible(check,stick.Actor,!nativeRest); SetVisible(check,stick.BaseActor,!nativeRest); }
             UpdatePose(check,stick.Actor,(MatrixD)visual*world);
             SetRigFeedback(check,stick.Actor,held ? 2:0);
             if(stick.BaseActor>=0) UpdatePose(check,stick.BaseActor,MatrixD.CreateTranslation(offset)*world);
@@ -291,6 +293,14 @@ namespace SpaceEngineersVR.Player
             if(feedback.TryGetValue(id,out int previous) && previous==state) return;
             feedback[id]=state;
             foreach(var material in geometry.Parts[actor].Sections.Select(s=>s.MaterialName).Distinct()) ApplyFeedback(id,CockpitMaterials.Name(activeRig.Subtype,material),state);
+        }
+        private static readonly System.Collections.Generic.Dictionary<uint,bool> visibility=new System.Collections.Generic.Dictionary<uint,bool>();
+        private static void SetVisible(Verification check,int index,bool visible)
+        {
+            uint id=check.Actors[index];
+            if(id==uint.MaxValue || visibility.TryGetValue(id,out bool current) && current==visible) return;
+            visibility[id]=visible;
+            MyRenderProxy.UpdateRenderObjectVisibility(id,visible,false);
         }
         private static void UpdatePose(Verification check,int index,MatrixD pose)
         {
