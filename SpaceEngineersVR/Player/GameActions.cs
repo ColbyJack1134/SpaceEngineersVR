@@ -36,6 +36,7 @@ namespace SpaceEngineersVR.Player
             if (Label.StartsWith("Yaw") || Label.StartsWith("Pitch") || Label.StartsWith("Roll") || Label.StartsWith("Camera:")) return "BlockRotate";
             if (Label.StartsWith("Offset:")) return "SwitchSymmetryAxis";
             if (Label.StartsWith("Build shape:")) return "MultiBlockBuilding";
+            if (Label.StartsWith("Remove terrain:") || Label.StartsWith("Remove concrete:")) return "CutGrid";
             if (Label.StartsWith("Snap to voxel:")) return "GridSize";
             if (Label.StartsWith("Project to surface:")) return "MoveFurther";
             if (Label.StartsWith("Left stick:")) return Label.EndsWith("size") ? "ScaleUp":"MoveFurther";

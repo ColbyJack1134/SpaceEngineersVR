@@ -80,8 +80,11 @@ namespace SpaceEngineersVR.Player
         internal static bool StickSizes;
         internal static readonly ActionChoice StickAction=new ActionChoice(()=>"Left stick: "+(Current?.Sizing==true ? "size":"distance"),
             ()=>StickSizes=!StickSizes,historyKey:"Left stick distance / size");
+        // Set while the sticks turn the tool, so a tool can keep its modifiers away from rotation input.
+        internal static bool Rotating { get; private set; }
         internal static void Update(bool rotating)
         {
+            Rotating=rotating;
             var current=Current;
             foreach(var tool in Mods) if(tool!=current) tool.ResetModifiers();
             UpdateModifiers();
@@ -255,11 +258,14 @@ namespace SpaceEngineersVR.Player
             MySession.Static?.LocalCharacter is MyCharacter character && MySession.Static.ControlledEntity==character;
         internal override string Title => Terrain ? "Terrain tool":"Concrete tool";
         internal override MyStringId PaintControl => MyControlsSpace.CUBE_COLOR_CHANGE;
-        // Grip held is the mod's Ctrl removal modifier; rotate mode never holds it, since Ctrl also snaps rotation to 90 degrees.
+        // The wheel latch or a held grip is the mod's Ctrl removal modifier. Ctrl is also its rotation step,
+        // so it is dropped while the sticks turn the box unless the trigger is already part way through a removal.
+        private bool removeLatched;
+        private string RemoveAction => Terrain ? "Remove terrain":"Remove concrete";
         internal bool Removing { get; private set; }
         internal override void Queue(ActionFrame frame,bool primary,bool secondary)
         {
-            Removing=secondary && !PlacementControls.Adjusting;
+            Removing=(removeLatched || secondary) && (primary || !VoxelTools.Rotating);
             if(primary) frame.Queue(MyControlsSpace.PRIMARY_TOOL_ACTION);
         }
         internal override bool TryOrientation(out MatrixD matrix)
@@ -269,7 +275,12 @@ namespace SpaceEngineersVR.Player
             matrix=(MatrixD)placeMatrix.GetValue(mod);
             return true;
         }
-        internal override void Rotate(int control,float dt) => NativeActions.Pulse(VoxelTools.RotationControls[ModControl(control)]);
+        // With Ctrl held the mod reads rotation as single 90 degree presses instead of its own steps.
+        internal override void Rotate(int control,float dt)
+        {
+            if(Removing) return;
+            NativeActions.Pulse(VoxelTools.RotationControls[ModControl(control)]);
+        }
         // The mod turns horizontal input the opposite way to the cube builder.
         internal static int ModControl(int control) => control==2 ? 3 : control==3 ? 2 : control;
         protected override void Move(float factor)
@@ -287,6 +298,7 @@ namespace SpaceEngineersVR.Player
         internal void ResetModifiers() => Removing=false;
         private ActionChoice[] actions;
         internal override ActionChoice[] Actions() => actions ?? (actions=new[] {
+            new ActionChoice(()=>RemoveAction+": "+(removeLatched ? "on":"off"),()=>removeLatched=!removeLatched,historyKey:RemoveAction),
             new ActionChoice("Larger box",()=>Scale(1)),new ActionChoice("Smaller box",()=>Scale(-1)),VoxelTools.StickAction,
             new ActionChoice("Snap mode",()=>NativeActions.Pulse(MyControlsSpace.FREE_ROTATION)),
             new ActionChoice("Snap lock",VoxelTools.Lock),
@@ -313,15 +325,19 @@ namespace SpaceEngineersVR.Player
             minTerrain.SetValue(mod,ice ? IceStart:0); maxTerrain.SetValue(mod,ice ? all.Length-1:IceStart-1);
             terrain.SetValue(mod,index);
         }
+        // The latch has no native preview until the trigger asserts Ctrl, so the tool slot carries it.
         internal override bool Selected(out string name,out string icon)
         {
             name=icon=null;
-            if(!Terrain || !(Mod is object mod)) return false;
-            var all=(string[])names.GetValue(mod);
-            int index=(int)terrain.GetValue(mod);
-            if(index<0 || index>=all.Length) return false;
-            name=VoxelTools.Words(all[index]); icon=VoxelHandTool.Icon(all[index]);
-            return true;
+            if(!(Mod is object mod)) return false;
+            if(Terrain)
+            {
+                var all=(string[])names.GetValue(mod);
+                int index=(int)terrain.GetValue(mod);
+                if(index>=0 && index<all.Length) { name=VoxelTools.Words(all[index]); icon=VoxelHandTool.Icon(all[index]); }
+            }
+            if(removeLatched) { name=RemoveAction; icon=NativeSprites.Hud("CutGrid"); }
+            return name!=null;
         }
     }
 }
