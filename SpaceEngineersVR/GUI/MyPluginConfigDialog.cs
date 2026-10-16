@@ -73,6 +73,7 @@ namespace SpaceEngineersVR.GUI
                     Link(-.17f,"Third-person sensitivity",()=>new SettingsPage("Third person"));
                     Link(-.075f,"Release glide",()=>new SettingsPage("Release glide"));
                     Link(.02f,"Turret aim & camera zoom",()=>new SettingsPage("Turrets and cameras"));
+                    Toggle(.115f,"Keep floating screens where left",c.KeepScreenPlacement,v=>c.KeepScreenPlacement=v);
                     break;
                 case 3:
                     c.InitializeHudProfiles();

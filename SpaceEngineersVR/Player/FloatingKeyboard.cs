@@ -36,7 +36,7 @@ namespace SpaceEngineersVR.Player
         public static void Show(bool reposition,Vector3? screen=null)
         {
             var head=Player.Headset.pose.deviceToAbsolute.matrix;
-            if(reposition || !placed || !keyboard.Reachable(head,screen)) keyboard.Place(head,screen);
+            if(reposition || !placed || !Common.Config.KeepScreenPlacement && !keyboard.Reachable(head,screen)) keyboard.Place(head,screen);
             placed=true; ReleaseInput(); Publish();
         }
         public static void ReleaseInput() { foreach(var state in hands) state.Reset(); interaction.Reset(); hover=pressed=-1; lastUpdate=DateTime.UtcNow; }
