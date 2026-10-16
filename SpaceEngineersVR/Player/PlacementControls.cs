@@ -87,7 +87,8 @@ namespace SpaceEngineersVR.Player
                 c.WalkLongitudinal.BlockUntilRelease(); c.WalkRotate.BlockUntilRelease(); c.ThrustLRFB.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease();
             }
             Adjusting=active;
-            HoldingPose=HoldsPose(Common.Config.LockBlockWhileRotating,active,placed,c.Fire.IsPressed,HoldingPose);
+            if(HoldingPose && c.Fire.IsPressed) releaseGrace=ReleaseGrace; else if(releaseGrace>0) releaseGrace--;
+            HoldingPose=HoldsPose(Common.Config.LockBlockWhileRotating,active,placed,c.Fire.IsPressed,HoldingPose,releaseGrace>0);
             VoxelTools.Update(active && !Painting && (Math.Abs(right.X)>=.55f || Math.Abs(right.Y)>=.55f || Math.Abs(left.X)>=.55f));
             if(!active || Painting) return;
             if(left.LengthSquared()<.09f) leftReady=true;
@@ -131,9 +132,13 @@ namespace SpaceEngineersVR.Player
             next=now.AddSeconds(interval); return true;
         }
         internal static bool Rotating(bool rotating,bool tools,bool tap,bool placed) => tools && !placed && (tap ? !rotating:rotating);
-        // The placing press ends rotate mode in the same update, and the builder consumes it over the following updates while the
-        // trigger stays down (a held trigger also drag-builds), so the pose stays locked until the trigger is released.
-        internal static bool HoldsPose(bool setting,bool rotating,bool placed,bool fireHeld,bool wasHolding) => setting && (rotating || placed || wasHolding && fireHeld);
+        // The placing press ends rotate mode in the same update. Single blocks are added on the press, but line and plane shapes
+        // start on the press and are built on the release, from the pose the builder reads after it, so the lock outlives the
+        // trigger by a few updates.
+        internal const int ReleaseGrace=3;
+        private static int releaseGrace;
+        internal static bool HoldsPose(bool setting,bool rotating,bool placed,bool fireHeld,bool wasHolding,bool grace) =>
+            setting && (rotating || placed || wasHolding && (fireHeld || grace));
         internal static bool PaintChord(InputMode mode,bool grip,bool interact,bool blocked) =>
             mode==InputMode.Building && grip && interact && !blocked;
 
