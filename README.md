@@ -22,20 +22,18 @@ If you run into any bugs or problems feel free to create a new [issue](https://g
 
 ## Installation:
 
-1. Install [Pulsar](https://github.com/SpaceGT/Pulsar).
-3. Download `SpaceEngineersVR-vXXXX.zip` from the [latest release](https://github.com/ColbyJack1134/SpaceEngineersVR/releases/latest).
-4. Extract the ZIP into Pulsar's `Legacy\Local` folder. Launch `Legacy.exe` at least once to create this folder.
-5. Launch `Legacy.exe`, go to `Plugins`, click **+** to Add Plugin, search for **SpaceEngineersVR**, and click the checkbox to enable
-<img width="1243" height="636" alt="image" src="https://github.com/user-attachments/assets/c7d39a03-e121-4512-a78a-fbfd957359cf" />
+1. Install [Pulsar](https://github.com/SpaceGT/Pulsar) ([installer](https://github.com/StarCpt/Pulsar-Installer) or [portable](https://github.com/SpaceGT/Pulsar/releases/latest)).
+2. Launch `Legacy.exe`, go to `Plugins`, search for `Space Engineers VR`, and enable the plugin by **ColbyJack**.
+<!-- Screenshot: plugin list search result -->
 
-5. Don't forget to click **Apply**!
-6. Launch Pulsar Legacy again with SteamVR running.
+3. Don't forget to click **Apply**!
+<!-- Screenshot: enabled plugin with Apply -->
 
-**Note**: If you extract the ZIP and it fails to load via Pulsar, it may be blocked. Try: right click each DLL -> Properties -> Unblock
+4. Launch Pulsar Legacy again with SteamVR running.
 
 Set **Model Quality** to **High** to avoid artifacts with your in-game hand model.
 
-Flatscreen multiplayer hosts and clients can install the optional `SpaceEngineersVR.FlatscreenCompanion.dll` plugin.
+To install a newer GitHub release or the optional flatscreen multiplayer companion, see [Installing manually from a release](INSTALL-MANUAL.md).
 
 ## Controls
 

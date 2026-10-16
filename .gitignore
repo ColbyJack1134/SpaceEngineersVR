@@ -22,3 +22,4 @@ __pycache__/
 /*.md
 !/CONTROLS.md
 !/CONTROLS-FRAME.md
+!/INSTALL-MANUAL.md
