@@ -7,12 +7,12 @@ namespace SpaceEngineersVR.Player
     {
         internal struct Bindings
         {
-            internal Button Primary,LeftClick,Secondary,LeftGripClick,Interact,ThrustRoll,JumpOrClimbUp,CrouchOrClimbDown;
+            internal Button Primary,LeftClick,Secondary,LeftGripClick,Interact,ThrustRoll,JumpOrClimbUp,Sprint;
             internal bool Swapped;
             internal Analog PointerPressure,LeftTriggerPressure,RightGripPressure,LeftGripPressure,ThrustRotate,WalkRotate,ThrustLRFB,WalkLongitudinal,ThrustUp,ThrustForward,ThrustDown;
             internal Bindings(Controls c)
             {
-                Primary=c.Primary; LeftClick=c.LeftClick; Secondary=c.Secondary; LeftGripClick=c.GripClick(Player.HandL); Swapped=Handedness.Swapped; Interact=c.Interact; ThrustRoll=c.ThrustRoll; JumpOrClimbUp=c.JumpOrClimbUp; CrouchOrClimbDown=c.CrouchOrClimbDown;
+                Primary=c.Primary; LeftClick=c.LeftClick; Secondary=c.Secondary; LeftGripClick=c.GripClick(Player.HandL); Swapped=Handedness.Swapped; Interact=c.Interact; ThrustRoll=c.ThrustRoll; JumpOrClimbUp=c.JumpOrClimbUp; Sprint=c.Sprint;
                 PointerPressure=c.PointerPressure; LeftTriggerPressure=c.LeftTriggerPressure; RightGripPressure=c.RightGripPressure; LeftGripPressure=c.LeftGripPressure; ThrustRotate=c.ThrustRotate; WalkRotate=c.WalkRotate; ThrustLRFB=c.ThrustLRFB; WalkLongitudinal=c.WalkLongitudinal; ThrustUp=c.ThrustUp; ThrustForward=c.ThrustForward; ThrustDown=c.ThrustDown;
             }
         }
@@ -101,7 +101,7 @@ namespace SpaceEngineersVR.Player
             {
                 (right ? c.RightGripPressure:c.LeftGripPressure).BlockUntilRelease(!Targeted);
                 (right ? c.Secondary:c.LeftGripClick).BlockUntilRelease();
-                if(support) { c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); }
+                if(support) { c.ThrustDown.BlockUntilRelease(); c.Sprint.BlockUntilRelease(); }
                 else c.ThrustRoll.BlockUntilRelease();
             }
             if(ReserveScroll)

@@ -62,7 +62,7 @@ namespace SpaceEngineersVR.Player
                 bool handFree=available && controller.pose.isTracked && !SpatialUi.Owns(controller) && !HelmetHud.Consumes(controller) && !LadderClimb.Holding(controller) &&
                     !GridSelection.Owns(controller) && !HandInteraction.Consumes(controller) && !CockpitControls.Held(controller);
                 bool down=handFree && c.GripClick(controller).IsPressed;
-                // Grip alone also crouches and rests naturally on things; the chord starts a grab, grip alone keeps it.
+                // Grip alone sprints on the left and rests naturally on things; the chord starts a grab, grip alone keeps it.
                 bool squeeze=down && (left ? c.LeftTriggerPressure:c.PointerPressure).RawPosition.X>.5f;
                 bool palmKnown=TrackedArms.TryFreePalm(character,controller,out var palm);
                 if(hand.Hold!=null)

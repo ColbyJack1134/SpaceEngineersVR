@@ -111,7 +111,7 @@ namespace SpaceEngineersVR.Player
             else controls.Primary.BlockUntilRelease();
             controls.GripClick(hand).BlockUntilRelease();
             controls.BlockTriggerRoles(hand);
-            if(hand==Handedness.SupportHand) { controls.CrouchOrClimbDown.BlockUntilRelease(); controls.ThrustDown.BlockUntilRelease(); }
+            if(hand==Handedness.SupportHand) { controls.Sprint.BlockUntilRelease(); controls.ThrustDown.BlockUntilRelease(); }
         }
         private bool Near(Matrix aim)
         {

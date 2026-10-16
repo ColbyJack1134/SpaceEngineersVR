@@ -35,7 +35,7 @@ namespace SpaceEngineersVR.Player
         public readonly Analog WalkRotate;
 
         public readonly Button JumpOrClimbUp;
-        public readonly Button CrouchOrClimbDown;
+        public readonly Button Sprint;
 
         // Flying
         public readonly Analog ThrustLRUD;
@@ -127,7 +127,7 @@ namespace SpaceEngineersVR.Player
         {
             GripClick(hand).BlockUntilRelease();
             if(hand==Handedness.ActionHand) ThrustRoll.BlockUntilRelease();
-            else { ThrustDown.BlockUntilRelease(); CrouchOrClimbDown.BlockUntilRelease(); }
+            else { ThrustDown.BlockUntilRelease(); Sprint.BlockUntilRelease(); }
         }
 
         public Controls()
@@ -152,7 +152,8 @@ namespace SpaceEngineersVR.Player
             WalkRotate = new Analog("/actions/walking/in/WalkRotate");
 
             JumpOrClimbUp = new Button("/actions/walking/in/JumpOrClimbUp");
-            CrouchOrClimbDown = new Button("/actions/walking/in/CrouchOrClimbDown");
+            // The action path keeps its original name so existing user bindings stay valid; the action is labelled Sprint.
+            Sprint = new Button("/actions/walking/in/CrouchOrClimbDown");
             ThrustLRUD = new Analog("/actions/flying/in/ThrustLRUD");
             ThrustLRFB = new Analog("/actions/flying/in/ThrustLRFB");
             ThrustUp = new Analog("/actions/flying/in/ThrustUp");
@@ -222,7 +223,7 @@ namespace SpaceEngineersVR.Player
             else if (mode == InputMode.Jetpack || mode == InputMode.Piloting || InputRouter.Flying) FlyingSets.Update();
             else WalkingSets.Update();
             bool swapped=Handedness.Swapped;
-            foreach (var button in buttons) if(!swapped || button!=ThrustRoll && button!=CrouchOrClimbDown) button.Update();
+            foreach (var button in buttons) if(!swapped || button!=ThrustRoll && button!=Sprint) button.Update();
             // Common pressure keeps the accepted trigger source alive while its flight action is inactive.
             var thrustTrigger=ThrustTrigger;
             foreach (var analog in analogs)
@@ -231,12 +232,12 @@ namespace SpaceEngineersVR.Player
             if(swapped && Handedness.SeatedBuilding)
             {
                 ThrustUp.AcceptSample(default(InputAnalogActionData_t)); ThrustDown.AcceptSample(default(InputAnalogActionData_t));
-                ThrustRoll.AcceptSample(default(InputDigitalActionData_t)); CrouchOrClimbDown.AcceptSample(default(InputDigitalActionData_t));
+                ThrustRoll.AcceptSample(default(InputDigitalActionData_t)); Sprint.AcceptSample(default(InputDigitalActionData_t));
             }
             else if(swapped)
             {
                 ThrustUp.UpdateFrom(PointerPressure,continuingOrigins); ThrustDown.UpdateFrom(RightGripPressure,continuingOrigins);
-                ThrustRoll.UpdateFrom(leftGripClick); CrouchOrClimbDown.UpdateFrom(Secondary);
+                ThrustRoll.UpdateFrom(leftGripClick); Sprint.UpdateFrom(Secondary);
             }
             WindowFocus.Update(this);
             Player.HandL?.Fingers.Update(Player.HandL,true);

@@ -55,7 +55,7 @@ namespace SpaceEngineersVR.Player
             var controls=Controls.Static;
             Controller actionHand=Handedness.ActionHand,supportHand=Handedness.SupportHand;
             bool down=ConsumesSupportGrip ? controls.SupportGripPressure.RawPosition.X>.1f:
-                InputRouter.Flying ? controls.ThrustDown.Position.X>.5f:controls.CrouchOrClimbDown.IsPressed;
+                InputRouter.Flying ? controls.ThrustDown.Position.X>.5f:controls.Sprint.IsPressed;
             if(current!=weapon || profile!=null && profile.Mirrored!=Handedness.Swapped)
             {
                 support.Release(); reload.Release(); valid=wasSupported=wasReloading=false; releaseBlend=0; weapon=current; Aiming=false;

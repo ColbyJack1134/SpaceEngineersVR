@@ -32,7 +32,7 @@ namespace SpaceEngineersVR.Player
                 if(HelmetHud.Reveal) frame.Queue(MyControlsSpace.SIGNALS_FULLY_VISIBLE);
                 if(wheelJumpHeld) frame.Queue(MyControlsSpace.WHEEL_JUMP);
                 if(DriveInput.Braking) frame.Queue(MyControlsSpace.JUMP);
-                if(SprintAllowed && Controls.Static.CrouchOrClimbDown.IsPressed) frame.Queue(MyControlsSpace.SPRINT);
+                if(SprintAllowed && Controls.Static.Sprint.IsPressed) frame.Queue(MyControlsSpace.SPRINT);
                 PlacementControls.Queue(frame, PlacementControls.Mode, Controls.Static.Fire.IsPressed,
                     Controls.Static.ActionGripClick.IsPressed, GameActions.AlternateTrigger);
             }
