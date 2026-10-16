@@ -39,13 +39,14 @@ namespace SpaceEngineersVR.Player
         public static void Reset()
         {
             support.Release(); reload.Release(); valid=wasSupported=wasReloading=false; weapon=null; profile=null; releaseBlend=0;
-            Multiplayer.HeldItemPose.Local=null; Multiplayer.HeldItemPose.LocalToolRay=null; Multiplayer.HeldItemPose.LocalSupported=null; Multiplayer.HeldItemPose.LocalMirrored=null;
+            Multiplayer.HeldItemPose.Local=null; Multiplayer.HeldItemPose.LocalToolRay=null; Multiplayer.HeldItemPose.LocalSupported=null; Multiplayer.HeldItemPose.LocalMirrored=null; Multiplayer.HeldItemPose.LocalEye=null;
             hover=0; ItemGrabVisual.Reset(); Aiming=false;
         }
         public static void Update()
         {
             Multiplayer.HeldItemPose.Local=LocalPose;
             Multiplayer.HeldItemPose.LocalToolRay=LocalToolRay;
+            Multiplayer.HeldItemPose.LocalEye=c=>c==MySession.Static?.LocalCharacter && Main.VrActive && Player.Headset.pose.isTracked ? CameraRig.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation:(Vector3D?)null;
             Multiplayer.HeldItemPose.LocalSupported=c=>c==MySession.Static?.LocalCharacter ? Supported:(bool?)null;
             Multiplayer.HeldItemPose.LocalMirrored=c=>c==MySession.Static?.LocalCharacter ? Handedness.Swapped:(bool?)null;
             Multiplayer.HeldItemPose.Feedback=Haptic;

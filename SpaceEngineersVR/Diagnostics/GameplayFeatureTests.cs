@@ -54,6 +54,9 @@ namespace SpaceEngineersVR.Diagnostics
             var flareAim=Patches.MotionToolPatch.SightAim(flareMuzzle,tilted,flareRear,start=>10);
             var flareStart=flareRear+tilted*Vector3D.Dot(flareMuzzle-flareRear,tilted); var flareTarget=flareStart+tilted*10;
             if(Vector3D.Distance(flareMuzzle+flareAim*Vector3D.Dot(flareTarget-flareMuzzle,flareAim),flareTarget)>.002) throw new Exception("Tilted sight line not followed");
+            var reticles=new HashSet<string> {"PreciseAutomaticRifleItem","UltimateAutomaticRifleItem","ElitePistolItem","BasicHandHeldLauncherItem","AdvancedHandHeldLauncherItem"};
+            foreach(var profile in WeaponProfile.All)
+                if(profile.Reticle!=reticles.Contains(profile.Item) || profile.Reticle && (!profile.Sight.HasValue || profile.Mirror.Reticle!=profile.Reticle)) throw new Exception("Reticle flag wrong: "+profile.Item);
             foreach(var profile in WeaponProfile.All)
                 if((profile.Kind==ItemKind.Rifle || profile.Kind==ItemKind.Launcher || profile.Kind==ItemKind.Pistol)!=profile.Sight.HasValue || profile.Sight.HasValue && (profile.Sight.Value.Y<=profile.Muzzle.Y || profile.Mirror.Sight!=profile.Sight || profile.Mirror.SightDirection!=profile.SightDirection || Math.Abs(profile.SightDirection.Length()-1)>1e-5f))
                     throw new Exception("Sight line missing, below the barrel or lost in the mirrored profile: "+profile.Item);
