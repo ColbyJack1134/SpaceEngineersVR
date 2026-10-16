@@ -534,6 +534,8 @@ namespace SpaceEngineersVR.Diagnostics
                 Save(scene.Texture,Path.Combine(output,"keyboard-multiline-3d.png"));
                 keyboard.Text="reactor|";
                 keyboard.Keys=MenuKeyboard.MakeKeys(true);
+                PhysicalSurface.Paint(canvas,keyboard); canvas.Upload(); Save(canvas.Texture,Path.Combine(output,"keyboard-shift-preview.png"));
+                keyboard.Keys=MenuKeyboard.MakeKeys(2);
                 PhysicalSurface.Paint(canvas,keyboard); canvas.Upload(); Save(canvas.Texture,Path.Combine(output,"keyboard-symbols-preview.png"));
                 keyboard.Keys=MenuKeyboard.MakeHotkeys(); keyboard.Text="Ctrl+";
                 foreach(var key in keyboard.Keys) key.Active=key.Label=="CTRL";

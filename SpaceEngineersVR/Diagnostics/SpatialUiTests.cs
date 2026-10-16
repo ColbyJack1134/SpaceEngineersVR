@@ -342,10 +342,15 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(local.Y<-.30f,"Right hand overlaps bottom of the radial menu");
             }
             var keys=MenuKeyboard.MakeKeys(false);
-            Require(keys.Length==56 && keys.Any(k=>k.Label=="DONE") && keys.Any(k=>k.Label=="BKSP") && keys.Any(k=>k.Label=="[") && keys.Any(k=>k.Label=="\\") &&
+            Require(keys.Length==51 && keys.Any(k=>k.Label=="DONE") && keys.Any(k=>k.Label=="BKSP") && keys.Any(k=>k.Label=="'") && keys.Any(k=>k.Label=="-") &&
                 keys.Any(k=>k.Label=="Preview") && keys.Any(k=>k.Label=="◀") && keys.Any(k=>k.Label=="▶"),"Keyboard layout incomplete");
-            var multiline=MenuKeyboard.MakeKeys(true,"DONE",true);
-            Require(multiline.Length==59 && multiline.Any(k=>k.Label=="↑") && multiline.Any(k=>k.Label=="↓") && multiline.Any(k=>k.Label=="{") && multiline.Any(k=>k.Label=="|"),"Multiline keyboard layout incomplete");
+            var symbols=MenuKeyboard.MakeKeys(2);
+            Require(symbols.Length==51 && symbols.Any(k=>k.Label=="[") && symbols.Any(k=>k.Label=="\\") && symbols.Any(k=>k.Label=="{") && symbols.Any(k=>k.Label=="|") && symbols.Any(k=>k.Label=="`") && symbols.Any(k=>k.Label==MenuKeyboard.PageLabels[2]),"Symbol page incomplete");
+            var multiline=MenuKeyboard.MakeKeys(0,"DONE",true);
+            Require(multiline.Length==54 && multiline.Any(k=>k.Label=="↑") && multiline.Any(k=>k.Label=="↓") && multiline.Any(k=>k.Label=="ENTER"),"Multiline keyboard layout incomplete");
+            foreach(var set in new[] {keys,symbols,multiline}) foreach(var a in set) foreach(var b in set)
+                if(!ReferenceEquals(a,b) && !a.Invisible && !b.Invisible && a.Bounds.X<b.Bounds.X+b.Bounds.Width && b.Bounds.X<a.Bounds.X+a.Bounds.Width && a.Bounds.Y<b.Bounds.Y+b.Bounds.Height && b.Bounds.Y<a.Bounds.Y+a.Bounds.Height)
+                    throw new Exception("Keyboard keys overlap: "+a.Label+" / "+b.Label);
             Require(MenuKeyboard.CaretLine("ab\ncdef\ng",6,-1)==2 && MenuKeyboard.CaretLine("ab\ncdef\ng",6,1)==9 && MenuKeyboard.CaretLine("ab\ncdef\ng",1,-1)==1 &&
                 MenuKeyboard.CaretLine("ab\ncdef\ng",9,1)==9 && MenuKeyboard.CaretLine("ab\ncdef\ng",0,1)==3,"Caret line stepping is wrong");
             var hotkeys=MenuKeyboard.MakeHotkeys();

@@ -22,7 +22,8 @@ namespace SpaceEngineersVR.Player
         internal static bool Hotkeys { get; private set; }
         public static bool Standalone => target!=null && valid!=null;
         public static bool IsOpen => target != null;
-        private static bool shift;
+        private static int page;
+        internal static readonly string[] PageLabels={"⇧ #@","⇧ #+=","⇧ 123"};
         private static DateTime navigateAfter;
         public static int Selected { get; private set; }
         public static string Preview => target==null ? "" : Hotkeys ? HotkeyInput.Status : TextPreview(target);
@@ -134,19 +135,22 @@ namespace SpaceEngineersVR.Player
                     if(cluster[row,col]!=null) keys.Add(new SurfaceKey(cluster[row,col],nav+col*navStep,.31f+row*.107f,.068f,.098f));
             return keys.ToArray();
         }
-        internal static SurfaceKey[] MakeKeys(bool caps,string done="DONE",bool multiline=false)
+        internal static SurfaceKey[] MakeKeys(bool caps,string done="DONE",bool multiline=false) => MakeKeys(caps ? 1:0,done,multiline);
+        // Pages: 0 lower case and digits, 1 upper case and shifted digits, 2 the remaining symbols.
+        internal static SurfaceKey[] MakeKeys(int page,string done="DONE",bool multiline=false)
         {
             var keys=new System.Collections.Generic.List<SurfaceKey>();
-            // Full US layout, each row staggered half a key like a physical keyboard; the shift page carries the symbols.
-            string[] rows=caps ? new[] { "~!@#$%^&*()_+","QWERTYUIOP{}|","ASDFGHJKL:\"","ZXCVBNM<>?" } : new[] { "`1234567890-=","qwertyuiop[]\\","asdfghjkl;'","zxcvbnm,./" };
-            const float pitch=.068f;
+            string[] rows=page==1 ? new[] { "!@#$%^&*()","QWERTYUIOP","ASDFGHJKL:","ZXCVBNM<>?" } :
+                page==2 ? new[] { "[]{}\\|`~_+","-=<>'\";:/?","!@#$%^&*()","1234567890" } : new[] { "1234567890","qwertyuiop","asdfghjkl;","zxcvbnm,./" };
             for(int row=0;row<rows.Length;row++)
-                for(int col=0;col<rows[row].Length;col++) keys.Add(new SurfaceKey(rows[row][col].ToString(),.025f+row*pitch*.5f+col*pitch,.28f+row*.125f,.061f,.108f));
-            string[] navigation={"<<","◀","▶",">>"};
-            for(int i=0;i<navigation.Length;i++) keys.Add(new SurfaceKey(navigation[i],.29f+i*.11f,.23f,.10f,.04f));
-            keys.AddRange(new[] { new SurfaceKey(caps ? "⇧ abc" : "⇧ ABC",.025f,.79f,.14f,.115f),new SurfaceKey("SPACE",.18f,.79f,multiline ? .115f:.43f,.115f),
+                for(int col=0;col<rows[row].Length;col++) keys.Add(new SurfaceKey(rows[row][col].ToString(),.025f+col*.095f,.28f+row*.125f,.085f,.108f));
+            string[] navigation=multiline ? new[] {"<<","◀","▶",">>","↑","↓"} : new[] {"<<","◀","▶",">>"};
+            float navigationLeft=.5f-navigation.Length*.055f+.005f;
+            for(int i=0;i<navigation.Length;i++) keys.Add(new SurfaceKey(navigation[i],navigationLeft+i*.11f,.23f,.10f,.04f));
+            keys.AddRange(new[] { new SurfaceKey(PageLabels[page],.025f,.79f,.14f,.115f),new SurfaceKey("SPACE",.18f,.79f,multiline ? .115f:.25f,.115f),
+                new SurfaceKey("'",.445f,.79f,.08f,.115f),new SurfaceKey("-",.54f,.79f,.08f,.115f),
                 new SurfaceKey("BKSP",.635f,.79f,.155f,.115f),new SurfaceKey(done,.805f,.79f,.17f,.115f) });
-            if(multiline) keys.AddRange(new[] { new SurfaceKey("ENTER",.31f,.79f,.115f,.115f),new SurfaceKey("↑",.445f,.79f,.08f,.115f),new SurfaceKey("↓",.54f,.79f,.08f,.115f) });
+            if(multiline) keys.Add(new SurfaceKey("ENTER",.31f,.79f,.115f,.115f));
             keys.Add(new SurfaceKey("Preview",.028f,KeyboardWindow.TopTrim+.035f*(1-KeyboardWindow.TopTrim),
                 .944f,.10f*(1-KeyboardWindow.TopTrim)) {Invisible=true});
             foreach(var key in keys)
@@ -172,7 +176,7 @@ namespace SpaceEngineersVR.Player
             }
             switch(label)
             {
-                case "⇧ ABC": case "⇧ abc": shift=!shift; Keys=MakeKeys(shift,done,target is MyGuiControlMultilineEditableText); break;
+                case "⇧ #@": case "⇧ #+=": case "⇧ 123": page=(page+1)%3; Keys=MakeKeys(page,done,target is MyGuiControlMultilineEditableText); break;
                 case "↑": MoveCaretLine(target,-1); break;
                 case "↓": MoveCaretLine(target,1); break;
                 case "BKSP": Backspace(target); break;
@@ -276,7 +280,7 @@ namespace SpaceEngineersVR.Player
             bool standalone=Standalone; var callback=closed;
             FloatingKeyboard.Close();
             valid=null; closed=null; submitted=null; Hotkeys=false;
-            shift=false; done="DONE"; Keys=MakeKeys(false);
+            page=0; done="DONE"; Keys=MakeKeys(0);
             target = null;
             screen = null;
             callback?.Invoke();
