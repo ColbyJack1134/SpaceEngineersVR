@@ -14,9 +14,13 @@ namespace SpaceEngineersVR.Player
             public MyCharacterBone Bone;
             public Quaternion Original,Applied;
             public Vector3 Translation,AppliedTranslation;
-            public void Save() { Original=Bone.Rotation; Translation=Bone.Translation; }
+            public bool Saved;
+            public void Save() { Original=Bone.Rotation; Translation=Bone.Translation; Saved=true; }
+            // Two solves may touch one bone in a frame (lean then look); only the first sees the vanilla pose.
+            public void SaveOnce() { if(!Saved) Save(); }
             public bool Restore(bool force)
             {
+                Saved=false;
                 // Do not overwrite a new pose that vanilla animation has already written.
                 if(!force && (Bone.Rotation!=Applied || Bone.Translation!=AppliedTranslation)) return false;
                 Bone.Rotation=Original; Bone.Translation=Translation; return true;
@@ -145,7 +149,7 @@ namespace SpaceEngineersVR.Player
         internal static bool Look(SavedBone head,Matrix target,float limit)
         {
             if(head?.Bone.Parent==null || !target.IsValid() || Math.Abs(target.Forward.LengthSquared()-1)>.1f || Math.Abs(target.Up.LengthSquared()-1)>.1f) return false;
-            head.Save();
+            head.SaveOnce();
             var rest=head.Bone.GetAbsoluteRigTransform().GetOrientation();
             var animated=Quaternion.CreateFromRotationMatrix(head.Bone.AbsoluteTransform);
             var desired=Quaternion.CreateFromRotationMatrix(rest*target.GetOrientation());
@@ -165,7 +169,7 @@ namespace SpaceEngineersVR.Player
             if(!Look(head,target,limit)) return false;
             if(anchored.HasValue)
             {
-                var absolute=anchored.Value; eye.Save();
+                var absolute=anchored.Value; eye.SaveOnce();
                 eye.Bone.SetCompleteTransformFromAbsoluteMatrix(ref absolute,false);
                 eye.Bone.ComputeAbsoluteTransform(true,true);
                 Remember(eye);
@@ -173,7 +177,7 @@ namespace SpaceEngineersVR.Player
             return true;
         }
         internal static SavedBone Below(MyCharacterBone head,MyCharacterBone bone) => head!=null && bone!=null && Descends(bone,head) ? new SavedBone {Bone=bone}:null;
-        private static void Remember(SavedBone saved)
+        internal static void Remember(SavedBone saved)
         { saved.Applied=saved.Bone.Rotation; saved.AppliedTranslation=saved.Bone.Translation; }
     }
 }

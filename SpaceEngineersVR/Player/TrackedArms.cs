@@ -14,7 +14,7 @@ namespace SpaceEngineersVR.Player
         private static MyCharacter owner;
         private static Multiplayer.PlayerPose latestPose;
         private static double poseTime;
-        private sealed class ArmPair { public Arm Left, Right; public ArmSkeleton.SavedBone Head,Eye; }
+        private sealed class ArmPair { public Arm Left, Right; public ArmSkeleton.SavedBone Head,Eye; public SpineLean.Chain Spine; }
         private static readonly Dictionary<MyCharacterBone[], ArmPair> buffers = new Dictionary<MyCharacterBone[], ArmPair>();
         private static Arm left,right;
         private static bool disabled,reportedPose;
@@ -34,6 +34,7 @@ namespace SpaceEngineersVR.Player
             var bones=character.AnimationController.CharacterBones;
             if (bones!=null && buffers.TryGetValue(bones, out var pair))
             {
+                SpineLean.Restore(pair.Spine);
                 pair.Left?.Restore(); pair.Right?.Restore();
                 pair.Eye?.Restore(false);
                 if(pair.Head!=null && pair.Head.Restore(false)) pair.Head.Bone.ComputeAbsoluteTransform(true,true);
@@ -64,6 +65,7 @@ namespace SpaceEngineersVR.Player
                     var head=ArmSkeleton.Head(name=>character.AnimationController.FindBone(name,out _),definition.HeadBone);
                     if(head!=null) pair.Head=new ArmSkeleton.SavedBone {Bone=head};
                     pair.Eye=ArmSkeleton.Below(head,character.AnimationController.FindBone(definition.HeadBone,out _));
+                    pair.Spine=SpineLean.Find(name=>character.AnimationController.FindBone(name,out _),head,pair.Eye);
                     buffers.Add(skeleton, pair);
                     Logger.Info("Tracked arm buffer initialized: left="+(pair.Left!=null)+"; right="+(pair.Right!=null));
                 }
@@ -76,6 +78,7 @@ namespace SpaceEngineersVR.Player
                     !Player.Headset.pose.isTracked)
                 { character.AnimationController.UpdateTransformations(); return; }
                 BodyFit.Apply(character);
+                if(seated && TryLean(character,out var lean,out float twist)) SpineLean.Apply(pair.Spine,lean,twist);
                 if(Common.Config.TrackedArms && Handedness.Swapped && character.CurrentWeapon!=null && !character.IsSitting && left!=null && right!=null)
                     ArmSkeleton.MirrorCollars(left,right);
                 bool applied=Common.Config.TrackedArms && (Apply(left,Player.HandL,character) | Apply(right,Player.HandR,character));
@@ -163,6 +166,19 @@ namespace SpaceEngineersVR.Player
                 if(TryHead(character,out var head)) { pose.Tracked|=Multiplayer.PlayerPose.HeadTracked; pose.Head=head; }
             }
             return pose;
+        }
+        // Headset offset from the seat's camera anchor, the frame ViewGuard and the eye use; the main camera lags a tick on a moving ship.
+        private static bool TryLean(MyCharacter character,out Vector3 delta,out float twist)
+        {
+            delta=Vector3.Zero; twist=0;
+            var seat=SeatFit.Seat;
+            if(seat==null || !Player.Headset.pose.isTracked) return false;
+            MatrixD anchor=seat.GetHeadMatrix(true,true);
+            MatrixD head=(MatrixD)VrMath.Affine(Player.Headset.pose.deviceToAbsolute.matrix*Player.PlayerToAbsolute.inverted)*anchor;
+            MatrixD inverse=character.PositionComp.WorldMatrixNormalizedInv;
+            delta=(Vector3)Vector3D.TransformNormal(head.Translation-anchor.Translation,inverse);
+            twist=SpineLean.Twist((Vector3)Vector3D.TransformNormal(head.Forward,inverse));
+            return delta.IsValid();
         }
         private static bool TryHead(MyCharacter character,out Matrix head)
         {

@@ -427,7 +427,7 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Export(string game,string output,Action<string> log)
         {
             UiTests.Initialize(game,Path.Combine(output,"data")); Directory.CreateDirectory(output); Run(log);
-            foreach(string scenario in new[] {"standing","wrist-local","wrist-remote","seated","look-left","look-down"})
+            foreach(string scenario in new[] {"standing","wrist-local","wrist-remote","seated","seated-lean-forward","seated-lean-left","seated-lean-right-twist","look-left","look-down"})
             {
                 var bones=ArmTests.InstalledBones();
                 var packet=Pose();
@@ -439,7 +439,7 @@ namespace SpaceEngineersVR.Diagnostics
                     packet.Left=Matrix.CreateFromYawPitchRoll(-.7f,-.4f,.7f); packet.Left.Translation=new Vector3(-.15f,1.35f,-.4f);
                     packet.Right.Translation=new Vector3(.1f,1.3f,-.55f); packet.RightFingers=ArmSkeleton.Fingers.Pinch;
                 }
-                if(scenario=="seated")
+                if(scenario.StartsWith("seated"))
                 {
                     foreach(string side in new[] {"L","R"})
                     {
@@ -453,6 +453,13 @@ namespace SpaceEngineersVR.Diagnostics
                     }
                     packet.Left.Translation=new Vector3(-.35f,1.0f,-.35f); packet.Right.Translation=new Vector3(.35f,1.0f,-.35f);
                     packet.LeftFingers=packet.RightFingers=ArmSkeleton.Fingers.Stick;
+                    if(scenario!="seated")
+                    {
+                        var head=ArmSkeleton.Head(name=>bones.FirstOrDefault(b=>b.Name==name),"HeadDummy");
+                        var chain=SpineLean.Find(name=>bones.FirstOrDefault(b=>b.Name==name),head,ArmSkeleton.Below(head,bones.FirstOrDefault(b=>b.Name=="HeadDummy")));
+                        var lean=scenario=="seated-lean-forward" ? new Vector3(0,-.05f,-.25f):scenario=="seated-lean-left" ? new Vector3(-.18f,-.03f,-.05f):new Vector3(.1f,0,-.05f);
+                        Require(SpineLean.Apply(chain,lean,scenario.EndsWith("twist") ? SpineLean.Twist(new Vector3(.8f,0,-.6f)):0),"Seated lean export failed");
+                    }
                 }
                 var stream=new PoseStream(); stream.Push(PlayerPose.Decode(packet.Encode()),0); stream.Sample(0,out var received);
                 foreach(bool left in new[] {true,false})

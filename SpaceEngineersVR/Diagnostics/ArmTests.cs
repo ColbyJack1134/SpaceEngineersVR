@@ -72,6 +72,7 @@ namespace SpaceEngineersVR.Diagnostics
             BlendedLeftWrist(log);
             RecordedWatchPose(log);
             SkinnedHeads(log);
+            SeatedLean(log);
             CockpitHandTests.Run(log);
         }
         private static void RigidLeftWrist(Action<string> log)
@@ -188,6 +189,57 @@ namespace SpaceEngineersVR.Diagnostics
                 Near(Vector3.Distance(eye.Bone.AbsoluteTransform.Translation,before.Translation),0,"Restored camera dummy moved in "+model,.0005f);
             }
             log("PASS head bones: "+astronauts.Length+" installed astronaut definitions resolve to a bone weighted to the head mesh; a turned head keeps the camera dummy in place and restores.");
+        }
+        // The seated lean bends the installed spine toward a headset offset, pins the camera dummy and restores.
+        private static void SeatedLean(Action<string> log)
+        {
+            var bones=InstalledBones();
+            foreach(var bone in bones) bone.ComputeAbsoluteTransform();
+            Func<string,MyCharacterBone> find=name=>bones.FirstOrDefault(b=>b.Name==name);
+            var head=ArmSkeleton.Head(find,"HeadDummy");
+            var eye=ArmSkeleton.Below(head,find("HeadDummy"));
+            var chain=SpineLean.Find(find,head,eye);
+            if(chain==null || eye==null) throw new Exception("Installed astronaut has no spine chain for the seated lean");
+            var rest=bones.Select(b=>b.AbsoluteTransform).ToArray();
+            var collar=find("SE_RigRCollarbone");
+            Vector3 headRest=head.AbsoluteTransform.Translation,eyeRest=eye.Bone.AbsoluteTransform.Translation,collarRest=collar.AbsoluteTransform.Translation;
+            var first=Vector3.Normalize(new Vector3(.3f,.8f,-.2f)); var second=Vector3.Normalize(new Vector3(-.5f,.4f,.6f));
+            Near(Vector3.Distance(Vector3.Transform(first,Matrix.CreateFromQuaternion(SpineLean.Between(first,second))),second),0,"Between does not rotate the first vector onto the second",.0005f);
+            foreach(var delta in new[] {new Vector3(0,0,-.25f),new Vector3(.15f,0,0),new Vector3(-.15f,-.05f,-.1f),new Vector3(0,0,-2f)})
+            {
+                if(!SpineLean.Apply(chain,delta,0)) throw new Exception("Seated lean failed for "+delta);
+                var limited=SpineLean.Limit(delta);
+                var moved=head.AbsoluteTransform.Translation-headRest;
+                float along=Vector3.Dot(moved,Vector3.Normalize(limited));
+                if(along<limited.Length()*.6f || along>limited.Length()*1.05f) throw new Exception("Head moved "+along+" m along a "+limited.Length()+" m lean");
+                if(Vector3.Distance(collar.AbsoluteTransform.Translation,collarRest)<along*.3f) throw new Exception("Shoulders did not follow the lean");
+                Near(Vector3.Distance(eye.Bone.AbsoluteTransform.Translation,eyeRest),0,"Lean moved the camera dummy",.0005f);
+                if(head.AbsoluteTransform.Translation.Y>headRest.Y+.001f && delta.Y<=0) throw new Exception("Lean raised the head");
+                SpineLean.Restore(chain);
+                for(int i=0;i<bones.Length;i++) Near(Vector3.Distance(bones[i].AbsoluteTransform.Translation,rest[i].Translation),0,"Lean did not restore "+bones[i].Name,.0005f);
+            }
+            float twist=SpineLean.Twist(new Vector3(.7f,0,-.7f));
+            if(twist<=0 || twist>SpineLean.TwistLimit) throw new Exception("Looking right gives twist "+twist);
+            Near(SpineLean.Twist(new Vector3(0,.2f,-1)),0,"Looking ahead twists the torso");
+            Near(SpineLean.Twist(new Vector3(.05f,0,1)),0,"Looking behind twists the torso",.05f);
+            if(!SpineLean.Apply(chain,Vector3.Zero,twist)) throw new Exception("Twist failed");
+            var turned=Vector3.TransformNormal(Vector3.Forward,Matrix.Invert(rest[head.Index].GetOrientation())*head.AbsoluteTransform.GetOrientation());
+            if(turned.X<.1f || Math.Abs(turned.Y)>.05f) throw new Exception("Torso twist does not turn the head toward the right: "+turned);
+            if(collar.AbsoluteTransform.Translation.Z<collarRest.Z+.005f) throw new Exception("Right shoulder did not swing back with a right twist");
+            Near(Vector3.Distance(eye.Bone.AbsoluteTransform.Translation,eyeRest),0,"Twist moved the camera dummy",.0005f);
+            // The dummy sits 20 cm ahead of the head joint, so the bend passes offset the twist's eye travel; the head moves a few centimetres.
+            if(Vector3.Distance(head.AbsoluteTransform.Translation,headRest)>.08f) throw new Exception("Twist displaced the head by "+Vector3.Distance(head.AbsoluteTransform.Translation,headRest));
+            SpineLean.Restore(chain);
+            for(int i=0;i<bones.Length;i++) Near(Vector3.Distance(bones[i].AbsoluteTransform.Translation,rest[i].Translation),0,"Twist did not restore "+bones[i].Name,.0005f);
+            // A head turn after the lean must not adopt the leaned pose as its restore point.
+            SpineLean.Apply(chain,new Vector3(0,0,-.2f),0);
+            var saved=new ArmSkeleton.SavedBone {Bone=head};
+            if(!ArmSkeleton.Look(saved,eye,Matrix.CreateRotationY(.5f),ArmSkeleton.HeadLimit)) throw new Exception("Look after lean failed");
+            Near(Vector3.Distance(eye.Bone.AbsoluteTransform.Translation,eyeRest),0,"Look after lean moved the camera dummy",.0005f);
+            eye.Restore(false); saved.Restore(false); SpineLean.Restore(chain); head.ComputeAbsoluteTransform(true,true);
+            for(int i=0;i<bones.Length;i++) Near(Vector3.Distance(bones[i].AbsoluteTransform.Translation,rest[i].Translation),0,"Lean and look did not restore "+bones[i].Name,.0005f);
+            if(SpineLean.Apply(chain,new Vector3(float.NaN,0,0),0)) throw new Exception("Invalid lean accepted");
+            log("PASS seated lean: installed spine bends toward forward, side and clamped offsets with the camera dummy pinned, right twist turns the shoulders, lean and look restore bone for bone.");
         }
         private static void RecordedWatchPose(Action<string> log)
         {

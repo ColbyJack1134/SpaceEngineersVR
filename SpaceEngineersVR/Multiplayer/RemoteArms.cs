@@ -10,7 +10,7 @@ namespace SpaceEngineersVR.Multiplayer
 {
     internal sealed class RemoteArms
     {
-        private sealed class Pair { internal ArmSkeleton.Arm Left,Right; internal ArmSkeleton.SavedBone Head; }
+        private sealed class Pair { internal ArmSkeleton.Arm Left,Right; internal ArmSkeleton.SavedBone Head,Eye; internal SpineLean.Chain Spine; }
         private readonly Dictionary<MyCharacterBone[],Pair> buffers=new Dictionary<MyCharacterBone[],Pair>();
         internal readonly PoseStream Stream=new PoseStream();
         internal MyCharacter Character;
@@ -20,6 +20,7 @@ namespace SpaceEngineersVR.Multiplayer
             var bones=Character?.AnimationController?.CharacterBones;
             if(bones!=null && buffers.TryGetValue(bones,out var pair))
             {
+                SpineLean.Restore(pair.Spine);
                 pair.Left?.Restore(); pair.Right?.Restore();
                 if(pair.Head!=null) { pair.Head.Restore(false); pair.Head.Bone.ComputeAbsoluteTransform(true,true); }
             }
@@ -72,6 +73,8 @@ namespace SpaceEngineersVR.Multiplayer
                     Right=ArmSkeleton.Find(character,d.RightHandIKStartBone,d.RightForearmBone,d.RightHandIKEndBone,1)};
                 var head=ArmSkeleton.Head(name=>character.AnimationController.FindBone(name,out _),d.HeadBone);
                 if(head!=null) pair.Head=new ArmSkeleton.SavedBone {Bone=head};
+                pair.Eye=ArmSkeleton.Below(head,character.AnimationController.FindBone(d.HeadBone,out _));
+                pair.Spine=SpineLean.Find(name=>character.AnimationController.FindBone(name,out _),head,pair.Eye);
                 buffers.Add(bones,pair);
             }
             return pair;
@@ -91,6 +94,13 @@ namespace SpaceEngineersVR.Multiplayer
                 var pair=PairFor(character,bones);
                 var item=character.IsSitting ? null:HeldItemPose.Profile(character);
                 bool mirrored=(pose.Tracked&PlayerPose.ItemMirrored)!=0;
+                if(character.IsSitting && (pose.Tracked&PlayerPose.HeadTracked)!=0 && character.Parent is Sandbox.Game.Entities.MyCockpit seat)
+                {
+                    // The sender's head is relative to its own seat fit, which is not replicated; the offset stays within the lean limits.
+                    var head=Stream.Head(now);
+                    var anchor=(Vector3)Vector3D.Transform(seat.GetHeadMatrix(true,true).Translation,character.PositionComp.WorldMatrixNormalizedInv);
+                    SpineLean.Apply(pair.Spine,head.Translation-anchor,SpineLean.Twist(head.Forward));
+                }
                 if(mirrored && pair.Left!=null && pair.Right!=null) ArmSkeleton.MirrorCollars(pair.Left,pair.Right);
                 if((pose.Tracked&1)!=0) ArmSkeleton.Apply(pair.Left,Stream.Hand(true,now),true,0,1,pose.LeftFingers,pose.LeftTrigger,(pose.Tracked&PlayerPose.LeftCurls)!=0 ? pose.LeftCurl:null,item,!mirrored);
                 if((pose.Tracked&2)!=0) ArmSkeleton.Apply(pair.Right,Stream.Hand(false,now),true,0,1,pose.RightFingers,pose.RightTrigger,(pose.Tracked&PlayerPose.RightCurls)!=0 ? pose.RightCurl:null,item,mirrored);
