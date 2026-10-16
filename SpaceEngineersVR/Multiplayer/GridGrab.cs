@@ -86,6 +86,8 @@ namespace SpaceEngineersVR.Multiplayer
             var physics=grid.Physics;
             var relative=(Vector3)(physics.GetVelocityAtPoint(point)-handVelocity);
             var force=Spring((Vector3)(palm-point),relative,physics.Mass,ForceCap(flying),out hold.Saturation);
+            // A resting grid is asleep in Havok and would ignore the force.
+            if(!physics.IsActive) physics.ForceActivate();
             // One hand cannot steer spin; damp it so the grid does not twirl on the hand. Two hands steer through their two springs.
             Vector3? torque=otherHandHolds ? (Vector3?)null:-physics.AngularVelocity*Math.Min(physics.Mass,ForceCap(flying)/10)*.5f;
             physics.AddForce(MyPhysicsForceType.APPLY_WORLD_FORCE,force,point,torque);
