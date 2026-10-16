@@ -23,6 +23,8 @@ namespace SpaceEngineersVR.Player
                 return Common.Config.HudWithVisorOpen || (VisorClosed && (current==null || !current.Closing || Elapsed(current)>=Duration));
             }
         }
+        // 0 open to 1 closed, following the plugin's visor animation.
+        internal static float VisorClosure { get { var current=transition; return current==null ? (VisorClosed ? 1:0):Closure(Elapsed(current),current.Closing); } }
         public static bool Markers => Visible && Mode >= 1;
         public static bool Names => Visible && Mode == 2;
         internal static bool Reveal { get; private set; }

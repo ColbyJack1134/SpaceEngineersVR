@@ -62,11 +62,13 @@ namespace SpaceEngineersVR.Diagnostics
                     throw new Exception("Sight line missing, below the barrel or lost in the mirrored profile: "+profile.Item);
             var definition=VRageRender.MyPostprocessSettings.Default; definition.Data.ChromaticFactor=.02f; definition.Data.VignetteStart=.9f; definition.Data.BloomDirtRatio=.75f;
             var settings=definition;
-            ScreenEffects.Apply(ref settings,definition,true,true);
+            ScreenEffects.Apply(ref settings,definition,true,0);
             if(settings.Data.ChromaticFactor!=0 || settings.Data.VignetteStart!=0 || settings.Data.BloomDirtRatio!=0) throw new Exception("Screen effects not reduced");
-            ScreenEffects.Apply(ref settings,definition,true,false);
+            ScreenEffects.Apply(ref settings,definition,true,1);
             if(settings.Data.ChromaticFactor!=0 || settings.Data.BloomDirtRatio!=.75f) throw new Exception("Closed visor did not restore the dirt texture");
-            settings=definition; ScreenEffects.Apply(ref settings,definition,false,false);
+            ScreenEffects.Apply(ref settings,definition,true,.5f);
+            if(Math.Abs(settings.Data.BloomDirtRatio-.375f)>1e-6f) throw new Exception("Dirt does not follow the visor animation");
+            settings=definition; ScreenEffects.Apply(ref settings,definition,false,0);
             if(settings.Data.ChromaticFactor!=.02f || settings.Data.VignetteStart!=.9f || settings.Data.BloomDirtRatio!=.75f) throw new Exception("Disabled screen effects changed settings");
             log("PASS aiming: looking down the barrel with hysteresis, sighted shots converge on the sight line; reduced screen effects follow VR, option and visor state");
         }
