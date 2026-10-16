@@ -136,6 +136,7 @@ namespace SpaceEngineersVR.Diagnostics
             PerformanceTests.Run(log);
             GameplayFeatureTests.Run(log);
             PlacementTests.Run(log);
+            GrabTests.Run(log);
             VoxelToolTests.Run(log);
             StickPlacementTests.Run(log);
             InteractionTests.Run(log);

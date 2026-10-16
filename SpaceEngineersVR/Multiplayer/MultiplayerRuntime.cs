@@ -48,7 +48,7 @@ namespace SpaceEngineersVR.Multiplayer
         internal static Action<MyCockpit,CockpitMemory.Record> SaveLocal { get; set; }
         internal static double Now => Stopwatch.GetTimestamp()/(double)Stopwatch.Frequency;
         private sealed class Message { internal ushort Channel; internal byte[] Data; internal ulong Sender; internal bool Server; }
-        private sealed class Peer { internal double Seen; internal readonly RemoteArms Arms=new RemoteArms(); }
+        private sealed class Peer { internal double Seen; internal readonly RemoteArms Arms=new RemoteArms(); internal readonly GridGrab.Holder Grabs=new GridGrab.Holder(); internal double GrabTime; }
         private static readonly ConcurrentQueue<Message> incoming=new ConcurrentQueue<Message>();
         private static readonly Dictionary<ulong,Peer> peers=new Dictionary<ulong,Peer>();
         private static readonly Dictionary<long,RemoteArms> characters=new Dictionary<long,RemoteArms>();
@@ -65,6 +65,14 @@ namespace SpaceEngineersVR.Multiplayer
         private static bool hostSupport;
         // Hosts without SEVR never answer the hello.
         internal static bool LocalOnly => network!=null && !network.IsServer && !hostSupport && LoadLocal!=null && Now-connected>6;
+        // Grab forces run only where physics is authoritative: no session network, the host, or a client with no SEVR host after the handshake window.
+        internal static bool AppliesPhysics => network==null || network.IsServer || LocalOnly;
+        internal static bool GrabSupported => AppliesPhysics || hostSupport;
+        internal static void SendGrab(MyCubeGrid grid,string value)
+        {
+            if(network==null || network.IsServer || LocalOnly || grid==null) return;
+            network.SendMessageToServer(StateChannel,Packet(9,grid.EntityId,value),true);
+        }
         private static uint sequence;
         internal static void Log(string text) => MyLog.Default?.WriteLine("SEVR multiplayer: "+text);
         internal static void Reset()
@@ -138,6 +146,7 @@ namespace SpaceEngineersVR.Multiplayer
             if(!Sandbox.Engine.Platform.Game.IsDedicated)
                 foreach(var peer in peers.Values)
                     if(peer.Arms.Character?.IsSitting==true) peer.Arms.Apply(now);
+            if(network.IsServer) foreach(var peer in peers.Values) ApplyGrabs(peer,now);
             if(Capture!=null && now>=nextPose)
             {
                 nextPose=now+.05;
@@ -195,15 +204,46 @@ namespace SpaceEngineersVR.Multiplayer
                 }
                 if(kind==5 && message.Server)
                 { Notify("Cockpit settings could not be shared. See the plugin log."); Log(value); return; }
-                if(!network.IsServer || player==null || !(kind>=1 && kind<=3 || kind==6 || kind==8)) return;
+                if(!network.IsServer || player==null || !(kind>=1 && kind<=3 || kind==6 || kind==8 || kind==9)) return;
                 if(!budgets.TryGetValue(message.Sender,out var sender)) budgets.Add(message.Sender,sender=new SenderBudget());
                 var budget=kind==6 ? sender.Analog:sender.Edits;
+                if(kind==9)
+                {
+                    if(budget.Allow(now) && peers.TryGetValue(message.Sender,out var grabber)) HostGrab(grabber,player,seat,value,now);
+                    return;
+                }
                 if(!budget.Allow(now))
                 {
                     if(!budget.Reported) { budget.Reported=true; Log((kind==6 ? "Analog updates":"Cockpit requests")+" from "+player.DisplayName+" exceed the rate limit; dropping"); }
                     return;
                 }
                 HostRequest(player,kind,seat,value);
+            }
+        }
+        // A client's grab request: the host validates the grid and keeps the hold until release, slip or loss of the grid.
+        private static void HostGrab(Peer peer,IMyPlayer player,long id,string value,double now)
+        {
+            if(!GridGrab.Decode(value,out bool left,out var local)) return;
+            if(!local.HasValue) { if(left) peer.Grabs.Left=null; else peer.Grabs.Right=null; return; }
+            if(!MyEntities.TryGetEntityById(id,out MyCubeGrid grid) || !GridGrab.Grabbable(grid) || !(player.Character is MyCharacter character) ||
+                VRageMath.Vector3D.Distance(VRageMath.Vector3D.Transform(local.Value,grid.WorldMatrix),character.PositionComp.GetPosition())>GridGrab.GrabRange) return;
+            var hold=new GridGrab.Hold {Grid=grid,Local=local.Value};
+            if(left) peer.Grabs.Left=hold; else peer.Grabs.Right=hold;
+            peer.GrabTime=now;
+        }
+        private static void ApplyGrabs(Peer peer,double now)
+        {
+            var arms=peer.Arms;
+            var character=arms.Character;
+            float dt=(float)Math.Min(.05,Math.Max(0,now-peer.GrabTime)); peer.GrabTime=now;
+            for(int i=0;i<2;i++)
+            {
+                var hold=peer.Grabs.Hands[i];
+                if(hold==null) continue;
+                bool left=i==0;
+                bool kept=character!=null && !character.Closed && !character.IsDead && !character.IsSitting && arms.TryPalm(left,now,out var palm) &&
+                    GridGrab.Apply(hold,palm.Translation,character.JetpackComp?.TurnedOn==true,dt,peer.Grabs.Hands[1-i]?.Grid==hold.Grid);
+                if(!kept) peer.Grabs.Hands[i]=null;
             }
         }
         internal static byte[] Packet(byte kind,long seat,string value)
@@ -351,6 +391,7 @@ namespace SpaceEngineersVR.Multiplayer
         {
             if(arms.Character!=null) characters.Remove(arms.Character.EntityId);
             arms.Clear();
+            foreach(var peer in peers.Values) if(peer.Arms==arms) peer.Grabs.Left=peer.Grabs.Right=null;
         }
         internal static void Restore(MyCharacter character)
         {
