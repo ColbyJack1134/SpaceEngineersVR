@@ -23,8 +23,10 @@ namespace SpaceEngineersVR.Patches
         {
             pose=MatrixD.Identity;
             // TryBuilderPose keeps the last pose while the wheel or a menu is open, like the building preview.
-            return Scope!=null && Main.VrActive && !SpectatorView.Active && ReferenceEquals(VoxelTools.Current,Scope) &&
-                PlacementControls.TryBuilderPose(out pose);
+            // Mod tools act at the aim origin on the server without a reach check, so in third person they keep the head aim
+            // instead of the observer hand, which can be far from the character.
+            return Scope!=null && Main.VrActive && !SpectatorView.Active && !(Scope is DigiTool && ThirdPersonView.Active) &&
+                ReferenceEquals(VoxelTools.Current,Scope) && PlacementControls.TryBuilderPose(out pose);
         }
         internal static Vector3 Forward(MyCamera camera) => TryPose(out var pose) ? (Vector3)Vector3D.Normalize(pose.Forward) : camera.ForwardVector;
         internal static MatrixD View(MyCamera camera) => TryPose(out var pose) ? MatrixD.Invert(VrMath.Rigid(pose)) : camera.ViewMatrix;
