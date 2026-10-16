@@ -33,9 +33,29 @@ namespace SpaceEngineersVR.Diagnostics
                 throw new Exception("Installed astronaut no longer bends its spine from lean outside a crouch");
             log("PASS head lean: native leaning value drives the astronaut's spine layer in every state but a crouch");
         }
+        private static void Aiming(Action<string> log)
+        {
+            var muzzle=new Vector3D(10,5,-3); var direction=Vector3D.Normalize(new Vector3D(.3,.1,-1));
+            Vector3D Eye(double back,double off) => muzzle-direction*back+Vector3D.CalculatePerpendicularVector(direction)*off;
+            if(!WeaponHandling.Sighted(Eye(.6,.05),muzzle,direction,false) || !WeaponHandling.Sighted(Eye(.2,.0),muzzle,direction,false) || !WeaponHandling.Sighted(Eye(1,.08),muzzle,direction,false))
+                throw new Exception("Looking down the barrel did not count as aiming");
+            if(WeaponHandling.Sighted(Eye(.6,.1),muzzle,direction,false) || WeaponHandling.Sighted(Eye(.05,0),muzzle,direction,false) || WeaponHandling.Sighted(Eye(1.3,0),muzzle,direction,false) ||
+                WeaponHandling.Sighted(Eye(-.3,0),muzzle,direction,false)) throw new Exception("Off-axis or misplaced gun counted as aiming");
+            if(!WeaponHandling.Sighted(Eye(.6,.12),muzzle,direction,true) || WeaponHandling.Sighted(Eye(.6,.15),muzzle,direction,true)) throw new Exception("Aiming hysteresis failed");
+            var definition=VRageRender.MyPostprocessSettings.Default; definition.Data.ChromaticFactor=.02f; definition.Data.VignetteStart=.9f; definition.Data.BloomDirtRatio=.75f;
+            var settings=definition;
+            ScreenEffects.Apply(ref settings,definition,true,true);
+            if(settings.Data.ChromaticFactor!=0 || settings.Data.VignetteStart!=0 || settings.Data.BloomDirtRatio!=0) throw new Exception("Screen effects not reduced");
+            ScreenEffects.Apply(ref settings,definition,true,false);
+            if(settings.Data.ChromaticFactor!=0 || settings.Data.BloomDirtRatio!=.75f) throw new Exception("Closed visor did not restore the dirt texture");
+            settings=definition; ScreenEffects.Apply(ref settings,definition,false,false);
+            if(settings.Data.ChromaticFactor!=.02f || settings.Data.VignetteStart!=.9f || settings.Data.BloomDirtRatio!=.75f) throw new Exception("Disabled screen effects changed settings");
+            log("PASS aiming: looking down the barrel with hysteresis; reduced screen effects follow VR, option and visor state");
+        }
         public static void Run(Action<string> log,string output=null)
         {
             HeadLean(log);
+            Aiming(log);
             foreach(bool selected in new[] {false,true})
                 if(BodyFit.UseFit(true,selected,true) || BodyFit.UseFit(false,selected,false) || BodyFit.UseFit(true,selected,false)!=selected)
                     throw new Exception("Body fitting changed native cockpit size or ignored opt-in");

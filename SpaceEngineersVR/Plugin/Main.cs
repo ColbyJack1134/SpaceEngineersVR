@@ -395,6 +395,7 @@ namespace SpaceEngineersVR.Plugin
             touchScreens.Draw();
             arthurLcd.Draw();
             Player.EssentialHud.Update();
+            Player.ScreenEffects.Update();
             Player.HelmetLight.Publish();
             Player.SpatialUi.Publish();
         }

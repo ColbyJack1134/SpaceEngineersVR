@@ -87,7 +87,8 @@ namespace SpaceEngineersVR.Player
             float leftPressure=c.LeftTriggerPressure.RawPosition.X;
             if(leftPressure<=.025f) leftConsumed=false;
             if(c.PointerPressure.RawPosition.X<=.025f && !c.Primary.RawPressed) rightConsumed=false;
-            bool rifle=character?.CurrentWeapon is Sandbox.Game.Weapons.MyAutomaticRifleGun;
+            // Rifles and block tools fire or place with the trigger, so the HUD gesture must not catch a hand working near the face.
+            bool rifle=character?.CurrentWeapon is Sandbox.Game.Weapons.MyAutomaticRifleGun || PlacementControls.OwnsTools;
             bool rightGun=rifle && !Handedness.Swapped,leftGun=rifle && Handedness.Swapped;
             if(rightGun) rightConsumed=false;
             if(leftGun) leftConsumed=false;

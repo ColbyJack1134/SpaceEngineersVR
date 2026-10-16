@@ -95,6 +95,7 @@ namespace SpaceEngineersVR.GUI
                     Toggle(-.12f,"Ship crosshair",c.ShipCrosshair,v=>c.ShipCrosshair=v);
                     Toggle(-.01f,"Block info without grip",c.InspectWithoutGrip,v=>c.InspectWithoutGrip=v);
                     Slider(.10f,"Crosshair size",c.CrosshairScale,.2f,v=>c.CrosshairScale=v,100,Config.PluginConfig.DefaultCrosshairScale);
+                    Toggle(.24f,"Reduce screen effects",c.ReduceScreenEffects,v=>c.ReduceScreenEffects=v);
                     break;
             }
             Controls.Add(new MyGuiControlButton(new Vector2(.18f,.34f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
