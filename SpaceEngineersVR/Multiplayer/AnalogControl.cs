@@ -49,6 +49,17 @@ namespace SpaceEngineersVR.Multiplayer
         // Levers report in 0.1% steps, so a still hand sends nothing and the host skips values a block already holds.
         internal const float LeverStep=.001f;
         internal static float Quantize(float position) => (float)Math.Round(position/LeverStep)*LeverStep;
+        // A range that crosses zero (velocities, overrides, angles limited either side) gets a centre notch: the lever
+        // snaps to the zero position within this band and the block receives an exact zero, so nothing creeps.
+        internal const float DetentZone=.02f;
+        internal static float? DetentPosition(float min,float max,float? normalizedZero=null)
+        {
+            if(!Finite(min) || !Finite(max) || min>=0 || max<=0) return null;
+            float n=normalizedZero ?? -min/(max-min);
+            return Finite(n) ? ToLever(MathHelper.Clamp(n,0,1)):(float?)null;
+        }
+        internal static bool InDetent(float position,float? detent) => detent.HasValue && Math.Abs(position-detent.Value)<=DetentZone;
+        internal static float Snap(float position,float? detent) => InDetent(position,detent) ? detent.Value:position;
         internal sealed class Channel
         {
             internal Block Block;
@@ -72,9 +83,20 @@ namespace SpaceEngineersVR.Multiplayer
             }
             internal float Actual => Type==Kind.Piston ? ((IMyPistonBase)Block).CurrentPosition :
                 Type==Kind.Rotor ? ((IMyMotorStator)Block).Angle : Type==Kind.Thrust ? ((IMyThrust)Block).ThrustOverridePercentage : Property.GetValue(Block);
+            internal float? Detent
+            {
+                get
+                {
+                    if(Type==Kind.Thrust || Type==Kind.Piston || !Range(out float min,out float max)) return null;
+                    float? zero=null;
+                    if(Type==Kind.Slider && Normalize!=null) { float n=(float)Normalize.DynamicInvoke(Block,0f); if(!Finite(n)) return null; zero=n; }
+                    return DetentPosition(min,max,zero);
+                }
+            }
             internal float Value(float position)
             {
                 if(!Range(out float min,out float max)) return Actual;
+                if(InDetent(position,Detent)) return 0;
                 position=FromLever(position);
                 return Type==Kind.Slider && Denormalize!=null ? (float)Denormalize.DynamicInvoke(Block,position) : MathHelper.Lerp(min,max,position);
             }

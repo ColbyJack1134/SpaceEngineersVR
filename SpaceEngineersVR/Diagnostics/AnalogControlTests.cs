@@ -164,6 +164,16 @@ namespace SpaceEngineersVR.Diagnostics
             numeric.Property.SetValue(numeric.Block,numeric.Value(lever));
             Require(Math.Abs(scalar-100)<.01f,"Native slider setter did not receive the lever value");
             Require(AnalogControl.Resolve((IMyTerminalBlock)sliderOwner.GetTransparentProxy(),"OnOff")==null,"Boolean switch became analog");
+            Require(!numeric.Detent.HasValue && !AnalogControl.DetentPosition(0,1).HasValue && !AnalogControl.DetentPosition(-1,0).HasValue,"A one-sided range got a centre notch");
+            float velocity=0;
+            var speed=new Sandbox.Game.Gui.MyTerminalControlSlider<Sandbox.Game.Entities.Blocks.MyPistonBase>("Velocity",VRage.Utils.MyStringId.NullOrEmpty,VRage.Utils.MyStringId.NullOrEmpty);
+            speed.SetLimits(-5,5); speed.Getter=_=>velocity; speed.Setter=(_,value)=>velocity=value;
+            var signed=AnalogControl.Resolve((IMyTerminalBlock)new Actuator(typeof(IMyPistonBase)) {Property=speed}.GetTransparentProxy(),"IncreaseVelocity");
+            signed.Block=numeric.Block;
+            float notch=signed.Detent ?? -1;
+            Require(Math.Abs(notch-AnalogControl.ToLever(.5f))<1e-5f && Math.Abs(AnalogControl.DetentPosition(-2,6).Value-AnalogControl.ToLever(.25f))<1e-5f,"Centre notch is not at the zero position");
+            Require(signed.Value(notch+.019f)==0 && signed.Value(notch-.019f)==0 && signed.Value(notch+.03f)>0 && signed.Value(notch-.03f)<0,"Notch band does not hold an exact zero");
+            Require(AnalogControl.Snap(notch+.01f,notch)==notch && AnalogControl.Snap(notch+.05f,notch)==notch+.05f && AnalogControl.Snap(.3f,null)==.3f,"Lever snap outside the band or without a notch");
             float ratio=50; bool targeted=false;
             var distance=new Sandbox.Game.Gui.MyTerminalControlSlider<Sandbox.Game.Entities.MyJumpDrive>("JumpDistance",VRage.Utils.MyStringId.NullOrEmpty,VRage.Utils.MyStringId.NullOrEmpty);
             distance.SetLimits(0,100); distance.Getter=_=>ratio; distance.Setter=(_,value)=>ratio=value; distance.Enabled=_=>!targeted;

@@ -59,6 +59,7 @@ namespace SpaceEngineersVR.Player
             return true;
         }
         internal static string AnalogLabel(int slot,float position) => analog[slot]?.FirstOrDefault()?.Label(position);
+        internal static float? AnalogDetent(int slot) => slot>=0 && slot<analog.Length ? analog[slot]?.FirstOrDefault()?.Detent:null;
 
         public static void Update(MyCockpit seat)
         {

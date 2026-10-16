@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using SpaceEngineersVR.Player.Control;
+using SpaceEngineersVR.Multiplayer;
 using SpaceEngineersVR.Plugin;
 using VRageMath;
 
@@ -124,6 +125,7 @@ namespace SpaceEngineersVR.Player
             public float GripOffset;
             public readonly CockpitFeedback.ValuePulse ValuePulse=new CockpitFeedback.ValuePulse();
             public float StartPosition;
+            public bool InDetent;
         }
         private static readonly Contact[] hands={new Contact(),new Contact()};
         private static object owner;
@@ -286,15 +288,20 @@ namespace SpaceEngineersVR.Player
                         anchor=Vector3D.Transform(chosenContact,s.Pose);
                     h.Capture(localWrist,(Vector3)Vector3D.Transform(anchor,seat.PositionComp.WorldMatrixNormalizedInv));
                     h.StartPosition=held.Position; h.GripOffset=chosenContact.X;
-                    h.ValuePulse.Reset(held.Position);
+                    h.ValuePulse.Reset(held.Position); h.InDetent=held.Analog && AnalogControl.InDetent(held.Position,CockpitActions.AnalogDetent(held.Slot));
                     if(held.Hinged) h.Drag.Begin(raw,held.Handle!=null ? Vector3.Transform(held.Handle.Center,held.Handle.Visual(held.Position)):h.Anchor,held.Pivot,held.Axis,held.Position,held.Travel);
                     else if(held.Pull || held.Analog || held.FingerSlide) h.Drag.BeginLinear(raw,held.Axis,held.Position,held.Travel);
                     CockpitFeedback.Engage(hand);
                 }
                 h.Target=h.Input.Surface!=null ? held : null;
                 if(h.Target?.Draggable==true && !h.Input.Captured) h.Change=h.Drag.Move(motion,h.Input.Committed);
-                if(h.Target?.Analog==true && h.Input.Committed && CockpitActions.ReadAnalog(h.Target.Slot,out _,out _) &&
-                    h.ValuePulse.Sample(h.Drag.Value,DateTime.UtcNow)) CockpitFeedback.Activate(hand,.10f,.012f);
+                if(h.Target?.Analog==true && h.Input.Committed && CockpitActions.ReadAnalog(h.Target.Slot,out _,out _))
+                {
+                    bool inDetent=AnalogControl.InDetent(h.Drag.Value,CockpitActions.AnalogDetent(h.Target.Slot));
+                    if(inDetent && !h.InDetent) CockpitFeedback.Activate(hand,.2f,.022f);
+                    else if(h.ValuePulse.Sample(h.Drag.Value,DateTime.UtcNow)) CockpitFeedback.Activate(hand,.10f,.012f);
+                    h.InDetent=inDetent;
+                }
                 if(h.Input.Consumed)
                 {
                     h.Hover=h.Target; h.HoverKey=h.Target!=null ? h.Input.Held : -1;
@@ -314,7 +321,7 @@ namespace SpaceEngineersVR.Player
                 result.Pressed=h.Input.Pressed;
                 if(h.Target?.Draggable==true)
                 {
-                    result.Position=h.Drag.Value;
+                    result.Position=h.Target.Analog ? AnalogControl.Snap(h.Drag.Value,CockpitActions.AnalogDetent(h.Target.Slot)):h.Drag.Value;
                     if(h.Change>=0) result.Requested=h.Change==1;
                 }
             }
