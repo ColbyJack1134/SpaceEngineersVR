@@ -56,12 +56,6 @@ namespace SpaceEngineersVR.Multiplayer
             pose.Seat==0 && (pose.Tracked&PlayerPose.ItemMirrored)!=0;
         internal bool Supported(double now) => Character!=null && Stream.Sample(now,out var pose) && pose.Character==Character.EntityId &&
             pose.Seat==0 && (pose.Tracked&3)==3 && (pose.Tracked&PlayerPose.ItemSupported)!=0;
-        internal bool TryEye(double now,out Vector3D eye)
-        {
-            eye=Vector3D.Zero;
-            if(Character==null || !Stream.Sample(now,out var pose) || (pose.Tracked&PlayerPose.HeadTracked)==0) return false;
-            eye=Vector3D.Transform(Stream.Head(now).Translation,Character.WorldMatrix); return eye.IsValid();
-        }
         internal bool TryToolRay(double now,out MatrixD ray)
         {
             ray=MatrixD.Identity;

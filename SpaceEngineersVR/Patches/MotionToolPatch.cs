@@ -99,9 +99,7 @@ namespace SpaceEngineersVR.Patches
             catch(Exception ex) { disabled=true; hostAim=null; Logger.Warning(ex,"Motion tool override disabled; default aiming retained"); }
         }
 
-        // Ironsight mode is synced, so the host computes the same aim for a remote character. The sight line is sampled
-        // from the muzzle plane so the gun's own front sight cannot block it; the shot converges on what the sights cover.
-        // `direction` is the sight line, which the flare gun tilts away from the bore.
+        // The sight line is sampled from the muzzle plane so the gun's own front sight cannot block the ray.
         internal static Vector3D SightAim(Vector3D muzzle,Vector3D direction,Vector3D sight,Func<Vector3D,float> reach)
         {
             var start=sight+direction*Vector3D.Dot(muzzle-sight,direction);

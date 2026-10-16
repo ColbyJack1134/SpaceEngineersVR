@@ -58,7 +58,7 @@ namespace SpaceEngineersVR.Player
                 InputRouter.Flying ? controls.ThrustDown.Position.X>.5f:controls.CrouchOrClimbDown.IsPressed;
             if(current!=weapon || profile!=null && profile.Mirrored!=Handedness.Swapped)
             {
-                support.Release(); reload.Release(); valid=wasSupported=wasReloading=false; releaseBlend=0; weapon=current;
+                support.Release(); reload.Release(); valid=wasSupported=wasReloading=false; releaseBlend=0; weapon=current; Aiming=false;
                 profile=WeaponProfile.Find(character?.CurrentWeapon?.PhysicalObject?.SubtypeName,current?.Model?.AssetName);
                 if(Handedness.Swapped) profile=profile?.Mirror;
                 hover=0; ItemGrabVisual.Reset();
@@ -112,7 +112,6 @@ namespace SpaceEngineersVR.Player
                     Vector3D.Normalize(Vector3D.TransformNormal(profile.Sight.HasValue ? profile.SightDirection:profile.Direction,worldPose)),Aiming));
         }
         // Vanilla narrows the spread only in ironsight mode or while crouching; in VR, looking down the sights is aiming.
-        // The camera is left alone, so only the synced spread and the aiming walk speed change.
         internal static bool Sighted(Vector3D eye,Vector3D muzzle,Vector3D sight,Vector3D direction,bool was)
         {
             double along=Vector3D.Dot(eye-muzzle,direction);
@@ -122,11 +121,11 @@ namespace SpaceEngineersVR.Player
         }
         private static void UpdateAim(MyCharacter character,bool sighted)
         {
-            if(sighted==Aiming) return;
-            Aiming=sighted;
+            bool changed=sighted!=Aiming; Aiming=sighted;
             if(character?.CurrentWeapon==null || !Main.VrActive) return;
-            if(sighted) Handedness.ActionHand.Vibrate(0,.03f,160,.45f); else Handedness.ActionHand.Vibrate(0,.02f,120,.25f);
-            if(sighted ? character.ZoomMode!=MyZoomModeEnum.IronSight:character.ZoomMode==MyZoomModeEnum.IronSight)
+            if(changed) { if(sighted) Handedness.ActionHand.Vibrate(0,.03f,160,.45f); else Handedness.ActionHand.Vibrate(0,.02f,120,.25f); }
+            // Vanilla drops ironsight mode on its own while reloading and on view changes, so the mode is re-asserted, not just toggled.
+            if(sighted ? character.ZoomMode!=MyZoomModeEnum.IronSight && !character.CurrentWeapon.IsReloading:character.ZoomMode==MyZoomModeEnum.IronSight)
                 character.EnableIronsight(sighted,true,false);
         }
         private static MatrixD? LocalToolRay(MyCharacter character) => Patches.MotionToolPatch.Eligible(character) && character==MySession.Static?.LocalCharacter &&

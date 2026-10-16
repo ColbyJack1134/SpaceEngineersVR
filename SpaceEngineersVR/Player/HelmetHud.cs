@@ -15,18 +15,9 @@ namespace SpaceEngineersVR.Player
         // Zero really means empty; notifications do not temporarily resurrect the HUD.
         public static int Mode => Common.Config.WaypointMode;
         public static bool VisorClosed { get; private set; }
-        // HUD opacity follows the visor animation: fading in as it closes, out as it opens.
-        internal static float HudAlpha
-        {
-            get
-            {
-                if(Common.Config.HudWithVisorOpen) return 1;
-                var current=transition;
-                return current==null ? (VisorClosed ? 1:0):Closure(Elapsed(current),current.Closing);
-            }
-        }
+        internal static float HudAlpha => Common.Config.HudWithVisorOpen ? 1:VisorClosure;
         public static bool Visible => HudAlpha>0;
-        // 0 open to 1 closed, following the plugin's visor animation.
+        // 0 open to 1 closed along the visor animation; the HUD and the dirt texture follow it.
         internal static float VisorClosure { get { var current=transition; return current==null ? (VisorClosed ? 1:0):Closure(Elapsed(current),current.Closing); } }
         public static bool Markers => Visible && Mode >= 1;
         public static bool Names => Visible && Mode == 2;
@@ -93,8 +84,8 @@ namespace SpaceEngineersVR.Player
             if(leftPressure<=.025f) leftConsumed=false;
             if(c.PointerPressure.RawPosition.X<=.025f && !c.Primary.RawPressed) rightConsumed=false;
             // Rifles and block tools fire or place with the trigger, so the HUD gesture must not catch a hand working near the face.
-            bool rifle=character?.CurrentWeapon is Sandbox.Game.Weapons.MyAutomaticRifleGun || PlacementControls.OwnsTools;
-            bool rightGun=rifle && !Handedness.Swapped,leftGun=rifle && Handedness.Swapped;
+            bool triggerTool=character?.CurrentWeapon is Sandbox.Game.Weapons.MyAutomaticRifleGun || PlacementControls.OwnsTools;
+            bool rightGun=triggerTool && !Handedness.Swapped,leftGun=triggerTool && Handedness.Swapped;
             if(rightGun) rightConsumed=false;
             if(leftGun) leftConsumed=false;
             bool active=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && !SpectatorView.Manipulating && Player.Headset.pose.isTracked;

@@ -70,7 +70,7 @@ namespace SpaceEngineersVR.Diagnostics
             if(Math.Abs(settings.Data.BloomDirtRatio-.375f)>1e-6f) throw new Exception("Dirt does not follow the visor animation");
             settings=definition; ScreenEffects.Apply(ref settings,definition,false,0);
             if(settings.Data.ChromaticFactor!=.02f || settings.Data.VignetteStart!=.9f || settings.Data.BloomDirtRatio!=.75f) throw new Exception("Disabled screen effects changed settings");
-            log("PASS aiming: looking down the barrel with hysteresis, sighted shots converge on the sight line; reduced screen effects follow VR, option and visor state");
+            log("PASS aiming and screen effects: sight-line detection with hysteresis, sighted shots converge on the sight line, sight profiles; effects follow VR, option and visor closure");
         }
         public static void Run(Action<string> log,string output=null)
         {

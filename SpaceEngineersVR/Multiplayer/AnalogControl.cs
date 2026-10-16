@@ -49,8 +49,7 @@ namespace SpaceEngineersVR.Multiplayer
         // Levers report in 0.1% steps, so a still hand sends nothing and the host skips values a block already holds.
         internal const float LeverStep=.001f;
         internal static float Quantize(float position) => (float)Math.Round(position/LeverStep)*LeverStep;
-        // A range that crosses zero (velocities, overrides, angles limited either side) gets a centre notch: the lever
-        // snaps to the zero position within this band and the block receives an exact zero, so nothing creeps.
+        // Ranges that cross zero get a notch there: the lever snaps inside this band and the block receives an exact zero.
         internal const float DetentZone=.04f;
         internal static float? DetentPosition(float min,float max,float? normalizedZero=null)
         {
@@ -87,7 +86,7 @@ namespace SpaceEngineersVR.Multiplayer
             {
                 get
                 {
-                    if(Type==Kind.Thrust || Type==Kind.Piston || !Range(out float min,out float max)) return null;
+                    if(Type==Kind.Thrust || Type==Kind.Piston || !Range(out float min,out float max) || min>=0 || max<=0) return null;
                     float? zero=null;
                     if(Type==Kind.Slider && Normalize!=null) { float n=(float)Normalize.DynamicInvoke(Block,0f); if(!Finite(n)) return null; zero=n; }
                     return DetentPosition(min,max,zero);
