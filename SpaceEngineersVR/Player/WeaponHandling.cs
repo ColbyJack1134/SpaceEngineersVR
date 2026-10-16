@@ -24,6 +24,7 @@ namespace SpaceEngineersVR.Player
         public static bool ConsumesSupportGrip => support.Consumed || reload.Consumed;
         internal static bool GripsItem(Controller hand) => hand==Handedness.SupportHand && ConsumesSupportGrip;
         public static bool Supported => valid && support.Held;
+        public static bool Aiming { get; private set; }
         internal static bool Holding(Controller hand) => valid && (hand==Handedness.ActionHand || hand==Handedness.SupportHand && support.Held);
         // Support hand is at the held item's support grip or magazine, where a fist also pulls the trigger.
         internal static bool SupportAtItem => valid && hover!=0;
@@ -39,7 +40,7 @@ namespace SpaceEngineersVR.Player
         {
             support.Release(); reload.Release(); valid=wasSupported=wasReloading=false; weapon=null; profile=null; releaseBlend=0;
             Multiplayer.HeldItemPose.Local=null; Multiplayer.HeldItemPose.LocalToolRay=null; Multiplayer.HeldItemPose.LocalSupported=null; Multiplayer.HeldItemPose.LocalMirrored=null;
-            hover=0; ItemGrabVisual.Reset();
+            hover=0; ItemGrabVisual.Reset(); Aiming=false;
         }
         public static void Update()
         {
@@ -66,7 +67,7 @@ namespace SpaceEngineersVR.Player
                 (!profile.Mirrored || TrackedArms.TryPalmMirror(character,out palmMirror));
             if(!available || !TrackedArms.TryFreePalm(character,actionHand,out var actionPalm) || character.HandItemDefinition==null ||
                 !WeaponPose.TryHandItem(Hold(character,false),actionPalm,out var oneWorld))
-            { support.Update(false,down,false,false); reload.Update(false,down,false,false); valid=wasSupported=false; hover=0; ItemGrabVisual.Reset(); return; }
+            { support.Update(false,down,false,false); reload.Update(false,down,false,false); valid=wasSupported=false; hover=0; ItemGrabVisual.Reset(); UpdateAim(character,false); return; }
             oneWorld=Alignment.Apply(Alignment.ToolKey(character),oneWorld);
             var parent=character.WorldMatrix; var inverse=character.PositionComp.WorldMatrixNormalizedInv;
             var one=(Matrix)(oneWorld*inverse); var primary=Vector3.Transform(profile.Primary,one);
@@ -103,7 +104,25 @@ namespace SpaceEngineersVR.Player
             if(!reloading && wasReloading) actionHand.Vibrate(0,.035f,140,.25f);
             wasReloading=reloading;
             ItemGrabVisual.Update(current,profile,supportPoint,hover,Supported);
-
+            var eye=CameraRig.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation;
+            UpdateAim(character,!profile.Tool && InputRouter.Gameplay && !Main.MenuOpen &&
+                Sighted(eye,Vector3D.Transform(profile.Muzzle,worldPose),Vector3D.Normalize(Vector3D.TransformNormal(profile.Direction,worldPose)),Aiming));
+        }
+        // Vanilla narrows the spread only in ironsight mode or while crouching; in VR, looking down the barrel is aiming.
+        // The camera is left alone, so only the synced spread and the aiming walk speed change.
+        internal static bool Sighted(Vector3D eye,Vector3D muzzle,Vector3D direction,bool was)
+        {
+            var toEye=eye-muzzle; double along=Vector3D.Dot(toEye,direction);
+            if(along>-.12 || along<-1.1) return false;
+            return (toEye-direction*along).Length()<(was ? .14:.09);
+        }
+        private static void UpdateAim(MyCharacter character,bool sighted)
+        {
+            if(sighted==Aiming) return;
+            Aiming=sighted;
+            if(character?.CurrentWeapon==null || !Main.VrActive) return;
+            if(sighted ? character.ZoomMode!=MyZoomModeEnum.IronSight:character.ZoomMode==MyZoomModeEnum.IronSight)
+                character.EnableIronsight(sighted,true,false);
         }
         private static MatrixD? LocalToolRay(MyCharacter character) => Patches.MotionToolPatch.Eligible(character) && character==MySession.Static?.LocalCharacter &&
             ToolEquipped && TrackedArms.TryFreePointPose(Handedness.ActionHand,out var ray) ? ray:(MatrixD?)null;
