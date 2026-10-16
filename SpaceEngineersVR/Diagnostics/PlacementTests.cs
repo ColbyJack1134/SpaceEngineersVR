@@ -60,7 +60,13 @@ namespace SpaceEngineersVR.Diagnostics
             rotateTap.Update(true,false,false,tapped.AddSeconds(2));
             Require(!PlacementControls.Rotating(rotating,true,rotateTap.Update(false,true,false,tapped.AddSeconds(2.1)),false),"Second grip tap did not end rotate mode");
             foreach(bool setting in new[] {false,true}) foreach(bool adjusting in new[] {false,true}) foreach(bool placed in new[] {false,true})
-                Require(PlacementControls.HoldsPose(setting,adjusting,placed)==(setting && (adjusting || placed)),"Rotation lock held the pose outside rotate mode or dropped it on the placing press");
+                Require(PlacementControls.HoldsPose(setting,adjusting,placed,placed,false)==(setting && (adjusting || placed)),"Rotation lock held the pose outside rotate mode or dropped it on the placing press");
+            // Placing press, then the trigger held two more updates, then released: locked throughout the hold, free after.
+            bool holding=PlacementControls.HoldsPose(true,false,true,true,true);
+            holding=PlacementControls.HoldsPose(true,false,false,true,holding); Require(holding,"Rotation lock dropped while the placing trigger was still held");
+            holding=PlacementControls.HoldsPose(true,false,false,true,holding); Require(holding,"Rotation lock dropped on the second held update");
+            holding=PlacementControls.HoldsPose(true,false,false,false,holding); Require(!holding,"Rotation lock survived the trigger release");
+            Require(!PlacementControls.HoldsPose(true,false,false,true,false),"A trigger held without a prior lock locked the pose");
             foreach(double scale in new[] {.1,1,3,100,100000})
             foreach(double origin in new[] {0d,1e9})
             {
