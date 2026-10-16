@@ -498,7 +498,7 @@ namespace SpaceEngineersVR.Diagnostics
                 { settings.SelectPage(new[] {1,2,4,3}[index-13]);next=DateTime.UtcNow.AddSeconds(2);phase++;return; }
                 options?.CloseScreenNow();
                 options=index<GUI.BindingHelp.TopicCount ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.BindingHelp(index) :
-                    index==10 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.HudStateOptions() : new GUI.BindingOptions();
+                    index==10 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.HudStateOptions() : new GUI.MyPluginConfigDialog();
                 if(index>=24 && index<29)
                 {
                     var scrolled=new GUI.BindingHelp(new[] {1,4,4,5,8}[index-24]);

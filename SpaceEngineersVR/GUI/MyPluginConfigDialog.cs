@@ -4,6 +4,8 @@ using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Plugin;
 using System;
 using System.Linq;
+using System.Text;
+using Valve.VR;
 using VRageMath;
 
 namespace SpaceEngineersVR.GUI
@@ -25,7 +27,6 @@ namespace SpaceEngineersVR.GUI
             {
                 case "Flight":return new MyPluginConfigDialog(1);
                 case "Rendering":return new MyPluginConfigDialog(4);
-                case "Controls":return new BindingOptions();
                 case "Character":return new MyPluginConfigDialog();
                 case "HUD & Interface":return new MyPluginConfigDialog(3);
                 case "Third person":return new MyPluginConfigDialog(2);
@@ -43,9 +44,10 @@ namespace SpaceEngineersVR.GUI
                 var button=MenuLayout.Button(this,-.325f,-.255f+i*.093f,.24f,pages[i],()=>SelectPage(index),.075f);
                 button.Checked=page==i; if(page==i)FocusedControl=button;
             }
-            MenuLayout.Button(this,-.325f,.192f,.24f,"Active bindings",()=>MyGuiSandbox.AddScreen(new BindingOptions()),.05f);
+            MenuLayout.Button(this,-.325f,.192f,.24f,"Rebind on desktop",OpenBindingEditor,.05f).Enabled=OpenVR.Input!=null;
             MenuLayout.Button(this,-.325f,.26f,.24f,"Controls guide",()=>MyGuiSandbox.AddScreen(new BindingHelp()));
             MenuLayout.Button(this,-.325f,.33f,.24f,"First-time setup",()=>MyGuiSandbox.AddScreen(new FirstRunSetup()));
+            MenuLayout.Label(this,-.445f,.395f,"v"+Common.Version.ToString(3),.6f);
             MenuLayout.Label(this,-.14f,-.27f,pages[page],.9f);
             var c=Common.Config;
             switch(page)
@@ -100,6 +102,13 @@ namespace SpaceEngineersVR.GUI
                     break;
             }
             MenuLayout.Button(this,.315f,.355f,.20f,"Close",()=>CloseScreen());
+        }
+        // The Steam Frame dashboard ignores the in-headset binding request; the desktop editor works on every headset.
+        private static void OpenBindingEditor()
+        {
+            var error=OpenVR.Input?.OpenBindingUI(null,0,0,true);
+            if(error!=EVRInputError.None)
+                MyGuiSandbox.AddScreen(MyGuiSandbox.CreateMessageBox(messageText:new StringBuilder("Open SteamVR > Controllers > Manage bindings."),messageCaption:new StringBuilder("Controller bindings")));
         }
         private void Link(float y,string title,Func<MyGuiScreenBase> create) => MenuLayout.Button(this,.135f,y,.55f,title,()=>MyGuiSandbox.AddScreen(create()));
         private void Toggle(float y,string title,bool value,Action<bool> save) => MenuLayout.Toggle(this,y,title,value,save);

@@ -68,7 +68,7 @@ namespace SpaceEngineersVR.Player
         private static IEnumerable<ActionChoice> Entries()
         {
             foreach(var action in CommonEntries(SpectatorView.Active)) yield return action;
-            foreach(string category in new[] {"Character","Flight","Third person","HUD & Interface","Rendering","Controls"})
+            foreach(string category in new[] {"Character","Flight","Third person","HUD & Interface","Rendering"})
             {
                 string title=category;
                 yield return new ActionChoice("VR: "+title,()=>Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(GUI.MyPluginConfigDialog.CreatePage(title)),true,searchTerms:"settings options controls");
