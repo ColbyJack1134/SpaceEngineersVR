@@ -74,7 +74,7 @@ namespace SpaceEngineersVR.Player
                 if(now<nextDraw) return;
                 nextDraw=now.AddMilliseconds(1000.0/30);
                 if(canvas==null) { canvas=new OverlayCanvas("Build orientation",384,384,Width); canvas.Position(Mount,true); }
-                Paint(canvas,view); canvas.Upload();
+                Paint(canvas,view); canvas.Upload(); canvas.Show(HelmetHud.HudAlpha);
             }
             catch(Exception ex) { failed=true; Logger.Warning(ex,"Build orientation HUD disabled"); Hide(); }
         }

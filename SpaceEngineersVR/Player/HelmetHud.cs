@@ -15,14 +15,17 @@ namespace SpaceEngineersVR.Player
         // Zero really means empty; notifications do not temporarily resurrect the HUD.
         public static int Mode => Common.Config.WaypointMode;
         public static bool VisorClosed { get; private set; }
-        public static bool Visible
+        // HUD opacity follows the visor animation: fading in as it closes, out as it opens.
+        internal static float HudAlpha
         {
             get
             {
+                if(Common.Config.HudWithVisorOpen) return 1;
                 var current=transition;
-                return Common.Config.HudWithVisorOpen || (VisorClosed && (current==null || !current.Closing || Elapsed(current)>=Duration));
+                return current==null ? (VisorClosed ? 1:0):Closure(Elapsed(current),current.Closing);
             }
         }
+        public static bool Visible => HudAlpha>0;
         // 0 open to 1 closed, following the plugin's visor animation.
         internal static float VisorClosure { get { var current=transition; return current==null ? (VisorClosed ? 1:0):Closure(Elapsed(current),current.Closing); } }
         public static bool Markers => Visible && Mode >= 1;

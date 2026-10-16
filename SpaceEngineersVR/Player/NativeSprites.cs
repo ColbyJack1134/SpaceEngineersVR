@@ -222,6 +222,17 @@ float4 PS(P p):SV_TARGET {
             icons[oldest].View?.Dispose(); icons[oldest].Texture?.Dispose(); icons.Remove(oldest);
         }
 
+        // HUD fade for sprites drawn straight into one eye target; cached text and glyph textures stay untouched.
+        private static Texture2D fadeTarget;
+        private static float fadeAlpha=1;
+        internal static void Fade(Texture2D target,float alpha) { fadeTarget=target; fadeAlpha=alpha; }
+        private static Vector4 Faded(Texture2D target,NativeSprite sprite)
+        {
+            if(!ReferenceEquals(target,fadeTarget) || fadeAlpha>=1) return sprite.Tint;
+            var tint=sprite.Tint;
+            if(sprite.Premultiplied) return tint*fadeAlpha;
+            tint.W*=fadeAlpha; return tint;
+        }
         public static void Draw(Texture2D target, IList<NativeSprite> sprites,ShaderResourceView sceneDepth=null,ShaderResourceView handDepth=null)
         {
             if (sprites.Count==0) return;
@@ -246,7 +257,7 @@ float4 PS(P p):SV_TARGET {
                 {
                     var texture=sprite.Texture ?? Get(sprite.Path,sprite.NativeGui);
                     if (texture==null) continue;
-                    var data=new Parameters { Clip0=sprite.Clip0,Clip1=sprite.Clip1,Clip2=sprite.Clip2,Clip3=sprite.Clip3,Tint=sprite.Tint,UV=sprite.UV,DepthTest=new Vector4(sceneDepth==null || sprite.IgnoreSceneDepth ? 0 : 1,sprite.Rounded.X,sprite.Rounded.Y,(sprite.EncodeSrgb ? 1 : 0)+(sprite.Opaque ? 2 : 0)+(handDepth!=null ? 4:0)+(sprite.Premultiplied ? 8:0)+(sprite.Sharpen ? 16:0)) };
+                    var data=new Parameters { Clip0=sprite.Clip0,Clip1=sprite.Clip1,Clip2=sprite.Clip2,Clip3=sprite.Clip3,Tint=Faded(target,sprite),UV=sprite.UV,DepthTest=new Vector4(sceneDepth==null || sprite.IgnoreSceneDepth ? 0 : 1,sprite.Rounded.X,sprite.Rounded.Y,(sprite.EncodeSrgb ? 1 : 0)+(sprite.Opaque ? 2 : 0)+(handDepth!=null ? 4:0)+(sprite.Premultiplied ? 8:0)+(sprite.Sharpen ? 16:0)) };
                     if(sprite.NativeGui && sprite.Texture==null)
                     {
                         var dimensions=icons[sprite.Path+"|native-gui"].Texture.Description;

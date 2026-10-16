@@ -120,16 +120,17 @@ namespace SpaceEngineersVR.Patches
         private static bool PlaceKnown(MyBillboard billboard)
         {
             var camera=MySector.MainCamera;
-            return !Main.VrActive || camera==null || Place(billboard,camera.Position,camera.ForwardVector,HelmetHud.Visible);
+            return !Main.VrActive || camera==null || Place(billboard,camera.Position,camera.ForwardVector,HelmetHud.HudAlpha);
         }
-        internal static bool Place(MyBillboard billboard,Vector3D origin,Vector3D forward,bool visible)
+        internal static bool Place(MyBillboard billboard,Vector3D origin,Vector3D forward,float alpha)
         {
             if(billboard==null || billboard.CustomViewProjection!=-1) return true;
             bool triangle=billboard is MyTriangleBillboard;
             double reach=Reach*Reach;
             if(Vector3D.DistanceSquared(billboard.Position0,origin)>reach || Vector3D.DistanceSquared(billboard.Position1,origin)>reach ||
                 Vector3D.DistanceSquared(billboard.Position2,origin)>reach || (!triangle && Vector3D.DistanceSquared(billboard.Position3,origin)>reach)) return true;
-            if(!visible) return false;
+            if(alpha<=0) return false;
+            if(alpha<1) billboard.Color*=alpha;
             var center=triangle ? (billboard.Position0+billboard.Position1+billboard.Position2)/3:(billboard.Position0+billboard.Position2)*.5;
             double near=Vector3D.Dot(center-origin,forward);
             if(near<.01) return true;

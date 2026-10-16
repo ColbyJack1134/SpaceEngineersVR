@@ -556,9 +556,10 @@ namespace SpaceEngineersVR.Player
             if (failed) return;
             try
             {
-                var current=snapshot;
-                if (!HelmetHud.Visible || !Common.Config.ShowVitals || Main.MenuOpen || InputRouter.RadialOpen || current==null) { canvas?.Hide(); drawn=null; return; }
-                if (ReferenceEquals(current,drawn) && iconRevision==NativeSprites.Revision) return;
+                var current=snapshot; float alpha=HelmetHud.HudAlpha;
+                if (alpha<=0 || !Common.Config.ShowVitals || Main.MenuOpen || InputRouter.RadialOpen || current==null) { canvas?.Hide(); drawn=null; shownAlpha=-1; return; }
+                if (ReferenceEquals(current,drawn) && iconRevision==NativeSprites.Revision)
+                { if(alpha!=shownAlpha) { canvas?.Show(alpha); shownAlpha=alpha; } return; }
                 if (canvas==null)
                 {
                     float scale=FitScale(HeadProjection(EVREye.Eye_Left),HeadProjection(EVREye.Eye_Right));
@@ -568,12 +569,13 @@ namespace SpaceEngineersVR.Player
                     Logger.Info("HUD field-of-view fit: "+scale.ToString("0.000",CultureInfo.InvariantCulture));
                 }
                 Paint(canvas,current);
-                canvas.Upload(); drawn=current; iconRevision=NativeSprites.Revision;
+                canvas.Upload(); canvas.Show(alpha); shownAlpha=alpha; drawn=current; iconRevision=NativeSprites.Revision;
                 recovery.Succeeded();
             }
             catch (Exception ex) { drawn=null; recovery.Fail(ex,"Essential HUD disabled"); RenderRecovery.Quietly(()=>canvas?.Hide()); }
         }
         public static void Reset() { snapshot=null; notice=null; nextSample=DateTime.MinValue; seen.Clear(); entries.Clear(); takeover.Reset(); NativeNotices.Reset(); }
-        public static void Hide() => canvas?.Hide();
+        private static float shownAlpha=-1;
+        public static void Hide() { canvas?.Hide(); shownAlpha=-1; }
     }
 }
