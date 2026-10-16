@@ -50,8 +50,12 @@ namespace SpaceEngineersVR.Diagnostics
             var hit=sightMuzzle+aim*Vector3D.Dot(new Vector3D(0,.1121,-20.3189)-sightMuzzle,aim);
             if(Math.Abs(aim.Y-.064/Math.Sqrt(.064*.064+400))>1e-4 || Vector3D.Distance(hit,new Vector3D(0,.1121,-20.3189))>.002) throw new Exception("Sighted shot misses the sight line at 20 m");
             if(Vector3D.Distance(Patches.MotionToolPatch.SightAim(sightMuzzle,forward,sightRear,start=>300),forward)>.0003) throw new Exception("Sighted shot with no obstacle is not level");
+            var tilted=Vector3D.Normalize(new Vector3D(0,.0041,-.1386)); var flareRear=new Vector3D(0,.0931,.0553); var flareMuzzle=new Vector3D(0,.0634,-.1047);
+            var flareAim=Patches.MotionToolPatch.SightAim(flareMuzzle,tilted,flareRear,start=>10);
+            var flareStart=flareRear+tilted*Vector3D.Dot(flareMuzzle-flareRear,tilted); var flareTarget=flareStart+tilted*10;
+            if(Vector3D.Distance(flareMuzzle+flareAim*Vector3D.Dot(flareTarget-flareMuzzle,flareAim),flareTarget)>.002) throw new Exception("Tilted sight line not followed");
             foreach(var profile in WeaponProfile.All)
-                if((profile.Kind==ItemKind.Rifle || profile.Kind==ItemKind.Launcher || profile.Kind==ItemKind.Pistol && profile.Item!="FlareGunItem")!=profile.Sight.HasValue || profile.Sight.HasValue && (profile.Sight.Value.Y<=profile.Muzzle.Y || profile.Mirror.Sight!=profile.Sight))
+                if((profile.Kind==ItemKind.Rifle || profile.Kind==ItemKind.Launcher || profile.Kind==ItemKind.Pistol)!=profile.Sight.HasValue || profile.Sight.HasValue && (profile.Sight.Value.Y<=profile.Muzzle.Y || profile.Mirror.Sight!=profile.Sight || profile.Mirror.SightDirection!=profile.SightDirection || Math.Abs(profile.SightDirection.Length()-1)>1e-5f))
                     throw new Exception("Sight line missing, below the barrel or lost in the mirrored profile: "+profile.Item);
             var definition=VRageRender.MyPostprocessSettings.Default; definition.Data.ChromaticFactor=.02f; definition.Data.VignetteStart=.9f; definition.Data.BloomDirtRatio=.75f;
             var settings=definition;

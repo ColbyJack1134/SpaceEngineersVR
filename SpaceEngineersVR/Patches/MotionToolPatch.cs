@@ -60,8 +60,8 @@ namespace SpaceEngineersVR.Patches
             direction=profile==null ? hand.Forward:Vector3D.TransformNormal(profile.Direction,hand);
             if(profile?.Sight!=null && character.ZoomMode==MyZoomModeEnum.IronSight)
             {
-                var sight=Vector3D.Transform(profile.Sight.Value,hand); var barrel=direction;
-                direction=SightAim(muzzle,barrel,sight,start=>HandInteraction.ObstacleDistance(MatrixD.CreateWorld(start,barrel,Vector3D.CalculatePerpendicularVector(barrel)),(float)ConvergeRange));
+                var sight=Vector3D.Transform(profile.Sight.Value,hand); var line=Vector3D.Normalize(Vector3D.TransformNormal(profile.SightDirection,hand));
+                direction=SightAim(muzzle,line,sight,start=>HandInteraction.ObstacleDistance(MatrixD.CreateWorld(start,line,Vector3D.CalculatePerpendicularVector(line)),(float)ConvergeRange));
             }
             if(profile?.Tool==true && Multiplayer.HeldItemPose.TryToolRay(character,out var ray))
             { muzzle=ray.Translation; direction=ray.Forward; }
@@ -95,6 +95,7 @@ namespace SpaceEngineersVR.Patches
 
         // Ironsight mode is synced, so the host computes the same aim for a remote character. The sight line is sampled
         // from the muzzle plane so the gun's own front sight cannot block it; the shot converges on what the sights cover.
+        // `direction` is the sight line, which the flare gun tilts away from the bore.
         internal static Vector3D SightAim(Vector3D muzzle,Vector3D direction,Vector3D sight,Func<Vector3D,float> reach)
         {
             var start=sight+direction*Vector3D.Dot(muzzle-sight,direction);

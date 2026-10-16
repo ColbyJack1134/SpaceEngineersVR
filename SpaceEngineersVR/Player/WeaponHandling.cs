@@ -107,7 +107,8 @@ namespace SpaceEngineersVR.Player
             var eye=CameraRig.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation;
             var muzzle=Vector3D.Transform(profile.Muzzle,worldPose);
             UpdateAim(character,!profile.Tool && InputRouter.Gameplay && !Main.MenuOpen &&
-                Sighted(eye,muzzle,profile.Sight.HasValue ? Vector3D.Transform(profile.Sight.Value,worldPose):muzzle,Vector3D.Normalize(Vector3D.TransformNormal(profile.Direction,worldPose)),Aiming));
+                Sighted(eye,muzzle,profile.Sight.HasValue ? Vector3D.Transform(profile.Sight.Value,worldPose):muzzle,
+                    Vector3D.Normalize(Vector3D.TransformNormal(profile.Sight.HasValue ? profile.SightDirection:profile.Direction,worldPose)),Aiming));
         }
         // Vanilla narrows the spread only in ironsight mode or while crouching; in VR, looking down the sights is aiming.
         // The camera is left alone, so only the synced spread and the aiming walk speed change.
