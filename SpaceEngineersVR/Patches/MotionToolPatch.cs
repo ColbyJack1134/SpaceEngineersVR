@@ -46,6 +46,8 @@ namespace SpaceEngineersVR.Patches
         private static int hostAimFrame;
         internal static Vector3D? HostAim => MySession.Static!=null && MySession.Static.GameplayFrameCounter-hostAimFrame<=2 ? hostAim:null;
         private const double ConvergeRange=300;
+        // Vanilla zeroes the crosshair on a hit within min(MaximumShotLength,100 m) and otherwise aims 25 km out.
+        private const float SightRange=100,SightFallback=25000;
 
         internal static bool TryAim(MyCharacter character,out MatrixD hand,out Vector3D muzzle,out Vector3D direction)
         {
@@ -62,7 +64,10 @@ namespace SpaceEngineersVR.Patches
             {
                 var sight=Vector3D.Transform(profile.Sight.Value,hand); var line=Vector3D.Normalize(Vector3D.TransformNormal(profile.SightDirection,hand));
                 if(profile.Reticle && Multiplayer.HeldItemPose.TryEye(character,out var eye) && Vector3D.DistanceSquared(sight,eye)>1e-4) line=Vector3D.Normalize(sight-eye);
-                direction=SightAim(muzzle,line,sight,start=>HandInteraction.ObstacleDistance(MatrixD.CreateWorld(start,line,Vector3D.CalculatePerpendicularVector(line)),(float)ConvergeRange));
+                float zeroRange=Math.Min(character.CurrentWeapon?.MaximumShotLength ?? SightRange,SightRange);
+                direction=SightAim(muzzle,line,sight,start=> {
+                    float hit=HandInteraction.ObstacleDistance(MatrixD.CreateWorld(start,line,Vector3D.CalculatePerpendicularVector(line)),zeroRange);
+                    return hit<zeroRange ? hit:SightFallback; });
             }
             if(profile?.Tool==true && Multiplayer.HeldItemPose.TryToolRay(character,out var ray))
             { muzzle=ray.Translation; direction=ray.Forward; }
