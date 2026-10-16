@@ -29,7 +29,12 @@ namespace SpaceEngineersVR.Diagnostics
             Require(bytes.Length==PlayerPose.HeadSize && decoded!=null && decoded.Character==100 && decoded.Tracked==3,"Pose packet round trip failed");
             Require(decoded.Left==original.Left && decoded.Right==original.Right && Math.Abs(decoded.RightTrigger-.8f)<.005f,"Pose transforms or trigger lost");
             for(int n=0;n<bytes.Length;n++) if(n!=PlayerPose.LegacySize) Require(PlayerPose.Decode(bytes.Take(n).ToArray())==null,"Truncated pose accepted");
-            var bad=(byte[])bytes.Clone(); bad[24]=64; Require(PlayerPose.Decode(bad)==null,"Unknown tracking bits accepted");
+            var bad=(byte[])bytes.Clone(); bad[24]=(byte)(3|PlayerPose.LeftCurls|PlayerPose.RightCurls); Require(PlayerPose.Decode(bad)?.Tracked==3,"Curl bits survived a packet without curls");
+            var curled=Pose(); curled.Tracked|=PlayerPose.LeftCurls; for(int i=0;i<5;i++) curled.LeftCurl[i]=.2f*i; curled.RightCurl[0]=float.NaN;
+            var curledBytes=curled.Encode(); var curledDecoded=PlayerPose.Decode(curledBytes);
+            Require(curledBytes.Length==PlayerPose.HeadSize+PlayerPose.CurlBytes && curledDecoded!=null && (curledDecoded.Tracked&PlayerPose.LeftCurls)!=0 && (curledDecoded.Tracked&PlayerPose.RightCurls)==0 &&
+                Enumerable.Range(0,5).All(i=>Math.Abs(curledDecoded.LeftCurl[i]-.2f*i)<.005f) && curledDecoded.RightCurl[0]==0,"Finger curls lost in transit");
+            for(int n=PlayerPose.HeadSize+1;n<curledBytes.Length;n++) Require(PlayerPose.Decode(curledBytes.Take(n).ToArray())==null,"Partial curls accepted");
             var looking=Pose(); looking.Tracked|=PlayerPose.HeadTracked; looking.Head=Matrix.CreateFromYawPitchRoll(.6f,-.3f,.1f); looking.Head.Translation=new Vector3(0,1.6f,0);
             var lookingBytes=looking.Encode(); var lookingDecoded=PlayerPose.Decode(lookingBytes);
             Require(lookingDecoded!=null && lookingDecoded.Tracked==7 && Vector3.Distance(lookingDecoded.Head.Forward,looking.Head.Forward)<1e-4f,"Head pose lost in transit");
@@ -38,7 +43,10 @@ namespace SpaceEngineersVR.Diagnostics
             var aimedBytes=aiming.Encode(); var aimed=PlayerPose.Decode(aimedBytes);
             Require(aimedBytes.Length==PlayerPose.Size && aimed!=null && (aimed.Tracked&PlayerPose.ToolRayTracked)!=0 &&
                 Vector3.Distance(aimed.ToolRay.Forward,aiming.ToolRay.Forward)<1e-5f && Vector3.Distance(aimed.ToolRay.Translation,aiming.ToolRay.Translation)<1e-5f,"Independent tool ray lost in transit");
-            for(int n=PlayerPose.HeadSize+1;n<PlayerPose.Size;n++) Require(PlayerPose.Decode(aimedBytes.Take(n).ToArray())==null,"Partial tool ray accepted");
+            for(int n=PlayerPose.HeadSize+1;n<PlayerPose.Size;n++) if(n!=PlayerPose.HeadSize+PlayerPose.CurlBytes) Require(PlayerPose.Decode(aimedBytes.Take(n).ToArray())==null,"Partial tool ray accepted");
+            aiming.Tracked|=PlayerPose.RightCurls; aiming.RightCurl[4]=1; var aimedCurled=PlayerPose.Decode(aiming.Encode());
+            Require(aimedCurled!=null && (aimedCurled.Tracked&PlayerPose.ToolRayTracked)!=0 && aimedCurled.RightCurl[4]==1 && Vector3.Distance(aimedCurled.ToolRay.Forward,aiming.ToolRay.Forward)<1e-5f,"Tool ray and curls do not coexist");
+            aiming.Tracked&=unchecked((byte)~PlayerPose.RightCurls);
             var headOnly=PlayerPose.Decode(aimedBytes.Take(PlayerPose.HeadSize).ToArray());
             Require(headOnly!=null && (headOnly.Tracked&PlayerPose.ToolRayTracked)==0,"Legacy pose invented a tool ray");
             foreach(bool tool in new[] {false,true})

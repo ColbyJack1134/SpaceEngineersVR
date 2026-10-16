@@ -158,6 +158,8 @@ namespace SpaceEngineersVR.Player
                 if(Handedness.Swapped && character.CurrentWeapon!=null && !character.IsSitting) pose.Tracked|=Multiplayer.PlayerPose.ItemMirrored;
                 pose.LeftFingers=FingerMode(character,Player.HandL); pose.RightFingers=FingerMode(character,Player.HandR);
                 pose.LeftTrigger=Trigger(Player.HandL); pose.RightTrigger=Trigger(Player.HandR);
+                if((pose.Tracked&1)!=0 && FreeFingers(character,Player.HandL)) { pose.Tracked|=Multiplayer.PlayerPose.LeftCurls; Array.Copy(Player.HandL.Fingers.Curls,pose.LeftCurl,5); }
+                if((pose.Tracked&2)!=0 && FreeFingers(character,Player.HandR)) { pose.Tracked|=Multiplayer.PlayerPose.RightCurls; Array.Copy(Player.HandR.Fingers.Curls,pose.RightCurl,5); }
                 if(TryHead(character,out var head)) { pose.Tracked|=Multiplayer.PlayerPose.HeadTracked; pose.Head=head; }
             }
             return pose;
