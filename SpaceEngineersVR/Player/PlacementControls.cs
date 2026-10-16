@@ -34,6 +34,9 @@ namespace SpaceEngineersVR.Player
         }
         private static object poseOwner;
         private static MatrixD? lastPose;
+        // Rotation lock: the pose is kept in the controlled entity's frame so it rides a moving grid and ignores room-scale drift.
+        private static Matrix? heldPose;
+        internal static bool HoldingPose { get; private set; }
         [ThreadStatic] internal static bool EditingDistance;
 
         // Rotate mode: a right grip tap lets the sticks rotate the preview, so a held grip still rolls in flight.
@@ -84,6 +87,7 @@ namespace SpaceEngineersVR.Player
                 c.WalkLongitudinal.BlockUntilRelease(); c.WalkRotate.BlockUntilRelease(); c.ThrustLRFB.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease();
             }
             Adjusting=active;
+            HoldingPose=HoldsPose(Common.Config.HoldBlockWhileRotating,active,placed);
             VoxelTools.Update(active && !Painting && (Math.Abs(right.X)>=.55f || Math.Abs(right.Y)>=.55f || Math.Abs(left.X)>=.55f));
             if(!active || Painting) return;
             if(left.LengthSquared()<.09f) leftReady=true;
@@ -127,6 +131,8 @@ namespace SpaceEngineersVR.Player
             next=now.AddSeconds(interval); return true;
         }
         internal static bool Rotating(bool rotating,bool tools,bool tap,bool placed) => tools && !placed && (tap ? !rotating:rotating);
+        // The placing press ends rotate mode in the same update; the builder must still read the held pose for that press.
+        internal static bool HoldsPose(bool setting,bool rotating,bool placed) => setting && (rotating || placed);
         internal static bool PaintChord(InputMode mode,bool grip,bool interact,bool blocked) =>
             mode==InputMode.Building && grip && interact && !blocked;
 
@@ -134,14 +140,23 @@ namespace SpaceEngineersVR.Player
         public static bool TryPose(out MatrixD pose)
         {
             object owner = MySession.Static?.ControlledEntity;
-            if (!ReferenceEquals(owner, poseOwner)) { lastPose = null; poseOwner = owner; }
+            if (!ReferenceEquals(owner, poseOwner)) { lastPose = null; heldPose = null; poseOwner = owner; }
             bool active = ClipboardActive || Sandbox.Game.Entities.MyCubeBuilder.Static?.IsActivated == true || VoxelTools.Active;
-            if (!Main.VrActive || !active) { lastPose = null; pose = MatrixD.Identity; return false; }
-            if ((OwnsTools || InputRouter.Mode==InputMode.Radial) && !Main.MenuOpen && HandInteraction.TryVisiblePointerPose(Handedness.ActionHand, out pose)) lastPose = pose;
+            if (!Main.VrActive || !active) { lastPose = null; heldPose = null; pose = MatrixD.Identity; return false; }
+            MatrixD frame = PoseFrame(owner);
+            if (HoldingPose && heldPose.HasValue) lastPose = heldPose.Value * frame;
+            else if ((OwnsTools || InputRouter.Mode==InputMode.Radial) && !Main.MenuOpen && HandInteraction.TryVisiblePointerPose(Handedness.ActionHand, out pose)) lastPose = pose;
+            heldPose = HoldingPose && lastPose.HasValue ? (Matrix?)(lastPose.Value * MatrixD.Invert(frame)) : null;
             pose = lastPose ?? MatrixD.Identity;
             return lastPose.HasValue;
         }
 
+        // A seat frame turns with its grid; on foot only the position follows the body, so head-driven body yaw cannot swing the held pose.
+        private static MatrixD PoseFrame(object owner)
+        {
+            if (owner is MyShipController controller) return controller.PositionComp.WorldMatrixRef;
+            return owner is VRage.Game.Entity.MyEntity entity ? MatrixD.CreateTranslation(entity.PositionComp.WorldMatrixRef.Translation) : MatrixD.Identity;
+        }
         public static bool TryBuilderPose(out MatrixD pose)
         {
             pose=MatrixD.Identity;

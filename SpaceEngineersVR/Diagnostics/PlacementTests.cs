@@ -59,6 +59,8 @@ namespace SpaceEngineersVR.Diagnostics
             Require(!PlacementControls.Rotating(false,true,rotateTap.Update(false,true,false,tapped.AddSeconds(1.2)),false),"Grip chord started rotate mode");
             rotateTap.Update(true,false,false,tapped.AddSeconds(2));
             Require(!PlacementControls.Rotating(rotating,true,rotateTap.Update(false,true,false,tapped.AddSeconds(2.1)),false),"Second grip tap did not end rotate mode");
+            foreach(bool setting in new[] {false,true}) foreach(bool adjusting in new[] {false,true}) foreach(bool placed in new[] {false,true})
+                Require(PlacementControls.HoldsPose(setting,adjusting,placed)==(setting && (adjusting || placed)),"Rotation lock held the pose outside rotate mode or dropped it on the placing press");
             foreach(double scale in new[] {.1,1,3,100,100000})
             foreach(double origin in new[] {0d,1e9})
             {

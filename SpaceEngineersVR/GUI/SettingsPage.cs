@@ -21,15 +21,16 @@ namespace SpaceEngineersVR.GUI
             switch(page)
             {
                 case "Character":
-                    Toggle(-.28f,"Left-handed",c.LeftHanded,v=>c.LeftHanded=v);
-                    Toggle(-.21f,"Body follows head turns",c.UseHeadRotationForCharacter,v=>c.UseHeadRotationForCharacter=v);
-                    Toggle(-.14f,"Roomscale body movement",c.RoomscaleMovement,v=>c.RoomscaleMovement=v);
-                    Toggle(-.07f,"Controller-relative movement",c.ControllerRelativeMovement,v=>c.ControllerRelativeMovement=v);
-                    Toggle(0f,"Invert jetpack pitch",c.InvertJetpackPitch,v=>c.InvertJetpackPitch=v);
-                    Toggle(.07f,"Hold grip to rotate blocks",c.HoldGripRotation,v=>c.HoldGripRotation=v);
-                    Link(.14f,"Body and seated play",()=>new BodyOptions());
+                    Toggle(-.31f,"Left-handed",c.LeftHanded,v=>c.LeftHanded=v);
+                    Toggle(-.245f,"Body follows head turns",c.UseHeadRotationForCharacter,v=>c.UseHeadRotationForCharacter=v);
+                    Toggle(-.18f,"Roomscale body movement",c.RoomscaleMovement,v=>c.RoomscaleMovement=v);
+                    Toggle(-.115f,"Controller-relative movement",c.ControllerRelativeMovement,v=>c.ControllerRelativeMovement=v);
+                    Toggle(-.05f,"Invert jetpack pitch",c.InvertJetpackPitch,v=>c.InvertJetpackPitch=v);
+                    Toggle(.015f,"Hold grip to rotate blocks",c.HoldGripRotation,v=>c.HoldGripRotation=v);
+                    Toggle(.08f,"Hold block position while rotating",c.HoldBlockWhileRotating,v=>c.HoldBlockWhileRotating=v);
+                    Link(.15f,"Body and seated play",()=>new BodyOptions());
                     Link(.21f,"Body visibility",()=>new SettingsPage("Body visibility"));
-                    Link(.28f,"Advanced controls",()=>new SettingsPage("Advanced controls"));
+                    Link(.27f,"Advanced controls",()=>new SettingsPage("Advanced controls"));
                     break;
                 case "Character turning":
                     Toggle(-.23f,"Snap turning",c.SnapTurn,v=>c.SnapTurn=v);
