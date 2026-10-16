@@ -374,6 +374,7 @@ namespace SpaceEngineersVR.Plugin
             Player.GameActions.RunScheduled();
             Player.CockpitControls.Update();
             Player.PlacementControls.Update();
+            Player.HandGrab.Update();
             Player.CameraRig.Publish();
             Player.ViewGuard.Update();
             Player.WeaponHandling.Update();
@@ -391,7 +392,7 @@ namespace SpaceEngineersVR.Plugin
             {
                 MySession.Static.LocalCharacter.Components.Add(new VRMovementComponent());
             }
-            if (Player.InputRouter.Gameplay) { if(!Player.WeaponHandling.ToolEquipped) Player.HandInteraction.Update(); Player.CockpitControls.Draw(); }
+            if (Player.InputRouter.Gameplay) { if(!Player.WeaponHandling.ToolEquipped) Player.HandInteraction.Update(); Player.BuildRayCue.Draw(); Player.CockpitControls.Draw(); }
             touchScreens.Draw();
             arthurLcd.Draw();
             Player.EssentialHud.Update();
