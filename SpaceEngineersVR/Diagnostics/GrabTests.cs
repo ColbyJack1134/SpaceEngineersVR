@@ -31,6 +31,7 @@ namespace SpaceEngineersVR.Diagnostics
             float fade=0; for(int i=0;i<10;i++) fade=BuildRayCue.Fade(fade,true,1/60f);
             Require(fade>.9f && fade<=1,"Build ray does not fade in within a sixth of a second");
             Require(BuildRayCue.Fade(1,false,1/60f)<1 && BuildRayCue.Fade(0,false,1)==0,"Build ray fade out is not bounded");
+            Require(BuildRayCue.Width(false,40)==BuildRayCue.Thickness && Math.Abs(BuildRayCue.Width(true,40)-BuildRayCue.Thickness*40)<1e-6f && BuildRayCue.Width(true,.5)==BuildRayCue.Thickness,"Build ray width does not follow the third person scale");
             log("PASS hand grab and build ray cue: spring pull, cap and damping, jetpack cap, size cap, grab/release message round trip and rejection, ray visibility rule and fade.");
         }
     }
