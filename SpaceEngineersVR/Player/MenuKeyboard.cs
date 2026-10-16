@@ -129,8 +129,8 @@ namespace SpaceEngineersVR.Player
             float x=.015f;
             foreach(var key in new[] {("Tab",1f),("SHIFT",1.5f),("CTRL",1.25f),("ALT",1.25f),("SPACE",2.5f),("ENTER",1.25f),("DONE",1.25f)})
             { Add(key.Item1,x,.855f,key.Item2); x+=key.Item2*step; }
-            string[,] cluster={{"Ins","Home","PgUp"},{"Del","End","PgDn"},{"RMB","MMB","Scr↑"},{null,"↑","Scr↓"},{"←","↓","→"}};
-            for(int row=0;row<5;row++)
+            string[,] cluster={{"Ins","Home","PgUp"},{"Del","End","PgDn"},{"RMB","MMB","Scr↑"},{null,null,"Scr↓"},{null,"↑",null},{"←","↓","→"}};
+            for(int row=0;row<6;row++)
                 for(int col=0;col<3;col++)
                     if(cluster[row,col]!=null) keys.Add(new SurfaceKey(cluster[row,col],nav+col*navStep,.31f+row*.107f,.068f,.098f));
             return keys.ToArray();
