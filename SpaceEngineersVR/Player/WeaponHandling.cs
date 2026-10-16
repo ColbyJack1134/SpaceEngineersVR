@@ -105,16 +105,18 @@ namespace SpaceEngineersVR.Player
             wasReloading=reloading;
             ItemGrabVisual.Update(current,profile,supportPoint,hover,Supported);
             var eye=CameraRig.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation;
+            var muzzle=Vector3D.Transform(profile.Muzzle,worldPose);
             UpdateAim(character,!profile.Tool && InputRouter.Gameplay && !Main.MenuOpen &&
-                Sighted(eye,Vector3D.Transform(profile.Muzzle,worldPose),Vector3D.Normalize(Vector3D.TransformNormal(profile.Direction,worldPose)),Aiming));
+                Sighted(eye,muzzle,profile.Sight.HasValue ? Vector3D.Transform(profile.Sight.Value,worldPose):muzzle,Vector3D.Normalize(Vector3D.TransformNormal(profile.Direction,worldPose)),Aiming));
         }
-        // Vanilla narrows the spread only in ironsight mode or while crouching; in VR, looking down the barrel is aiming.
+        // Vanilla narrows the spread only in ironsight mode or while crouching; in VR, looking down the sights is aiming.
         // The camera is left alone, so only the synced spread and the aiming walk speed change.
-        internal static bool Sighted(Vector3D eye,Vector3D muzzle,Vector3D direction,bool was)
+        internal static bool Sighted(Vector3D eye,Vector3D muzzle,Vector3D sight,Vector3D direction,bool was)
         {
-            var toEye=eye-muzzle; double along=Vector3D.Dot(toEye,direction);
+            double along=Vector3D.Dot(eye-muzzle,direction);
             if(along>-.12 || along<-1.1) return false;
-            return (toEye-direction*along).Length()<(was ? .14:.09);
+            var offset=eye-sight;
+            return (offset-direction*Vector3D.Dot(offset,direction)).Length()<(was ? .14:.09);
         }
         private static void UpdateAim(MyCharacter character,bool sighted)
         {

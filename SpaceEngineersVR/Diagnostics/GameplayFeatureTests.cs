@@ -37,18 +37,21 @@ namespace SpaceEngineersVR.Diagnostics
         {
             var muzzle=new Vector3D(10,5,-3); var direction=Vector3D.Normalize(new Vector3D(.3,.1,-1));
             Vector3D Eye(double back,double off) => muzzle-direction*back+Vector3D.CalculatePerpendicularVector(direction)*off;
-            if(!WeaponHandling.Sighted(Eye(.6,.05),muzzle,direction,false) || !WeaponHandling.Sighted(Eye(.2,.0),muzzle,direction,false) || !WeaponHandling.Sighted(Eye(1,.08),muzzle,direction,false))
+            if(!WeaponHandling.Sighted(Eye(.6,.05),muzzle,muzzle,direction,false) || !WeaponHandling.Sighted(Eye(.2,.0),muzzle,muzzle,direction,false) || !WeaponHandling.Sighted(Eye(1,.08),muzzle,muzzle,direction,false))
                 throw new Exception("Looking down the barrel did not count as aiming");
-            if(WeaponHandling.Sighted(Eye(.6,.1),muzzle,direction,false) || WeaponHandling.Sighted(Eye(.05,0),muzzle,direction,false) || WeaponHandling.Sighted(Eye(1.3,0),muzzle,direction,false) ||
-                WeaponHandling.Sighted(Eye(-.3,0),muzzle,direction,false)) throw new Exception("Off-axis or misplaced gun counted as aiming");
-            if(!WeaponHandling.Sighted(Eye(.6,.12),muzzle,direction,true) || WeaponHandling.Sighted(Eye(.6,.15),muzzle,direction,true)) throw new Exception("Aiming hysteresis failed");
+            if(WeaponHandling.Sighted(Eye(.6,.1),muzzle,muzzle,direction,false) || WeaponHandling.Sighted(Eye(.05,0),muzzle,muzzle,direction,false) || WeaponHandling.Sighted(Eye(1.3,0),muzzle,muzzle,direction,false) ||
+                WeaponHandling.Sighted(Eye(-.3,0),muzzle,muzzle,direction,false)) throw new Exception("Off-axis or misplaced gun counted as aiming");
+            if(!WeaponHandling.Sighted(Eye(.6,.12),muzzle,muzzle,direction,true) || WeaponHandling.Sighted(Eye(.6,.15),muzzle,muzzle,direction,true)) throw new Exception("Aiming hysteresis failed");
+            var launcherSight=Eye(-.3,.117);
+            if(!WeaponHandling.Sighted(Eye(.5,.117),muzzle,launcherSight,direction,false) || WeaponHandling.Sighted(Eye(.5,0),muzzle,launcherSight,direction,false))
+                throw new Exception("A sight above the barrel is not the aiming line");
             var sightMuzzle=new Vector3D(0,.0481,-.3189); var sightRear=new Vector3D(0,.1121,-.0107); var forward=new Vector3D(0,0,-1);
             var aim=Patches.MotionToolPatch.SightAim(sightMuzzle,forward,sightRear,start=> { if(Math.Abs(start.Y-.1121)>1e-6 || Math.Abs(start.Z+.3189)>1e-6) throw new Exception("Sight ray does not start on the muzzle plane"); return 20; });
             var hit=sightMuzzle+aim*Vector3D.Dot(new Vector3D(0,.1121,-20.3189)-sightMuzzle,aim);
             if(Math.Abs(aim.Y-.064/Math.Sqrt(.064*.064+400))>1e-4 || Vector3D.Distance(hit,new Vector3D(0,.1121,-20.3189))>.002) throw new Exception("Sighted shot misses the sight line at 20 m");
             if(Vector3D.Distance(Patches.MotionToolPatch.SightAim(sightMuzzle,forward,sightRear,start=>300),forward)>.0003) throw new Exception("Sighted shot with no obstacle is not level");
             foreach(var profile in WeaponProfile.All)
-                if((profile.Kind==ItemKind.Rifle || profile.Kind==ItemKind.Pistol && profile.Item!="FlareGunItem")!=profile.Sight.HasValue || profile.Sight.HasValue && (profile.Sight.Value.Y<=profile.Muzzle.Y || profile.Mirror.Sight!=profile.Sight))
+                if((profile.Kind==ItemKind.Rifle || profile.Kind==ItemKind.Launcher || profile.Kind==ItemKind.Pistol && profile.Item!="FlareGunItem")!=profile.Sight.HasValue || profile.Sight.HasValue && (profile.Sight.Value.Y<=profile.Muzzle.Y || profile.Mirror.Sight!=profile.Sight))
                     throw new Exception("Sight line missing, below the barrel or lost in the mirrored profile: "+profile.Item);
             var definition=VRageRender.MyPostprocessSettings.Default; definition.Data.ChromaticFactor=.02f; definition.Data.VignetteStart=.9f; definition.Data.BloomDirtRatio=.75f;
             var settings=definition;
