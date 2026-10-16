@@ -11,16 +11,15 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
-    // Build ray, shown only when aiming needs it: the preview is beyond arm's reach and either the attach face
-    // just changed on the same grid (thin edges flicker) or the ray hits nothing. Hidden while the pose is locked.
+    // Build aim dot at the hit point, shown only when aiming needs it: the preview is beyond arm's reach and either the attach
+    // face just changed on the same grid (thin edges flicker) or the ray hits nothing. Hidden while the pose is locked.
     internal static class BuildRayCue
     {
         private static readonly AccessTools.FieldRef<MyCubeBuilder,MyCubeBuilderGizmo> gizmo=AccessTools.FieldRefAccess<MyCubeBuilder,MyCubeBuilderGizmo>("m_gizmo");
         internal const double ArmReach=1.2,FlickerHold=.5;
-        // Same line as the on-foot interaction ray; third person scales the world down, so the thickness scales up to read the same.
+        // A soft round dot sized like the HUD markers (two degrees) reads as a small sphere from any distance and in the diorama.
         private static readonly Vector4 color=new Color(60,220,255).ToVector4();
-        internal const float Thickness=.002f;
-        internal static float Width(bool observer,double unitsPerMeter) => observer && unitsPerMeter>1 ? (float)(Thickness*unitsPerMeter):Thickness;
+        private static readonly MyStringId dot=MyStringId.GetOrCompute("WhiteDot");
         private static MyCubeGrid lastGrid;
         private static Vector3I lastDirection;
         private static DateTime unstableUntil,sampled;
@@ -50,8 +49,14 @@ namespace SpaceEngineersVR.Player
                 bool far=Vector3D.Distance(start,end)>ArmReach;
                 alpha=Fade(alpha,Visible(far,hit,now<unstableUntil,PlacementControls.HoldingPose),dt);
                 if(alpha<=0 || !end.IsValid()) return;
-                var tint=color; tint.W*=alpha;
-                MySimpleObjectDraw.DrawLine(start,end,MyStringId.GetOrCompute("Square"),ref tint,Width(PlacementControls.Observer,ThirdPersonView.Current?.UnitsPerMeter ?? 1));
+                var head=CameraRig.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix);
+                if(!MarkerBillboard.TryCreate(end,head,out var board)) return;
+                float radius=(float)board.Scale/2;
+                // Lifted off the surface by its radius so the sphere sits on the hit instead of sinking into it.
+                var centre=end+Vector3D.Normalize(head.Translation-end)*radius;
+                var halo=color; halo.W*=alpha*.45f; var core=color; core.W*=alpha;
+                MyTransparentGeometry.AddPointBillboard(dot,halo,centre,radius,0);
+                MyTransparentGeometry.AddPointBillboard(dot,core,centre,radius*.55f,0);
             }
             catch(Exception ex) { disabled=true; Logger.Warning(ex,"Build ray cue disabled"); }
         }
