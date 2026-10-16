@@ -42,6 +42,14 @@ namespace SpaceEngineersVR.Diagnostics
             if(WeaponHandling.Sighted(Eye(.6,.1),muzzle,direction,false) || WeaponHandling.Sighted(Eye(.05,0),muzzle,direction,false) || WeaponHandling.Sighted(Eye(1.3,0),muzzle,direction,false) ||
                 WeaponHandling.Sighted(Eye(-.3,0),muzzle,direction,false)) throw new Exception("Off-axis or misplaced gun counted as aiming");
             if(!WeaponHandling.Sighted(Eye(.6,.12),muzzle,direction,true) || WeaponHandling.Sighted(Eye(.6,.15),muzzle,direction,true)) throw new Exception("Aiming hysteresis failed");
+            var sightMuzzle=new Vector3D(0,.0481,-.3189); var sightRear=new Vector3D(0,.1121,-.0107); var forward=new Vector3D(0,0,-1);
+            var aim=Patches.MotionToolPatch.SightAim(sightMuzzle,forward,sightRear,start=> { if(Math.Abs(start.Y-.1121)>1e-6 || Math.Abs(start.Z+.3189)>1e-6) throw new Exception("Sight ray does not start on the muzzle plane"); return 20; });
+            var hit=sightMuzzle+aim*Vector3D.Dot(new Vector3D(0,.1121,-20.3189)-sightMuzzle,aim);
+            if(Math.Abs(aim.Y-.064/Math.Sqrt(.064*.064+400))>1e-4 || Vector3D.Distance(hit,new Vector3D(0,.1121,-20.3189))>.002) throw new Exception("Sighted shot misses the sight line at 20 m");
+            if(Vector3D.Distance(Patches.MotionToolPatch.SightAim(sightMuzzle,forward,sightRear,start=>300),forward)>.0003) throw new Exception("Sighted shot with no obstacle is not level");
+            foreach(var profile in WeaponProfile.All)
+                if((profile.Kind==ItemKind.Rifle || profile.Kind==ItemKind.Pistol && profile.Item!="FlareGunItem")!=profile.Sight.HasValue || profile.Sight.HasValue && (profile.Sight.Value.Y<=profile.Muzzle.Y || profile.Mirror.Sight!=profile.Sight))
+                    throw new Exception("Sight line missing, below the barrel or lost in the mirrored profile: "+profile.Item);
             var definition=VRageRender.MyPostprocessSettings.Default; definition.Data.ChromaticFactor=.02f; definition.Data.VignetteStart=.9f; definition.Data.BloomDirtRatio=.75f;
             var settings=definition;
             ScreenEffects.Apply(ref settings,definition,true,true);
@@ -50,7 +58,7 @@ namespace SpaceEngineersVR.Diagnostics
             if(settings.Data.ChromaticFactor!=0 || settings.Data.BloomDirtRatio!=.75f) throw new Exception("Closed visor did not restore the dirt texture");
             settings=definition; ScreenEffects.Apply(ref settings,definition,false,false);
             if(settings.Data.ChromaticFactor!=.02f || settings.Data.VignetteStart!=.9f || settings.Data.BloomDirtRatio!=.75f) throw new Exception("Disabled screen effects changed settings");
-            log("PASS aiming: looking down the barrel with hysteresis; reduced screen effects follow VR, option and visor state");
+            log("PASS aiming: looking down the barrel with hysteresis, sighted shots converge on the sight line; reduced screen effects follow VR, option and visor state");
         }
         public static void Run(Action<string> log,string output=null)
         {

@@ -121,6 +121,7 @@ namespace SpaceEngineersVR.Player
             if(sighted==Aiming) return;
             Aiming=sighted;
             if(character?.CurrentWeapon==null || !Main.VrActive) return;
+            if(sighted) Handedness.ActionHand.Vibrate(0,.03f,160,.45f); else Handedness.ActionHand.Vibrate(0,.02f,120,.25f);
             if(sighted ? character.ZoomMode!=MyZoomModeEnum.IronSight:character.ZoomMode==MyZoomModeEnum.IronSight)
                 character.EnableIronsight(sighted,true,false);
         }

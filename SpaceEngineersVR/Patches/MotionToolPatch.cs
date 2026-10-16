@@ -58,6 +58,11 @@ namespace SpaceEngineersVR.Patches
             }
             var profile=Multiplayer.HeldItemPose.Profile(character);
             direction=profile==null ? hand.Forward:Vector3D.TransformNormal(profile.Direction,hand);
+            if(profile?.Sight!=null && character.ZoomMode==MyZoomModeEnum.IronSight)
+            {
+                var sight=Vector3D.Transform(profile.Sight.Value,hand); var barrel=direction;
+                direction=SightAim(muzzle,barrel,sight,start=>HandInteraction.ObstacleDistance(MatrixD.CreateWorld(start,barrel,Vector3D.CalculatePerpendicularVector(barrel)),(float)ConvergeRange));
+            }
             if(profile?.Tool==true && Multiplayer.HeldItemPose.TryToolRay(character,out var ray))
             { muzzle=ray.Translation; direction=ray.Forward; }
             return true;
@@ -88,6 +93,15 @@ namespace SpaceEngineersVR.Patches
             catch(Exception ex) { disabled=true; hostAim=null; Logger.Warning(ex,"Motion tool override disabled; default aiming retained"); }
         }
 
+        // Ironsight mode is synced, so the host computes the same aim for a remote character. The sight line is sampled
+        // from the muzzle plane so the gun's own front sight cannot block it; the shot converges on what the sights cover.
+        internal static Vector3D SightAim(Vector3D muzzle,Vector3D direction,Vector3D sight,Func<Vector3D,float> reach)
+        {
+            var start=sight+direction*Vector3D.Dot(muzzle-sight,direction);
+            var target=start+direction*Math.Max(.05f,reach(start));
+            var aim=target-muzzle;
+            return aim.LengthSquared()>1e-6 ? Vector3D.Normalize(aim):direction;
+        }
         private static Vector3D? Converge(MyCharacter character,Vector3D origin,Vector3D muzzle,Vector3D direction)
         {
             var profile=Multiplayer.HeldItemPose.Profile(character);
