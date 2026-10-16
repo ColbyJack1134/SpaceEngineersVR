@@ -8,7 +8,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
-    // Empty-hand grip on a loose grid. Physics runs through GridGrab where it is authoritative; on a vanilla host nothing happens.
+    // Empty-hand grip and trigger on a loose grid. Physics runs through GridGrab where it is authoritative; on a vanilla host nothing happens.
     internal static class HandGrab
     {
         private sealed class Hand
@@ -62,33 +62,36 @@ namespace SpaceEngineersVR.Player
                 bool handFree=available && controller.pose.isTracked && !SpatialUi.Owns(controller) && !HelmetHud.Consumes(controller) && !LadderClimb.Holding(controller) &&
                     !GridSelection.Owns(controller) && !HandInteraction.Consumes(controller) && !CockpitControls.Held(controller);
                 bool down=handFree && c.GripClick(controller).IsPressed;
+                // Grip alone also crouches and rests naturally on things; the chord starts a grab, grip alone keeps it.
+                bool squeeze=down && (left ? c.LeftTriggerPressure:c.PointerPressure).RawPosition.X>.5f;
                 bool palmKnown=TrackedArms.TryFreePalm(character,controller,out var palm);
                 if(hand.Hold!=null)
                 {
                     bool other=hands[1-i].Hold?.Grid==hand.Hold.Grid;
                     bool kept=down && palmKnown && (MultiplayerRuntime.AppliesPhysics ? GridGrab.Apply(hand.Hold,palm.Translation,flying,dt,other):
                         GridGrab.Grabbable(hand.Hold.Grid) && Vector3D.Distance(hand.Hold.Point,palm.Translation)<=GridGrab.Slip);
-                    if(!kept) { Release(hand,left,down); hand.WasDown=down; continue; }
+                    if(!kept) { Release(hand,left,down); hand.WasDown=squeeze; continue; }
                     if(hand.Hold.Saturation>.3f && now>=hand.NextStrain)
                     {
                         float strain=Math.Min(1,hand.Hold.Saturation);
                         controller.Vibrate(0,.014f,50+40*strain,.08f+.35f*strain); hand.NextStrain=now.AddMilliseconds(45);
                     }
-                    hand.WasDown=down; continue;
+                    hand.WasDown=squeeze; continue;
                 }
-                // Grip must start on the grid; a grip held from elsewhere does not pick things up when brushed.
-                if(down && !hand.WasDown && palmKnown && GridGrab.TryFind(palm.Translation,out var grid,out var local))
+                // The chord must start on the grid; a grip held from elsewhere does not pick things up when brushed.
+                if(squeeze && !hand.WasDown && palmKnown && GridGrab.TryFind(palm.Translation,out var grid,out var local))
                 {
                     hand.Hold=new GridGrab.Hold {Grid=grid,Local=local};
                     hand.PalmInGrid=(Matrix)(palm*grid.PositionComp.WorldMatrixNormalizedInv);
                     hand.NextStrain=now;
                     if(left) holder.Left=hand.Hold; else holder.Right=hand.Hold;
                     // Grip also crouches or rolls depending on the hand; a grab takes the grip for itself until release.
-                    c.BlockGripRoles(controller);
+                    c.BlockGripRoles(controller); c.BlockTriggerRoles(controller);
+                    if(controller==Handedness.ActionHand) c.Fire.BlockUntilRelease();
                     CockpitFeedback.Engage(controller);
                     MultiplayerRuntime.SendGrab(grid,GridGrab.Encode(left,local));
                 }
-                hand.WasDown=down;
+                hand.WasDown=squeeze;
             }
         }
         private static void Release(Hand hand,bool left,bool stillDown)
