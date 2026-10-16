@@ -51,7 +51,7 @@ namespace SpaceEngineersVR.Multiplayer
         internal static float Quantize(float position) => (float)Math.Round(position/LeverStep)*LeverStep;
         // A range that crosses zero (velocities, overrides, angles limited either side) gets a centre notch: the lever
         // snaps to the zero position within this band and the block receives an exact zero, so nothing creeps.
-        internal const float DetentZone=.02f;
+        internal const float DetentZone=.04f;
         internal static float? DetentPosition(float min,float max,float? normalizedZero=null)
         {
             if(!Finite(min) || !Finite(max) || min>=0 || max<=0) return null;

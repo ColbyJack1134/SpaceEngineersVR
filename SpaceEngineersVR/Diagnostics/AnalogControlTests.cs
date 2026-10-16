@@ -172,8 +172,8 @@ namespace SpaceEngineersVR.Diagnostics
             signed.Block=numeric.Block;
             float notch=signed.Detent ?? -1;
             Require(Math.Abs(notch-AnalogControl.ToLever(.5f))<1e-5f && Math.Abs(AnalogControl.DetentPosition(-2,6).Value-AnalogControl.ToLever(.25f))<1e-5f,"Centre notch is not at the zero position");
-            Require(signed.Value(notch+.019f)==0 && signed.Value(notch-.019f)==0 && signed.Value(notch+.03f)>0 && signed.Value(notch-.03f)<0,"Notch band does not hold an exact zero");
-            Require(AnalogControl.Snap(notch+.01f,notch)==notch && AnalogControl.Snap(notch+.05f,notch)==notch+.05f && AnalogControl.Snap(.3f,null)==.3f,"Lever snap outside the band or without a notch");
+            Require(signed.Value(notch+.039f)==0 && signed.Value(notch-.039f)==0 && signed.Value(notch+.05f)>0 && signed.Value(notch-.05f)<0,"Notch band does not hold an exact zero");
+            Require(AnalogControl.Snap(notch+.03f,notch)==notch && AnalogControl.Snap(notch+.06f,notch)==notch+.06f && AnalogControl.Snap(.3f,null)==.3f,"Lever snap outside the band or without a notch");
             float ratio=50; bool targeted=false;
             var distance=new Sandbox.Game.Gui.MyTerminalControlSlider<Sandbox.Game.Entities.MyJumpDrive>("JumpDistance",VRage.Utils.MyStringId.NullOrEmpty,VRage.Utils.MyStringId.NullOrEmpty);
             distance.SetLimits(0,100); distance.Getter=_=>ratio; distance.Setter=(_,value)=>ratio=value; distance.Enabled=_=>!targeted;
