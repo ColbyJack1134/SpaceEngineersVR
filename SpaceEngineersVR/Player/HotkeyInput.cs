@@ -26,7 +26,8 @@ namespace SpaceEngineersVR.Player
                 case "CTRL": control=!control; return;
                 case "ALT": alt=!alt; return;
                 case "RMB": case "MMB":
-                    mouse=label=="RMB" ? MyMouseButtonsEnum.Right:MyMouseButtonsEnum.Middle; mousePressed=Frame;
+                    // Modifier queries age off the latest press, key or mouse.
+                    mouse=label=="RMB" ? MyMouseButtonsEnum.Right:MyMouseButtonsEnum.Middle; mousePressed=pressed=Frame; key=MyKeys.None;
                     heldShift=shift; heldControl=control; heldAlt=alt; last=label; shift=control=alt=false; return;
                 case "Scr↑": case "Scr↓":
                     wheel=label=="Scr↑" ? 120:-120; wheelFrame=Frame; last=label; return;

@@ -61,7 +61,7 @@ namespace SpaceEngineersVR.Player
                 foreach(string material in previous.Materials)
                     MyRenderProxy.UpdateModelProperties(previous.Interior,material,RenderFlags.Visible,RenderFlags.Visible|Hidden,null,null);
             }
-            owner=null; activeRig=null; remoteInterior=false; recovery.Clear(); appliedColor=null; appliedSkin=null; feedback.Clear(); screenTextures.Clear();
+            owner=null; activeRig=null; remoteInterior=false; recovery.Clear(); appliedColor=null; appliedSkin=null; feedback.Clear(); visibility.Clear(); screenTextures.Clear();
         }
         public static void Update(MyCockpit cockpit,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3))
         {
@@ -278,7 +278,7 @@ namespace SpaceEngineersVR.Player
                 return (MatrixD)CockpitControls.SteeringVisual*block.WorldMatrix;
             return block.WorldMatrix;
         }
-        private static void UpdateRigStick(Verification check,CockpitRig.Stick stick,Matrix visual,Vector3 offset,bool held,MatrixD world,bool nativeRest=false)
+        private static void UpdateRigStick(Verification check,CockpitRig.Stick stick,Matrix visual,Vector3 offset,bool held,MatrixD world,bool nativeRest)
         {
             if(stick==null) return;
             // A mirrored stick has no native counterpart, so the native-rest comparison hides it.

@@ -23,6 +23,7 @@ namespace SpaceEngineersVR.Player
         public static bool Standalone => target!=null && valid!=null;
         public static bool IsOpen => target != null;
         private static int page;
+        // Declared before Keys, whose initialiser reads these labels.
         internal static readonly string[] PageLabels={"⇧ #@","⇧ #+=","⇧ 123"};
         private static DateTime navigateAfter;
         public static int Selected { get; private set; }

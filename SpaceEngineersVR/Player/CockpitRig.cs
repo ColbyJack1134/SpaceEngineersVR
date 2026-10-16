@@ -21,7 +21,6 @@ namespace SpaceEngineersVR.Player
             public readonly float GripLift,GripInset;
             // Scales the stick finger curl (thumb, index, middle, ring, little) where the default hand clips this grip's mesh.
             public readonly float[] Curl;
-            // Set on a stick built from another stick of the same seat, mirrored across the centre line.
             internal readonly Stick Source;
             public Stick(Vector3 contact,Vector3 pivot,Vector3 shaft,int actor,int baseActor,float gripPitch=0,float gripLift=0,float gripInset=0,Vector3? gripShaft=null,float[] curl=null,Stick source=null)
             {

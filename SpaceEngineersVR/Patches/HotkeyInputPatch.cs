@@ -44,7 +44,7 @@ namespace SpaceEngineersVR.Patches
             if(name=="DeltaMouseScrollWheelValue") { if((int)__result==0) __result=HotkeyInput.WheelDelta; return; }
             if((bool)__result) return;
             var button=__args.Length>0 ? (MyMouseButtonsEnum)__args[0] : name.Contains("Right") ? MyMouseButtonsEnum.Right:MyMouseButtonsEnum.Middle;
-            __result=name.Contains("NewReleased") ? HotkeyInput.MouseNewReleased(button) : name.Contains("New") ? HotkeyInput.MouseNewPressed(button) : HotkeyInput.MouseDown(button);
+            __result=name.Contains("Released") ? HotkeyInput.MouseNewReleased(button) : name.Contains("New") ? HotkeyInput.MouseNewPressed(button) : HotkeyInput.MouseDown(button);
         }
     }
 }

@@ -12,8 +12,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
-    // The native grass geometry shader bends, scales and LOD-fades each blade from the drawing camera,
-    // so the two eyes disagree up close. Copies measure from the head centre; the pixel stage stays native.
+    // The native grass geometry shader shapes each blade from the drawing camera, so the eyes disagree up close; copies measure from the head centre.
     internal static class StereoFoliage
     {
         private static readonly FieldInfo shaders=AccessTools.Field(AccessTools.TypeByName("VRageRender.MyFoliageRenderingPass"),"m_GS");
@@ -33,10 +32,8 @@ namespace SpaceEngineersVR.Player
             StereoParticles.Replace(original,"float3 viewVector = get_camera_position() - position.xyz;",
                 "float3 viewVector = (get_camera_position() + FoliageEyeOffset.xyz) - position.xyz;");
 
-        // Compiles once per process through the native registry, which caches the result in ShaderCache2 and
-        // recompiles the copies from this folder on device reset. Plugins load after the renderer's device init,
-        // so this cannot hook the native InitShaders. Warm runs it off the render thread at plugin start
-        // (the registries are locked and already serve render worker threads); Begin stays native until it is done.
+        // The native registry caches the copies in ShaderCache2 and rebuilds them from this folder on device reset.
+        // Plugins load after the renderer's device init, so a pool thread compiles at plugin start instead of an InitShaders hook.
         internal static void Warm() => Task.Run(() =>
         {
             for(int i=0;i<600 && MyRender11.DeviceInstance==null;i++) Thread.Sleep(100);
@@ -63,8 +60,9 @@ namespace SpaceEngineersVR.Player
         {
             if(!StereoRenderState.PhysicalEye) return;
             Prepare();
-            var ids=(Array)shaders.GetValue(renderingPass);
-            if(eye==null || ids.Length!=2) return;
+            if(eye==null) return;
+            var ids=shaders?.GetValue(renderingPass) as Array;
+            if(ids==null || ids.Length!=2) return;
             for(int i=0;i<2;i++) { saved[i]=ids.GetValue(i); ids.SetValue(eye[i],i); }
             swapped=true;
             var rc=CockpitRender.Member(renderingPass,"RC");
