@@ -26,11 +26,12 @@ namespace SpaceEngineersVR.Diagnostics
             Require(GridGrab.Decode(GridGrab.EncodeRelease(false),out left,out local) && !left && !local.HasValue,"Release message round trip failed");
             Require(!GridGrab.Decode("X;1;2;3",out _,out _) && !GridGrab.Decode("L;1;2",out _,out _) && !GridGrab.Decode("L;NaN;0;0",out _,out _) && !GridGrab.Decode("R;100;0;0",out _,out _),"Malformed grab message accepted");
             // Build ray cue: only beyond arm's reach, only while the face flickers or nothing is hit, never while locked.
-            foreach(bool far in new[] {false,true}) foreach(bool hit in new[] {false,true}) foreach(bool unstable in new[] {false,true}) foreach(bool locked in new[] {false,true})
-                Require(BuildRayCue.Visible(far,hit,unstable,locked)==(far && !locked && (unstable || !hit)),"Build ray visibility rule changed");
+            foreach(bool far in new[] {false,true}) foreach(bool hit in new[] {false,true}) foreach(bool unstable in new[] {false,true}) foreach(bool locked in new[] {false,true}) foreach(bool pulling in new[] {false,true})
+                Require(BuildRayCue.Visible(far,hit,unstable,locked,pulling)==(!locked && (pulling || far && (unstable || !hit))),"Build ray visibility rule changed");
             float fade=0; for(int i=0;i<10;i++) fade=BuildRayCue.Fade(fade,true,1/60f);
             Require(fade>.9f && fade<=1,"Build ray does not fade in within a sixth of a second");
             Require(BuildRayCue.Fade(1,false,1/60f)<1 && BuildRayCue.Fade(0,false,1)==0,"Build ray fade out is not bounded");
+            Require(BuildRayCue.Width(false,40)==BuildRayCue.Thickness && Math.Abs(BuildRayCue.Width(true,40)-BuildRayCue.Thickness*40)<1e-6f && BuildRayCue.Width(true,.5)==BuildRayCue.Thickness,"Build ray width does not follow the third person scale");
             log("PASS hand grab and build ray cue: spring pull, cap and damping, jetpack cap, size cap, grab/release message round trip and rejection, ray visibility rule and fade.");
         }
     }
