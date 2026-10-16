@@ -87,7 +87,7 @@ namespace SpaceEngineersVR.Player
                 c.WalkLongitudinal.BlockUntilRelease(); c.WalkRotate.BlockUntilRelease(); c.ThrustLRFB.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease();
             }
             Adjusting=active;
-            HoldingPose=HoldsPose(Common.Config.HoldBlockWhileRotating,active,placed);
+            HoldingPose=HoldsPose(Common.Config.LockBlockWhileRotating,active,placed);
             VoxelTools.Update(active && !Painting && (Math.Abs(right.X)>=.55f || Math.Abs(right.Y)>=.55f || Math.Abs(left.X)>=.55f));
             if(!active || Painting) return;
             if(left.LengthSquared()<.09f) leftReady=true;

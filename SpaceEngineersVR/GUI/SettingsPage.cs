@@ -27,7 +27,7 @@ namespace SpaceEngineersVR.GUI
                     Toggle(-.115f,"Controller-relative movement",c.ControllerRelativeMovement,v=>c.ControllerRelativeMovement=v);
                     Toggle(-.05f,"Invert jetpack pitch",c.InvertJetpackPitch,v=>c.InvertJetpackPitch=v);
                     Toggle(.015f,"Hold grip to rotate blocks",c.HoldGripRotation,v=>c.HoldGripRotation=v);
-                    Toggle(.08f,"Hold block position while rotating",c.HoldBlockWhileRotating,v=>c.HoldBlockWhileRotating=v);
+                    Toggle(.08f,"Lock block position while rotating in build mode",c.LockBlockWhileRotating,v=>c.LockBlockWhileRotating=v);
                     Link(.15f,"Body and seated play",()=>new BodyOptions());
                     Link(.21f,"Body visibility",()=>new SettingsPage("Body visibility"));
                     Link(.27f,"Advanced controls",()=>new SettingsPage("Advanced controls"));

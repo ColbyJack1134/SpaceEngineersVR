@@ -144,8 +144,8 @@ namespace SpaceEngineersVR.Config
         public AnchorOffsetSetting[] AnchorOffsets { get => anchorOffsets; set => SetValue(ref anchorOffsets,value ?? new AnchorOffsetSetting[0]); }
         public bool LegacyShipTilt { get => legacyShipTilt; set => SetValue(ref legacyShipTilt, value); }
         public bool HoldGripRotation { get => holdGripRotation; set => SetValue(ref holdGripRotation, value); }
-        private bool holdBlockWhileRotating=true;
-        public bool HoldBlockWhileRotating { get => holdBlockWhileRotating; set => SetValue(ref holdBlockWhileRotating,value); }
+        private bool lockBlockWhileRotating=true;
+        public bool LockBlockWhileRotating { get => lockBlockWhileRotating; set => SetValue(ref lockBlockWhileRotating,value); }
         private bool leftHanded;
         public bool LeftHanded { get => leftHanded; set => SetValue(ref leftHanded,value); }
         public const float DefaultJetpackRoll = 0.15f, DefaultShipRollSensitivity = 0.6f;
