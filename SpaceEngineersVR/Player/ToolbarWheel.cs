@@ -149,7 +149,7 @@ namespace SpaceEngineersVR.Player
             if(quick==ToolbarGesture.Action.OpenWheel) { Open(true,controls.QuickMenu); return; }
             var action=gesture.Update(InputRouter.Gameplay && !Main.MenuOpen,
                 controls.Unequip.HasPressed,controls.Unequip.IsPressed,controls.Unequip.HasReleased,
-                MySession.Static?.ControlledEntity,CockpitBuilding.Active ? -1:CockpitButtons.HoveredSwitch,DateTime.UtcNow,ThirdPersonView.Active && !ThirdPersonView.Character && !CockpitBuilding.Active);
+                MySession.Static?.ControlledEntity,CockpitBuilding.Active ? -1:CockpitButtons.HoveredSwitch,DateTime.UtcNow,ThirdPersonView.Active && !CockpitBuilding.Active);
             if(action==ToolbarGesture.Action.None) return;
             if(action==ToolbarGesture.Action.Unequip && CockpitBuilding.Active) { CockpitBuilding.Toggle(); return; }
             if(action!=ToolbarGesture.Action.OpenWheel && (DesktopWindow.CloseIfPointed() || SpatialUi.CollapseIfOpen())) return;

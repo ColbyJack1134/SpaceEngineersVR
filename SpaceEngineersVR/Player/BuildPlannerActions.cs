@@ -106,7 +106,9 @@ namespace SpaceEngineersVR.Player
             {
                 int failed=deposit(character.GetInventory(),target);
                 Notify(failed,MyNotificationSingletons.DepositSuccessful,MyNotificationSingletons.DepositFailed);
-                character.GetDetectorComponent()?.UpdateInteractiveObjectNotification();
+                // The native refresh dereferences the detector's current use object, which the hand ray often leaves unset.
+                var detector=character.GetDetectorComponent();
+                if(detector?.UseObject!=null) detector.UpdateInteractiveObjectNotification();
             }
             else if(character.BuildPlanner.Count==0) MyGuiScreenGamePlay.ShowEmptyBuildPlannerNotification();
             else
