@@ -68,10 +68,6 @@ namespace SpaceEngineersVR.Diagnostics
             for(int i=0;i<PlacementControls.ReleaseGrace;i++) { holding=PlacementControls.HoldsPose(true,false,false,false,holding,true); Require(holding,"Rotation lock dropped during the release grace"); }
             holding=PlacementControls.HoldsPose(true,false,false,false,holding,false); Require(!holding,"Rotation lock survived the release grace");
             Require(!PlacementControls.HoldsPose(true,false,false,true,false,false) && !PlacementControls.HoldsPose(true,false,false,false,false,true),"A trigger or grace without a prior lock locked the pose");
-            var pressPoint=new Vector3D(1,2,3);
-            Require(PlacementControls.DragOffset(pressPoint,pressPoint+new Vector3D(.02,0,.01))==Vector3D.Zero,"A tap wobble dragged the locked pose");
-            Require(Vector3D.Distance(PlacementControls.DragOffset(pressPoint,pressPoint+new Vector3D(0,.3,0)),new Vector3D(0,.3,0))<1e-9,"A held trigger did not drag the locked pose by the hand travel");
-            Require(PlacementControls.DragOffset(pressPoint,new Vector3D(double.NaN,0,0))==Vector3D.Zero,"Invalid drag pose accepted");
             foreach(double scale in new[] {.1,1,3,100,100000})
             foreach(double origin in new[] {0d,1e9})
             {

@@ -35,13 +35,10 @@ namespace SpaceEngineersVR.Player
         private static object poseOwner;
         private static MatrixD? lastPose;
         // Rotation lock: the pose is kept in the controlled entity's frame so it rides a moving grid and ignores room-scale drift.
-        // A trigger held after the placing press drags the locked pose by the hand's travel, so line and plane shapes still sweep.
+        // Line and plane shapes cannot sweep while locked; the lock places one block per press.
         private static Matrix? heldPose;
-        private static Vector3D? dragOrigin;
-        private static Vector3D dragOffset;
         private static bool cancelRotation;
         internal static bool HoldingPose { get; private set; }
-        internal const double DragDeadband=.03;
         [ThreadStatic] internal static bool EditingDistance;
 
         // Rotate mode: a right grip tap lets the sticks rotate the preview, so a held grip still rolls in flight.
@@ -95,8 +92,6 @@ namespace SpaceEngineersVR.Player
             Adjusting=active;
             if(HoldingPose && c.Fire.IsPressed) releaseGrace=ReleaseGrace; else if(releaseGrace>0) releaseGrace--;
             HoldingPose=HoldsPose(Common.Config.LockBlockWhileRotating,active,placed,c.Fire.IsPressed,HoldingPose,releaseGrace>0);
-            if(!HoldingPose) { dragOrigin=null; dragOffset=Vector3D.Zero; }
-            else if(placed && HandInteraction.TryVisiblePointerPose(hand,out var pressPose)) dragOrigin=Vector3D.Transform(pressPose.Translation,MatrixD.Invert(PoseFrame(poseOwner)));
             VoxelTools.Update(active && !Painting && (Math.Abs(right.X)>=.55f || Math.Abs(right.Y)>=.55f || Math.Abs(left.X)>=.55f));
             if(!active || Painting) return;
             if(left.LengthSquared()<.09f) leftReady=true;
@@ -147,12 +142,6 @@ namespace SpaceEngineersVR.Player
         private static int releaseGrace;
         internal static bool HoldsPose(bool setting,bool rotating,bool placed,bool fireHeld,bool wasHolding,bool grace) =>
             setting && (rotating || placed || wasHolding && (fireHeld || grace));
-        // Hand travel since the press, ignoring the few centimetres a tap wobbles so a tap stays one block.
-        internal static Vector3D DragOffset(Vector3D origin,Vector3D live)
-        {
-            var offset=live-origin;
-            return offset.IsValid() && offset.LengthSquared()>=DragDeadband*DragDeadband ? offset:Vector3D.Zero;
-        }
         // Tap mode only: a held grip would re-enter rotation on the next update.
         internal static bool TryCancelRotation()
         {
@@ -181,13 +170,7 @@ namespace SpaceEngineersVR.Player
             {
                 if (!heldPose.HasValue && live) lastPose = pose;
                 if (!heldPose.HasValue && lastPose.HasValue) heldPose = (Matrix)(lastPose.Value * MatrixD.Invert(frame));
-                if (heldPose.HasValue)
-                {
-                    if (dragOrigin.HasValue && live && Controls.Static.Fire.IsPressed) dragOffset = DragOffset(dragOrigin.Value, Vector3D.Transform(pose.Translation, MatrixD.Invert(frame)));
-                    MatrixD held = heldPose.Value * frame;
-                    held.Translation += Vector3D.TransformNormal(dragOffset, frame);
-                    lastPose = held;
-                }
+                if (heldPose.HasValue) lastPose = heldPose.Value * frame;
             }
             pose = lastPose ?? MatrixD.Identity;
             return lastPose.HasValue;
