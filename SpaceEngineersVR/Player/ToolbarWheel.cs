@@ -187,14 +187,15 @@ namespace SpaceEngineersVR.Player
                 var block=symmetry || PlacementControls.ClipboardActive ? Array.Empty<ActionChoice>():BlockActions.Capture(PlacementControls.OwnsTools);
                 ActionChoice[] Contextual(ActionChoice[] choices) => choices.Select(choice=>choice==GameActions.Quick[11] || choice==GameActions.Quick[12] ?
                     block.FirstOrDefault(c=>c.Label==choice.Label) ?? choice:choice).ToArray();
-                var groups=new List<Group> {new Group("Block actions",block)};
+                var aimed=new Group("Block actions",block);
+                var groups=new List<Group>();
                 if(InputRouter.Mode==InputMode.Building && !symmetry)
                 {
                     var voxel=VoxelTools.Current;
                     groups.AddRange(ToolGroups(voxel?.Title ?? "Building",quickChoices,voxel!=null ? voxel.Materials() : new[] {new Group("Variants",BlockVariants.Choices(),true)},
-                        Contextual(GameActions.WheelActions(false,false,ThirdPersonView.Active,jetpack))));
+                        Contextual(GameActions.WheelActions(false,false,ThirdPersonView.Active,jetpack)),aimed));
                 }
-                else groups.Add(new Group(symmetry ? "Symmetry setup":"Quick actions",Contextual(quickChoices)));
+                else groups.AddRange(new[] {aimed,new Group(symmetry ? "Symmetry setup":"Quick actions",Contextual(quickChoices))});
                 var recent=ActionCatalog.Recent();
                 if(MySession.Static.ControlledEntity is Sandbox.Game.Entities.MyShipController)
                     recent=recent.Where(action=>action!=GameActions.SymmetryAction && action!=GameActions.SymmetrySetupAction).ToArray();
@@ -285,9 +286,9 @@ namespace SpaceEngineersVR.Player
             internal readonly bool Variants;
             internal Group(string title,ActionChoice[] items,bool variants=false) { Title=title; Items=items; Variants=variants; }
         }
-        // Y wheel order: aimed-block actions, the held tool's actions, its variants or materials, general quick actions, recent searches.
-        internal static Group[] ToolGroups(string title,ActionChoice[] tool,Group[] variants,ActionChoice[] quick) =>
-            new[] {new Group(title,tool)}.Concat(variants).Concat(new[] {new Group("Quick actions",quick)}).ToArray();
+        // Y wheel order: the held tool's variants or materials, aimed-block actions, the tool's actions, general quick actions, recent searches.
+        internal static Group[] ToolGroups(string title,ActionChoice[] tool,Group[] variants,ActionChoice[] quick,Group aimed=null) =>
+            variants.Concat(aimed!=null ? new[] {aimed}:new Group[0]).Concat(new[] {new Group(title,tool),new Group("Quick actions",quick)}).ToArray();
         internal static ActionChoice[][] Layout(IEnumerable<Group> groups,out string[] titles,out bool[] variants)
         {
             var pages=new List<ActionChoice[]>(); var titleList=new List<string>(); var variantList=new List<bool>();

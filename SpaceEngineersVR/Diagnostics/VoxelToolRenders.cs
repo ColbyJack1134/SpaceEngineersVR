@@ -43,14 +43,14 @@ namespace SpaceEngineersVR.Diagnostics
             var remove=digi.Actions().First(a=>a.HistoryKey=="Remove terrain");
             using(var wheel=new OverlayCanvas("Voxel wheel",1024,1024,1,false,device))
             {
-                Wheel(wheel,ToolbarWheel.ToolGroups(VoxelTools.Hand.Title,VoxelTools.Hand.Actions(),materials,quick),new[] {0,1,2,materials.Length+1},output,"wheel-voxel-");
+                Wheel(wheel,ToolbarWheel.ToolGroups(VoxelTools.Hand.Title,VoxelTools.Hand.Actions(),materials,quick),new[] {0,1,materials.Length,materials.Length+1},output,"wheel-voxel-");
                 if(terrainChoices.Length>0)
                 {
                     var groups=ToolbarWheel.ToolGroups("Terrain tool",digi.Actions(),new[] {new ToolbarWheel.Group("Soil and stone",terrainChoices.Take(DigiTool.IceStart).ToArray(),true),
                         new ToolbarWheel.Group("Snow and ice",terrainChoices.Skip(DigiTool.IceStart).ToArray(),true)},quick);
-                    Wheel(wheel,groups,new[] {0,1,6},output,"wheel-terrain-");
+                    Wheel(wheel,groups,new[] {0,5,7},output,"wheel-terrain-");
                     remove.Run();
-                    Wheel(wheel,groups,new[] {0},output,"wheel-terrain-removing-");
+                    Wheel(wheel,groups,new[] {7},output,"wheel-terrain-removing-");
                     remove.Run();
                 }
             }

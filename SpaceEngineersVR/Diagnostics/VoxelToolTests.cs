@@ -163,10 +163,10 @@ namespace SpaceEngineersVR.Diagnostics
                 RemoveMode(tool);
                 var groups=ToolbarWheel.ToolGroups(tool.Title,tool.Actions(),tool.Materials(),new[] {GameActions.PauseAction});
                 var pages=ToolbarWheel.Layout(groups,out var titles,out var variants);
-                Require(titles.SequenceEqual(new[] {"Terrain tool"}.Concat(Enumerable.Repeat("Soil and stone",5)).Concat(Enumerable.Repeat("Snow and ice",2)).Concat(new[] {"Quick actions"})),
-                    "Terrain wheel is not ordered tool actions, soil, ice, quick actions");
-                Require(variants.SequenceEqual(new[] {false}.Concat(Enumerable.Repeat(true,7)).Concat(new[] {false})),"Terrain pages are not icon-only variant pages");
-                Require(pages.Skip(1).Take(5).SelectMany(p=>p).Count(c=>c!=null)==42 && pages.Skip(6).Take(2).SelectMany(p=>p).Count(c=>c!=null)==10,"Terrain pages lost a type");
+                Require(titles.SequenceEqual(Enumerable.Repeat("Soil and stone",5).Concat(Enumerable.Repeat("Snow and ice",2)).Concat(new[] {"Terrain tool","Quick actions"})),
+                    "Terrain wheel is not ordered soil, ice, tool actions, quick actions");
+                Require(variants.SequenceEqual(Enumerable.Repeat(true,7).Concat(new[] {false,false})),"Terrain pages are not icon-only variant pages");
+                Require(pages.Take(5).SelectMany(p=>p).Count(c=>c!=null)==42 && pages.Skip(5).Take(2).SelectMany(p=>p).Count(c=>c!=null)==10,"Terrain pages lost a type");
             }
             finally { DigiFixture.Instance=null; }
         }

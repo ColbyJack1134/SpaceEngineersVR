@@ -65,8 +65,8 @@ namespace SpaceEngineersVR.Diagnostics
             var quickActions=GameActions.WheelActions(false,false,false);
             var pages=ToolbarWheel.Layout(ToolbarWheel.ToolGroups("Building",buildingTool,new[] {new ToolbarWheel.Group("Variants",variants,true)},quickActions),out var titles,out var variantFlags);
             Require(pages.Length==4 && pages.All(p=>p.Length==9),"Building wheel loses fixed actions or overflow pages");
-            Require(pages[0].Where(a=>a!=null).SequenceEqual(buildingTool) && titles[0]=="Building","Building actions do not open first");
-            Require(pages.Skip(1).Take(2).SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(variants) && variantFlags.SequenceEqual(new[] {false,true,true,false}),"Building variant paging loses or duplicates entries");
+            Require(pages.Take(2).SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(variants) && variantFlags.SequenceEqual(new[] {true,true,false,false}),"Block variants do not open first or lose entries");
+            Require(pages[2].Where(a=>a!=null).SequenceEqual(buildingTool) && titles[2]=="Building","Building actions do not follow the variants");
             Require(pages[3].Where(a=>a!=null).SequenceEqual(quickActions) && titles[3]=="Quick actions","Quick actions are not last");
             Require(!buildingTool.Contains(GameActions.PauseAction) && quickActions.Contains(GameActions.PauseAction),"Pause left the quick actions page");
             Require(ToolbarWheel.Layout(ToolbarWheel.ToolGroups("Building",buildingTool,new[] {new ToolbarWheel.Group("Variants",new ActionChoice[0],true)},quickActions),out _,out _).Length==2,"A block without variants gained empty pages");
