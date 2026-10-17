@@ -60,6 +60,7 @@ namespace SpaceEngineersVR.Multiplayer
         private static readonly Dictionary<long,AnalogToolbar> analogToolbars=new Dictionary<long,AnalogToolbar>();
         private static readonly Dictionary<long,double> requested=new Dictionary<long,double>();
         private static readonly Dictionary<ulong,SenderBudget> budgets=new Dictionary<ulong,SenderBudget>();
+        // Wildlife bots are players under their creator's Steam id, so lookups by id take only real players.
         private static readonly List<IMyPlayer> players=new List<IMyPlayer>();
         private static MySession session;
         private static IMyMultiplayer network;
@@ -122,7 +123,7 @@ namespace SpaceEngineersVR.Multiplayer
             double now=Now;
             if(now>=nextPlayers)
             {
-                nextPlayers=now+1; players.Clear(); MyAPIGateway.Players.GetPlayers(players);
+                nextPlayers=now+1; players.Clear(); MyAPIGateway.Players.GetPlayers(players,p=>!p.IsBot);
                 foreach(var id in peers.Where(p=>now-p.Value.Seen>15 || !players.Any(player=>player.SteamUserId==p.Key)).Select(p=>p.Key).ToArray())
                 { Forget(peers[id].Arms); peers.Remove(id); }
                 foreach(var id in budgets.Keys.Where(id=>!players.Any(player=>player.SteamUserId==id)).ToArray()) budgets.Remove(id);
