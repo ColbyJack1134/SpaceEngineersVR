@@ -58,8 +58,7 @@ namespace SpaceEngineersVR.Player.Components
         public static MyGuiScreenBase TopScreen => MyScreenManager.Screens.LastOrDefault(screen =>
             !(screen is MyGuiScreenGamePlay) && !(screen is MyGuiScreenHudSpace));
         public static bool IsAnyDialogOpen() => TopScreen != null;
-        // Recentering the view leaves floating windows where they are; ResetScreens moves them.
-        public static void RequestRecenter() { anchorPending = true; }
+        public static void RequestRecenter() { anchorPending = true; FloatingMenu.RecenterView(); }
         private static Texture_t Texture(Texture2D value) => new Texture_t {
             eColorSpace=EColorSpace.Auto,eType=ETextureType.DirectX,handle=value.NativePointer };
         public static void Draw()

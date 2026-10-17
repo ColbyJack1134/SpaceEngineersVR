@@ -13,7 +13,7 @@ namespace SpaceEngineersVR.Player
         private static readonly MenuWindow window=new MenuWindow();
         private static readonly WindowInteraction interaction=new WindowInteraction(window);
         private static volatile Snapshot current;
-        private static volatile bool recenter;
+        private static volatile bool recenter,viewRecenter;
         private static volatile float aspect=9f/16;
         private static string spot;
         private static bool opened;
@@ -27,6 +27,8 @@ namespace SpaceEngineersVR.Player
         public static void CaptureAspect(float value) { if(value>.1f && value<4) aspect=value; }
         internal static float Aspect => aspect;
         public static void Recenter() { recenter=true; }
+        // A view recenter brings the menu in front on foot and in the main menu; seated, it follows the cockpit instead.
+        public static void RecenterView() { viewRecenter=true; }
         internal static void Follow(Matrix oldOrigin,Matrix newOrigin)
         { if(opened && Seat!=null) { window.Cancel(); window.Pose=WindowSpots.Follow(window.Pose,oldOrigin,newOrigin); } }
         public static void Update()
@@ -44,9 +46,10 @@ namespace SpaceEngineersVR.Player
             if(!shown) { opened=false; current=null; window.Cancel(); interaction.Reset(); return; }
             var seat=Seat;
             string key=Spot(seat);
-            if(!opened || spot!=key || recenter)
+            bool view=viewRecenter && seat==null; viewRecenter=false;
+            if(!opened || spot!=key || recenter || view)
             {
-                bool reset=recenter; recenter=false; spot=key; opened=true;
+                bool reset=recenter || view; recenter=false; spot=key; opened=true;
                 Fit(aspect,MenuWindow.DefaultHeight);
                 if(reset || !Restore(seat)) Place(seat);
                 if(reset) Save();
