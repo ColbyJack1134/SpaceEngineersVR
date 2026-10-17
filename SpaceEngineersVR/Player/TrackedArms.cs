@@ -174,7 +174,7 @@ namespace SpaceEngineersVR.Player
         {
             delta=Vector3.Zero; twist=0;
             var seat=SeatFit.Seat;
-            if(seat==null || !Player.Headset.pose.isTracked) return false;
+            if(seat==null) return false;
             MatrixD anchor=seat.GetHeadMatrix(true,true);
             MatrixD head=(MatrixD)VrMath.Affine(Player.Headset.pose.deviceToAbsolute.matrix*Player.PlayerToAbsolute.inverted)*anchor;
             MatrixD inverse=character.PositionComp.WorldMatrixNormalizedInv;

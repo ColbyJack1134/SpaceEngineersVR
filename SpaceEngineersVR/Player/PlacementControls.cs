@@ -35,8 +35,7 @@ namespace SpaceEngineersVR.Player
         private static object poseOwner;
         private static MatrixD? lastPose;
         // Rotation lock: the pose is kept in the controlled entity's frame so it rides a moving grid and ignores room-scale drift.
-        // Line and plane shapes cannot sweep while locked; the lock places one block per press.
-        private static Matrix? heldPose;
+        private static MatrixD? heldPose;
         private static bool cancelRotation;
         internal static bool HoldingPose { get; private set; }
         [ThreadStatic] internal static bool EditingDistance;
@@ -168,7 +167,7 @@ namespace SpaceEngineersVR.Player
             else
             {
                 if (!heldPose.HasValue && live) lastPose = pose;
-                if (!heldPose.HasValue && lastPose.HasValue) heldPose = (Matrix)(lastPose.Value * MatrixD.Invert(frame));
+                if (!heldPose.HasValue && lastPose.HasValue) heldPose = lastPose.Value * MatrixD.Invert(frame);
                 if (heldPose.HasValue) lastPose = heldPose.Value * frame;
             }
             pose = lastPose ?? MatrixD.Identity;

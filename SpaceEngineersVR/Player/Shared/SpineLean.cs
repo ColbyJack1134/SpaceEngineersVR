@@ -74,7 +74,6 @@ namespace SpaceEngineersVR.Player
         {
             var absolute=bone.AbsoluteTransform;
             var turned=absolute.GetOrientation()*Matrix.CreateFromQuaternion(rotation);
-            turned.Translation=absolute.Translation;
             bone.SetCompleteTransformFromAbsoluteMatrix(ref turned,true);
             bone.ComputeAbsoluteTransform(true,true);
         }
