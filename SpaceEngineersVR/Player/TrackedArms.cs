@@ -189,19 +189,19 @@ namespace SpaceEngineersVR.Player
             head=(Matrix)(SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix)*character.PositionComp.WorldMatrixNormalizedInv);
             return true;
         }
-        internal static float Trigger(Controller hand) => CockpitTouch.HoldingBar(hand) || LadderClimb.Holding(hand) || HandGrab.Holding(hand) ? 1 : (hand==Player.HandL ? Controls.Static.LeftTriggerPressure:Controls.Static.PointerPressure).RawPosition.X;
+        internal static float Trigger(Controller hand) => CockpitTouch.HoldingBar(hand) || LadderClimb.Holding(hand) ? 1 : (hand==Player.HandL ? Controls.Static.LeftTriggerPressure:Controls.Static.PointerPressure).RawPosition.X;
         private static bool RequiresPointing(Controller hand) => GridSelection.Owns(hand) || Main.MenuOpen || MenuKeyboard.IsOpen || CockpitTouch.Attached(hand) ||
             TouchScreenBridge.PoseFor(hand) || ArthurLcdBridge.PoseFor(hand) || FloatingWindows.PointingFor(hand) || HandInteraction.PointingFor(hand) ||
             (hand==Player.HandL ? CockpitTouch.LeftPointing:CockpitTouch.RightPointing || SpatialUi.Pointing) || hand==Handedness.ActionHand && BlockInspection.Current!=null;
         private static bool FreeFingers(MyCharacter character,Controller hand) => !ThirdPersonView.Active && character.CurrentWeapon==null &&
-            !CockpitControls.Held(hand) && !HandGrab.Holding(hand) && !RequiresPointing(hand);
+            !CockpitControls.Held(hand) && !RequiresPointing(hand);
         internal static ArmSkeleton.Fingers FingerMode(MyCharacter character,Controller hand)
         {
             if(hand==Handedness.ActionHand && WeaponHandling.Profile?.Tool==true && !Main.MenuOpen)
                 return WeaponHandling.Supported || WeaponHandling.ToolContactActive ? ArmSkeleton.Fingers.Stick:ArmSkeleton.Fingers.Point;
             if(hand==Handedness.SupportHand && WeaponHandling.Reloading && !WeaponHandling.Supported) return ArmSkeleton.Fingers.Native;
             if(WeaponHandling.Profile!=null && !RequiresPointing(hand) && (hand==Handedness.ActionHand || WeaponHandling.Supported)) return ArmSkeleton.Fingers.Stick;
-            if(CockpitControls.Held(hand) || CockpitTouch.HoldingBar(hand) || LadderClimb.Holding(hand) || HandGrab.Holding(hand)) return ArmSkeleton.Fingers.Stick;
+            if(CockpitControls.Held(hand) || CockpitTouch.HoldingBar(hand) || LadderClimb.Holding(hand)) return ArmSkeleton.Fingers.Stick;
             if(character.CurrentWeapon==null || RequiresPointing(hand))
                 return CockpitTouch.Pinching(hand) || hand==Player.HandR && SpatialUi.PinchingKnob ? ArmSkeleton.Fingers.Pinch:ArmSkeleton.Fingers.Point;
             return ArmSkeleton.Fingers.Native;
@@ -232,7 +232,6 @@ namespace SpaceEngineersVR.Player
                 return CockpitHandPose.Blend(world,(MatrixD)Matrix.Invert(arm.PalmOffset)*rungPalm,rungBlend);
             if(!character.IsSitting && character.CurrentWeapon==null && arm?.IndexTip!=null)
             {
-                if(HandGrab.TryPalm(hand,out var grabbed)) return (MatrixD)Matrix.Invert(arm.PalmOffset)*grabbed;
                 if(HandInteraction.TryAttachment(hand,out var pressed,out var point,out float amount))
                 {
                     pressed=CockpitHandPose.Attach(pressed,arm.PalmOffset,Vector3.Transform(new Vector3(CockpitHandPose.Tip,0,0),arm.PointFinger),point);

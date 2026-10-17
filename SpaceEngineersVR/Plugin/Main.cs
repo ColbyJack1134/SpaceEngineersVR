@@ -374,7 +374,6 @@ namespace SpaceEngineersVR.Plugin
             Player.GameActions.RunScheduled();
             Player.CockpitControls.Update();
             Player.PlacementControls.Update();
-            Player.HandGrab.Update();
             Player.CameraRig.Publish();
             Player.ViewGuard.Update();
             Player.WeaponHandling.Update();

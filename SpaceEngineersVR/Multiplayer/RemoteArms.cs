@@ -53,18 +53,6 @@ namespace SpaceEngineersVR.Multiplayer
             hold=profile!=null ? profile.Hold(item.RightHand,item.LeftHand,false,palm):WeaponProfile.MirrorHold(item.RightHand,palm);
             return true;
         }
-        // Replicated palm in world space, for the host's grab physics.
-        internal bool TryPalm(bool left,double now,out MatrixD palm)
-        {
-            palm=MatrixD.Identity;
-            if(Character==null || Character.Closed || !Stream.Sample(now,out var pose) || pose.Character!=Character.EntityId || (pose.Tracked&(left ? 1:2))==0) return false;
-            var bones=Character.AnimationController?.CharacterBones;
-            if(bones==null) return false;
-            var arm=left ? PairFor(Character,bones).Left:PairFor(Character,bones).Right;
-            if(arm==null) return false;
-            palm=(MatrixD)arm.PalmOffset*Stream.Hand(left,now)*Character.WorldMatrix;
-            return palm.IsValid();
-        }
         internal bool Mirrored(double now) => Character!=null && Stream.Sample(now,out var pose) && pose.Character==Character.EntityId &&
             pose.Seat==0 && (pose.Tracked&PlayerPose.ItemMirrored)!=0;
         internal bool Supported(double now) => Character!=null && Stream.Sample(now,out var pose) && pose.Character==Character.EntityId &&
