@@ -45,6 +45,27 @@ namespace SpaceEngineersVR.Diagnostics
             var launcherSight=Eye(-.3,.117);
             if(!WeaponHandling.Sighted(Eye(.5,.117),muzzle,launcherSight,direction,false) || WeaponHandling.Sighted(Eye(.5,0),muzzle,launcherSight,direction,false))
                 throw new Exception("A sight above the barrel is not the aiming line");
+            // Own shot seen from behind and incoming fire get the full head dot; a crossing trail keeps only the native line.
+            var trail=(Vector3)direction; var bullet=muzzle+direction*40;
+            if(Patches.TracerPatch.HeadWeight(bullet,trail,Eye(.6,.1),out double far)<.99f || Patches.TracerPatch.HeadWeight(bullet,trail,bullet+direction*30,out _)<.99f ||
+                Patches.TracerPatch.HeadWeight(bullet,trail,bullet+Vector3D.CalculatePerpendicularVector(direction)*30,out _)>.01f || Math.Abs(far-40.6)>.01)
+                throw new Exception("Tracer head dot does not complement the native end-on fade");
+            // The dot keeps a pixel size far away and the trail width up close; an own young shot streaks back to the muzzle.
+            double pixel=Math.PI/3600;
+            if(Math.Abs(Patches.TracerPatch.HeadRadius(300,.036f,pixel)-300*pixel*1.3)>1e-4 || Patches.TracerPatch.HeadRadius(5,.036f,pixel)!=.036f)
+                throw new Exception("Tracer head dot size is wrong");
+            if(Patches.TracerPatch.Fade(20)!=1 || Math.Abs(Patches.TracerPatch.Fade(235)-.7f)>1e-4 || Math.Abs(Patches.TracerPatch.Fade(900)-.4f)>1e-6)
+                throw new Exception("Tracer head dot does not fade with distance");
+            if(Patches.TracerPatch.RangeFade(100,250)!=1 || Math.Abs(Patches.TracerPatch.RangeFade(187.5,250)-.5f)>1e-6 || Patches.TracerPatch.RangeFade(250,250)!=0 || Patches.TracerPatch.RangeFade(400,0)!=1)
+                throw new Exception("Tracer head dot does not fade out over the shot's range");
+            var tail=muzzle+direction*7; float span=3;
+            if(!Patches.TracerPatch.Streak(muzzle,Eye(.5,.1),ref tail,trail,ref span) || Vector3D.Distance(tail,muzzle+direction*.3)>1e-4 || Math.Abs(span-9.7)>1e-3)
+                throw new Exception("Own shot does not streak from the muzzle");
+            tail=muzzle+direction*7; span=3;
+            if(Patches.TracerPatch.Streak(muzzle,muzzle+new Vector3D(30,0,0),ref tail,trail,ref span) || span!=3)
+                throw new Exception("Another player's shot streaks from the muzzle");
+            tail=muzzle+direction*30; span=3;
+            if(Patches.TracerPatch.Streak(muzzle,Eye(.5,.1),ref tail,trail,ref span) || span!=3) throw new Exception("A far shot streaks from the muzzle");
             var sightMuzzle=new Vector3D(0,.0481,-.3189); var sightRear=new Vector3D(0,.1121,-.0107); var forward=new Vector3D(0,0,-1);
             var aim=Patches.MotionToolPatch.SightAim(sightMuzzle,forward,sightRear,start=> { if(Math.Abs(start.Y-.1121)>1e-6 || Math.Abs(start.Z+.3189)>1e-6) throw new Exception("Sight ray does not start on the muzzle plane"); return 20; });
             var hit=sightMuzzle+aim*Vector3D.Dot(new Vector3D(0,.1121,-20.3189)-sightMuzzle,aim);
