@@ -121,6 +121,14 @@ namespace SpaceEngineersVR.Diagnostics
             Require(WeaponAmmo.Inspecting(MatrixD.Identity,head,label.Pose),"Side inspection label hidden");
             head=MatrixD.CreateWorld(new Vector3D(0,.05,.4),Vector3D.Forward,Vector3D.Up);
             Require(!WeaponAmmo.Inspecting(MatrixD.Identity,head,label.Pose),"Label obscures aiming posture");
+            // A left-handed hold puts the label on the gun's right side, facing out and readable from there.
+            foreach(var profile in WeaponProfile.All.Where(p=>!p.Tool))
+            {
+                label=WeaponAmmo.Label(profile.Mirror,MatrixD.Identity,18,20);
+                Require(label.Pose.Translation.X>.02 && label.Pose.Backward.X>.99 && label.Pose.Right.Z<-.99,profile.Item+": left-handed ammo label is not on the right side facing out");
+            }
+            head=MatrixD.CreateWorld(new Vector3D(.4,.1,0),Vector3D.Left,Vector3D.Up);
+            Require(WeaponAmmo.Inspecting(MatrixD.Identity,head,WeaponAmmo.Label(WeaponProfile.Rifle.Mirror,MatrixD.Identity,18,20).Pose),"Left-handed side inspection label hidden");
             log("PASS held items: 22 installed attachment matches, 440 large-coordinate working-frame/support cases, impossible support rejection, pistol underside reload and release ownership, ammo visibility.");
         }
         internal static void Animate(MyCharacterBone[] bones,string name,double fraction)

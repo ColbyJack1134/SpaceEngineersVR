@@ -12,9 +12,12 @@ namespace SpaceEngineersVR.Player
         internal static SurfaceView Counts(int remaining,int capacity) => new SurfaceView {Style=SurfaceStyle.Ammo,Text=remaining+" / "+capacity,Levels=new[] {capacity>0 ? (float)remaining/capacity:0}};
         internal static SurfaceView Label(WeaponProfile profile,MatrixD model,int remaining,int capacity)
         {
-            var point=profile.Kind==ItemKind.Pistol ? new Vector3D(profile.Item=="FlareGunItem" ? -.030:-.025,.057,.025):
-                profile.Kind==ItemKind.Launcher ? new Vector3D(-.070,.125,.065):new Vector3D(-.038,.047,-.012);
-            var local=MatrixD.CreateWorld(point,Vector3D.Right,Vector3D.Up);
+            bool flare=profile.Item=="FlareGunItem";
+            // On the side facing the shooter: the gun's left for a right-handed hold, its right for a left-handed one.
+            // The guns are not symmetric; each side sits 1 mm off the mesh measured at the label.
+            var point=profile.Kind==ItemKind.Pistol ? new Vector3D(profile.Mirrored ? (flare ? .0276:.0244):(flare ? -.030:-.025),.057,.025):
+                profile.Kind==ItemKind.Launcher ? new Vector3D(profile.Mirrored ? .0672:-.070,.125,.065):new Vector3D(profile.Mirrored ? .027:-.038,.047,-.012);
+            var local=MatrixD.CreateWorld(point,profile.Mirrored ? Vector3D.Left:Vector3D.Right,Vector3D.Up);
             var view=Counts(remaining,capacity);
             view.Id="WeaponAmmo"; view.Width=.043f; view.Height=.016f; view.ParentLocal=local; view.Pose=local*model;
             return view;
