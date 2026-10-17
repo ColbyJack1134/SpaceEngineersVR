@@ -62,7 +62,7 @@ namespace SpaceEngineersVR.Player
         }
         internal static ActionChoice[] CommonEntries(bool spectator) => GameActions.Quick.Concat(GameActions.Building).Concat(GameActions.Developer)
                 .Concat(BuildPlannerActions.Shortcuts)
-                .Concat(new[] {GameActions.HudOptions,GameActions.UnequipAction,GameActions.RecenterAction,GameActions.DesktopFloating,GameActions.DesktopWrist,GameActions.CycleSymmetryAction,GameActions.ExitSymmetryAction,SpectatorView.EnterAction})
+                .Concat(new[] {GameActions.HudOptions,GameActions.UnequipAction,GameActions.RecenterAction,GameActions.ResetScreens,GameActions.DesktopFloating,GameActions.DesktopWrist,GameActions.CycleSymmetryAction,GameActions.ExitSymmetryAction,SpectatorView.EnterAction})
                 .Concat(spectator ? SpectatorView.Actions():Array.Empty<ActionChoice>())
                 .GroupBy(a=>a.HistoryKey ?? a.Label).Select(g=>g.Last()).ToArray();
         private static IEnumerable<ActionChoice> Entries()

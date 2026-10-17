@@ -709,6 +709,9 @@ namespace SpaceEngineersVR.Diagnostics
                 WristPanel.StopEditing();
                 wrist.Keys=WristPanel.Keys(null,false,false,false,true,wrist.Status);
                 WristPreview(device,canvas,wrist,output,"wrist-search-results");
+                WristPanel.SetQuery("reset"); WristPanel.StopEditing(); WristPanel.SelectCategory(4);
+                wrist.Keys=WristPanel.Keys(null,false,false,false,true,wrist.Status);
+                WristPreview(device,canvas,wrist,output,"wrist-search-reset");
                 WristPanel.Reset();
                 var ray=new SurfaceView { Id="Cockpit ray test",Style=SurfaceStyle.Pointer,Width=.004f,Height=.35f,
                     Pose=MatrixD.CreateWorld(new Vector3D(.1,-.1,-.5),Vector3D.Normalize(new Vector3D(-.3,.1,-.4)),Vector3D.Up) };

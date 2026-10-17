@@ -28,6 +28,8 @@ namespace SpaceEngineersVR.Player
         }
         private static readonly Dictionary<string,Cache> frames=new Dictionary<string,Cache>();
         internal static float ZoomX(float width,bool plus) => -width/2+(plus ? .115f:.05f);
+        // Move bar hit half-length; the drawn bar is a little shorter.
+        internal static float BarHalf(float width) => MathHelper.Clamp(width*.095f,.125f,.19f);
         internal const int CloseHover=5,MonitorHover=6,SignalsHover=7;
         internal static float SignalsX(float width) => width/2-.035f;
         internal static float SignalsY(float height) => height/2+.04f;
@@ -56,7 +58,10 @@ namespace SpaceEngineersVR.Player
                 // Native menu contents retain their own texture, without a tint.
                 float bottom=s.Height/2+s.BarOffset;
                 using(var pen=new Pen(s.Hover==1 ? Color.Cyan : Color.White,.010f) { StartCap=LineCap.Round,EndCap=LineCap.Round })
-                    g.DrawLine(pen,-.15f,bottom,.15f,bottom);
+                {
+                    float half=BarHalf(s.Width)*.79f;
+                    g.DrawLine(pen,-half,bottom,half,bottom);
+                }
                 using(var pen=new Pen(s.Hover==2 ? Color.Cyan : Color.White,.006f) { StartCap=LineCap.Round,EndCap=LineCap.Round })
                 {
                     g.DrawLine(pen,s.Width/2-.025f,bottom+.024f,s.Width/2+.024f,bottom+.024f);

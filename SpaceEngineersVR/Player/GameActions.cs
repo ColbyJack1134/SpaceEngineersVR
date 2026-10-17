@@ -113,6 +113,7 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice RelativeDampeners=new ActionChoice("Auto dampeners",DampenerTargeting.Activate);
         public static readonly ActionChoice Dampeners=Native("Dampeners",MyControlsSpace.DAMPING);
         public static readonly ActionChoice ResetFeed=new ActionChoice("Reset camera screen",RemoteView.Recenter,enabled:()=>RemoteView.Current!=null);
+        public static readonly ActionChoice ResetScreens=new ActionChoice("Reset screens",WindowSpots.ResetAll,searchTerms:"recenter menu window position default");
         public static readonly ActionChoice ExitFeed=new ActionChoice(()=>RemoteView.RemoteGrid ? "Exit remote control":RemoteView.Turret ? "Exit turret":"Exit camera control",
             RemoteView.Exit,historyKey:"Exit feed");
         // Native camera cycling only answers while a camera block is the active camera (MyGridCameraSystem.Update).

@@ -115,7 +115,7 @@ namespace SpaceEngineersVR.Player
                 action==GameActions.TerminalAction || action==GameActions.BroadcastAction || action==GameActions.CockpitBuild || action==GameActions.ExitFeed || action==GameActions.ResetFeed || action.Label.StartsWith("Toolbar ");
             if(value==3) return GameActions.Building.Contains(action) || action==GameActions.BlueprintsAction || action==GameActions.CockpitBuild;
             return action.Label.StartsWith("VR:") || action==GameActions.Options || action.Label==GameActions.Options.Label || action==GameActions.HudOptions || action==GameActions.Quick[10] ||
-                action==GameActions.RecenterAction || action==GameActions.PlayPosture || action==GameActions.DesktopFloating || action==GameActions.DesktopWrist;
+                action==GameActions.RecenterAction || action==GameActions.ResetScreens || action==GameActions.PlayPosture || action==GameActions.DesktopFloating || action==GameActions.DesktopWrist;
         }
         private static void SearchKeys(List<SurfaceKey> keys)
         {
