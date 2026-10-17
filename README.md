@@ -10,7 +10,7 @@ Features:
 - Every base game and DLC cockpit is interactive, including in-game flight sticks. Inspired by [VTOL VR](https://store.steampowered.com/app/667970/VTOL_VR/)
 - Camera, turret and remote-grid views in picture-in-picture. Inspired by [CameraLCD](https://github.com/austinvaness/CameraLCD)
 - Multiplayer: VR players see each other's heads, hands and fingers, and VR works on vanilla servers
-- Tools and weapons with two-handed support and properly zeroed weapon sights
+- Tools and weapons with two-handed support. Properly zeroed iron sights and working holo sights
 - VR building with painting, symmetry, blueprints, planets, and third-person/diorama building
 - Third-person and spectator views with hand-controlled camera movement
 - HUD redesigned for VR while maintaining base game art
