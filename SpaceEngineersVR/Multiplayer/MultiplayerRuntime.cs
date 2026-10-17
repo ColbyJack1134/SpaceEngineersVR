@@ -39,7 +39,10 @@ namespace SpaceEngineersVR.Multiplayer
 
     internal static class MultiplayerRuntime
     {
-        private const ushort PoseChannel=48983,StateChannel=48984;
+        // Clients cannot address each other through the mod API, so the host relays their poses on RelayChannel.
+        private const ushort PoseChannel=48983,StateChannel=48984,RelayChannel=48985;
+        internal const int RelaySize=PlayerPose.Size+8;
+        internal const double Reach=250;
         internal static bool Enabled;
         internal static Func<uint,PlayerPose> Capture { get; set; }
         internal static Action<string> Notify=Log;
@@ -74,6 +77,7 @@ namespace SpaceEngineersVR.Multiplayer
             {
                 network.UnregisterSecureMessageHandler(PoseChannel,Receive);
                 network.UnregisterSecureMessageHandler(StateChannel,Receive);
+                network.UnregisterSecureMessageHandler(RelayChannel,Receive);
             }
             AnalogControl.Reset();
             foreach(var toolbar in analogToolbars.Values) ClearAnalogToolbar(toolbar);
@@ -85,7 +89,7 @@ namespace SpaceEngineersVR.Multiplayer
         }
         private static void Receive(ushort channel,byte[] data,ulong sender,bool fromServer)
         {
-            if(data==null || data.Length>(channel==PoseChannel ? PlayerPose.Size:CockpitMemory.Limit*2+64)) return;
+            if(data==null || data.Length>(channel==PoseChannel ? PlayerPose.Size:channel==RelayChannel ? RelaySize:CockpitMemory.Limit*2+64)) return;
             if(Interlocked.Increment(ref queued)>256) { Interlocked.Decrement(ref queued); return; }
             incoming.Enqueue(new Message {Channel=channel,Data=data,Sender=sender,Server=fromServer});
         }
@@ -111,6 +115,7 @@ namespace SpaceEngineersVR.Multiplayer
                 session=MySession.Static; network=MyAPIGateway.Multiplayer; connected=Now;
                 network.RegisterSecureMessageHandler(PoseChannel,Receive);
                 network.RegisterSecureMessageHandler(StateChannel,Receive);
+                network.RegisterSecureMessageHandler(RelayChannel,Receive);
                 Log("Session connected; "+(network.IsServer ? "host persistence active":"awaiting host support"));
             }
             DampenerRequests.Update();
@@ -146,31 +151,50 @@ namespace SpaceEngineersVR.Multiplayer
                 {
                     var encoded=pose.Encode();
                     if(!network.IsServer) network.SendMessageToServer(PoseChannel,encoded,false);
-                    foreach(var pair in peers)
-                    {
-                        var player=players.FirstOrDefault(p=>p.SteamUserId==pair.Key);
-                        if((network.IsServer || pair.Key!=network.ServerId) && player?.Character!=null && session.LocalCharacter!=null &&
-                            VRageMath.Vector3D.DistanceSquared(player.Character.GetPosition(),session.LocalCharacter.PositionComp.GetPosition())<250*250)
-                            network.SendMessageTo(PoseChannel,encoded,pair.Key,false);
-                    }
+                    else if(session.LocalCharacter!=null) Fanout(PoseChannel,encoded,network.MyId,session.LocalCharacter.PositionComp.GetPosition());
                 }
             }
+        }
+        private static VRageMath.Vector3D? Locate(ulong id) => players.FirstOrDefault(p=>p.SteamUserId==id)?.Character?.GetPosition();
+        private static void Fanout(ushort channel,byte[] data,ulong origin,VRageMath.Vector3D from)
+        {
+            foreach(ulong id in Audience(origin,network.MyId,from,peers.Keys,Locate)) network.SendMessageTo(channel,data,id,false);
+        }
+        // Peers whose character is within reach of the pose origin, never the origin or the local player.
+        internal static IEnumerable<ulong> Audience(ulong origin,ulong self,VRageMath.Vector3D from,IEnumerable<ulong> candidates,Func<ulong,VRageMath.Vector3D?> locate)
+        {
+            foreach(ulong id in candidates)
+                if(id!=origin && id!=self && locate(id) is VRageMath.Vector3D at && VRageMath.Vector3D.DistanceSquared(at,from)<Reach*Reach) yield return id;
+        }
+        internal static byte[] RelayPacket(ulong origin,byte[] pose)
+        {
+            var data=new byte[8+pose.Length];
+            Array.Copy(BitConverter.GetBytes(origin),data,8); Array.Copy(pose,0,data,8,pose.Length); return data;
+        }
+        // Only the host relays; a relay from a client could claim any origin.
+        internal static bool ReadRelay(byte[] data,bool fromServer,out ulong origin,out byte[] pose)
+        {
+            origin=0; pose=null;
+            if(!fromServer || data==null || data.Length<=8) return false;
+            origin=BitConverter.ToUInt64(data,0); pose=new byte[data.Length-8]; Array.Copy(data,8,pose,0,pose.Length); return true;
         }
         private static void Handle(Message message,double now)
         {
             if(message.Sender==network.MyId) return;
             if(message.Server) hostSupport=true;
-            var player=players.FirstOrDefault(p=>p.SteamUserId==message.Sender);
-            if(player==null && !message.Server) return;
             if(message.Channel==PoseChannel)
             {
-                if(player==null || !peers.TryGetValue(message.Sender,out var peer)) return;
-                var pose=PlayerPose.Decode(message.Data);
-                if(pose==null || player.Character?.EntityId!=pose.Character ||
-                    !(player.Character is MyCharacter character) || (character.Parent?.EntityId ?? 0)!=pose.Seat) return;
-                if(peer.Arms.Character!=character) { Forget(peer.Arms); peer.Arms.Character=character; characters[character.EntityId]=peer.Arms; }
-                peer.Arms.Stream.Push(pose,now); peer.Seen=now; return;
+                if(Accept(message.Sender,message.Data,now,out var character) && network.IsServer)
+                    Fanout(RelayChannel,RelayPacket(message.Sender,message.Data),message.Sender,character.PositionComp.GetPosition());
+                return;
             }
+            if(message.Channel==RelayChannel)
+            {
+                if(ReadRelay(message.Data,message.Server,out ulong origin,out var relayed)) Accept(origin,relayed,now,out _);
+                return;
+            }
+            var player=players.FirstOrDefault(p=>p.SteamUserId==message.Sender);
+            if(player==null && !message.Server) return;
             using(var reader=new BinaryReader(new MemoryStream(message.Data,false)))
             {
                 if(reader.ReadInt32()!=0x31535653) return;
@@ -205,6 +229,19 @@ namespace SpaceEngineersVR.Multiplayer
                 }
                 HostRequest(player,kind,seat,value);
             }
+        }
+        // Direct and relayed poses alike must come from a registered peer whose character and seat match; true when the pose is new.
+        private static bool Accept(ulong origin,byte[] data,double now,out MyCharacter character)
+        {
+            character=null;
+            var player=players.FirstOrDefault(p=>p.SteamUserId==origin);
+            if(player==null || !peers.TryGetValue(origin,out var peer)) return false;
+            var pose=PlayerPose.Decode(data);
+            if(pose==null || player.Character?.EntityId!=pose.Character ||
+                !(player.Character is MyCharacter owner) || (owner.Parent?.EntityId ?? 0)!=pose.Seat) return false;
+            character=owner;
+            if(peer.Arms.Character!=character) { Forget(peer.Arms); peer.Arms.Character=character; characters[character.EntityId]=peer.Arms; }
+            bool fresh=peer.Arms.Stream.Push(pose,now); peer.Seen=now; return fresh;
         }
         internal static byte[] Packet(byte kind,long seat,string value)
         {

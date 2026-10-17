@@ -255,12 +255,29 @@ namespace SpaceEngineersVR.Diagnostics
             }
             BoundedStrings();
             RequestBudgets();
+            Relay();
             var bare=(Sandbox.Game.Screens.Helpers.MyToolbar)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Screens.Helpers.MyToolbar));
             Require(MultiplayerRuntime.FatBlockClosed!=null && Delegate.CreateDelegate(typeof(Action<Sandbox.Game.Entities.MyCubeBlock>),bare,MultiplayerRuntime.FatBlockClosed)!=null,"Toolbar grid handler no longer matches the game");
             MultiplayerRuntime.DetachGrid(bare); MultiplayerRuntime.DetachGrid(null);
             ToolbarCap(log);
             CorruptPaste();
-            log("PASS multiplayer payloads: pose round trip, truncated/nonfinite/out-of-reach rejection, finger flags, ordering/wrap, interpolation, seat changes, stale timeout, cockpit record persistence, bounded string lengths and request budgets.");
+            log("PASS multiplayer payloads: pose round trip, truncated/nonfinite/out-of-reach rejection, finger flags, ordering/wrap, interpolation, seat changes, stale timeout, cockpit record persistence, bounded string lengths, request budgets and host pose relay.");
+        }
+        private static void Relay()
+        {
+            const ulong origin=76561198000000001UL;
+            var aiming=Pose(); aiming.Tracked|=PlayerPose.ToolRayTracked|PlayerPose.HeadTracked; aiming.ToolRay.Translation=new Vector3(.1f,1.1f,-.6f);
+            var bytes=aiming.Encode(); var packet=MultiplayerRuntime.RelayPacket(origin,bytes);
+            Require(bytes.Length==PlayerPose.Size && packet.Length==MultiplayerRuntime.RelaySize && packet.Length<=1024,"Full relay packet exceeds the unreliable message limit");
+            Require(MultiplayerRuntime.ReadRelay(packet,true,out ulong from,out var relayed) && from==origin && Enumerable.SequenceEqual(relayed,bytes) &&
+                PlayerPose.Decode(relayed)?.Character==100,"Relay round trip failed");
+            Require(!MultiplayerRuntime.ReadRelay(packet,false,out _,out _),"Relay from a client accepted");
+            Require(!MultiplayerRuntime.ReadRelay(packet.Take(8).ToArray(),true,out _,out _) && !MultiplayerRuntime.ReadRelay(null,true,out _,out _),"Relay without a pose accepted");
+            var positions=new Dictionary<ulong,Vector3D> {{origin,new Vector3D(1000,0,0)},{2,new Vector3D(1100,0,0)},{3,new Vector3D(1000,249,0)},{4,new Vector3D(1250,0,0)},{5,new Vector3D(1000,0,-300)},{9,new Vector3D(1000,10,0)}};
+            Vector3D? Locate(ulong id) => positions.TryGetValue(id,out var at) ? at:(Vector3D?)null;
+            var audience=MultiplayerRuntime.Audience(origin,9,positions[origin],new ulong[] {origin,2,3,4,5,6,9},Locate).ToArray();
+            Require(audience.SequenceEqual(new ulong[] {2,3}),"Relay audience includes the origin, the host, far or unlocated peers: "+string.Join(",",audience));
+            Require(!MultiplayerRuntime.Audience(origin,9,positions[origin],new ulong[] {origin},Locate).Any(),"Origin receives its own pose");
         }
         private static void Write7Bit(BinaryWriter writer,int value)
         {
