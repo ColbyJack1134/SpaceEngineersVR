@@ -10,27 +10,24 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
-    // Hand-ray grab state and the maths that turns VR input into the grab mod's requests: target point, rotation torque
-    // about camera-aligned grid axes, the two-hand turn and the body contact counter. The mod's server does the physics.
+    // Grab maths; the mod's server does the physics.
     internal static class GridGrab
     {
         internal const float MinDistance=1.2f,Torque=100000,DistanceRate=2,ThrowDistance=200,SteeringSpinDamping=.9f,AlignedSpinDamping=.3f,ClientSpinDamping=.3f;
         // The mod stiffens the pull below this hold distance when an offset is sent; the distance field stays above it and the offset carries the rest.
         internal const double StiffDistance=2;
-        internal const int SmallGridBlocks=5,ContactLimit=200,ContactDrain=15,ContactRecovery=10,ContactSettle=20,ContactIdleGain=2,ThrowGround=-2;
+        internal const int ContactLimit=200,ContactDrain=15,ContactRecovery=10,ContactSettle=20,ContactIdleGain=2,ThrowGround=-2;
         internal static readonly float AlignDeadzone=MathHelper.ToRadians(3);
         internal sealed class Hold
         {
             public MyCubeGrid Grid;
             public Vector3 Local;
             public float Distance;
-            public bool SnapToCenter,Rotating;
+            public bool SnapToCenter;
             // Pitch, yaw and roll demands in -1..1; the grid axes they turn are latched while any demand is held.
             public Vector3 Input;
             public Vector3[] Axes;
             public MatrixD? TurnTarget;
-            public float Tension;
-            public Vector3D Point,Target;
         }
         internal sealed class Contact { public int Counter=ContactLimit,Settle; }
         private static readonly List<IHitInfo> hits=new List<IHitInfo>();

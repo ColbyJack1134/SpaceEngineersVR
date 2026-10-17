@@ -142,7 +142,7 @@ namespace SpaceEngineersVR.Player
             Execute(action,hand,fromSearch);
         }
         public static readonly ActionChoice CockpitBuild=new ActionChoice(()=>CockpitBuilding.Label,CockpitBuilding.Toggle,historyKey:"Cockpit building");
-        internal static readonly ActionChoice SnapHeldGrid=new ActionChoice(()=>HandGrab.SnapLabel,HandGrab.ToggleSnap,historyKey:"Snap held grid to centre");
+        internal static readonly ActionChoice SnapHeldGrid=new ActionChoice(()=>HandGrab.SnapLabel,HandGrab.ToggleSnap,historyKey:"Snap held grid to center");
         public static ActionChoice[] WheelActions(bool building,bool seated,bool thirdPerson,bool jetpack=false)
         {
             if(SpectatorView.Active) return PlacementControls.ClipboardActive ? ClipboardActions(PlacementControls.GridClipboardActive):SpectatorView.Actions();

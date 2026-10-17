@@ -34,8 +34,7 @@ namespace SpaceEngineersVR.Patches
         // Shots end at their randomized range (pistol rounds at 200 to 250 m); the dot dims over the second half of it instead of vanishing.
         internal static float RangeFade(double travelled,float maximum) => maximum>0 ? (float)MathHelper.Clamp((maximum-travelled)/(maximum*.5),0,1):1;
 
-        // The renderer dims a line by 1-|cos|^30 of the angle to the camera, so a trail seen from the shooter's eye or head-on
-        // vanishes. The head dot takes the remainder.
+        // The renderer dims a line by 1-|cos|^30 of its angle to the camera; the head dot takes the remainder.
         internal static float HeadWeight(Vector3D head,Vector3 direction,Vector3D eye,out double distance)
         {
             var toEye=eye-head;
@@ -54,8 +53,7 @@ namespace SpaceEngineersVR.Patches
             double slope=StereoRenderState.PixelSlopeX;
             return width>0 && slope>0 ? 2*slope/width:FallbackPixel;
         }
-        // The renderer fades by the angle to the trail start only, so a young own shot drawn from just past the muzzle is
-        // seen at a steep angle and reads as a streak leaving the gun.
+        // The renderer fades by the angle to the trail start only, so a near start reads as a streak leaving the gun.
         internal static bool Streak(Vector3D muzzle,Vector3D eye,ref Vector3D start,Vector3 direction,ref float length)
         {
             var head=start+direction*length;
@@ -76,8 +74,7 @@ namespace SpaceEngineersVR.Patches
             if(vr)
             {
                 Streak(muzzle,camera.Position,ref origin,direction,ref length);
-                // Billboards blend premultiplied and the renderer dims only the colour of an end-on line, which leaves it
-                // opaque and dark. Fading the alpha by the same amount keeps it a glow.
+                // Billboards blend premultiplied; the renderer dims only the colour, so fade alpha too or the line turns dark.
                 color.W*=1-HeadWeight(origin,direction,camera.Position,out _);
             }
             MyTransparentGeometry.AddLineBillboard(material,color,origin,direction,length,thickness,blend,view,intensity,persistent);

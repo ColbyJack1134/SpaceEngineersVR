@@ -13,8 +13,6 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
-    // Grip plus trigger on a loose grid under the finger ray holds it in front of the hand through the grab mod. The trigger
-    // then turns the sticks into rotation and distance controls, the other hand's chord turns the grid by hand, and B throws it.
     internal static class HandGrab
     {
         private const float ChordPressure=.5f,GripPress=.55f,GripRelease=.45f;
@@ -33,7 +31,7 @@ namespace SpaceEngineersVR.Player
         private static DateTime nextStrain;
         internal static bool Active => hold!=null;
         internal static bool Holding(Controller hand) => hold!=null && holder==hand;
-        internal static string SnapLabel => "Snap held grid to centre: "+(Common.Config?.GrabSnapToCenter==true ? "on":"off");
+        internal static string SnapLabel => "Snap held grid to center: "+(Common.Config?.GrabSnapToCenter==true ? "on":"off");
         private static Hand For(Controller hand) => hands[hand==Player.HandL ? 0:1];
         private static Controller Other(Controller hand) => hand==Player.HandL ? Player.HandR:Player.HandL;
         private static float Trigger(Controller hand) => (hand==Player.HandL ? Controls.Static.LeftTriggerPressure:Controls.Static.PointerPressure).RawPosition.X;
@@ -130,7 +128,6 @@ namespace SpaceEngineersVR.Player
             Block(controller);
             bool sticks=InputRouter.Gameplay;
             bool rotating=Trigger(controller)>ChordPressure && sticks;
-            hold.Rotating=rotating;
             var other=Other(controller);
             if(rotating)
             {
@@ -151,10 +148,10 @@ namespace SpaceEngineersVR.Player
             var grid=hold.Grid;
             // The mod's server pulls toward its own head-based point; the offset moves that point onto the hand ray.
             var head=character.GetHeadMatrix(true,true);
-            hold.Point=GridGrab.PulledPoint(hold);
-            hold.Target=pointer.Translation+pointer.Forward*hold.Distance;
-            hold.Tension=(float)(Vector3D.DistanceSquared(hold.Target,hold.Point)/(reach*reach));
-            if(hold.Tension>1) { Logger.Info("Grab: dropped, the hold line stretched past "+reach+" m"); Release(true); return; }
+            var point=GridGrab.PulledPoint(hold);
+            var target=pointer.Translation+pointer.Forward*hold.Distance;
+            float tension=(float)(Vector3D.DistanceSquared(target,point)/(reach*reach));
+            if(tension>1) { Logger.Info("Grab: dropped, the hold line stretched past "+reach+" m"); Release(true); return; }
             bool looking=GridGrab.RayHits(pointer.Translation,pointer.Forward,reach,grid);
             long ground=GridGrab.Ground(character);
             if(throwNow)
@@ -183,14 +180,14 @@ namespace SpaceEngineersVR.Player
                 grid.Physics.AngularVelocity=grid.Physics.AngularVelocity*GridGrab.ClientSpinDamping;
             }
             double packetDistance=GridGrab.PacketDistance(hold.Distance);
-            if(!ModGrabBridge.Send(grid.EntityId,hold.Local,packetDistance,hold.SnapToCenter,torque,steering,true,ground,GridGrab.Offset(head,packetDistance,hold.Target),damping,looking))
+            if(!ModGrabBridge.Send(grid.EntityId,hold.Local,packetDistance,hold.SnapToCenter,torque,steering,true,ground,GridGrab.Offset(head,packetDistance,target),damping,looking))
             { Release(true,false); return; }
             bool touching=Touching(character,grid);
             if(GridGrab.Step(contact,true,touching)) { Logger.Info("Grab: dropped, the grid touched the player"); Release(true); return; }
             if(touching!=(highlight==2)) { Highlight(grid,touching ? 2:1); if(touching) controller.Vibrate(0,.05f,60,.5f); }
-            if(hold.Tension>.3f && now>=nextStrain)
+            if(tension>.3f && now>=nextStrain)
             {
-                float strain=Math.Min(1,hold.Tension);
+                float strain=Math.Min(1,tension);
                 controller.Vibrate(0,.014f,50+40*strain,.08f+.35f*strain); nextStrain=now.AddMilliseconds(45);
             }
         }
@@ -208,18 +205,18 @@ namespace SpaceEngineersVR.Player
             Block(other);
             hold.TurnTarget=GridGrab.TurnTarget(turnFrame.Value,frame,turnGridStart);
         }
-        // Short rays from the capsule centre; the held grid must be the first thing they hit.
+        // Short rays from the capsule center; the held grid must be the first thing they hit.
         private static bool Touching(MyCharacter character,MyCubeGrid grid)
         {
             if(MyAPIGateway.Physics==null) return false;
             var world=character.WorldMatrix;
-            var centre=character.PositionComp.GetPosition()+world.Up;
+            var center=character.PositionComp.GetPosition()+world.Up;
             double r=.4;
             var right=world.Right*(jitter.NextDouble()*2-1)*r; var forward=world.Forward*(jitter.NextDouble()*2-1)*r; var up=world.Up*(jitter.NextDouble()*2-1)*r*2;
-            var ends=new[] {centre+world.Down*1.2+right+forward,centre+world.Up*1.2+right+forward,centre+world.Right*.6+up+forward,
-                centre+world.Left*.6+up+forward,centre+world.Forward*.6+up+right,centre+world.Backward*.6+up+right};
+            var ends=new[] {center+world.Down*1.2+right+forward,center+world.Up*1.2+right+forward,center+world.Right*.6+up+forward,
+                center+world.Left*.6+up+forward,center+world.Forward*.6+up+right,center+world.Backward*.6+up+right};
             foreach(var end in ends)
-                if(MyAPIGateway.Physics.CastRay(centre,end,out IHitInfo hit,MyPhysics.CollisionLayers.VoxelLod1CollisionLayer) &&
+                if(MyAPIGateway.Physics.CastRay(center,end,out IHitInfo hit,MyPhysics.CollisionLayers.VoxelLod1CollisionLayer) &&
                     (hit.HitEntity as MyEntity)?.GetTopMostParent()==grid) return true;
             return false;
         }

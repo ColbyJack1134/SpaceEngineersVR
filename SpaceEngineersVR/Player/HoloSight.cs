@@ -23,18 +23,14 @@ using PointF = System.Drawing.PointF;
 
 namespace SpaceEngineersVR.Player
 {
-    // Holographic, reflex and scope reticles appear at infinity, so both eyes see one reticle on the target and the aim
-    // point barely moves with the eye. The models paint them 16 cm from the eye instead. A local copy of each model drops
-    // the painted reticle, and each eye draws it again along the sight line.
+    // Reticles drawn at infinity so both eyes see one reticle on the target; the models paint them 16 cm from the eye.
     internal static class HoloSight
     {
         private sealed class Sight
         {
             internal readonly string Item;
             internal readonly int First,Count;
-            // Eye distance that sets the reticle's angular size; clip depth past the reticle where the window frame or
-            // scope front ring sits; open window around the reticle centre (left, right, bottom, top), ray cast from the mesh,
-            // widened by the frame so a reticle partly past the opening is cut by the frame instead of disappearing.
+            // Eye sets the reticle's angular size; Clip is the depth of the frame past the reticle; Window (left, right, bottom, top) is widened by the frame so the frame cuts the reticle.
             internal readonly float Eye,Clip;
             internal readonly Vector4 Window;
             // Sights with open sky beyond a thin frame, or a long tube, crop to their rims; the rest leave it to the depth test.
@@ -103,10 +99,7 @@ namespace SpaceEngineersVR.Player
             Build(sights.Single(s=>s.Item==item),WeaponProfile.All.First(p=>p.Item==item),source,copy,folder);
         private static Reticle Build(Sight sight,WeaponProfile profile,string source,string copy,string folder)
         {
-            var importer=new MyModelImporter();
-            using(var reader=new BinaryReader(File.OpenRead(source)))
-                AccessTools.Method(typeof(MyModelImporter),"LoadTagData").Invoke(importer,new object[] {reader,new[] {"Vertices","MeshParts","Dummies"}});
-            var tags=importer.GetTagData();
+            var tags=Tags(source,"Vertices","MeshParts","Dummies");
             var positions=(HalfVector4[])tags["Vertices"];
             var indices=((List<MyMeshPartInfo>)tags["MeshParts"])[0].m_indices.ToArray();
             if((sight.First+sight.Count)*3>indices.Length) throw new InvalidDataException("Reticle triangles out of range");
@@ -123,7 +116,7 @@ namespace SpaceEngineersVR.Player
             var reticle=new Reticle { Center=center,Forward=forward,Right=right,Up=up,Clip=sight.Clip,Window=sight.Window,Rims=sight.Rims,
                 Texture=Path.Combine(folder,sight.Item+".png") };
             reticle.Tangents=Paint(triangles,reticle.Texture);
-            WriteCopy(File.ReadAllBytes(source),indices,sight.First,sight.Count,copy);
+            Write(copy,RemoveTriangles(File.ReadAllBytes(source),indices,sight.First,sight.Count));
             // Subparts such as magazines load from the parent model's folder.
             foreach(var dummy in ((Dictionary<string,MyModelDummy>)tags["Dummies"]).Where(d=>d.Key.Contains("subpart_")))
             {
@@ -134,7 +127,15 @@ namespace SpaceEngineersVR.Player
             return reticle;
         }
 
-        internal static Vector2 Tangent(Vector3 point,Vector3 eye,Vector3 forward,Vector3 right,Vector3 up)
+        internal static Dictionary<string,object> Tags(string file,params string[] names)
+        {
+            var importer=new MyModelImporter();
+            using(var reader=new BinaryReader(File.OpenRead(file)))
+                AccessTools.Method(typeof(MyModelImporter),"LoadTagData").Invoke(importer,new object[] {reader,names});
+            return importer.GetTagData();
+        }
+
+        private static Vector2 Tangent(Vector3 point,Vector3 eye,Vector3 forward,Vector3 right,Vector3 up)
         {
             var d=point-eye; float depth=Vector3.Dot(d,forward);
             return new Vector2(Vector3.Dot(d,right)/depth,Vector3.Dot(d,up)/depth);
@@ -161,10 +162,6 @@ namespace SpaceEngineersVR.Player
                 if(j==pattern.Length) return i;
             }
             return -1;
-        }
-        private static void WriteCopy(byte[] source,int[] indices,int first,int count,string copy)
-        {
-            Write(copy,RemoveTriangles(source,indices,first,count));
         }
         private static void Write(string file,byte[] data)
         {
@@ -219,8 +216,7 @@ namespace SpaceEngineersVR.Player
             return along>=MinEye && along<=MaxEye && x>=window.X && x<=window.Y && y>=window.Z && y<=window.W ? along:(double?)null;
         }
 
-        // Half-planes in normalized device coordinates that keep the inside of projected rims (the sprite shader discards
-        // dot((ndc,1),clip)<0). Each side takes whichever rim is nearest the sight line from this eye.
+        // NDC half-planes; the sprite shader discards dot((ndc,1),clip)<0. Each side keeps the rim nearest the sight line.
         internal static Vector4[] Crop(Vector2[][] rims,Vector2 inside)
         {
             var clips=new Vector4[4]; var margins=new float[4];
@@ -247,8 +243,7 @@ namespace SpaceEngineersVR.Player
                 var right=Vector3D.Normalize(Vector3D.TransformNormal(r.Right,gun)); var up=Vector3D.Normalize(Vector3D.TransformNormal(r.Up,gun));
                 var along=Along(eye,Vector3D.Transform(r.Center,gun),forward,right,up,r.Window);
                 if(!along.HasValue) return;
-                // Placed relative to this eye, the quad projects as a direction only. Its depth sits just past the window
-                // frame, so the scene depth test clips it to the window.
+                // The quad sits past the window frame so the scene depth test clips it to the window.
                 double distance=along.Value+r.Clip;
                 var origin=eye+forward*distance;
                 right*=distance; up*=distance;

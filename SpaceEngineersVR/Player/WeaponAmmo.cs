@@ -13,8 +13,7 @@ namespace SpaceEngineersVR.Player
         internal static SurfaceView Label(WeaponProfile profile,MatrixD model,int remaining,int capacity)
         {
             bool flare=profile.Item=="FlareGunItem";
-            // On the side facing the shooter: the gun's left for a right-handed hold, its right for a left-handed one.
-            // The guns are not symmetric; each side sits 1 mm off the mesh measured at the label.
+            // Side facing the shooter; the guns are not symmetric so each side has its own offset.
             var point=profile.Kind==ItemKind.Pistol ? new Vector3D(profile.Mirrored ? (flare ? .0276:.0244):(flare ? -.030:-.025),.057,.025):
                 profile.Kind==ItemKind.Launcher ? new Vector3D(profile.Mirrored ? .0672:-.070,.125,.065):new Vector3D(profile.Mirrored ? .027:-.038,.047,-.012);
             var local=MatrixD.CreateWorld(point,profile.Mirrored ? Vector3D.Left:Vector3D.Right,Vector3D.Up);

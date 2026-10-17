@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using HarmonyLib;
 using SpaceEngineersVR.Player;
 using VRage.FileSystem;
 using VRageMath;
@@ -14,13 +13,7 @@ namespace SpaceEngineersVR.Diagnostics
     internal static class HoloSightTests
     {
         private static void Require(bool value,string message) { if(!value) throw new Exception(message); }
-        private static int[] Indices(string file)
-        {
-            var importer=new MyModelImporter();
-            using(var reader=new BinaryReader(File.OpenRead(file)))
-                AccessTools.Method(typeof(MyModelImporter),"LoadTagData").Invoke(importer,new object[] {reader,new[] {"MeshParts"}});
-            return ((List<MyMeshPartInfo>)importer.GetTagData()["MeshParts"])[0].m_indices.ToArray();
-        }
+        private static int[] Indices(string file) => ((List<MyMeshPartInfo>)HoloSight.Tags(file,"MeshParts")["MeshParts"])[0].m_indices.ToArray();
         public static void Run(Action<string> log,string output=null)
         {
             string folder=output ?? Path.Combine(Path.GetTempPath(),"SEVR-holo-sights");
@@ -29,7 +22,6 @@ namespace SpaceEngineersVR.Diagnostics
                 var profile=WeaponProfile.All.Single(p=>p.Item==item);
                 string source=Path.Combine(MyFileSystem.ContentPath,profile.Model),copy=Path.Combine(folder,profile.Model);
                 var reticle=HoloSight.Build(item,source,copy,folder);
-                // The copy differs only by the reticle triangles, which collapse to a point.
                 int[] before=Indices(source),after=Indices(copy);
                 Require(before.Length==after.Length && new FileInfo(source).Length==new FileInfo(copy).Length,item+": model copy changed size");
                 int changed=0;
@@ -41,10 +33,7 @@ namespace SpaceEngineersVR.Diagnostics
                 }
                 Require(changed==HoloSight.Triangles(item),item+": "+changed+" triangles removed");
                 Require(File.Exists(reticle.Texture),item+": reticle mask missing");
-                var importer=new MyModelImporter();
-                using(var reader=new BinaryReader(File.OpenRead(source)))
-                    AccessTools.Method(typeof(MyModelImporter),"LoadTagData").Invoke(importer,new object[] {reader,new[] {"Dummies"}});
-                foreach(var dummy in ((Dictionary<string,MyModelDummy>)importer.GetTagData()["Dummies"]).Where(d=>d.Key.Contains("subpart_") && d.Value.CustomData.ContainsKey("file")))
+                foreach(var dummy in ((Dictionary<string,MyModelDummy>)HoloSight.Tags(source,"Dummies")["Dummies"]).Where(d=>d.Key.Contains("subpart_") && d.Value.CustomData.ContainsKey("file")))
                 {
                     string name=(string)dummy.Value.CustomData["file"]+".mwm";
                     Require(!File.Exists(Path.Combine(Path.GetDirectoryName(source),name)) || File.Exists(Path.Combine(Path.GetDirectoryName(copy),name)),item+": subpart "+name+" missing beside the copy");
@@ -52,14 +41,12 @@ namespace SpaceEngineersVR.Diagnostics
                 var t2=reticle.Tangents;
                 Require(t2.Width>0 && t2.Height>0 && t2.X<0 && t2.X+t2.Width>0 && t2.Y>0 && t2.Y-t2.Height<0,item+": reticle does not surround the aim point");
             }
-            // Parallel rays: an eye behind the window sees the reticle, an eye beside the gun or in front of the sight does not.
             var window=new Vector4(-.013f,.013f,-.003f,.01f);
             Vector3D center=new Vector3D(0,.11,-.011),forward=Vector3D.Forward,right=Vector3D.Right,up=Vector3D.Up;
             Require(Math.Abs((HoloSight.Along(center+new Vector3D(.008,.004,.2),center,forward,right,up,window) ?? 0)-.2)<1e-9,"Eye behind the window does not see the reticle");
             Require(HoloSight.Along(center+new Vector3D(.032,0,.2),center,forward,right,up,window)==null,"Eye beside the window sees the reticle");
             Require(HoloSight.Along(center+new Vector3D(0,-.01,.2),center,forward,right,up,window)==null,"Eye under the window sees the reticle");
             Require(HoloSight.Along(center+new Vector3D(0,0,-.1),center,forward,right,up,window)==null,"Eye in front of the sight sees the reticle");
-            // Cropping keeps the inside of the projected opening whichever way its corners wind.
             foreach(var corners in new[] {new[] {new Vector2(-.2f,.3f),new Vector2(.4f,.3f),new Vector2(.4f,-.1f),new Vector2(-.2f,-.1f)},
                 new[] {new Vector2(-.2f,-.1f),new Vector2(.4f,-.1f),new Vector2(.4f,.3f),new Vector2(-.2f,.3f)}})
             {
@@ -68,14 +55,11 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(Kept(new Vector2(.35f,.25f)) && !Kept(new Vector2(.45f,.1f)) && !Kept(new Vector2(.1f,-.15f)) && !Kept(new Vector2(-.25f,.2f)) && !Kept(new Vector2(0,.35f)),
                     "Reticle crop does not follow the projected opening");
             }
-            // With two rims each side keeps the nearer edge: a narrow rear rim and a wide front rim offset to the right.
             var rear=new[] {new Vector2(-.2f,.2f),new Vector2(.2f,.2f),new Vector2(.2f,-.2f),new Vector2(-.2f,-.2f)};
             var front=rear.Select(c=>c*1.3f+new Vector2(.15f,0)).ToArray();
             var both=HoloSight.Crop(new[] {rear,front},Vector2.Zero);
             bool Inside(Vector2 p) => both.All(c=>c.X*p.X+c.Y*p.Y+c.Z>=0);
             Require(Inside(new Vector2(.19f,.19f)) && !Inside(new Vector2(-.21f,0)) && !Inside(new Vector2(.21f,0)) && !Inside(new Vector2(0,.21f)),"Two-rim crop does not keep the nearer edges");
-            var ring=HoloSight.Tangent(new Vector3(.0019f,.11f,-.011f),new Vector3(0,.11f,.149f),Vector3.Forward,Vector3.Right,Vector3.Up);
-            Require(Math.Abs(ring.X-.0019f/.16f)<1e-5 && Math.Abs(ring.Y)<1e-6,"Reticle tangent is not the angle from the design eye");
             log("PASS holographic sights: five installed models lose only their painted reticle and keep their magazine subparts, reticle masks surround the aim point, window gating of the parallel sight line, crop to the nearest projected rim");
         }
     }

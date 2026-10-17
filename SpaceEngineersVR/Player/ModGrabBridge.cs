@@ -7,8 +7,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
-    // Sends the Improvised Engineering mod's own move requests through its client network object, so the VR grab is handled
-    // by the mod's server component on any host that runs the mod. Worlds without the mod have no grab.
+    // Sends the mod's own move requests through its client network object; worlds without the mod have no grab.
     internal static class ModGrabBridge
     {
         private const string Prefix="mz_00956.ImprovisedEngineering.";

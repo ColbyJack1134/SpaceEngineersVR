@@ -45,12 +45,10 @@ namespace SpaceEngineersVR.Diagnostics
             var launcherSight=Eye(-.3,.117);
             if(!WeaponHandling.Sighted(Eye(.5,.117),muzzle,launcherSight,direction,false) || WeaponHandling.Sighted(Eye(.5,0),muzzle,launcherSight,direction,false))
                 throw new Exception("A sight above the barrel is not the aiming line");
-            // Own shot seen from behind and incoming fire get the full head dot; a crossing trail keeps only the native line.
             var trail=(Vector3)direction; var bullet=muzzle+direction*40;
             if(Patches.TracerPatch.HeadWeight(bullet,trail,Eye(.6,.1),out double far)<.99f || Patches.TracerPatch.HeadWeight(bullet,trail,bullet+direction*30,out _)<.99f ||
                 Patches.TracerPatch.HeadWeight(bullet,trail,bullet+Vector3D.CalculatePerpendicularVector(direction)*30,out _)>.01f || Math.Abs(far-40.6)>.01)
                 throw new Exception("Tracer head dot does not complement the native end-on fade");
-            // The dot keeps a pixel size far away and the trail width up close; an own young shot streaks back to the muzzle.
             double pixel=Math.PI/3600;
             if(Math.Abs(Patches.TracerPatch.HeadRadius(300,.036f,pixel)-300*pixel*1.3)>1e-4 || Patches.TracerPatch.HeadRadius(5,.036f,pixel)!=.036f)
                 throw new Exception("Tracer head dot size is wrong");
