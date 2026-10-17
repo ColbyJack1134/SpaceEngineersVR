@@ -141,7 +141,10 @@ namespace SpaceEngineersVR.Player
                 MyHud.Chat.ShowMessageColoredSP(message,session.ChatSystem.CurrentChannel,session.ChatSystem.CurrentTarget);
             else MyHud.Chat.ShowMessage(session.LocalHumanPlayer.PlatformDisplayName,message);
         }
-        private static string VisibleText(string value) => (value ?? "").Replace("\ue030","").Replace("\ue031","");
+        internal static Color SenderColor(MyChatItem message) => message.Font=="Blue" && message.SenderColor==VRageMath.Color.White
+            ? Color.FromArgb(145,196,232) : Color.FromArgb(message.SenderColor.A,message.SenderColor.R,message.SenderColor.G,message.SenderColor.B);
+        internal static Color BodyColor(MyChatItem message) => Color.FromArgb(message.MessageColor.A,message.MessageColor.R,message.MessageColor.G,message.MessageColor.B);
+        internal static string VisibleText(string value) => (value ?? "").Replace("\ue030","").Replace("\ue031","");
         internal static void Paint(OverlayCanvas target,SurfaceView surface)
         {
             target.Clear(Color.FromArgb(255,12,20,28));
@@ -177,9 +180,8 @@ namespace SpaceEngineersVR.Player
                     for(int i=rows.Count-1;i>=0;i--)
                     {
                         var message=rows[i].Item1;
-                        using(var sender=new SolidBrush(message.Font=="Blue" && message.SenderColor==VRageMath.Color.White
-                            ? Color.FromArgb(145,196,232) : Color.FromArgb(message.SenderColor.A,message.SenderColor.R,message.SenderColor.G,message.SenderColor.B)))
-                        using(var body=new SolidBrush(Color.FromArgb(message.MessageColor.A,message.MessageColor.R,message.MessageColor.G,message.MessageColor.B)))
+                        using(var sender=new SolidBrush(SenderColor(message)))
+                        using(var body=new SolidBrush(BodyColor(message)))
                         {
                             string name=VisibleText(message.Sender)+": ";
                             float x=30;

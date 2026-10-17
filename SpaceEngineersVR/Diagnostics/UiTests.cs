@@ -1,5 +1,6 @@
 #if SEVR_DIAGNOSTICS
 using System;
+using Sandbox.Game.Gui;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -100,6 +101,21 @@ namespace SpaceEngineersVR.Diagnostics
                 model.Notices=notices;
                 Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"foot-hud-notices.png"));
                 Wrist("wrist-foot-inline");
+                var chat=new[] {notices[3],
+                    NativeNotices.Chat(new MyChatItem("Engineer","heading to the ore field, meet at the north airlock","White",VRageMath.Color.CornflowerBlue,VRageMath.Color.White)),
+                    NativeNotices.Chat(new MyChatItem("Pilot","ok, bringing the small grid miner and two spare hydrogen bottles, give me a minute to fill them before we head out past the asteroid ring and down to the second moon",
+                        "White",VRageMath.Color.LightGreen,VRageMath.Color.LimeGreen))};
+                void Chat(string name)
+                {
+                    model.Notices=chat;
+                    Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,name+"-chat.png"));
+                    Render(hud,()=>EssentialHud.Paint(hud,model,false)); Save(hud.Texture,Path.Combine(output,name+"-chat-novitals.png"));
+                    Render(hud,()=>EssentialHud.Paint(hud,model,false,false)); Save(hud.Texture,Path.Combine(output,name+"-chat-only.png"));
+                    Render(hud,()=>EssentialHud.Paint(hud,model,true,true,false)); Save(hud.Texture,Path.Combine(output,name+"-chat-off.png"));
+                }
+                Chat("foot-hud");
+                Wrist("wrist-foot-chat"); model.Takeover=true; Wrist("wrist-takeover-chat");
+                model.Notices=notices;
                 model.Takeover=true; Wrist("wrist-takeover");
                 model.Notices=new[] {new Notice(notices[0].Text,notices[0].Style)}; Wrist("wrist-takeover-single");
                 model.Takeover=false; model.Notices=new Notice[0];
@@ -107,6 +123,7 @@ namespace SpaceEngineersVR.Diagnostics
                 model.Inventory="84%"; model.InventoryLevel=.84f;
                 Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"ship-hud.png"));
                 Wrist("wrist-ship");
+                Chat("ship-hud"); model.Notices=new Notice[0];
                 model.Piloting=false; model.Selected="Enhanced Welder"; model.Icons=new[] {@"Textures\GUI\Icons\WeaponWelder.dds"}; model.Ammo="";
                 model.Inventory="46%"; model.InventoryLevel=.46f;
                 if(Plugin.Common.AssetFolder==null) Plugin.Common.SetAssetPath(Util.Util.GetDefaultAssetFolder());

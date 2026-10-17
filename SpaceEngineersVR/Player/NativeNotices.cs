@@ -4,17 +4,27 @@ using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
 using Sandbox.Game.Gui;
+using Sandbox.Game.GUI.HudViewers;
 
 namespace SpaceEngineersVR.Player
 {
-    internal enum NoticeStyle { Normal,Warning,Title }
+    internal enum NoticeStyle { Normal,Warning,Title,Chat }
     internal readonly struct Notice : IEquatable<Notice>
     {
         public readonly string Text;
         public readonly NoticeStyle Style;
         public readonly float Alpha;
-        public Notice(string text,NoticeStyle style,float alpha=1) { Text=text; Style=style; Alpha=alpha; }
-        public bool Equals(Notice other) => Text==other.Text && Style==other.Style && Alpha==other.Alpha;
+        // Chat only: Text is "Sender: Body" for identity; the parts draw in the wrist chat colours.
+        public readonly string Sender,Body;
+        public readonly System.Drawing.Color SenderColor,BodyColor;
+        public Notice(string text,NoticeStyle style,float alpha=1) { Text=text; Style=style; Alpha=alpha; Sender=Body=null; SenderColor=BodyColor=default; }
+        public Notice(string sender,string body,System.Drawing.Color senderColor,System.Drawing.Color bodyColor,float alpha=1)
+        {
+            Sender=sender; Body=body; SenderColor=senderColor; BodyColor=bodyColor; Alpha=alpha; Style=NoticeStyle.Chat;
+            Text=string.IsNullOrEmpty(sender) ? body:sender+": "+body;
+        }
+        public Notice WithAlpha(float alpha) => Style==NoticeStyle.Chat ? new Notice(Sender,Body,SenderColor,BodyColor,alpha):new Notice(Text,Style,alpha);
+        public bool Equals(Notice other) => Text==other.Text && Style==other.Style && Alpha==other.Alpha && SenderColor==other.SenderColor && BodyColor==other.BodyColor;
         public override bool Equals(object other) => other is Notice notice && Equals(notice);
         public override int GetHashCode() => Text?.GetHashCode() ?? 0;
     }
@@ -83,6 +93,18 @@ namespace SpaceEngineersVR.Player
             notices.Add(new Notice(Clean(info.QuestTitle),NoticeStyle.Title));
             foreach(string detail in details.Take(1)) notices.Add(new Notice(detail,NoticeStyle.Normal));
         }
+        internal const int ChatMessages=4;
+        // The native HUD shows recent chat until FADE_OUT_TIME after the newest message. A negative age means no message this session.
+        public static void ReadChat(List<Notice> notices)
+        {
+            var chat=MyHud.Static==null ? null:MyHud.Chat;
+            int age=chat?.TimeSinceLastUpdate ?? -1;
+            if(age<0 || age>MyHudControlChat.FADE_OUT_TIME) return;
+            var messages=chat.Messages.ToArray();
+            notices.AddRange(messages.Skip(Math.Max(0,messages.Length-ChatMessages)).Select(Chat).Where(n=>n.Body.Length>0));
+        }
+        internal static Notice Chat(MyChatItem message) => new Notice(WristChat.VisibleText(message.Sender),
+            WristChat.VisibleText(message.Message).Replace("\r","").Replace("\n"," ").Trim(),WristChat.SenderColor(message),WristChat.BodyColor(message));
         // Native notifications mark highlighted spans with square brackets.
         private static string Clean(string value) => value?.Replace("[","").Replace("]","").Replace("\r","").Replace("\n"," ").Trim();
         public static void Reset() => buffKey=null;

@@ -28,21 +28,20 @@ namespace SpaceEngineersVR.Player
                 Add(keys,exists ? (i+1)+"  "+c.HudProfiles[i].Name:"+ State",.025f+i*.194f,.22f,.18f,.085f,
                     ()=> {if(!exists)c.AddHudProfile(); c.SelectHudProfile(index);},active:exists && i==selected);
             }
-            Add(keys,"Vitals",.025f,.38f,.46f,.077f,()=>edit(v=>v.Vitals=!v.Vitals),value:p.Vitals ? "On":"Off");
-            Add(keys,"Markers",.025f,.465f,.46f,.077f,()=>edit(v=>v.Markers=(v.Markers+1)%3),value:new[] {"Off","No names","Detailed"}[p.Markers]);
-            Add(keys,"Distances",.025f,.55f,.46f,.077f,()=>edit(v=>v.Distances=!v.Distances),value:p.Distances ? "On":"Off");
-            Step(keys,"Icon size",p.IconScale,.635f,.75f,2.5f,.25f,v=>edit(h=>h.IconScale=v));
-            Step(keys,"Text size",p.TextScale,.72f,.75f,1.5f,.125f,v=>edit(h=>h.TextScale=v));
-            Add(keys,"Hit markers on foot",.025f,.805f,.46f,.077f,()=>edit(v=>v.HitMarkers=!v.HitMarkers),value:p.HitMarkers ? "On":"Off");
+            Add(keys,"Vitals",.025f,.380f,.46f,.052f,()=>edit(v=>v.Vitals=!v.Vitals),value:p.Vitals ? "On":"Off");
+            Add(keys,"Notifications",.025f,.438f,.46f,.052f,()=>edit(v=>v.Notifications=!v.Notifications),value:p.Notifications ? "On":"Off");
+            Add(keys,"Chat",.025f,.496f,.46f,.052f,()=>edit(v=>v.Chat=!v.Chat),value:p.Chat ? "On":"Off");
+            Add(keys,"Markers",.025f,.554f,.46f,.052f,()=>edit(v=>v.Markers=(v.Markers+1)%3),value:new[] {"Off","No names","Detailed"}[p.Markers]);
+            Add(keys,"Distances",.025f,.612f,.46f,.052f,()=>edit(v=>v.Distances=!v.Distances),value:p.Distances ? "On":"Off");
+            Step(keys,"Icon size",p.IconScale,.670f,.75f,2.5f,.25f,v=>edit(h=>h.IconScale=v));
+            Step(keys,"Text size",p.TextScale,.728f,.75f,1.5f,.125f,v=>edit(h=>h.TextScale=v));
+            Add(keys,"Hit markers on foot",.025f,.786f,.46f,.052f,()=>edit(v=>v.HitMarkers=!v.HitMarkers),value:p.HitMarkers ? "On":"Off");
             Add(keys,"GPS / objectives",.515f,.380f,.46f,.052f,()=>c.ShowGps=!c.ShowGps,value:c.ShowGps ? "On":"Off");
             Add(keys,"Contacts",.515f,.438f,.46f,.052f,()=>c.ShowContacts=!c.ShowContacts,value:c.ShowContacts ? "On":"Off");
             Add(keys,"Ore / hacking",.515f,.496f,.46f,.052f,()=>c.ShowResources=!c.ShowResources,value:c.ShowResources ? "On":"Off");
             Add(keys,"Targeting rings",.515f,.554f,.46f,.052f,()=>c.SignalRings=!c.SignalRings,value:c.SignalRings ? "On":"Off");
             Add(keys,"Direction arrows",.515f,.612f,.46f,.052f,()=>c.SignalEdges=!c.SignalEdges,value:c.SignalEdges ? "On":"Off");
             Add(keys,"HUD with visor open",.515f,.670f,.46f,.052f,()=>c.HudWithVisorOpen=!c.HudWithVisorOpen,value:c.HudWithVisorOpen ? "On":"Off");
-            Add(keys,"Ship crosshair",.515f,.728f,.46f,.052f,()=>c.ShipCrosshair=!c.ShipCrosshair,value:c.ShipCrosshair ? "On":"Off");
-            Add(keys,"Marker roll",.515f,.786f,.46f,.052f,()=>c.CharacterMarkerRoll=!c.CharacterMarkerRoll,value:c.CharacterMarkerRoll ? "Character":"Headset");
-            Add(keys,"Face viewer",.515f,.844f,.46f,.052f,()=>c.FaceMarkersTowardViewer=!c.FaceMarkersTowardViewer,value:c.FaceMarkersTowardViewer ? "On":"Off");
             Add(keys,"Back",.025f,.91f,.22f,.07f,()=>WristPanel.Show(0));
             Add(keys,"Reset state",.265f,.91f,.22f,.07f,()=>c.ResetHudProfile(selected));
             if(selected==4) Add(keys,"Remove state",.515f,.91f,.25f,.07f,c.RemoveExtraHudProfile);
@@ -51,9 +50,9 @@ namespace SpaceEngineersVR.Player
         {keys.Add(new SurfaceKey(label,x,y,w,h) {Action=new ActionChoice(label,action),Active=active,Enabled=enabled,Value=value});}
         private static void Step(List<SurfaceKey> keys,string name,float value,float y,float min,float max,float step,Action<float> set)
         {
-            Add(keys,"−",.025f,y,.08f,.077f,()=>set(Math.Max(min,value-step)),enabled:value>min+.001f);
-            Add(keys,name,.115f,y,.28f,.077f,null,enabled:false,value:Percent(value));
-            Add(keys,"+",.405f,y,.08f,.077f,()=>set(Math.Min(max,value+step)),enabled:value<max-.001f);
+            Add(keys,"−",.025f,y,.08f,.052f,()=>set(Math.Max(min,value-step)),enabled:value>min+.001f);
+            Add(keys,name,.115f,y,.28f,.052f,null,enabled:false,value:Percent(value));
+            Add(keys,"+",.405f,y,.08f,.052f,()=>set(Math.Min(max,value+step)),enabled:value<max-.001f);
         }
         internal static void Paint(OverlayCanvas target,SurfaceView panel)
         {
