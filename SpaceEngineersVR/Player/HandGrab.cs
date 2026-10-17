@@ -79,8 +79,10 @@ namespace SpaceEngineersVR.Player
                     hand.WasDown=squeeze; continue;
                 }
                 // The chord must start on the grid; a grip held from elsewhere does not pick things up when brushed.
-                bool found=squeeze && !hand.WasDown && palmKnown && GridGrab.TryFind(palm,out var grid,out var local,out double miss);
-                if(squeeze && !hand.WasDown && palmKnown && !found)
+                MyCubeGrid grid=null; Vector3 local=Vector3.Zero; double miss=double.PositiveInfinity;
+                bool attempt=squeeze && !hand.WasDown && palmKnown;
+                bool found=attempt && GridGrab.TryFind(palm,out grid,out local,out miss);
+                if(attempt && !found)
                     Logger.Info("Grab: no loose grid at the "+(left ? "left":"right")+" hand; nearest block face "+(double.IsInfinity(miss) ? "none within 1.5 m":miss.ToString("0.00")+" m"));
                 if(found)
                 {
