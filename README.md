@@ -56,14 +56,15 @@ Other bindings provided but untested:
 Some mods may already work with no support required.
 
 Supported:
-- Interactive LCDs with Arthur and TouchScreenAPI
-- Terrain tool and concrete tool
+- Interactive LCDs with [Arthur's Lcd Mod](https://steamcommunity.com/workshop/filedetails/?id=3730092649) and [TouchScreenAPI](https://steamcommunity.com/workshop/filedetails/?id=2668820525)
+- [Terrain Tool](https://steamcommunity.com/sharedfiles/filedetails/?id=2820001381) and [Concrete Tool](https://steamcommunity.com/sharedfiles/filedetails/?id=396679430)
+- [Improvised Experimentation](https://steamcommunity.com/workshop/filedetails/?id=2891367014) (formerly improvised engineering)
+  - Grip plus trigger on a grid to hold it. With trigger held, rotate with the sticks, B to throw. Release trigger only to use the sticks to move around like normal.
 
 Planned (at some point):
 - BuildVision
 - BuildInfo
 - WeaponCore
-- Improvized Engineering
 
 If you want to see specific mods, or are a mod developer that would like to add VR support, feel free to reach out!
 
