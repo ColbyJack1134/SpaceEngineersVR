@@ -39,10 +39,10 @@ namespace SpaceEngineersVR.Multiplayer
 
     internal static class MultiplayerRuntime
     {
-        // Clients cannot address each other through the mod API, so the host relays their poses on RelayChannel.
+        // The server drops client-to-client SendMessageTo, so the host relays client poses on RelayChannel.
         private const ushort PoseChannel=48983,StateChannel=48984,RelayChannel=48985;
         internal const int RelaySize=PlayerPose.Size+8;
-        internal const double Reach=250;
+        private const double Reach=250;
         internal static bool Enabled;
         internal static Func<uint,PlayerPose> Capture { get; set; }
         internal static Action<string> Notify=Log;
@@ -160,7 +160,6 @@ namespace SpaceEngineersVR.Multiplayer
         {
             foreach(ulong id in Audience(origin,network.MyId,from,peers.Keys,Locate)) network.SendMessageTo(channel,data,id,false);
         }
-        // Peers whose character is within reach of the pose origin, never the origin or the local player.
         internal static IEnumerable<ulong> Audience(ulong origin,ulong self,VRageMath.Vector3D from,IEnumerable<ulong> candidates,Func<ulong,VRageMath.Vector3D?> locate)
         {
             foreach(ulong id in candidates)
@@ -230,7 +229,7 @@ namespace SpaceEngineersVR.Multiplayer
                 HostRequest(player,kind,seat,value);
             }
         }
-        // Direct and relayed poses alike must come from a registered peer whose character and seat match; true when the pose is new.
+        // True only for a pose newer than the last accepted one, so stale duplicates are not relayed.
         private static bool Accept(ulong origin,byte[] data,double now,out MyCharacter character)
         {
             character=null;

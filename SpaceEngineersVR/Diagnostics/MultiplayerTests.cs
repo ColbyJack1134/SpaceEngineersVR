@@ -269,7 +269,7 @@ namespace SpaceEngineersVR.Diagnostics
             var aiming=Pose(); aiming.Tracked|=PlayerPose.ToolRayTracked|PlayerPose.HeadTracked; aiming.ToolRay.Translation=new Vector3(.1f,1.1f,-.6f);
             var bytes=aiming.Encode(); var packet=MultiplayerRuntime.RelayPacket(origin,bytes);
             Require(bytes.Length==PlayerPose.Size && packet.Length==MultiplayerRuntime.RelaySize && packet.Length<=1024,"Full relay packet exceeds the unreliable message limit");
-            Require(MultiplayerRuntime.ReadRelay(packet,true,out ulong from,out var relayed) && from==origin && Enumerable.SequenceEqual(relayed,bytes) &&
+            Require(MultiplayerRuntime.ReadRelay(packet,true,out ulong from,out var relayed) && from==origin && relayed.SequenceEqual(bytes) &&
                 PlayerPose.Decode(relayed)?.Character==100,"Relay round trip failed");
             Require(!MultiplayerRuntime.ReadRelay(packet,false,out _,out _),"Relay from a client accepted");
             Require(!MultiplayerRuntime.ReadRelay(packet.Take(8).ToArray(),true,out _,out _) && !MultiplayerRuntime.ReadRelay(null,true,out _,out _),"Relay without a pose accepted");
@@ -277,7 +277,6 @@ namespace SpaceEngineersVR.Diagnostics
             Vector3D? Locate(ulong id) => positions.TryGetValue(id,out var at) ? at:(Vector3D?)null;
             var audience=MultiplayerRuntime.Audience(origin,9,positions[origin],new ulong[] {origin,2,3,4,5,6,9},Locate).ToArray();
             Require(audience.SequenceEqual(new ulong[] {2,3}),"Relay audience includes the origin, the host, far or unlocated peers: "+string.Join(",",audience));
-            Require(!MultiplayerRuntime.Audience(origin,9,positions[origin],new ulong[] {origin},Locate).Any(),"Origin receives its own pose");
         }
         private static void Write7Bit(BinaryWriter writer,int value)
         {
