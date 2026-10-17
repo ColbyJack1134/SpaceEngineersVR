@@ -367,6 +367,7 @@ namespace SpaceEngineersVR.Plugin
             Player.HandInteraction.UpdateTouch();
             Player.ThirdPersonView.Update();
             Player.SpectatorView.UpdateGestures();
+            Player.HandGrab.Update();
             Player.BlockInspection.Update();
             Player.DampenerTargeting.Update();
             Player.GridSelection.Update();

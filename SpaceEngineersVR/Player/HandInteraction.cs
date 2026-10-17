@@ -307,7 +307,7 @@ namespace SpaceEngineersVR.Player
                 !ThirdPersonView.Active && hand.pose.isTracked && !PlacementControls.OwnsTools && !HelmetHud.Consumes(hand) &&
                 !Owns(hand) && !CockpitTouch.Owns(hand) && !TouchScreenBridge.PointingFor(hand) && !ArthurLcdBridge.PointingFor(hand) && !FloatingWindows.PointingFor(hand) &&
                 !(hand==Player.HandR && (SpatialUi.OwnsRight || SpatialUi.RayTargeted || SpatialUi.Pointing)) &&
-                !WeaponHandling.ConsumesSupportGrip && !WeaponHandling.SupportAtItem && c.SupportTriggerPressure.Active;
+                !WeaponHandling.ConsumesSupportGrip && !WeaponHandling.SupportAtItem && !HandGrab.Holding(hand) && c.SupportTriggerPressure.Active;
             // Raw pressure keeps the laser up through a full pull, like the action ray; the gate uses once per pull.
             float pressure=allowed ? c.SupportTriggerPressure.RawPosition.X : 0;
             SupportAiming=ShowRay(pressure,SupportAiming);
@@ -376,7 +376,7 @@ namespace SpaceEngineersVR.Player
                         MyStringId.GetOrCompute("Square"),ref lineColor,0.025f);
                     bool show = hand != action ? SupportAiming :
                         !SupportAiming && rayVisible && !(hand == Player.HandR && SpatialUi.RayTargeted) && !SpatialUi.Owns(hand) && !CockpitTouch.Owns(hand) &&
-                        !Holding(hand) && !TouchScreenBridge.Pointing && !ArthurLcdBridge.PointingFor(hand);
+                        !Holding(hand) && !HandGrab.Holding(hand) && !TouchScreenBridge.Pointing && !ArthurLcdBridge.PointingFor(hand);
                     if (show && !GridSelection.Owns(hand) && !WeaponHandling.HideUseRay && TryInteractionRay(out LineD ray))
                     {
                         var aim=MatrixD.CreateWorld(ray.From,ray.Direction,Vector3D.CalculatePerpendicularVector(ray.Direction));

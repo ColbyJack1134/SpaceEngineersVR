@@ -68,6 +68,8 @@ namespace SpaceEngineersVR.Config
         public float CameraZoomSensitivity { get => cameraZoomSensitivity; set => SetValue(ref cameraZoomSensitivity,Bound(value,.25f,4,2)); }
         private bool inspectWithoutGrip;
         public bool InspectWithoutGrip { get => inspectWithoutGrip; set => SetValue(ref inspectWithoutGrip,value); }
+        private bool grabSnapToCenter;
+        public bool GrabSnapToCenter { get => grabSnapToCenter; set => SetValue(ref grabSnapToCenter,value); }
         private bool doNotDisturb;
         public bool DoNotDisturb { get => doNotDisturb; set => SetValue(ref doNotDisturb,value); }
         private bool developerTools;

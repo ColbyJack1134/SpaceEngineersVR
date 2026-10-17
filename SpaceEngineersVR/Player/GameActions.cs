@@ -142,6 +142,7 @@ namespace SpaceEngineersVR.Player
             Execute(action,hand,fromSearch);
         }
         public static readonly ActionChoice CockpitBuild=new ActionChoice(()=>CockpitBuilding.Label,CockpitBuilding.Toggle,historyKey:"Cockpit building");
+        internal static readonly ActionChoice SnapHeldGrid=new ActionChoice(()=>HandGrab.SnapLabel,HandGrab.ToggleSnap,historyKey:"Snap held grid to centre");
         public static ActionChoice[] WheelActions(bool building,bool seated,bool thirdPerson,bool jetpack=false)
         {
             if(SpectatorView.Active) return PlacementControls.ClipboardActive ? ClipboardActions(PlacementControls.GridClipboardActive):SpectatorView.Actions();
@@ -151,8 +152,8 @@ namespace SpaceEngineersVR.Player
             if(building && PlacementControls.ClipboardActive) return ClipboardActions(PlacementControls.GridClipboardActive);
             if(building) return VoxelTools.Current?.Actions() ?? BuildingWheelActions();
             if(seated) return new[] { PauseAction,TerminalAction,LightsAction,Dampeners,PowerAction,ParkAction,HelmetAction,BroadcastAction,CockpitBuild };
-            if(jetpack) return new[] { PauseAction,BlueprintsAction,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,BroadcastAction };
-            return new[] { PauseAction,BlueprintsAction,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],Quick[12] };
+            if(jetpack) return new[] { PauseAction,BlueprintsAction,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,HandGrab.Active ? SnapHeldGrid:BroadcastAction };
+            return new[] { PauseAction,BlueprintsAction,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],HandGrab.Active ? SnapHeldGrid:Quick[12] };
         }
         internal static ActionChoice[] BuildingWheelActions(bool? symmetrySetup=null)
         {
@@ -246,7 +247,8 @@ namespace SpaceEngineersVR.Player
             new ActionChoice("Turrets and cameras",()=>MyGuiSandbox.AddScreen(new GUI.SettingsPage("Turrets and cameras")),true),
             new ActionChoice("Body and seated play",()=>MyGuiSandbox.AddScreen(new GUI.BodyOptions()),true),
             new ActionChoice("Chat",WristChat.Open),
-            new ActionChoice("Hotkey keyboard",MenuKeyboard.OpenHotkeys)
+            new ActionChoice("Hotkey keyboard",MenuKeyboard.OpenHotkeys),
+            SnapHeldGrid
         };
         public static readonly ActionChoice[] Developer = {
             new ActionChoice("Developer options", () => MyGuiSandbox.AddScreen(new GUI.DeveloperOptions()), true),

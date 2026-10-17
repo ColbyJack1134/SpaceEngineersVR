@@ -44,7 +44,7 @@ namespace SpaceEngineersVR.Player
             if(!InputRouter.Gameplay || Main.MenuOpen || character==null || character.IsSitting ||
                 MySession.Static.ControlledEntity!=character ||
                 HelmetHud.NearHead(hand.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix) ||
-                hand==Player.HandR && SpatialUi.Pointing || SpatialUi.Owns(hand) || CockpitTouch.Owns(hand) || HandInteraction.Consumes(hand) || !hand.pose.isTracked) return;
+                hand==Player.HandR && SpatialUi.Pointing || SpatialUi.Owns(hand) || CockpitTouch.Owns(hand) || HandInteraction.Consumes(hand) || HandGrab.Holding(hand) || !hand.pose.isTracked) return;
             if(!TrackedArms.TryFreePointPose(hand,out var finger)) return;
             LineD ray;
             if(tool) ray=HandInteraction.RayForPose(finger);
