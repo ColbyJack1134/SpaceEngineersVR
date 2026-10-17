@@ -63,7 +63,6 @@ namespace SpaceEngineersVR.Patches
             if(profile?.Sight!=null && character.ZoomMode==MyZoomModeEnum.IronSight)
             {
                 var sight=Vector3D.Transform(profile.Sight.Value,hand); var line=Vector3D.Normalize(Vector3D.TransformNormal(profile.SightDirection,hand));
-                if(profile.Reticle && Multiplayer.HeldItemPose.TryEye(character,out var eye) && Vector3D.DistanceSquared(sight,eye)>1e-4) line=Vector3D.Normalize(sight-eye);
                 float zeroRange=Math.Min(character.CurrentWeapon?.MaximumShotLength ?? SightRange,SightRange);
                 direction=SightAim(muzzle,line,sight,start=> {
                     float hit=HandInteraction.ObstacleDistance(MatrixD.CreateWorld(start,line,Vector3D.CalculatePerpendicularVector(line)),zeroRange);

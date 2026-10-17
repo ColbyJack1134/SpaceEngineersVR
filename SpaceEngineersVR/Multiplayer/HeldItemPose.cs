@@ -42,14 +42,6 @@ namespace SpaceEngineersVR.Multiplayer
         internal const double HandReach=1.5;
         internal static bool WithinReach(MyCharacter character,Vector3D point) =>
             Vector3D.DistanceSquared(point,character.GetHeadMatrix(true,true).Translation)<=HandReach*HandReach;
-        internal static Func<MyCharacter,Vector3D?> LocalEye { get; set; }
-        // Reticle sights aim from the eye through the reticle; only the local character aims in VR.
-        internal static bool TryEye(MyCharacter character,out Vector3D eye)
-        {
-            var local=LocalEye?.Invoke(character);
-            eye=local ?? Vector3D.Zero;
-            return local.HasValue && eye.IsValid() && WithinReach(character,eye);
-        }
         internal static bool TryToolRay(MyCharacter character,out MatrixD ray)
         {
             ray=MatrixD.Identity;

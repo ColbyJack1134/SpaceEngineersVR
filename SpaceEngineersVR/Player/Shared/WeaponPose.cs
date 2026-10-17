@@ -13,7 +13,7 @@ namespace SpaceEngineersVR.Player
         internal readonly Vector3? Sight;
         // Sight line direction in item space when it is not parallel to the bore (the flare gun's post sits above its rear block).
         internal readonly Vector3 SightDirection=Vector3.Forward;
-        // A single flat reticle is aimed from the eye through it; two-element iron sights use the model line.
+        // Holographic, reflex and scope reticles; VR draws them collimated (HoloSight). All sights aim along the model line.
         internal readonly bool Reticle;
         // Left-handed holds mirror across the handle axes; FlipUp mirrors vertically, turning side-handled tools upside down.
         internal readonly float GripAxis,SupportAxis;
