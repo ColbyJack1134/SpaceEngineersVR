@@ -15,7 +15,9 @@ namespace SpaceEngineersVR.Multiplayer
         internal const int MaxBlocksPerAxis=20;
         internal const float StandingForce=20000,FlyingForce=10000;
         // Spring saturates at Reach from the hand; a hand further than Slip from the grab point lets go.
-        internal const float Reach=.25f,Slip=.6f,TouchDistance=.05f,GrabRange=3;
+        internal const float Reach=.25f,Slip=.6f,TouchDistance=.06f,GrabRange=3;
+        // The palm bone sits at the wrist; contact is tested at the palm centre and the finger cavity, as the bar grip does.
+        internal static readonly Vector3 PalmCenter=new Vector3(-.065f,-.015f,0),FingerCavity=new Vector3(-.105f,-.035f,0);
         internal sealed class Hold
         {
             public MyCubeGrid Grid;
@@ -35,27 +37,32 @@ namespace SpaceEngineersVR.Multiplayer
         }
         internal static bool Grabbable(MyCubeGrid grid) => grid!=null && !grid.Closed && !grid.MarkedForClose && !grid.IsStatic && !grid.IsPreview &&
             grid.Physics!=null && grid.Physics.Enabled && !grid.Physics.IsStatic && WithinSize(grid.Min,grid.Max);
-        // The palm centre within TouchDistance of a block's cell box.
-        internal static bool TryFind(Vector3D palm,out MyCubeGrid grid,out Vector3 local)
+        // The palm centre or the finger cavity within TouchDistance of a block's cell box. The miss distance is reported for the log.
+        internal static bool TryFind(MatrixD palm,out MyCubeGrid grid,out Vector3 local,out double miss)
         {
-            grid=null; local=Vector3.Zero;
-            var sphere=new BoundingSphereD(palm,TouchDistance+1.5);
+            grid=null; local=Vector3.Zero; miss=double.PositiveInfinity;
+            var sphere=new BoundingSphereD(palm.Translation,TouchDistance+1.5);
             nearby.Clear();
             MyGamePruningStructure.GetAllEntitiesInSphere(ref sphere,nearby);
             double nearest=TouchDistance;
             foreach(var entity in nearby)
             {
                 if(!(entity is MyCubeGrid candidate) || !Grabbable(candidate)) continue;
-                var point=Vector3D.Transform(palm,candidate.PositionComp.WorldMatrixNormalizedInv);
-                var cell=candidate.WorldToGridInteger(palm);
-                for(int x=-1;x<=1;x++) for(int y=-1;y<=1;y++) for(int z=-1;z<=1;z++)
+                foreach(var probe in new[] {PalmCenter,FingerCavity})
                 {
-                    var block=candidate.GetCubeBlock(cell+new Vector3I(x,y,z));
-                    if(block==null) continue;
-                    var box=new BoundingBoxD(((Vector3D)block.Min-Vector3D.Half)*candidate.GridSize,((Vector3D)block.Max+Vector3D.Half)*candidate.GridSize);
-                    double distance=box.Distance(point);
-                    if(distance>=nearest) continue;
-                    nearest=distance; grid=candidate; local=(Vector3)point;
+                    var world=Vector3D.Transform(probe,palm);
+                    var point=Vector3D.Transform(world,candidate.PositionComp.WorldMatrixNormalizedInv);
+                    var cell=candidate.WorldToGridInteger(world);
+                    for(int x=-1;x<=1;x++) for(int y=-1;y<=1;y++) for(int z=-1;z<=1;z++)
+                    {
+                        var block=candidate.GetCubeBlock(cell+new Vector3I(x,y,z));
+                        if(block==null) continue;
+                        var box=new BoundingBoxD(((Vector3D)block.Min-Vector3D.Half)*candidate.GridSize,((Vector3D)block.Max+Vector3D.Half)*candidate.GridSize);
+                        double distance=box.Distance(point);
+                        miss=Math.Min(miss,distance);
+                        if(distance>=nearest) continue;
+                        nearest=distance; grid=candidate; local=(Vector3)point;
+                    }
                 }
             }
             nearby.Clear();
