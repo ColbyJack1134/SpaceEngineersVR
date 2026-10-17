@@ -85,12 +85,12 @@ namespace SpaceEngineersVR.Player
             if(axis.LengthSquared()<1e-10f) return Quaternion.Identity;
             return Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis),(float)Math.Acos(dot));
         }
-        internal static void Restore(Chain chain)
+        internal static void Restore(Chain chain,bool force=false)
         {
             if(chain==null || !chain.Applied) return;
             bool restored=false;
-            foreach(var joint in chain.Joints) restored|=joint.Restore(false);
-            if(chain.Eye!=null) restored|=chain.Eye.Restore(false);
+            foreach(var joint in chain.Joints) restored|=joint.Restore(force);
+            if(chain.Eye!=null) restored|=chain.Eye.Restore(force);
             if(restored) chain.Joints[0].Bone.ComputeAbsoluteTransform(true,true);
             chain.Applied=false;
         }

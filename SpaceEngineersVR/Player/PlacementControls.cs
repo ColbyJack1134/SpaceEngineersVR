@@ -135,9 +135,8 @@ namespace SpaceEngineersVR.Player
             next=now.AddSeconds(interval); return true;
         }
         internal static bool Rotating(bool rotating,bool tools,bool tap,bool placed) => tools && !placed && (tap ? !rotating:rotating);
-        // The placing press ends rotate mode in the same update. Single blocks are added on the press, but line and plane shapes
-        // start on the press and are built on the release, from the pose the builder reads after it, so the lock outlives the
-        // trigger by a few updates.
+        // Single blocks are added on the press; line and plane shapes are built on the release from the pose read after it,
+        // so the lock outlives the trigger by a few updates.
         internal const int ReleaseGrace=3;
         private static int releaseGrace;
         internal static bool HoldsPose(bool setting,bool rotating,bool placed,bool fireHeld,bool wasHolding,bool grace) =>

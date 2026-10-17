@@ -153,7 +153,6 @@ namespace SpaceEngineersVR.Player
             if(action==ToolbarGesture.Action.None) return;
             if(action==ToolbarGesture.Action.Unequip && CockpitBuilding.Active) { CockpitBuilding.Toggle(); return; }
             if(action!=ToolbarGesture.Action.OpenWheel && (DesktopWindow.CloseIfPointed() || SpatialUi.CollapseIfOpen())) return;
-            // In third person, B leaves rotate mode first and the view on the next tap.
             if(action==ToolbarGesture.Action.FirstPerson) { if(!PlacementControls.TryCancelRotation()) ThirdPersonView.Toggle(); InputRouter.Update(); return; }
             if(action==ToolbarGesture.Action.AssignSwitch) { CockpitActions.Configure(gesture.Switch); InputRouter.Update(); return; }
             if(action==ToolbarGesture.Action.Unequip) { GameActions.Unequip(); InputRouter.Update(); return; }

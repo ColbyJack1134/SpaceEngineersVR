@@ -92,6 +92,8 @@ namespace SpaceEngineersVR.Player
             catch(Exception ex)
             {
                 left?.Restore(true); right?.Restore(true); BodyFit.Restore(character); disabled=true;
+                var bones=character.AnimationController?.CharacterBones;
+                if(bones!=null && buffers.TryGetValue(bones,out var failed)) SpineLean.Restore(failed.Spine,true);
                 Logger.Warning(ex,"Tracked arms disabled for this character; vanilla arms retained");
             }
         }
