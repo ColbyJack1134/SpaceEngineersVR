@@ -1,4 +1,5 @@
 using Sandbox;
+using SpaceEngineersVR.Multiplayer;
 using SpaceEngineersVR.Plugin;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Character.Components;
@@ -199,12 +200,13 @@ namespace SpaceEngineersVR.Player.Components
             else virtualStickHeld = false;
 
             CockpitControls.ApplyFlight(RotationSpeed,ref move,ref rotate,ref roll);
+            bool gas=!ThirdPersonView.Manipulating && PrimaryPressed && SeatTuning.RightTrigger==RightTrigger.Forward;
             if(CockpitControls.VehicleFlight)
             {
-                if(!ThirdPersonView.Manipulating && PrimaryPressed && ship.Toolbar?.SelectedItem==null)
+                if(gas && ship.Toolbar?.SelectedItem==null)
                     move.Z=-System.Math.Max(-move.Z,MathHelper.Clamp(controls.FirePressure.Position.X,0,1));
             }
-            else move=DriveInput.Update(ship,move,!ThirdPersonView.Manipulating && PrimaryPressed ? MathHelper.Clamp(controls.FirePressure.Position.X,0,1):0,
+            else move=DriveInput.Update(ship,move,gas ? MathHelper.Clamp(controls.FirePressure.Position.X,0,1):0,
                 ThirdPersonView.Manipulating || CockpitControls.Adjusting ? 0:CockpitControls.Throttle);
             ApplyMoveAndRotation(move, rotate, roll);
         }
@@ -271,8 +273,10 @@ namespace SpaceEngineersVR.Player.Components
         private void ReadFlightInput(bool ship, out Vector3 move, out Vector2 rotate, out float roll)
         {
             var controls = Controls.Static;
+            float up=ship && !CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) ? 0 : controls.ThrustUp.Position.X,back=controls.ThrustBackward.Position.X;
+            if(ship) FlightAxes.ApplyLeftTrigger(SeatTuning.LeftTrigger,ref up,ref back);
             move = FlightAxes.Translation(controls.ThrustLRUD.Position, controls.ThrustLRFB.Position,
-                ship && !CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) ? 0 : controls.ThrustUp.Position.X, WeaponHandling.ConsumesSupportGrip || ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) ? 0 : ThirdPersonView.Descent(controls.ThrustDown.Position.X), controls.ThrustForward.Position.X, controls.ThrustBackward.Position.X);
+                up, WeaponHandling.ConsumesSupportGrip || ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) ? 0 : ThirdPersonView.Descent(controls.ThrustDown.Position.X), controls.ThrustForward.Position.X, back);
             float rollSensitivity = ship ? Common.Config.ShipRollSensitivity : Common.Config.JetpackRoll;
             FlightAxes.Rotation(controls.ThrustRotate.Position, controls.ThrustRoll.IsPressed && !(ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandR)) && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Handedness.ActionHand) && !(WeaponHandling.ToolModifier && controls.Fire.IsPressed) && !(ship && ShipChord), ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
             if(!ship) rotate.Y=turnInput.Read(rotate.Y/RotationSpeed,Common.Config.SnapTurn,RotationSpeed*Common.Config.TurnSensitivity,
@@ -295,6 +299,7 @@ namespace SpaceEngineersVR.Player.Components
             hadControllerMovement = moving;
         }
 
+        private static FlightTuning SeatTuning => FlightSettings.For(MySession.Static?.ControlledEntity as MyCockpit);
         private static bool PrimaryPressed => !HelmetHud.ProtectsFire && !FloatingWindows.OwnsInput && Controls.Static.Fire.IsPressed &&
             !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Handedness.ActionHand) &&
             FlightAxes.StickTriggerAllowed(MySession.Static?.ControlledEntity is MyShipController,Common.Config.PhysicalShipControlsOnly,

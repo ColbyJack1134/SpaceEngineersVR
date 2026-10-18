@@ -678,12 +678,12 @@ namespace SpaceEngineersVR.Diagnostics
                         SpatialUi.DrawFloating(physicalTarget,MatrixD.Identity,camera.ProjectionMatrix,new[] {settings});
                         UiTests.Save(physicalTarget,Path.Combine(output,"flight-settings-native-cockpit.png"));
                         foreach(string vehicleSubtype in new[] {"SpeederCockpit","RoverCockpit"})
-                        for(int page=0;page<4;page++)
+                        for(int page=0;page<5;page++)
                         {
                             texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
                             string title=vehicleSubtype=="SpeederCockpit" ? "Saddle Controls":"Vehicle Controls";
                             var vehicle=FlightSettings.View("vehicle-native-"+page,window.Pose,.55f,.31f,
-                                FlightSettings.Layout(new Multiplayer.FlightTuning {FlightMode=true,BarTiltEnabled=true,WheelMotion=true},page==3,false,false,title,false,vehicleSubtype,page),title);
+                                FlightSettings.Layout(new Multiplayer.FlightTuning {FlightMode=true,BarTiltEnabled=true,WheelMotion=true},page==4,false,false,title,false,vehicleSubtype,page),title);
                             vehicle.WindowPose=window.Pose;
                             SpatialUi.DrawFloating(physicalTarget,MatrixD.Identity,camera.ProjectionMatrix,new[] {vehicle});
                             UiTests.Save(physicalTarget,Path.Combine(output,"vehicle-settings-native-"+vehicleSubtype+"-"+page+".png"));

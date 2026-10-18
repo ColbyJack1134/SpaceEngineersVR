@@ -598,16 +598,16 @@ namespace SpaceEngineersVR.Diagnostics
                         Save(face.Texture,Path.Combine(output,"seat-proximity-"+state+"-face.png"));
                     }
                 }
-                foreach(bool personal in new[] {false,true})
+                foreach(int page in new[] {0,FlightSettings.TriggerPage,-1})
                 {
                     var settings=FlightSettings.View("flight-preview",MatrixD.Identity,.40f,.225f,
-                        FlightSettings.Layout(new Multiplayer.FlightTuning(),personal,false,false,"Fighter Cockpit Flight Settings"),"Fighter Cockpit Flight Settings");
-                    WristPreview(device,canvas,settings,output,personal ? "flight-grip":"flight-tuning");
+                        FlightSettings.Layout(new Multiplayer.FlightTuning(),page<0,false,false,"Fighter Cockpit Flight Settings",false,null,Math.Max(0,page)),"Fighter Cockpit Flight Settings");
+                    WristPreview(device,canvas,settings,output,page<0 ? "flight-grip":page==0 ? "flight-tuning":"flight-triggers");
                 }
                 foreach(string subtype in new[] {"RoverCockpit","BuggyCockpit","SpeederCockpit","SpeederCockpitCompact"})
-                for(int page=0;page<4;page++)
+                for(int page=0;page<5;page++)
                 {
-                    bool saddle=subtype.StartsWith("Speeder"),personal=page==3;
+                    bool saddle=subtype.StartsWith("Speeder"),personal=page==4;
                     string title=(saddle ? "Saddle":"Vehicle")+" Controls";
                     var settings=FlightSettings.View("vehicle-preview",MatrixD.Identity,.40f,.225f,
                         FlightSettings.Layout(new Multiplayer.FlightTuning {FlightMode=true,BarTiltEnabled=true,WheelMotion=true},personal,false,false,title,false,subtype,page),title);

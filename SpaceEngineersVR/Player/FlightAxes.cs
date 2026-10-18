@@ -1,3 +1,4 @@
+using SpaceEngineersVR.Multiplayer;
 using VRageMath;
 
 namespace SpaceEngineersVR.Player
@@ -19,6 +20,13 @@ namespace SpaceEngineersVR.Player
         // Physical-only seats with a modeled stick need it in hand before the trigger fires or drives.
         public static bool StickTriggerAllowed(bool ship,bool physicalOnly,bool sticksAvailable,bool stickHeld) =>
             !ship || !physicalOnly || !sticksAvailable || stickHeld;
+
+        // In seats the left trigger is up thrust, which wheels read as the brake.
+        public static void ApplyLeftTrigger(LeftTrigger action,ref float up,ref float back)
+        {
+            if(action==LeftTrigger.Reverse) back=System.Math.Max(back,up);
+            if(action!=LeftTrigger.Brake) up=0;
+        }
 
         public static Vector3 Translation(Vector2 lateralVertical, Vector2 lateralForward, float up, float down, float forward, float back) =>
             new Vector3(lateralVertical.X + lateralForward.X, lateralVertical.Y + up - down, -lateralForward.Y - forward + back);
