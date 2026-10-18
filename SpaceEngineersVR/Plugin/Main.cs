@@ -46,6 +46,7 @@ namespace SpaceEngineersVR.Plugin
             new Integration("Mod HUD",Patches.ModHud.Reset,Patches.ModHud.RefreshRegistrations),
             new Integration("Voxel tool mods",Patches.DigiTools.Reset,Patches.DigiTools.RefreshRegistrations)};
         private static int recoveryAttempts;
+        private static DateTime recoveredAt;
         public static void Fail(Exception error, string context)
         {
             menuFallback = false;
@@ -218,6 +219,7 @@ namespace SpaceEngineersVR.Plugin
                     if (chord && MyInput.Static.IsNewKeyPressed(MyKeys.D)) ShowDesktopPanel = !ShowDesktopPanel;
                     if (chord && MyInput.Static.IsNewKeyPressed(MyKeys.V)) OpenConfigDialog();
                     CustomUpdate();
+                    recoveryAttempts=RecoveryAttempts(recoveryAttempts,recoveredAt,DateTime.UtcNow);
                 }
                 catch (Exception ex)
                 {
@@ -237,7 +239,7 @@ namespace SpaceEngineersVR.Plugin
                 session?.LocalCharacter?.IsDead==false,session?.ControlledEntity?.Entity!=null,dialog,changed,recoveryAttempts))
             {
                 ResetWorldState();
-                recoveryAttempts++;
+                recoveryAttempts++; recoveredAt=DateTime.UtcNow;
                 failedSession=failedCharacter=failedControl=null;
                 menuFallback=false; failed=false; WorldAvailable=true; MenuOpen=false;
                 Logger.Info("VR gameplay resumed after menu recovery");
@@ -252,6 +254,9 @@ namespace SpaceEngineersVR.Plugin
             Player.MenuPointer.Update();
         }
 
+        // Any failure returns to the fallback menu, so time since the last resume is healthy play; after that long, earlier recoveries no longer count.
+        internal static readonly TimeSpan RecoveryForgiven=TimeSpan.FromMinutes(5);
+        internal static int RecoveryAttempts(int attempts,DateTime recovered,DateTime now) => attempts>0 && now-recovered>=RecoveryForgiven ? 0:attempts;
         internal static bool CanResumeMenu(bool worldReady,bool characterAlive,bool controlled,bool dialog,bool changed,int attempts) =>
             worldReady && characterAlive && controlled && !dialog && changed && attempts<2;
 
