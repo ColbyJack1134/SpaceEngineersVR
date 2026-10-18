@@ -101,7 +101,6 @@ namespace SpaceEngineersVR.Player
             return main!=null;
         }
 
-        // Window width that fits the LCD at the given aspect (height/width), never below the minimum.
         internal static float Fit(Area area,float aspect,float minimumWidth) =>
             Math.Max(Math.Min(area.Width,area.Height/aspect),minimumWidth);
     }

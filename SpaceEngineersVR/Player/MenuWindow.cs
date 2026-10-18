@@ -7,7 +7,7 @@ namespace SpaceEngineersVR.Player
     internal sealed class MenuWindow
     {
         public const float MinWidth=.7f, MaxWidth=3.2f;
-        // Default spot: 1.5 m ahead, 8 cm below the eye and tilted to face it, sized by height so a wider monitor only adds width.
+        // Default spot: 1.5 m ahead, 8 cm below the eye and tilted to face it.
         public const float DefaultDistance=1.5f,DefaultDrop=.08f,DefaultHeight=1.125f,MinHeight=MinWidth*9/16,MaxHeight=MaxWidth*9/16;
         public Matrix Pose=Matrix.Identity;
         public float Width=DefaultHeight*16/9,Aspect=9f/16,BarOffset=.035f,TopMargin=.03f;

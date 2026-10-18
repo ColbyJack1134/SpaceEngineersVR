@@ -396,7 +396,6 @@ namespace SpaceEngineersVR.Player
             using(var format=new StringFormat { Alignment=StringAlignment.Near,Trimming=StringTrimming.EllipsisWord,FormatFlags=StringFormatFlags.LineLimit })
             {
                 var sizes=s.Notices.Select(n=>(n.Style==NoticeStyle.Chat ? ChatHeight(g,n,body,600,format):g.MeasureString(n.Text,n.Style==NoticeStyle.Title ? title:body,600,format).Height)+10).ToArray();
-                // Drop the oldest notices first so the newest stays readable.
                 int first=0;
                 while(first<sizes.Length-1 && sizes.Skip(first).Sum()>height-8) first++;
                 float y=Math.Max(8,(height-sizes.Skip(first).Sum())/2);

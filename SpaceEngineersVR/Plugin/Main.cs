@@ -254,7 +254,7 @@ namespace SpaceEngineersVR.Plugin
             Player.MenuPointer.Update();
         }
 
-        // Any failure returns to the fallback menu, so time since the last resume is healthy play; after that long, earlier recoveries no longer count.
+        // Any failure returns to the fallback menu, so time since the last resume is healthy play.
         internal static readonly TimeSpan RecoveryForgiven=TimeSpan.FromMinutes(5);
         internal static int RecoveryAttempts(int attempts,DateTime recovered,DateTime now) => attempts>0 && now-recovered>=RecoveryForgiven ? 0:attempts;
         internal static bool CanResumeMenu(bool worldReady,bool characterAlive,bool controlled,bool dialog,bool changed,int attempts) =>
