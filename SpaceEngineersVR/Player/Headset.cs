@@ -150,6 +150,7 @@ namespace SpaceEngineersVR.Player
             FeatureTiming.End(eye==EVREye.Eye_Left ? FeatureTiming.Area.SceneLeft : FeatureTiming.Area.SceneRight,sceneStart);
             GpuTiming.End(sceneArea);
             GpuTiming.Begin(uiArea);
+            BloodOverlay.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),projection);
             WorldMarkers.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection);
             MatrixD trackingView=MatrixD.Invert((MatrixD)OpenVR.System.GetEyeToHeadTransform(eye).ToMatrix()*renderPose.deviceToAbsolute.matrix);
             RemoteFeed.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),RenderFrameBridge.Remote,trackingView,VrMath.Projection(l,r,t,b,.03));

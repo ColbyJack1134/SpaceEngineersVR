@@ -315,6 +315,18 @@ namespace SpaceEngineersVR.Diagnostics
                     }
                     UiTests.Save(eye,Path.Combine(output,"hit-markers.png"));
                     RemoteCombat.Reset();
+                    var frameEyes=new[] {VrMath.Projection(-1.664f,1.210f,-1.724f,1.174f,.03),VrMath.Projection(-1.210f,1.664f,-1.724f,1.174f,.03)};
+                    foreach(float alpha in new[] {.35f,.8f,1f})
+                        for(int side=0;side<2;side++)
+                        {
+                            for(int pass=0;pass<2;pass++)
+                            {
+                                using(var rtv=new RenderTargetView(device,eye)) device.ImmediateContext.ClearRenderTargetView(rtv,new SharpDX.Mathematics.Interop.RawColor4(.10f,.14f,.18f,1));
+                                BloodOverlay.Draw(eye,frameEyes[side],alpha);
+                                if(pass==0) SignalTests.WaitIcons();
+                            }
+                            UiTests.Save(eye,Path.Combine(output,"blood-"+(int)(alpha*100)+(side==0 ? "-left":"-right")+".png"));
+                        }
                 }
                 UiTests.Render(canvas,()=>PhysicalSurface.Paint(canvas,WeaponAmmo.Label(WeaponProfile.Launcher,MatrixD.Identity,1,1)));
                 UiTests.Save(canvas.Texture,Path.Combine(output,"ammo-single.png"));
