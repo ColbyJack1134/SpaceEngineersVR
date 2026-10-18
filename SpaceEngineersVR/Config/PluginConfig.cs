@@ -146,6 +146,8 @@ namespace SpaceEngineersVR.Config
         public AnchorOffsetSetting[] AnchorOffsets { get => anchorOffsets; set => SetValue(ref anchorOffsets,value ?? new AnchorOffsetSetting[0]); }
         public bool LegacyShipTilt { get => legacyShipTilt; set => SetValue(ref legacyShipTilt, value); }
         public bool HoldGripRotation { get => holdGripRotation; set => SetValue(ref holdGripRotation, value); }
+        private bool doubleTapToolLock=true;
+        public bool DoubleTapToolLock { get => doubleTapToolLock; set => SetValue(ref doubleTapToolLock,value); }
         private bool lockBlockWhileRotating=true;
         public bool LockBlockWhileRotating { get => lockBlockWhileRotating; set => SetValue(ref lockBlockWhileRotating,value); }
         private bool leftHanded;

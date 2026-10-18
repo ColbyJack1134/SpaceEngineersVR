@@ -53,6 +53,7 @@ namespace SpaceEngineersVR.GUI
                     Toggle(-.14f,"Keyboard / mouse gameplay",c.EnableKeyboardAndMouseControls,v=>c.EnableKeyboardAndMouseControls=v);
                     Toggle(-.05f,"Tracked arms",c.TrackedArms,v=>c.TrackedArms=v);
                     Toggle(.04f,"Legacy hand-tilt ship steering",c.LegacyShipTilt,v=>c.LegacyShipTilt=v);
+                    Toggle(.13f,"Double-tap to keep tools running",c.DoubleTapToolLock,v=>c.DoubleTapToolLock=v);
                     break;
                 case "Turrets and cameras":
                     Slider(-.24f,"Turret aim sensitivity",c.TurretAimSensitivity,.25f,v=>c.TurretAimSensitivity=v,400);
