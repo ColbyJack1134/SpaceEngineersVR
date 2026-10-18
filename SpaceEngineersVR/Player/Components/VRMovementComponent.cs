@@ -61,8 +61,8 @@ namespace SpaceEngineersVR.Player.Components
                 DriveInput.Stop();
                 if(jumpOwner!=null && !NativeActions.WheelJumpAllowed)
                 { jumpOwner.WheelJump(false); jumpOwner=null; }
-                if(!RemoteView.Active) BodyLocomotion.Update(Character);
-                else if(RemoteView.CharacterAnchor) { CameraRig.Begin(Character); CameraRig.End(Character); }
+                // A standing character watching a camera or remote feed still turns and steps with the player.
+                if(!RemoteView.Active || RemoteView.CharacterAnchor) BodyLocomotion.Update(Character);
 
                 if(keyboardOnly) ApplyMoveAndRotation(Vector3.Zero,Vector2.Zero,0);
                 else if(RemoteView.Turret) { RemoteView.ControlTurret(RotationSpeed); hadControllerMovement=true; }
@@ -87,6 +87,17 @@ namespace SpaceEngineersVR.Player.Components
             catch (System.Exception ex) { StopInput(); Main.FailToMenu(ex, "VR input stopped"); }
         }
 
+        private static readonly int[] lastBegin=new int[2];
+        // A second press within half a second sets the gameplay screen's double-click flag, which EndShoot reads to keep a tool running.
+        private static void DoubleTap(MyShootActionEnum action,bool pressed,bool onFoot)
+        {
+            var detected=Sandbox.Game.Gui.MyGuiScreenGamePlay.DoubleClickDetected;
+            if(detected==null || (int)action>=detected.Length) return;
+            if(!pressed) { detected[(int)action]=false; return; }
+            int now=MySandboxGame.TotalGamePlayTimeInMilliseconds;
+            if(onFoot && now-lastBegin[(int)action]<500) detected[(int)action]=true;
+            else { detected[(int)action]=false; lastBegin[(int)action]=now; }
+        }
         public override void UpdateAfterSimulation()
         {
             if(SpectatorView.Active) { SpectatorView.Publish(); return; }
@@ -340,15 +351,18 @@ namespace SpaceEngineersVR.Player.Components
                 secondaryPressed=trigger && WeaponHandling.ToolModifier;
             }
             // Release the previous action before starting the other half of a tool chord.
-            if(!primaryPressed && wasShooting) controlledEntity?.EndShoot(MyShootActionEnum.PrimaryAction);
-            if(!secondaryPressed && wasSecondary && !turret) controlledEntity?.EndShoot(MyShootActionEnum.SecondaryAction);
+            if(!primaryPressed && wasShooting) { controlledEntity?.EndShoot(MyShootActionEnum.PrimaryAction); DoubleTap(MyShootActionEnum.PrimaryAction,false,false); }
+            if(!secondaryPressed && wasSecondary && !turret) { controlledEntity?.EndShoot(MyShootActionEnum.SecondaryAction); DoubleTap(MyShootActionEnum.SecondaryAction,false,false); }
+            bool onFoot=controlledEntity is Sandbox.Game.Entities.Character.MyCharacter;
             if (primaryPressed && !wasShooting)
             {
+                DoubleTap(MyShootActionEnum.PrimaryAction,true,onFoot);
                 controlledEntity?.BeginShoot(MyShootActionEnum.PrimaryAction);
             }
 
             if (secondaryPressed && !wasSecondary)
             {
+                DoubleTap(MyShootActionEnum.SecondaryAction,true,onFoot);
                 if(!turret) controlledEntity?.BeginShoot(MyShootActionEnum.SecondaryAction);
                 ShipTargeting.SecondaryPressed(controlledEntity);
             }
