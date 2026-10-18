@@ -357,6 +357,8 @@ namespace SpaceEngineersVR.Player.Components
             if (primaryPressed && !wasShooting)
             {
                 DoubleTap(MyShootActionEnum.PrimaryAction,true,onFoot);
+                // Empty-handed BeginShoot is a native Use.
+                if(controlledEntity is Sandbox.Game.Entities.Character.MyCharacter walker && walker.CurrentWeapon==null) ModApi.Use(HandInteraction.UseHand);
                 controlledEntity?.BeginShoot(MyShootActionEnum.PrimaryAction);
             }
 

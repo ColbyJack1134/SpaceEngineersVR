@@ -11,4 +11,8 @@
     <ProjectReference Include="../../SpaceEngineersVR/SpaceEngineersVR.csproj" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../../ModApi/SevrApi.cs" LogicalName="SevrApi.cs" />
+    <EmbeddedResource Include="../../MOD-API.md" LogicalName="MOD-API.md" />
+  </ItemGroup>
 </Project>

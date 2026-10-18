@@ -371,6 +371,7 @@ namespace SpaceEngineersVR.Player
             if (interact && RemoteView.Active) { RemoteView.Exit(); InputRouter.Update(); return; }
             if (interact && !PlacementControls.Painting)
             {
+                ModApi.Use(HandInteraction.UseHand);
                 if (!HandInteraction.TryInteract()) { UseControlled(); HandInteraction.Feedback(); }
                 InputRouter.Update();
                 if (!InputRouter.Gameplay) return;

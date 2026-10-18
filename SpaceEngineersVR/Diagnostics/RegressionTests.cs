@@ -115,6 +115,7 @@ namespace SpaceEngineersVR.Diagnostics
             LocomotionInputTests.Run(log);
             DriveInputTests.Run(log);
             InteractionRayTests.Run(log);
+            ModApiTests.Run(log);
             PointerIntentTests.Run(log);
             StereoStateTests.Run(log);
             AlignmentTests.Run(log);

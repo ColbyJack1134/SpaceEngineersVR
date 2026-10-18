@@ -92,11 +92,11 @@ namespace SpaceEngineersVR.Player
             return true;
         }
 
-        public static bool TryInteractionRay(out LineD ray)
+        public static bool TryInteractionRay(out LineD ray) => TryInteractionRay(detectionHand ?? UseHand, out ray);
+        internal static bool TryInteractionRay(Controller hand, out LineD ray)
         {
             ray = default(LineD);
             var character = MySession.Static?.LocalCharacter;
-            var hand = detectionHand ?? UseHand;
             if (!InputRouter.Gameplay || character == null || character.IsDead || character.IsSitting ||
                 MySession.Static.ControlledEntity != character || !TryCharacterPointerPose(hand, out MatrixD pose)) return false;
             var head=character.GetHeadMatrix(true,true,forceHeadBone:true).Translation;
@@ -323,6 +323,7 @@ namespace SpaceEngineersVR.Player
             SupportUseHeld=supportUse.Held && click.Held && !supportUse.Pressed;
             if(!supportUse.Pressed || !click.Pressed) return;
             RefreshTarget();
+            ModApi.Use(hand);
             if(!TryInteract()) { character.Use(); Feedback(); }
         }
 
