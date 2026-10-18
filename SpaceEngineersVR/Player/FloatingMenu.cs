@@ -27,7 +27,7 @@ namespace SpaceEngineersVR.Player
         public static void CaptureAspect(float value) { if(value>.1f && value<4) aspect=value; }
         internal static float Aspect => aspect;
         public static void Recenter() { recenter=true; }
-        // A view recenter brings the menu in front on foot and in the main menu; seated, it follows the cockpit instead.
+        // A view recenter brings an open menu in front on foot and in the main menu; seated, it follows the cockpit instead.
         public static void RecenterView() { viewRecenter=true; }
         internal static void Follow(Matrix oldOrigin,Matrix newOrigin)
         { if(opened && Seat!=null) { window.Cancel(); window.Pose=WindowSpots.Follow(window.Pose,oldOrigin,newOrigin); } }
@@ -43,7 +43,7 @@ namespace SpaceEngineersVR.Player
             bool shown=(Main.MenuOpen && !MenuKeyboard.Standalone) || Main.ShowDesktopPanel;
             bool available=shown && Available && InputRouter.Mode==InputMode.Menu && MenuPointer.GameFocused &&
                 Player.Headset.pose.isTracked && MenuPointer.Hand.pose.isTracked && !MenuKeyboard.IsOpen;
-            if(!shown) { opened=false; current=null; window.Cancel(); interaction.Reset(); return; }
+            if(!shown) { opened=false; viewRecenter=false; current=null; window.Cancel(); interaction.Reset(); return; }
             var seat=Seat;
             string key=Spot(seat);
             bool view=viewRecenter && seat==null; viewRecenter=false;
