@@ -92,6 +92,12 @@ namespace SpaceEngineersVR.Diagnostics
                     var adjacent=box; adjacent.Translate(grid.Right*2);
                     Require(PlacementControls.BuildReach(adjacent,inverse,target,gridSize,range),"Proximity requires the add cell to intersect the pointing ray");
                 }
+                foreach(var hand in new[] {new Vector3D(.3,-.2,-.7),new Vector3D(-.5,.1,.2),Vector3D.Zero})
+                foreach(var direction in new[] {Vector3D.Forward,Vector3D.Normalize(new Vector3D(1,-1,-2)),Vector3D.Backward})
+                {
+                    double reach=PlacementControls.HandDistance(hand,direction,Vector3D.Zero,5);
+                    Require(Math.Abs((hand+direction*reach).Length()-5)<1e-9,"Extended arm moves the free placement point beyond native head reach");
+                }
             }
             foreach(double scale in new[] {.1,1,3,100})
             foreach(double nativeDistance in new[] {1d,20,100})
@@ -205,7 +211,7 @@ namespace SpaceEngineersVR.Diagnostics
             Require(nativeReach.Any(i=>i.operand is System.Reflection.MethodInfo m && m.Name=="GetHeadMatrix"),"Installed reach no longer uses character head");
             Require(AccessTools.Field(typeof(MyCubeBuilder),"m_gizmo")?.FieldType==typeof(MyCubeBuilderGizmo) && AccessTools.Method(typeof(MyCubeBuilder),"Change")!=null,"Native paint/gizmo contract changed");
             var rewrites=DistanceRewrites().ToArray();
-            Require(rewrites.OrderBy(m=>m).SequenceEqual(new[] {"InitialBuildDistancePatch.Postfix","MyCubeBuilder.HandleBlockCreationMovement"}),
+            Require(rewrites.OrderBy(m=>m).SequenceEqual(new[] {"MyCubeBuilder.HandleBlockCreationMovement"}),
                 "Unguarded read-modify-write of the observer-scaled build distance: "+string.Join(", ",rewrites));
             log("PASS observer building: consistent observer distances at five scales and billion-metre origins; independent character reach; paint chord ownership; only guarded methods rewrite the build distance; installed character/cockpit camera, paint and reach APIs.");
             log("PASS placement: continuous free-space and five grid steps/second at 36/72/90 Hz with neutral/reverse/cancel; build/clipboard/tool ownership, simultaneous cancel priority, alternate-trigger isolation, transition release gates; installed native remove/paste/cancel/distance IDs, Creative checks and clipboard pose API. No world modified.");

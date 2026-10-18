@@ -55,21 +55,6 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
-    [HarmonyPatch(typeof(MyCubeBuilder),"SetSurvivalIntersectionDist")]
-    internal static class InitialBuildDistancePatch
-    {
-        // Halves stored metres, not the observer-scaled getter value.
-        private static void Prefix(out bool __state) => __state=PlacementControls.BeginRawDistance();
-        private static void Finalizer(bool __state) => PlacementControls.EditingDistance=__state;
-        private static void Postfix(MyCubeBuilder __instance)
-        {
-            if(!Plugin.Main.VrActive || PlacementControls.Creative ||
-                MySession.Static?.SurvivalMode!=true || MyBlockBuilderBase.SpectatorIsBuilding || __instance.CurrentBlockDefinition==null) return;
-            MyBlockBuilderBase.IntersectionDistance=Math.Max(MyBlockBuilderBase.CubeBuilderDefinition.MinBlockBuildingDistance,
-                MyBlockBuilderBase.IntersectionDistance*.5f);
-        }
-    }
-
     [HarmonyPatch(typeof(MyCubeBuilder),"CalculateCubePlacement")]
     internal static class ObserverFreePlacementPatch
     {

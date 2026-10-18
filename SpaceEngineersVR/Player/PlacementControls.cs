@@ -190,10 +190,26 @@ namespace SpaceEngineersVR.Player
         }
         internal static float BuildDistance(float native)
         {
-            if(!Observer || EditingDistance) return native;
+            if(EditingDistance) return native;
+            if(!Observer) return SurvivalDistance(native);
             if(Creative) return (float)CreativeObserverDistance(native,ThirdPersonView.Current.UnitsPerMeter,
                 MyBlockBuilderBase.CubeBuilderDefinition.DefaultBlockBuildingDistance);
             return (float)ObserverDistance(native,ThirdPersonView.Current.UnitsPerMeter);
+        }
+        private static float heldDistance,heldNative;
+        // Survival reach is measured from the head, so the hand ray ends at the native distance from the head.
+        private static float SurvivalDistance(float native)
+        {
+            var character=MySession.Static?.LocalCharacter;
+            if(Creative || MyBlockBuilderBase.SpectatorIsBuilding || character==null || !TryBuilderPose(out MatrixD pose)) return native;
+            if(!HoldingPose || native!=heldNative) heldDistance=(float)HandDistance(pose.Translation,Vector3D.Normalize(pose.Forward),character.GetHeadMatrix(true).Translation,heldNative=native);
+            return heldDistance;
+        }
+        internal static double HandDistance(Vector3D hand,Vector3D direction,Vector3D head,double distance)
+        {
+            var offset=hand-head;
+            double along=offset.Dot(direction),square=along*along-offset.LengthSquared()+distance*distance;
+            return square<0 ? distance:Math.Max(0,Math.Sqrt(square)-along);
         }
         // Third person keeps the first-person world distance from the finger; the scaled distance is only the grid search range.
         internal static bool TryFreeTarget(out Vector3D target)
