@@ -170,6 +170,8 @@ namespace SpaceEngineersVR.Player
         {
             if(SpectatorView.Active) { SpectatorView.Publish(); return; }
             var character=MySession.Static?.LocalCharacter;
+            // Vanilla swings a third-person camera around the dead body; keep the last living frame until the respawn.
+            if(character!=null && character.IsDead && owner==character && Current!=null) return;
             if(character==null || (MySession.Static.ControlledEntity!=character && !RemoteView.CharacterAnchor) || character.IsSitting || character.IsDead)
             { Reset(); return; }
             if(owner==character) Volatile.Write(ref frame,new Frame(anchor,Player.PlayerToAbsolute.inverted,epoch));
