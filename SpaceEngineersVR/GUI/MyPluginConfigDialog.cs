@@ -67,7 +67,8 @@ namespace SpaceEngineersVR.GUI
                     Toggle(0,"Tap to hold levers",c.TapHoldLevers,v=>c.TapHoldLevers=v);
                     Link(.085f,"Controller flight",()=>new FlightOptions());
                     MenuLayout.Button(this,.135f,.185f,.55f,"Sensitivity & deadzones",()=> {
-                        foreach(var pause in MyScreenManager.Screens.OfType<SpaceEngineers.Game.GUI.MyGuiScreenMainMenu>().ToArray()) pause.CloseScreenNow();
+                        // Only CloseScreen pops the single-player pause; CloseScreenNow alone leaves the game paused.
+                        foreach(var pause in MyScreenManager.Screens.OfType<SpaceEngineers.Game.GUI.MyGuiScreenMainMenu>().ToArray()) { pause.CloseScreen(); pause.CloseScreenNow(); }
                         GameActions.Schedule(new ActionChoice("Cockpit tuning",()=>FlightSettings.Open(false)));
                     }).Enabled=SeatFit.Eligible(SeatFit.Seat) && !ThirdPersonView.Active;
                     break;
