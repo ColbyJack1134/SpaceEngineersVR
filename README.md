@@ -68,6 +68,12 @@ Planned (at some point):
 
 If you want to see specific mods, or are a mod developer that would like to add VR support, feel free to reach out!
 
+### Recommended Mods
+
+Mods that I think improve the VR experience:
+- [HD LCD Displays](https://steamcommunity.com/sharedfiles/filedetails/?id=3735691793)
+- [Screen Gunk Be Gone!](https://steamcommunity.com/sharedfiles/filedetails/?id=1289657379)
+
 ## Credit
 
 Based on [SpaceEngineersVR](https://github.com/Math0424/SpaceEngineersVR) by Math0424 and contributors, licensed under GPL-2.0.
