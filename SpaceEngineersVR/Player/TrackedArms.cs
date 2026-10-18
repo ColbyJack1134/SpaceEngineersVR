@@ -24,8 +24,8 @@ namespace SpaceEngineersVR.Player
             latestPose=null;
             if (owner != null) Restore(owner);
             if(owner!=null && !owner.Closed) owner.AnimationController.UpdateTransformations();
-            BodyFit.Reset();
-            owner=null; buffers.Clear(); left=right=null; disabled=reportedPose=false;
+            BodyFit.Reset(); BodyPlacement.Reset();
+            owner=null; buffers.Clear(); idleCollars.Clear(); left=right=null; disabled=reportedPose=false;
         }
         public static void Restore(MyCharacter character)
         {
@@ -39,6 +39,7 @@ namespace SpaceEngineersVR.Player
                 pair.Eye?.Restore(false);
                 if(pair.Head!=null && pair.Head.Restore(false)) pair.Head.Bone.ComputeAbsoluteTransform(true,true);
             }
+            BodyPlacement.Restore(character);
             BodyFit.Restore(character);
         }
         public static void Update(MyCharacter character)
@@ -81,6 +82,10 @@ namespace SpaceEngineersVR.Player
                 if(seated && TryLean(character,out var lean,out float twist)) SpineLean.Apply(pair.Spine,lean,twist);
                 if(Common.Config.TrackedArms && Handedness.Swapped && character.CurrentWeapon!=null && !character.IsSitting && left!=null && right!=null)
                     ArmSkeleton.MirrorCollars(left,right);
+                if(Common.Config.TrackedArms) { IdleCollar(character,left,Player.HandL); IdleCollar(character,right,Player.HandR); }
+                // The native ladder pose places the body against the ladder; seats place it through the seat fit.
+                if(!seated && !character.IsOnLadder && pair.Head!=null && TryHead(character,out var headset))
+                    BodyPlacement.Apply(character,pair.Spine,pair.Head.Bone,pair.Eye?.Bone,left,right,headset);
                 bool applied=Common.Config.TrackedArms && (Apply(left,Player.HandL,character) | Apply(right,Player.HandR,character));
                 // First person hides the head; a camera feed shows it, so turn it as other players see it.
                 if(RemoteView.Current!=null && pair.Eye!=null && TryHead(character,out var look)) ArmSkeleton.Look(pair.Head,pair.Eye,look,ArmSkeleton.HeadLimit);
@@ -91,7 +96,7 @@ namespace SpaceEngineersVR.Player
             }
             catch(Exception ex)
             {
-                left?.Restore(true); right?.Restore(true); BodyFit.Restore(character); disabled=true;
+                left?.Restore(true); right?.Restore(true); BodyPlacement.Restore(character); BodyFit.Restore(character); disabled=true;
                 var bones=character.AnimationController?.CharacterBones;
                 if(bones!=null && buffers.TryGetValue(bones,out var failed)) SpineLean.Restore(failed.Spine,true);
                 Logger.Warning(ex,"Tracked arms disabled for this character; vanilla arms retained");
@@ -103,24 +108,37 @@ namespace SpaceEngineersVR.Player
             MatrixD world=WristWorld(character,hand);
             Matrix target=(Matrix)(world*character.PositionComp.WorldMatrixNormalizedInv);
             if(!target.IsValid()) return false;
-            bool posed=ArmSkeleton.Apply(arm,target,Common.Config.AdaptiveArms,hand==Player.HandL ? WristLock(arm,target,character):0,
+            float screen=hand==Player.HandL ? ScreenWeight(arm,target,character):0;
+            bool posed=ArmSkeleton.Apply(arm,target,new ArmSolve.Options(Common.Config.AdaptiveArms,Common.Config.AdaptiveArms,screen),
                 BodyFit.ScaleFor(character),FingerMode(character,hand),Trigger(hand),FreeFingers(character,hand) ? hand.Fingers.Curls:null, WeaponHandling.Profile, hand==Handedness.SupportHand,CockpitControls.HeldCurl(hand));
             if(posed) Diagnostics.ArmPoseCapture.Record(character,hand,arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone);
             return posed;
         }
-        private static float wristLock=1;
-        private static long lockTime;
-        // The left wrist stays rigid while its screen can be used, so the screen holds still under the right finger.
-        // It bends like the right wrist when the screen is closed and turned away or out of view.
-        private static float WristLock(Arm arm,Matrix target,MyCharacter character)
+        private static readonly Dictionary<Arm,(Quaternion rotation,Vector3 translation)> idleCollars=new Dictionary<Arm,(Quaternion,Vector3)>();
+        // The weapon animations pose both collarbones for a two-handed hold; a hand that is not on the item keeps its no-tool collar.
+        private static void IdleCollar(MyCharacter character,Arm arm,Controller hand)
+        {
+            if(arm?.Collar==null) return;
+            var collar=arm.Collar;
+            if(character.CurrentWeapon==null) { idleCollars[arm]=(collar.Bone.Rotation,collar.Bone.Translation); return; }
+            if(WeaponHandling.Profile==null || WeaponHandling.Holding(hand) || !idleCollars.TryGetValue(arm,out var idle)) return;
+            collar.SaveOnce();
+            collar.Bone.Rotation=idle.rotation; collar.Bone.Translation=idle.translation;
+            collar.Bone.ComputeAbsoluteTransform(true,true);
+            ArmSkeleton.Remember(collar);
+        }
+        private static float screenWeight=1;
+        private static long screenTime;
+        // Left wrist screen weight: 1 while the screen can be used, 0 while the left hand holds something.
+        private static float ScreenWeight(Arm arm,Matrix target,MyCharacter character)
         {
             long now=System.Diagnostics.Stopwatch.GetTimestamp();
-            float seconds=lockTime==0 ? 1 : (float)Math.Min(.1,(now-lockTime)/(double)System.Diagnostics.Stopwatch.Frequency);
-            lockTime=now;
-            if(CockpitControls.Held(Player.HandL) || WeaponHandling.Holding(Player.HandL) || LadderClimb.Holding(Player.HandL)) return wristLock=0;
+            float seconds=screenTime==0 ? 1 : (float)Math.Min(.1,(now-screenTime)/(double)System.Diagnostics.Stopwatch.Frequency);
+            screenTime=now;
+            if(CockpitControls.Held(Player.HandL) || WeaponHandling.Holding(Player.HandL) || LadderClimb.Holding(Player.HandL)) return screenWeight=0;
             float goal=SpatialUi.WristInUse ? 1 : ScreenAttention(arm,target,character);
-            wristLock=goal>wristLock ? Math.Min(goal,wristLock+seconds/.15f) : Math.Max(goal,wristLock-seconds/.3f);
-            return wristLock;
+            screenWeight=goal>screenWeight ? Math.Min(goal,screenWeight+seconds/.15f) : Math.Max(goal,screenWeight-seconds/.5f);
+            return screenWeight;
         }
         internal static float ScreenAttention(Arm arm,Matrix target,MyCharacter character)
         {
@@ -195,8 +213,10 @@ namespace SpaceEngineersVR.Player
         private static bool RequiresPointing(Controller hand) => GridSelection.Owns(hand) || Main.MenuOpen || MenuKeyboard.IsOpen || CockpitTouch.Attached(hand) ||
             TouchScreenBridge.PoseFor(hand) || ArthurLcdBridge.PoseFor(hand) || FloatingWindows.PointingFor(hand) || HandInteraction.PointingFor(hand) ||
             (hand==Player.HandL ? CockpitTouch.LeftPointing:CockpitTouch.RightPointing || SpatialUi.Pointing) || hand==Handedness.ActionHand && BlockInspection.Current!=null;
-        private static bool FreeFingers(MyCharacter character,Controller hand) => !ThirdPersonView.Active && character.CurrentWeapon==null &&
+        private static bool FreeFingers(MyCharacter character,Controller hand) => !ThirdPersonView.Active && Empty(character,hand) &&
             !CockpitControls.Held(hand) && !RequiresPointing(hand);
+        // A hand that is not on the tracked item behaves as an empty hand.
+        private static bool Empty(MyCharacter character,Controller hand) => character.CurrentWeapon==null || WeaponHandling.Profile!=null && !WeaponHandling.Holding(hand);
         internal static ArmSkeleton.Fingers FingerMode(MyCharacter character,Controller hand)
         {
             if(hand==Handedness.ActionHand && WeaponHandling.Profile?.Tool==true && !Main.MenuOpen)
@@ -204,7 +224,7 @@ namespace SpaceEngineersVR.Player
             if(hand==Handedness.SupportHand && WeaponHandling.Reloading && !WeaponHandling.Supported) return ArmSkeleton.Fingers.Native;
             if(WeaponHandling.Profile!=null && !RequiresPointing(hand) && (hand==Handedness.ActionHand || WeaponHandling.Supported)) return ArmSkeleton.Fingers.Stick;
             if(CockpitControls.Held(hand) || CockpitTouch.HoldingBar(hand) || LadderClimb.Holding(hand)) return ArmSkeleton.Fingers.Stick;
-            if(character.CurrentWeapon==null || RequiresPointing(hand))
+            if(Empty(character,hand) || RequiresPointing(hand))
                 return CockpitTouch.Pinching(hand) || hand==Player.HandR && SpatialUi.PinchingKnob ? ArmSkeleton.Fingers.Pinch:ArmSkeleton.Fingers.Point;
             return ArmSkeleton.Fingers.Native;
         }

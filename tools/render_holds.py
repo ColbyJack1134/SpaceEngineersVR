@@ -27,10 +27,16 @@ def merged(astronaut, pose, models):
     transforms = np.array([np.linalg.inv(a) @ b for a, b in zip(bind, posed)])
     skinned = np.einsum("ni,nkij,nk->nj", vertices, transforms[indices], weights)
     mask = np.sum(included[indices] * weights, axis=1) > .999
-    item = json.loads((models / f"{pose['item']}.json").read_text(encoding="utf-8-sig"))
-    model = np.array(pose["model"]).reshape(4, 4)
-    positions = np.array(item["Vertices"])[:, :3]
-    item["Vertices"] = (np.column_stack((positions, np.ones(len(positions)))) @ model)[:, :3].tolist()
+    if "item" in pose:
+        item = json.loads((models / f"{pose['item']}.json").read_text(encoding="utf-8-sig"))
+        model = np.array(pose["model"]).reshape(4, 4)
+        positions = np.array(item["Vertices"])[:, :3]
+        item["Vertices"] = (np.column_stack((positions, np.ones(len(positions)))) @ model)[:, :3].tolist()
+        target = model[3, :3]
+    else:
+        # Empty hands: aim the views at the left palm, where the wrist screen sits.
+        item = {key: [] if isinstance(value, list) else value for key, value in astronaut.items() if key not in ("Bones", "BlendIndices", "BlendWeights")}
+        target = posed[[bone["Name"] for bone in bones].index("SE_RigLPalm")][3, :3]
     result = copy.deepcopy(item)
     offset = len(result["Vertices"])
     result["Vertices"].extend(skinned[:, :3].tolist())
@@ -42,7 +48,7 @@ def merged(astronaut, pose, models):
             copied = copy.deepcopy(part)
             copied["Indices"] = (faces + offset).flatten().tolist()
             result["Parts"].append(copied)
-    return result, model[3, :3]
+    return result, target
 
 
 if __name__ == "__main__":

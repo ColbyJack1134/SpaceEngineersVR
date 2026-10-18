@@ -102,8 +102,8 @@ namespace SpaceEngineersVR.Multiplayer
                     SpineLean.Apply(pair.Spine,head.Translation-anchor,SpineLean.Twist(head.Forward));
                 }
                 if(mirrored && pair.Left!=null && pair.Right!=null) ArmSkeleton.MirrorCollars(pair.Left,pair.Right);
-                if((pose.Tracked&1)!=0) ArmSkeleton.Apply(pair.Left,Stream.Hand(true,now),true,0,1,pose.LeftFingers,pose.LeftTrigger,(pose.Tracked&PlayerPose.LeftCurls)!=0 ? pose.LeftCurl:null,item,!mirrored);
-                if((pose.Tracked&2)!=0) ArmSkeleton.Apply(pair.Right,Stream.Hand(false,now),true,0,1,pose.RightFingers,pose.RightTrigger,(pose.Tracked&PlayerPose.RightCurls)!=0 ? pose.RightCurl:null,item,mirrored);
+                if((pose.Tracked&1)!=0) ArmSkeleton.Apply(pair.Left,Stream.Hand(true,now),ArmSolve.Options.Reach,1,pose.LeftFingers,pose.LeftTrigger,(pose.Tracked&PlayerPose.LeftCurls)!=0 ? pose.LeftCurl:null,item,!mirrored);
+                if((pose.Tracked&2)!=0) ArmSkeleton.Apply(pair.Right,Stream.Hand(false,now),ArmSolve.Options.Reach,1,pose.RightFingers,pose.RightTrigger,(pose.Tracked&PlayerPose.RightCurls)!=0 ? pose.RightCurl:null,item,mirrored);
                 if((pose.Tracked&PlayerPose.HeadTracked)!=0) ArmSkeleton.Look(pair.Head,Stream.Head(now),ArmSkeleton.HeadLimit);
                 character.AnimationController.UpdateTransformations();
                 // Native weapon placement ran before this pose; move the held item onto the tracked palm.

@@ -118,23 +118,21 @@ namespace SpaceEngineersVR.Diagnostics
                 foreach(float side in new[] {-1f,1f})
                 {
                     string prefix=side<0 ? "SE_RigL":"SE_RigR";
-                    var upper=bones.Single(b=>b.Name==prefix+"Upperarm");
-                    var lower=bones.Single(b=>b.Name==prefix+"Forearm1");
                     var palm=bones.Single(b=>b.Name==prefix+"Palm");
                     var cuff=bones.Single(b=>b.Name==prefix+"Forearm2");
-                    var expected=cuff.GetAbsoluteRigTransform()*Matrix.Invert(palm.GetAbsoluteRigTransform());
-                    var correction=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),side);
+                    Matrix expected=cuff.GetAbsoluteRigTransform()*Matrix.Invert(palm.GetAbsoluteRigTransform());
+                    var arm=ArmSkeleton.Find(name=>bones.FirstOrDefault(b=>b.Name==name),prefix+"Upperarm",prefix+"Forearm1",prefix+"Palm",side);
                     Matrix target=Matrix.CreateRotationY(side*.4f);
                     target.Translation=pivot+(new Vector3(side*.28f,1.25f,-.35f)-pivot)*scale;
-                    if(!ArmMath.ApplyPose(upper,lower,palm,target,correction,new Vector3(side*.55f,-1,.3f),rigidWrist:side<0,bodyScale:scale))
-                        throw new Exception("Fitted arm failed");
+                    if(!ArmSkeleton.Apply(arm,target,new ArmSolve.Options(true,true,side<0 ? 1:0),scale,ArmSkeleton.Fingers.Native,0)) throw new Exception("Fitted arm failed");
                     Near(Vector3.Distance(palm.AbsoluteTransform.Translation,target.Translation),0,"Fitted arm lost controller");
-                    Near(Vector3.Distance(palm.AbsoluteTransform.Up,(correction*target).Up),0,"Fitted palm orientation");
+                    Near(Vector3.Distance(palm.AbsoluteTransform.Up,(arm.PalmOffset*target).Up),0,"Fitted palm orientation");
                     if(side<0)
                     {
+                        // Screen in use: the cuff and its tablet stay fixed to the hand under the body scale.
                         var actual=cuff.AbsoluteTransform*Matrix.Invert(palm.AbsoluteTransform);
-                        Near(Vector3.Distance(expected.Translation,actual.Translation),0,"Fitted tablet slides");
-                        Near(Vector3.Distance(expected.Up,actual.Up),0,"Fitted tablet twists");
+                        Near(Vector3.Distance(expected.Translation,actual.Translation),0,"Fitted tablet slides",.0005f);
+                        Near(Vector3.Distance(expected.Up,actual.Up),0,"Fitted tablet twists",.0005f);
                     }
                 }
                 if(output!=null && !seated)

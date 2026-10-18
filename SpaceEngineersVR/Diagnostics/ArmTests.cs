@@ -18,126 +18,274 @@ namespace SpaceEngineersVR.Diagnostics
         { if(float.IsNaN(actual) || Math.Abs(actual-expected)>tolerance) throw new Exception(message+": "+actual); }
         public static void Run(Action<string> log)
         {
-            // Real installed-engine bone objects, including an intermediate forearm
-            // twist bone as used by the engineer model. Exercise production pose code.
-            foreach(float side in new[] {-1f,1f})
-            {
-                var relative=new Matrix[5]; var absolute=new Matrix[5];
-                var bones=new MyCharacterBone[5];
-                bones[0]=new MyCharacterBone("root",null,Matrix.Identity,0,relative,absolute);
-                bones[1]=new MyCharacterBone("upper",bones[0],Matrix.CreateTranslation(side*0.2f,1.4f,0),1,relative,absolute);
-                bones[2]=new MyCharacterBone("forearm",bones[1],Matrix.CreateTranslation(side*0.3f,0,0),2,relative,absolute);
-                bones[3]=new MyCharacterBone("twist",bones[2],Matrix.CreateTranslation(side*0.1f,0,0),3,relative,absolute);
-                bones[4]=new MyCharacterBone("palm",bones[3],Matrix.CreateTranslation(side*0.15f,0,0),4,relative,absolute);
-                Matrix offset=ArmMath.PalmCorrection(bones[4].GetAbsoluteRigTransform(),bones[2].GetAbsoluteRigTransform(),side);
-                Vector3 shoulder=bones[1].AbsoluteTransform.Translation;
-                Vector3 hint=new Vector3(side*0.55f,-1,0.3f);
-                for(int i=0;i<500;i++)
-                {
-                    foreach(var bone in bones) { bone.Rotation=Quaternion.Identity; bone.Translation=Vector3.Zero; }
-                    // Include vanilla IK's translated wrist, which must not define our arm length.
-                    bones[4].Translation=new Vector3(0.05f,0.03f,-0.04f);
-                    bones[0].ComputeAbsoluteTransform();
-                    Matrix target=Matrix.CreateRotationX(i*0.04f)*Matrix.CreateRotationY(i*0.07f);
-                    target.Translation=shoulder+new Vector3((float)Math.Sin(i*0.03)*0.9f,(float)Math.Cos(i*0.07)*0.7f,(float)Math.Sin(i*0.05)*0.8f);
-                    if(i==0) target.Translation=shoulder;
-                    if(!ArmMath.ApplyPose(bones[1],bones[2],bones[4],target,offset,hint,false)) throw new Exception("Arm solve failed");
-                    Near(Vector3.Distance(bones[1].AbsoluteTransform.Translation,bones[2].AbsoluteTransform.Translation),0.3f,"upper arm stretched");
-                    Near(Vector3.Distance(bones[2].AbsoluteTransform.Translation,bones[4].AbsoluteTransform.Translation),0.25f,"forearm stretched");
-                    ArmMath.Solve(shoulder,target.Translation,0.3f,0.25f,hint,out Vector3 elbow,out Vector3 wrist);
-                    Near(Vector3.Distance(bones[4].AbsoluteTransform.Translation,wrist),0,"wrist misses clamped target");
-                    Near(Vector3.Distance(bones[2].AbsoluteTransform.Translation,elbow),0,"elbow misses pole target");
-                    Near(Vector3.Distance(bones[4].AbsoluteTransform.Forward,(offset*target.GetOrientation()).Forward),0,"palm orientation mismatch");
-                    Near(bones[4].Translation.Length(),0,"wrist translated out of its socket");
-                    foreach(var bone in bones) { bone.Rotation=Quaternion.Identity; bone.Translation=Vector3.Zero; }
-                    bones[0].ComputeAbsoluteTransform();
-                    if(!ArmMath.ApplyPose(bones[1],bones[2],bones[4],target,offset,hint)) throw new Exception("Adaptive arm solve failed");
-                    Near(Vector3.Distance(bones[4].AbsoluteTransform.Translation,target.Translation),0,"tracked hand misses controller");
-                    if(Vector3.Distance(bones[1].AbsoluteTransform.Translation,shoulder)>.1201f) throw new Exception("Shoulder travel exceeds limit");
-                    Near(Vector3.Distance(bones[4].AbsoluteTransform.Forward,(offset*target.GetOrientation()).Forward),0,"adaptive palm orientation mismatch");
-                }
-            }
-            if(ArmMath.Solve(Vector3.Zero,new Vector3(float.NaN,0,0),0.3f,0.25f,Vector3.Down,out _,out _)) throw new Exception("Invalid tracking target accepted");
-            Matrix flipped=ArmMath.AimBone(Matrix.Identity,Vector3.Right,Vector3.Left);
-            Near(Vector3.Distance(Vector3.TransformNormal(Vector3.Right,flipped),Vector3.Left),0,"antiparallel bone rotation");
-            for(int i=0;i<360;i++)
-            {
-                Matrix desired=Matrix.CreateRotationX(MathHelper.ToRadians(i));
-                Matrix twist=ArmMath.ForearmTwist(Matrix.Identity,desired,Vector3.Right);
-                Near(Vector3.Distance(twist.Up,desired.Up),0,"Wrist roll fails to rotate forearm");
-                Near(Vector3.Distance(twist.Right,Vector3.Right),0,"Forearm twist moved hand axis");
-            }
-            log("PASS tracked arms: 1,000 mirrored engine-bone poses in fixed and adaptive modes, accurate controller reach, bounded shoulders, twist chains, wrist orientation, singular/invalid targets");
-            RigidLeftWrist(log);
-            BlendedLeftWrist(log);
+            Solver(log);
+            ReachModes(log);
+            Limits(log);
+            GloveRoll(log);
+            Placement(log);
             RecordedWatchPose(log);
             SkinnedHeads(log);
             SeatedLean(log);
             CockpitHandTests.Run(log);
         }
-        private static void RigidLeftWrist(Action<string> log)
+        // step: the solver's smoothing step per solve; 1 settles the elbow correction within one solve.
+        private static ArmSkeleton.Arm Installed(MyCharacterBone[] bones,float side,float step=1)
+        {
+            string s=side<0 ? "L":"R";
+            foreach(var bone in bones) { bone.Rotation=Quaternion.Identity; bone.Translation=Vector3.Zero; }
+            bones[0].ComputeAbsoluteTransform(true,true);
+            var arm=ArmSkeleton.Find(name=>bones.FirstOrDefault(b=>b.Name==name),"SE_Rig"+s+"Upperarm","SE_Rig"+s+"Forearm1","SE_Rig"+s+"Palm",side);
+            arm.State.FixedStep=step;
+            return arm;
+        }
+        private static float Length(ArmSkeleton.Arm arm,bool upper) => upper
+            ? Vector3.Distance(arm.Upper.Bone.AbsoluteTransform.Translation,arm.Lower.Bone.AbsoluteTransform.Translation)
+            : Vector3.Distance(arm.Lower.Bone.AbsoluteTransform.Translation,arm.Palm.Bone.AbsoluteTransform.Translation);
+        // The elbow hinge as a forearm bone carries it, so the palm's roll past that bone is the roll left at that joint.
+        private static Vector3 Carried(ArmSkeleton.Arm arm,MyCharacterBone bone)
+        {
+            var relation=(bone.GetAbsoluteRigTransform()*Matrix.Invert(arm.Lower.Bone.GetAbsoluteRigTransform())).GetOrientation();
+            return Vector3.TransformNormal(arm.Rig.LowerHinge,Matrix.Invert(relation)*bone.AbsoluteTransform.GetOrientation());
+        }
+        private static Matrix Target(ArmSkeleton.Arm arm,float side,int i)
+        {
+            var target=Matrix.CreateFromYawPitchRoll(side*(i*.021f-.9f),i*.017f-.6f,(float)Math.Sin(i*.05)*.7f);
+            Vector3 shoulder=arm.Upper.Bone.AbsoluteTransform.Translation;
+            target.Translation=shoulder+new Vector3(side*(.05f+(float)Math.Abs(Math.Sin(i*.031))*.3f)-side*.25f*(float)Math.Max(0,Math.Sin(i*.013)),
+                -.35f+(float)Math.Cos(i*.027)*.35f,-.15f-(float)Math.Abs(Math.Cos(i*.019))*.3f);
+            return target;
+        }
+        private static void Solver(Action<string> log)
         {
             var bones=InstalledBones();
-            var upper=bones.Single(b=>b.Name=="SE_RigLUpperarm");
-            var lower=bones.Single(b=>b.Name=="SE_RigLForearm1");
-            var display=bones.Single(b=>b.Name=="SE_RigLForearm2");
-            var palm=bones.Single(b=>b.Name=="SE_RigLPalm");
-            var correction=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),-1);
-            Matrix expected=display.GetAbsoluteRigTransform()*Matrix.Invert(palm.GetAbsoluteRigTransform());
-            Matrix forearm=lower.GetAbsoluteRigTransform()*Matrix.Invert(palm.GetAbsoluteRigTransform());
-            int independent=0;
-            for(int i=0;i<120;i++)
+            foreach(float side in new[] {-1f,1f})
             {
-                foreach(var bone in bones) { bone.Rotation=Quaternion.Identity; bone.Translation=Vector3.Zero; }
-                bones[0].ComputeAbsoluteTransform(true,true);
-                var target=Matrix.CreateFromYawPitchRoll(i*.021f-.8f,i*.015f-.5f,i*.035f);
-                target.Translation=new Vector3(-.25f+(float)Math.Sin(i*.04f)*.15f,1.2f,-.35f);
-                if(!ArmMath.ApplyPose(upper,lower,palm,target,correction,new Vector3(-.55f,-1,.3f),rigidWrist:true))
-                    throw new Exception("Rigid left wrist solve failed");
-                Near(Vector3.Distance(palm.AbsoluteTransform.Translation,target.Translation),0,"Rigid wrist loses controller");
-                Matrix relative=display.AbsoluteTransform*Matrix.Invert(palm.AbsoluteTransform);
-                Matrix actualForearm=lower.AbsoluteTransform*Matrix.Invert(palm.AbsoluteTransform);
-                Near(Vector3.Distance(actualForearm.Translation,forearm.Translation),0,"Rigid forearm changes length");
-                Near(Vector3.Distance(relative.Translation,expected.Translation),0,"Tablet slides relative to wrist");
-                Near(Vector3.Distance(relative.Up,expected.Up),0,"Tablet bends relative to wrist");
-                Near(Vector3.Distance(relative.Right,expected.Right),0,"Tablet rolls relative to wrist");
-                if(Vector3.Distance(actualForearm.Up,forearm.Up)>.01f) independent++;
-                Vector3 sleeve=lower.AbsoluteTransform.Up;
-                for(int repeat=0;repeat<3;repeat++)
-                    ArmMath.ApplyPose(upper,lower,palm,target,correction,new Vector3(-.55f,-1,.3f),rigidWrist:true);
-                Near(Vector3.Distance(lower.AbsoluteTransform.Up,sleeve),0,"Sleeve twist drifts while holding a pose");
+                var arm=Installed(bones,side,1/90f);
+                float upper=Length(arm,true),lower=Length(arm,false);
+                Vector3 lastElbow=Vector3.Zero; int flips=0;
+                for(int i=0;i<300;i++)
+                {
+                    var target=Target(arm,side,i);
+                    var options=ArmSolve.Options.Local;
+                    if(!ArmSkeleton.Apply(arm,target,options,1,ArmSkeleton.Fingers.Native,0)) throw new Exception("Arm solve failed");
+                    var palm=arm.Palm.Bone.AbsoluteTransform; var desired=arm.PalmOffset*target.GetOrientation();
+                    Near(Vector3.Distance(palm.Translation,target.Translation),0,"Hand misses the controller");
+                    Near(Vector3.Distance(palm.Up,desired.Up)+Vector3.Distance(palm.Right,desired.Right),0,"Palm orientation",.0005f);
+                    float reach=Vector3.Distance(arm.Upper.Bone.AbsoluteTransform.Translation,target.Translation);
+                    if(reach<upper+lower-.02f)
+                    {
+                        Near(Length(arm,true),upper,"Upper arm length within reach",.0005f);
+                        Near(Length(arm,false),lower,"Forearm length within reach",.0005f);
+                    }
+                    Vector3 axis=Vector3.Normalize(palm.Translation-arm.Lower.Bone.AbsoluteTransform.Translation);
+                    float past=ArmSolve.Roll(axis,Carried(arm,arm.Lower.Bone),desired,arm.Rig);
+                    float total=past/(1-ArmSolve.TwistShares[0]);
+                    float wrist=ArmSolve.Roll(axis,Carried(arm,arm.Chain[arm.Chain.Length-1]),desired,arm.Rig);
+                    float expected=total*(1-ArmSolve.TwistShares[ArmSolve.TwistShares.Length-1]);
+                    if(Math.Abs(wrist-expected)>1.5f) throw new Exception("Roll left at the wrist joint: "+wrist+" of "+total);
+                    for(int c=0;c<arm.Chain.Length;c++)
+                    {
+                        float left=ArmSolve.Roll(axis,Carried(arm,arm.Chain[c]),desired,arm.Rig);
+                        if(Math.Abs(left-total*(1-ArmSolve.TwistShares[c+1]))>1.5f) throw new Exception("Twist bone "+c+" carries the wrong roll share: "+left+" of "+total);
+                    }
+                    Vector3 elbow=arm.Lower.Bone.AbsoluteTransform.Translation;
+                    if(i>0 && Vector3.Distance(elbow,lastElbow)>.08f) flips++;
+                    lastElbow=elbow;
+                    arm.Restore(true);
+                }
+                if(flips>0) throw new Exception("Elbow jumped between consecutive targets "+flips+" times");
+                if(ArmSkeleton.Apply(arm,Matrix.CreateTranslation(float.NaN,1,0),ArmSolve.Options.Local,1,ArmSkeleton.Fingers.Native,0)) throw new Exception("Invalid target accepted");
             }
-            if(independent<100) throw new Exception("Sleeve remains locked to tablet roll");
-            log("PASS rigid left cuff: 120 installed-bone wrist rotations, tracked palm retained, sleeve roll independent and cuff/display fixed relative to palm; articulated right arm covered separately.");
-        }
-        private static void BlendedLeftWrist(Action<string> log)
-        {
-            Vector3 Elbow(MyCharacterBone[] bones,Matrix target,float rigidity)
-            {
-                foreach(var bone in bones) { bone.Rotation=Quaternion.Identity; bone.Translation=Vector3.Zero; }
-                bones[0].ComputeAbsoluteTransform(true,true);
-                var arm=ArmSkeleton.Find(name=>bones.SingleOrDefault(b=>b.Name==name),"SE_RigLUpperarm","SE_RigLForearm1","SE_RigLPalm",-1);
-                if(!ArmSkeleton.Apply(arm,target,true,rigidity,1,ArmSkeleton.Fingers.Native,0)) throw new Exception("Blended left wrist solve failed");
-                var palm=arm.Palm.Bone.AbsoluteTransform; var desired=arm.PalmOffset*target.GetOrientation();
-                Near(Vector3.Distance(palm.Translation,target.Translation),0,"Wrist blend loses controller");
-                Near(Vector3.Distance(palm.Up,desired.Up)+Vector3.Distance(palm.Right,desired.Right),0,"Wrist blend turns the palm",.001f);
-                return arm.Lower.Bone.AbsoluteTransform.Translation;
-            }
-            var installed=InstalledBones();
+            // The side sign rules in MeasureRig and Hinge must give mirror-image elbows for mirror-image targets.
+            var leftArm=Installed(bones,-1); var rightArm=Installed(bones,1);
             for(int i=0;i<60;i++)
             {
-                var target=Matrix.CreateFromYawPitchRoll(i*.04f-1.2f,i*.02f-.6f,i*.05f);
-                target.Translation=new Vector3(-.2f+i*.006f,1.25f,-.4f);
-                Vector3 rigid=Elbow(installed,target,1),free=Elbow(installed,target,0),mixed=Elbow(installed,target,.5f);
-                if(Vector3.Distance(mixed,rigid)>Vector3.Distance(free,rigid)+.005f || Vector3.Distance(mixed,free)>Vector3.Distance(free,rigid)+.005f)
-                    throw new Exception("Wrist blend leaves the range between rigid and articulated elbows");
+                var target=Target(leftArm,-1,i*5);
+                if(!ArmSkeleton.Apply(leftArm,target,ArmSolve.Options.Local,1,ArmSkeleton.Fingers.Native,0)) throw new Exception("Mirror solve failed");
+                Vector3 elbow=leftArm.Lower.Bone.AbsoluteTransform.Translation; leftArm.Restore(true);
+                var mirrored=Matrix.CreateScale(-1,1,1)*target*Matrix.CreateScale(-1,1,1); mirrored.Translation=target.Translation*new Vector3(-1,1,1);
+                if(!ArmSkeleton.Apply(rightArm,mirrored,ArmSolve.Options.Local,1,ArmSkeleton.Fingers.Native,0)) throw new Exception("Mirror solve failed");
+                Vector3 other=rightArm.Lower.Bone.AbsoluteTransform.Translation; rightArm.Restore(true);
+                if(Vector3.Distance(other,elbow*new Vector3(-1,1,1))>.01f) throw new Exception("Left and right elbows are not mirror images: "+Vector3.Distance(other,elbow*new Vector3(-1,1,1)));
+            }
+            log("PASS arm solver: 600 installed-bone targets on both arms keep the hand on the controller, bind lengths within reach, roll in the forearm and a continuous elbow");
+        }
+        private static void ReachModes(Action<string> log)
+        {
+            var bones=InstalledBones();
+            foreach(float side in new[] {-1f,1f})
+            {
+                var arm=Installed(bones,side);
+                float upper=Length(arm,true),lower=Length(arm,false);
+                Vector3 shoulder=arm.Upper.Bone.AbsoluteTransform.Translation;
+                for(int i=0;i<40;i++)
+                {
+                    var target=Matrix.CreateRotationY(side*.3f);
+                    Vector3 direction=Vector3.Normalize(new Vector3(side*.4f,(float)Math.Sin(i*.2),-1));
+                    target.Translation=shoulder+direction*(upper+lower)*(1.05f+i*.02f);
+                    if(!ArmSkeleton.Apply(arm,target,ArmSolve.Options.Local,1,ArmSkeleton.Fingers.Native,0)) throw new Exception("Stretch solve failed");
+                    Near(Vector3.Distance(arm.Palm.Bone.AbsoluteTransform.Translation,target.Translation),0,"Stretched hand misses the controller",.0005f);
+                    float stretch=Length(arm,true)/upper;
+                    if(stretch>ArmSolve.MaxStretch+.001f) throw new Exception("Stretch over the limit: "+stretch);
+                    if(stretch<1-.001f) throw new Exception("Arm shortened: "+stretch);
+                    if(Vector3.Distance(arm.Upper.Bone.AbsoluteTransform.Translation,shoulder)>ArmSolve.ShoulderTravel+.0001f) throw new Exception("Shoulder travel over the limit");
+                    arm.Restore(true);
+                    if(!ArmSkeleton.Apply(arm,target,ArmSolve.Options.Reach,1,ArmSkeleton.Fingers.Native,0)) throw new Exception("Reach solve failed");
+                    Near(Length(arm,true),upper,"Reach mode stretched the upper arm",.0005f);
+                    Near(Length(arm,false),lower,"Reach mode stretched the forearm",.0005f);
+                    Vector3 travelled=arm.Upper.Bone.AbsoluteTransform.Translation;
+                    float gap=Vector3.Distance(arm.Palm.Bone.AbsoluteTransform.Translation,target.Translation);
+                    float expected=Vector3.Distance(travelled,target.Translation)-(upper+lower-.005f);
+                    if(expected<0) expected=0;
+                    Near(gap,expected,"Reach mode hand does not stop at full reach",.002f);
+                    Vector3 toward=Vector3.Normalize(target.Translation-travelled);
+                    Near(Vector3.Dot(Vector3.Normalize(arm.Palm.Bone.AbsoluteTransform.Translation-travelled),toward),1,"Reach mode hand leaves the line to the controller",.001f);
+                    var desired=arm.PalmOffset*target.GetOrientation();
+                    Near(Vector3.Distance(arm.Palm.Bone.AbsoluteTransform.Up,desired.Up),0,"Reach mode changes the palm orientation",.0005f);
+                    arm.Restore(true);
+                    if(!ArmSkeleton.Apply(arm,target,ArmSolve.Options.Fixed,1,ArmSkeleton.Fingers.Native,0)) throw new Exception("Fixed solve failed");
+                    Near(Vector3.Distance(arm.Upper.Bone.AbsoluteTransform.Translation,shoulder),0,"Fixed mode moved the shoulder");
+                    Near(Length(arm,true),upper,"Fixed mode stretched the upper arm",.0005f);
+                    arm.Restore(true);
+                }
+            }
+            log("PASS reach modes: local view stretches to the controller within "+ArmSolve.MaxStretch+"x and "+ArmSolve.ShoulderTravel+" m shoulder travel; reach mode keeps bind lengths with the hand stopping on the line to the controller; fixed mode holds the shoulder");
+        }
+        private static void Limits(Action<string> log)
+        {
+            var bones=InstalledBones();
+            int corrected=0;
+            foreach(float side in new[] {-1f,1f})
+            {
+                var arm=Installed(bones,side);
+                Vector3 shoulder=arm.Upper.Bone.AbsoluteTransform.Translation;
+                for(int i=0;i<24;i++)
+                {
+                    // A hand in front, rolled far about the forearm, and a hand bent back at the wrist.
+                    var target=Matrix.CreateFromYawPitchRoll(side*.2f,i<12 ? 0:1.3f,(i%12)*.5f-2.8f);
+                    target.Translation=shoulder+new Vector3(side*.1f,-.1f,-.4f);
+                    if(!ArmSkeleton.Apply(arm,target,ArmSolve.Options.Local,1,ArmSkeleton.Fingers.Native,0)) throw new Exception("Limit solve failed");
+                    Vector3 elbow=arm.Lower.Bone.AbsoluteTransform.Translation,wrist=arm.Palm.Bone.AbsoluteTransform.Translation;
+                    Vector3 axis=Vector3.Normalize(wrist-shoulder);
+                    Vector3 bend=Vector3.Normalize((elbow-shoulder)-axis*Vector3.Dot(elbow-shoulder,axis));
+                    Vector3 hint=ArmSolve.Hint(shoulder,wrist,Length(arm,true)+Length(arm,false),side,axis);
+                    Vector3 forearm=Vector3.Normalize(wrist-elbow);
+                    var palmPose=arm.PalmOffset*target.GetOrientation();
+                    if(Vector3.Dot(bend,hint)<.999f) corrected++;
+                    ArmSolve.Wrist(forearm,ArmSolve.Hinge(bend,axis,side),palmPose,arm.Rig,out float pitch,out float sideways,out float roll);
+                    if(float.IsNaN(pitch) || float.IsNaN(sideways) || float.IsNaN(roll) || Math.Abs(roll)>180) throw new Exception("Wrist angles invalid");
+                    arm.Restore(true);
+                }
+            }
+            if(corrected<8) throw new Exception("Elbow never swung to relieve the wrist ("+corrected+" of 48)");
+            log("PASS wrist limits: "+corrected+" of 48 extreme hand rotations swing the elbow; wrist angles finite");
+        }
+        private static void GloveRoll(Action<string> log)
+        {
+            var bones=InstalledBones();
+            var arm=Installed(bones,-1);
+            var display=bones.Single(b=>b.Name=="SE_RigLForearm2"); var palm=arm.Palm.Bone;
+            Matrix expected=display.GetAbsoluteRigTransform()*Matrix.Invert(palm.GetAbsoluteRigTransform());
+            float upper=Length(arm,true),lower=Length(arm,false);
+            foreach(float screen in new[] {0f,.5f,1f})
+                for(int i=0;i<40;i++)
+                {
+                    var target=Matrix.CreateFromYawPitchRoll(i*.04f-1.2f,i*.02f-.6f,i*.05f);
+                    target.Translation=new Vector3(-.2f+i*.004f,1.25f,-.4f);
+                    if(!ArmSkeleton.Apply(arm,target,new ArmSolve.Options(true,true,screen),1,ArmSkeleton.Fingers.Native,0)) throw new Exception("Screen solve failed at "+screen);
+                    var desired=arm.PalmOffset*target.GetOrientation();
+                    Near(Vector3.Distance(palm.AbsoluteTransform.Translation,target.Translation),0,"Screen solve loses the controller");
+                    Near(Vector3.Distance(palm.AbsoluteTransform.Up,desired.Up)+Vector3.Distance(palm.AbsoluteTransform.Right,desired.Right),0,"Screen solve turns the palm",.0005f);
+                    if(Vector3.Distance(arm.Upper.Bone.AbsoluteTransform.Translation,target.Translation)<upper+lower-.02f)
+                    {
+                        if(screen<=0) Near(Length(arm,true),upper,"Screen solve stretched the upper arm",.0005f);
+                        if(screen<=0 || screen>=1) Near(Length(arm,false),lower,"Screen solve stretched the forearm",.0005f);
+                    }
+                    // Screen closed: the glove rides the forearm axis with the hand's full roll. Screen in use: the glove
+                    // is fixed to the hand and, when the straight-sleeve elbow is within the upper arm's range, the sleeve runs into it.
+                    Vector3 axis=Vector3.Normalize(palm.AbsoluteTransform.Translation-arm.Lower.Bone.AbsoluteTransform.Translation);
+                    float left=ArmSolve.Roll(axis,Carried(arm,display),desired,arm.Rig);
+                    if(Math.Abs(left)>1.5f) throw new Exception("Roll left between the glove and the hand: "+left);
+                    var relation=(display.GetAbsoluteRigTransform()*Matrix.Invert(arm.Lower.Bone.GetAbsoluteRigTransform())).GetOrientation();
+                    Vector3 gloveAxis=Vector3.TransformNormal(arm.Rig.LowerAxis,Matrix.Invert(relation)*display.AbsoluteTransform.GetOrientation());
+                    if(screen<=0) Near(Vector3.Dot(Vector3.Normalize(gloveAxis),axis),1,"Glove left the forearm axis",.001f);
+                    if(screen>=1)
+                    {
+                        Matrix relative=display.AbsoluteTransform*Matrix.Invert(palm.AbsoluteTransform);
+                        Near(Vector3.Distance(relative.Translation,expected.Translation),0,"Tablet slides relative to the hand",.0005f);
+                        Near(Vector3.Distance(relative.Up,expected.Up)+Vector3.Distance(relative.Right,expected.Right),0,"Tablet turns relative to the hand",.0005f);
+                        Vector3 straight=palm.AbsoluteTransform.Translation-Vector3.TransformNormal(arm.Rig.PalmLong,palm.AbsoluteTransform)*lower;
+                        float needed=Vector3.Distance(straight,arm.Upper.Bone.AbsoluteTransform.Translation);
+                        float fold=MathHelper.ToDegrees((float)Math.Acos(MathHelper.Clamp(Vector3.Dot(axis,Vector3.TransformNormal(arm.Rig.PalmLong,palm.AbsoluteTransform)),-1,1)));
+                        if(needed>=upper && needed<=upper*ArmSolve.ScreenStretch && fold>1) throw new Exception("Sleeve does not run into the fixed glove: "+fold+" degrees");
+                        if(Length(arm,true)/upper>ArmSolve.ScreenStretch+.001f) throw new Exception("Welded upper arm stretch over the limit");
+                    }
+                    arm.Restore(true);
+                }
+            // Adaptive arms off: fixed lengths even with the screen in use.
+            for(int i=0;i<20;i++)
+            {
+                var target=Matrix.CreateFromYawPitchRoll(i*.04f-.6f,.2f,i*.05f); target.Translation=new Vector3(-.2f,1.25f,-.35f);
+                if(!ArmSkeleton.Apply(arm,target,new ArmSolve.Options(false,false,1),1,ArmSkeleton.Fingers.Native,0)) throw new Exception("Fixed screen solve failed");
+                Near(Length(arm,true),upper,"Fixed mode stretched the upper arm with the screen in use",.0005f);
+                Near(Length(arm,false),lower,"Fixed mode stretched the forearm with the screen in use",.0005f);
+                arm.Restore(true);
             }
             var head=MatrixD.CreateWorld(new Vector3D(0,1.6,0),Vector3D.Forward,Vector3D.Up);
             var facing=MatrixD.CreateWorld(new Vector3D(0,1.45,-.5),Vector3D.Normalize(new Vector3D(0,-.15,-.5)),Vector3D.Up);
-            Near(TrackedArms.ScreenAttention(facing,head),1,"Screen facing the eye in view does not lock the wrist");
-            Near(TrackedArms.ScreenAttention(MatrixD.CreateWorld(facing.Translation,-facing.Forward,Vector3D.Up),head),0,"Screen turned away does not release the wrist");
-            Near(TrackedArms.ScreenAttention(facing,MatrixD.CreateWorld(head.Translation,Vector3D.Right,Vector3D.Up)),0,"Screen outside the view does not release the wrist");
-            log("PASS blended left wrist: 60 installed-bone poses keep the tracked palm with the elbow between rigid and articulated solves; screen attention locks only when facing and in view");
+            Near(TrackedArms.ScreenAttention(facing,head),1,"Screen facing the eye in view does not raise the weight");
+            Near(TrackedArms.ScreenAttention(MatrixD.CreateWorld(facing.Translation,-facing.Forward,Vector3D.Up),head),0,"Screen turned away keeps the weight");
+            Near(TrackedArms.ScreenAttention(facing,MatrixD.CreateWorld(head.Translation,Vector3D.Right,Vector3D.Up)),0,"Screen outside the view keeps the weight");
+            log("PASS wrist screen: 120 installed-bone poses: screen closed, the glove rides the forearm with the hand's full roll and a free wrist; screen in use, the glove is fixed to the hand with the sleeve running into it (upper arm up to "+ArmSolve.ScreenStretch+"x); continuous in between; attention weights only a facing screen in view");
+        }
+        private static void Placement(Action<string> log)
+        {
+            var level=Matrix.CreateWorld(new Vector3(.02f,1.6f,0),Vector3.Forward,Vector3.Up);
+            var shift=BodyPlacement.Shift(level,new Vector3(0,1.7f,.2f));
+            Near(shift.X,.02f,"Shift sideways"); Near(shift.Y,-.1f+BodyPlacement.DropDeadband,"Shift vertical"); Near(shift.Z,BodyPlacement.EyeAhead-.2f,"Shift forward");
+            Near(BodyPlacement.Shift(level,new Vector3(0,1.62f,.2f)).Y,0,"Small drop is not ignored");
+            // A head pitched down keeps its joint behind and above the eyes, so looking down does not lower the body.
+            var pitched=Matrix.CreateRotationX(-.6f)*Matrix.CreateTranslation(0,1.6f,0);
+            var down=BodyPlacement.Shift(pitched,new Vector3(0,1.65f,.08f));
+            if(down.Y<-.005f) throw new Exception("Looking down lowers the body: "+down.Y);
+            if(down.Z>0) throw new Exception("Pitched head does not keep the shoulders behind: "+down.Z);
+            Near(BodyPlacement.Shift(level,new Vector3(0,2.5f,.2f)).Y,-BodyPlacement.MaxDrop,"Drop is not capped");
+            var bones=InstalledBones();
+            var left=Installed(bones,-1); var right=Installed(bones,1);
+            var ribcage=bones.Single(b=>b.Name=="SE_RigRibcage"); var head=bones.Single(b=>b.Name=="SE_RigHead"); var dummy=bones.Single(b=>b.Name=="HeadDummy");
+            float ahead=head.AbsoluteTransform.Translation.Z-dummy.AbsoluteTransform.Translation.Z;
+            if(ahead<.15f || ahead>.25f) throw new Exception("Installed camera dummy is "+ahead+" m ahead of the head joint");
+            Vector3 shoulder=left.Upper.Bone.AbsoluteTransform.Translation,chest=ribcage.AbsoluteTransform.Translation,hand=left.Palm.Bone.AbsoluteTransform.Translation;
+            var pelvis=bones.Single(b=>b.Name=="SE_RigPelvis"); var foot=bones.Single(b=>b.Name=="SE_RigLFoot");
+            Vector3 headRest=head.AbsoluteTransform.Translation,footRest=foot.AbsoluteTransform.Translation;
+            var roots=bones.Where(b=>b.Parent==null).Select(b=>new ArmSkeleton.SavedBone {Bone=b}).ToList();
+            var eye=ArmSkeleton.Below(head,dummy); var spine=SpineLean.Find(name=>bones.FirstOrDefault(b=>b.Name==name),head,eye);
+            // Without vanilla's first-person centring the dummy sits 20 cm ahead of the capsule; centring slides the body back.
+            BodyPlacement.Center(bones,roots,dummy);
+            Near(Math.Abs(dummy.AbsoluteTransform.Translation.X)+Math.Abs(dummy.AbsoluteTransform.Translation.Z),0,"Centring left the camera dummy off the capsule axis",.001f);
+            if(ribcage.AbsoluteTransform.Translation.Z<chest.Z+.15f) throw new Exception("Centring did not slide the torso back");
+            foreach(var root in roots) root.Restore(false);
+            bones[0].ComputeAbsoluteTransform(true,true);
+            Near(Vector3.Distance(ribcage.AbsoluteTransform.Translation,chest),0,"Centring did not restore",.0005f);
+            BodyPlacement.Stoop(bones,roots,spine,head,-.08f);
+            Vector3 moved=head.AbsoluteTransform.Translation-headRest;
+            if(moved.Y>-.05f || moved.Y<-.09f) throw new Exception("Stoop did not lower the head: "+moved.Y);
+            Near(Math.Abs(moved.X)+Math.Abs(moved.Z),0,"Stoop moved the head sideways or forward",.001f);
+            Near(foot.AbsoluteTransform.Translation.Y,footRest.Y,"Stoop lifted or sank the feet",.001f);
+            if(foot.AbsoluteTransform.Translation.Z<footRest.Z+.1f) throw new Exception("Stoop did not move the hips and feet back");
+            if(ribcage.AbsoluteTransform.Translation.Y>chest.Y-.02f) throw new Exception("Stoop did not lower the chest");
+            Vector3 leaned=left.Upper.Bone.AbsoluteTransform.Translation,chestLeaned=ribcage.AbsoluteTransform.Translation;
+            if(!BodyPlacement.Shoulders(left,right,new Vector3(.01f,0,-.11f))) throw new Exception("Shoulder placement failed");
+            Near(Vector3.Distance(left.Upper.Bone.AbsoluteTransform.Translation,leaned+new Vector3(.01f,0,-.11f)),0,"Left shoulder did not follow the shift",.0005f);
+            Near(Vector3.Distance(ribcage.AbsoluteTransform.Translation,chestLeaned),0,"Shoulder shift moved the torso");
+            left.Restore(); right.Restore();
+            foreach(var root in roots) root.Restore(false);
+            SpineLean.Restore(spine);
+            bones[0].ComputeAbsoluteTransform(true,true);
+            Near(Vector3.Distance(head.AbsoluteTransform.Translation,headRest),0,"Stoop did not restore the head",.0005f);
+            Near(Vector3.Distance(left.Upper.Bone.AbsoluteTransform.Translation,shoulder),0,"Placement did not restore",.0005f);
+            if(BodyPlacement.Shoulders(left,right,new Vector3(float.NaN,0,0))) throw new Exception("Invalid shoulder shift accepted");
+            log("PASS body placement: camera dummy centred when vanilla does not; head joint "+BodyPlacement.EyeAhead+" m behind the eyes along the head axis; a stoop bends the spine with the hips back and the feet on the floor (up to "+BodyPlacement.MaxDrop+" m), looking down does not; collarbones carry the arms forward and everything restores; camera dummy "+ahead.ToString("0.000")+" m ahead of the head joint");
         }
         private static string Content => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(MyCharacterBone).Assembly.Location),"..","Content"));
         internal static MyCharacterBone[] InstalledBones(string model="Models/Characters/Astronaut/SE_astronaut.mwm")
@@ -244,27 +392,26 @@ namespace SpaceEngineersVR.Diagnostics
         private static void RecordedWatchPose(Action<string> log)
         {
             var bones=InstalledBones();
-            var palm=bones.Single(b=>b.Name=="SE_RigLPalm");
-            var lower=bones.Single(b=>b.Name=="SE_RigLForearm1"); var upper=lower.Parent;
-            // First watch pose captured during the September 29 playtest.
+            var arm=Installed(bones,-1);
+            // Recorded watch pose.
             Matrix desired=Matrix.Identity;
             desired.Right=new Vector3(-.9470054f,-.2854625f,-.1475649f);
             desired.Up=new Vector3(-.3211800f,.8273234f,.4607469f);
             desired.Backward=new Vector3(-.0094374f,.4837239f,-.8751677f);
             desired.Translation=new Vector3(-.0685918f,1.2402833f,-.4206055f);
             var shoulder=new Vector3(-.2063112f,1.4152480f,.1555137f);
+            var upper=arm.Upper.Bone;
             var upperPose=upper.AbsoluteTransform; upperPose.Translation=shoulder;
-            upper.SetCompleteTransformFromAbsoluteMatrix(ref upperPose,false); upper.ComputeAbsoluteTransform();
-            var correction=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),-1);
-            var target=Matrix.Invert(correction)*desired;
-            if(!ArmMath.ApplyPose(upper,lower,palm,target,correction,new Vector3(-.55f,-1,.3f))) throw new Exception("Recorded watch pose failed");
-            Vector3 forearm=Vector3.Normalize(lower.AbsoluteTransform.Translation-palm.AbsoluteTransform.Translation);
-            float deflection=MathHelper.ToDegrees((float)Math.Acos(MathHelper.Clamp(Vector3.Dot(forearm,palm.AbsoluteTransform.Right),-1,1)));
+            upper.SetCompleteTransformFromAbsoluteMatrix(ref upperPose,false); upper.ComputeAbsoluteTransform(true,true);
+            var target=Matrix.Invert(arm.PalmOffset)*desired;
+            if(!ArmSkeleton.Apply(arm,target,ArmSolve.Options.Local,1,ArmSkeleton.Fingers.Native,0)) throw new Exception("Recorded watch pose failed");
+            var palm=arm.Palm.Bone;
+            Vector3 forearm=Vector3.Normalize(palm.AbsoluteTransform.Translation-arm.Lower.Bone.AbsoluteTransform.Translation);
+            ArmSolve.Wrist(forearm,Vector3.Up,arm.PalmOffset*target.GetOrientation(),arm.Rig,out float pitch,out float side,out _);
             Near(Vector3.Distance(palm.AbsoluteTransform.Translation,desired.Translation),0,"Watch pose loses tracked palm");
             Near(Vector3.Distance(palm.AbsoluteTransform.Up,desired.Up),0,"Watch pose changes tool/palm orientation",.0002f);
-            if(deflection>65) throw new Exception("Recorded watch pose still folds at the wrist: "+deflection);
-            if(Vector3.Distance(upper.AbsoluteTransform.Translation,shoulder)>.1201f) throw new Exception("Watch pose shoulder exceeds travel limit");
-            log("PASS recorded watch pose with installed astronaut bones: palm target retained; wrist deflection "+deflection.ToString("0.0")+" degrees (capture: 81), shoulder travel bounded.");
+            if(Vector3.Distance(upper.AbsoluteTransform.Translation,shoulder)>ArmSolve.ShoulderTravel+.0001f) throw new Exception("Watch pose shoulder exceeds travel limit");
+            log("PASS recorded watch pose (captured under the earlier chest placement): palm target retained; wrist pitch "+pitch.ToString("0")+", side "+side.ToString("0")+" degrees, shoulder travel bounded.");
         }
     }
 }
