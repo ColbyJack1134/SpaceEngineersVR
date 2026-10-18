@@ -167,6 +167,10 @@ namespace SpaceEngineersVR.Diagnostics
             Require(restored.Flight.Encode()==tuning.Encode() && restored.Toolbar==record.Toolbar && Enumerable.SequenceEqual(restored.Covers,record.Covers) &&
                 restored.LayoutVersion==record.LayoutVersion,"Flight persistence changed cockpit assignments or tuning");
             Require(FlightTuning.Decode(tuning.Encode()).Encode()==tuning.Encode(),"Network tuning roundtrip changed flight settings");
+            var plain=tuning.Copy(); plain.RightTrigger=RightTrigger.Forward; plain.LeftTrigger=LeftTrigger.Brake;
+            Require(Convert.FromBase64String(plain.Encode()).Length==71 && BitConverter.ToInt32(Convert.FromBase64String(CockpitMemory.Encode(new CockpitMemory.Record {Flight=plain})),0)==6 &&
+                BitConverter.ToInt32(Convert.FromBase64String(CockpitMemory.Encode(record)),0)==7,"Default triggers did not keep the version 6 layout");
+            Require(CockpitMemory.Decode(CockpitMemory.Encode(new CockpitMemory.Record {Flight=plain})).Flight.Encode()==plain.Encode(),"Version 6 record with default triggers did not round trip");
             var v6=Convert.FromBase64String(tuning.Encode()).Take(71).ToArray();
             var fromV6=FlightTuning.Decode(Convert.ToBase64String(v6));
             Require(fromV6.RightTrigger==RightTrigger.Forward && fromV6.LeftTrigger==LeftTrigger.Brake && fromV6.WheelMotion,"Version 6 tuning did not default the triggers to forward and brake");

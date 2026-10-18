@@ -32,7 +32,7 @@ namespace SpaceEngineersVR.Multiplayer
             using(var stream=new MemoryStream())
             using(var writer=new BinaryWriter(stream))
             {
-                writer.Write(7); writer.Write(record.Revision); writer.Write(record.Toolbar ?? "");
+                writer.Write(record.Flight?.CustomTriggers==true ? 7:6); writer.Write(record.Revision); writer.Write(record.Toolbar ?? "");
                 writer.Write(record.Covers.Length); foreach(bool value in record.Covers) writer.Write(value);
                 writer.Write(record.Flight!=null); record.Flight?.Write(writer);
                 writer.Write(record.LayoutVersion);

@@ -14,6 +14,8 @@ namespace SpaceEngineersVR.Multiplayer
         internal float WheelPitchTravel=.04f,WheelPitchDeadzone=.005f,WheelRollTravel=(float)(Math.PI/6);
         internal RightTrigger RightTrigger;
         internal LeftTrigger LeftTrigger;
+        // Default triggers keep the version 6 layout so hosts and players on older versions can still read the record.
+        internal bool CustomTriggers => RightTrigger!=RightTrigger.Forward || LeftTrigger!=LeftTrigger.Brake;
         internal FlightTuning Copy() => (FlightTuning)MemberwiseClone();
         internal bool Same(FlightTuning other) => other!=null && Rotation==other.Rotation && Translation==other.Translation &&
             RotationCurve==other.RotationCurve && TranslationCurve==other.TranslationCurve && TiltDeadzone==other.TiltDeadzone &&
@@ -41,7 +43,7 @@ namespace SpaceEngineersVR.Multiplayer
             writer.Write(FlightMode); writer.Write(BarTiltEnabled);
             foreach(float v in new[] {ThrottleSensitivity,PitchSensitivity,RollSensitivity,BarPitchTravel,BarPitchDeadzone,BarRollTravel,BarRollDeadzone}) writer.Write(v);
             writer.Write(WheelMotion); writer.Write(WheelPitchTravel); writer.Write(WheelPitchDeadzone); writer.Write(WheelRollTravel);
-            writer.Write((byte)RightTrigger); writer.Write((byte)LeftTrigger);
+            if(CustomTriggers) { writer.Write((byte)RightTrigger); writer.Write((byte)LeftTrigger); }
         }
         internal static FlightTuning Read(BinaryReader reader,int version=7)
         {
