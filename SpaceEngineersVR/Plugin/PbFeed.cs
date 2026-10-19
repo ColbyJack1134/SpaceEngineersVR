@@ -16,7 +16,6 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Plugin
 {
-    // Streams VR data to [SEVR] programmable blocks on the grid the player controls, as Mod runs.
     // A client's Run becomes a reliable server request (MyProgrammableBlock.SendRunProgramRequest), so vanilla servers work.
     internal static class PbFeed
     {
@@ -53,7 +52,7 @@ namespace SpaceEngineersVR.Plugin
         {
             foreach(var pb in targets) Stop(pb);
             targets.Clear(); previous.Clear(); sent.Clear(); armed.Clear();
-            scanned=null; controlsSession=null; nextScan=nextSend=0;
+            scanned=null; controlsSession=null; nextScan=nextSend=0; reportedFailure=false;
         }
 
         // Block terminal controls exist only after the first programmable block creates them; adding ours first would leave the native ones out.
@@ -64,7 +63,6 @@ namespace SpaceEngineersVR.Plugin
             controlsSession=session;
             foreach(var control in MyTerminalControlFactory.GetControls(typeof(MyProgrammableBlock)))
                 if(control.Id==ArmsId) return;
-            var name=new StringBuilder("VR arms");
             var check=new MyTerminalControlCheckbox<MyProgrammableBlock>(ArmsId,MyStringId.GetOrCompute("VR arms"),MyStringId.GetOrCompute("Arms flag in the VR data sent to this block (Space Engineers VR)."))
             {
                 Getter=pb=>armed.Contains(pb.EntityId),
@@ -72,9 +70,9 @@ namespace SpaceEngineersVR.Plugin
                 Visible=Tagged,
                 SupportsMultipleBlocks=false
             };
-            check.EnableAction(MyTerminalActionIcons.TOGGLE,name,new StringBuilder("On"),new StringBuilder("Off"));
-            check.EnableOnAction(MyTerminalActionIcons.ON,new StringBuilder("VR arms on"),new StringBuilder("On"),new StringBuilder("Off"),null);
-            check.EnableOffAction(MyTerminalActionIcons.OFF,new StringBuilder("VR arms off"),new StringBuilder("On"),new StringBuilder("Off"),null);
+            check.EnableAction(MyTerminalActionIcons.TOGGLE,new StringBuilder("VR arms"),new StringBuilder("On"),new StringBuilder("Off"),Tagged);
+            check.EnableOnAction(MyTerminalActionIcons.ON,new StringBuilder("VR arms on"),new StringBuilder("On"),new StringBuilder("Off"),Tagged);
+            check.EnableOffAction(MyTerminalActionIcons.OFF,new StringBuilder("VR arms off"),new StringBuilder("On"),new StringBuilder("Off"),Tagged);
             MyTerminalControlFactory.AddControl(check);
         }
 
