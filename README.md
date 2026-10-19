@@ -60,11 +60,12 @@ Supported:
 - [Terrain Tool](https://steamcommunity.com/sharedfiles/filedetails/?id=2820001381) and [Concrete Tool](https://steamcommunity.com/sharedfiles/filedetails/?id=396679430)
 - [Improvised Experimentation](https://steamcommunity.com/workshop/filedetails/?id=2891367014) (formerly improvised engineering)
   - Grip plus trigger on a grid to hold it. With trigger held, rotate with the sticks, B to throw. Release trigger only to use the sticks to move around like normal.
+- [WeaponCore](https://steamcommunity.com/workshop/filedetails/?id=3154371364) and [Defense Shields](https://steamcommunity.com/workshop/filedetails/?id=3154379105)
+  - [Controls guide](CONTROLS.md) and guide in game with mod enabled show the relevant controls.
 
 Planned (at some point):
 - BuildVision
 - BuildInfo
-- WeaponCore
 
 If you want to see specific mods, or are a mod developer that would like to add VR support, feel free to reach out!
 
