@@ -158,8 +158,8 @@ namespace SpaceEngineersVR.Player
             var controls=Controls.Static;
             int pressed=Array.FindIndex(controls.QuickSlots,b=>b.RawPressed);
             if(!available || pressed<0 && !controls.QuickToolbarTouch.RawPressed) { Hide(); return; }
-            // The game refreshes only its active toolbar; restored items have no block or icons until updated.
-            store.Toolbar.Update();
+            // Restored items have no block or icons until updated; MyToolbar.Update would also select and activate slots.
+            for(int i=0;i<Slots;i++) store.Toolbar.UpdateItemForIdentity(i,MySession.Static.LocalPlayerId,false);
             ToolbarWheel.Show(View(store.Toolbar,pressed));
         }
         internal static ToolbarWheel.View View(MyToolbar toolbar,int pressed)
