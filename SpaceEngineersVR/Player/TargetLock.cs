@@ -75,6 +75,12 @@ namespace SpaceEngineersVR.Player
             // A grip held on the feed image aims like the cockpit grip, through the image, and its release locks.
             bool feedReleased=feedTap.Update(claimedFeed && grip,released,!claimedFeed,now,double.MaxValue);
             bool feedHeld=feedReleased && aimSince.HasValue && (now-aimSince.Value).TotalSeconds>GripTap.MaxSeconds;
+#if SEVR_DIAGNOSTICS
+            if(released)
+                Logger.Info("WeaponCore lock grip released: aiming "+Aiming+", third person "+ThirdPersonView.Active+" (view grab "+ThirdPersonView.Manipulating+
+                    "), feed "+(RemoteView.Current!=null)+" (on image "+RemoteView.ImageUV.HasValue+", turret "+RemoteView.Turret+", remote grid "+RemoteView.RemoteGrid+
+                    ", claimed "+claimedFeed+", feed release "+feedReleased+"), shooter "+(ShooterGrid()!=null)+", mode "+InputRouter.Mode);
+#endif
             Aiming=aimHeld || feedTap.Holding; aimHeld=false;
             Preview=null; Feedback=null;
             if(Aiming) { if(!aimSince.HasValue) aimSince=now; UpdateAim(hand); }

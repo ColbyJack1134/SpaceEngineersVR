@@ -339,6 +339,11 @@ namespace SpaceEngineersVR.Player.Components
                 !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(action);
             bool secondaryPressed=secondaryAllowed && (stickSecondary.Held || chord || (ship || turret ? gripTap && gripSecondary:grip.IsPressed && gripSecondary) || controls.Fire.IsPressed && GameActions.AlternateTrigger);
             TargetLock.Aim(lockAim && secondaryAllowed && gripSecondary && secondaryTap.Holding);
+#if SEVR_DIAGNOSTICS
+            if(lockAim && grip.HasReleased)
+                Logger.Info("WeaponCore lock grip in seat: release locks "+gripTap+", grip free "+gripSecondary+" (stick held "+CockpitControls.RotationOwned+
+                    ", near stick "+CockpitControls.NearGrip(action)+"), UI owns hand "+uiOwnsAction+", grip+trigger "+chord+", allowed "+secondaryAllowed);
+#endif
             if(controlledEntity is Sandbox.Game.Entities.Character.MyCharacter character && character.CurrentWeapon==null)
                 secondaryPressed=false;
 

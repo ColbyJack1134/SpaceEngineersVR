@@ -47,9 +47,12 @@ namespace SpaceEngineersVR.Player
             public NativeLead.View Lead;
             public View(Marker[] markers,DateTime time) { Markers=markers; Time=time; Generation=generation; }
             private View(Marker[] markers,DateTime time,int capturedGeneration) { Markers=markers; Time=time; Generation=capturedGeneration; }
-            internal View With(Marker[] extra,NativeLead.View lead) =>
-                new View(Markers.Concat(extra).ToArray(),Time,Generation) {Mode=Mode,Reveal=Reveal,Lead=lead};
+            // Live markers join a fresh capture; a stale one is dropped, as Draw would, and the result is stamped now.
+            internal View With(Marker[] extra,NativeLead.View lead,bool stale) =>
+                new View(stale ? extra : Markers.Concat(extra).ToArray(),stale ? DateTime.UtcNow:Time,Generation) {Mode=Mode,Reveal=Reveal,Lead=lead};
         }
+        // Native markers older than this are not drawn: the native HUD stopped capturing (third person, for one).
+        private const double MaxCaptureAge=1;
 
         // WeaponCore markers join the latest native capture on the main thread each frame, so a lock shows even when the
         // native HUD skips its marker draw, and WeaponCore is never read from the parallel HUD draw.
@@ -59,8 +62,10 @@ namespace SpaceEngineersVR.Player
             if(native==null) return null;
             weaponCore.Clear();
             WeaponCoreMarkers.Add(weaponCore);
-            var lead=native.Lead ?? WeaponCoreMarkers.Lead();
-            return weaponCore.Count==0 && lead==native.Lead ? native : native.With(weaponCore.ToArray(),lead);
+            bool stale=(DateTime.UtcNow-native.Time).TotalSeconds>MaxCaptureAge;
+            var lead=(stale ? null:native.Lead) ?? WeaponCoreMarkers.Lead();
+            if(weaponCore.Count==0 && lead==native.Lead) return native;
+            return native.With(weaponCore.ToArray(),lead,stale);
         }
         private static readonly FieldInfo points = AccessTools.Field(typeof(MyHudMarkerRender), "m_pointsOfInterest");
         private static readonly Type point = AccessTools.Inner(typeof(MyHudMarkerRender), "PointOfInterest");
@@ -319,7 +324,7 @@ namespace SpaceEngineersVR.Player
             {
                 if(ShipCrosshair.Enabled(Common.Config,HelmetHud.Visible)) ShipCrosshair.Draw(target,renderCrosshair,renderHead,view,projection,Common.Config.FaceMarkersTowardViewer);
                 if(HelmetHud.Visible) { DamageMarkers.Draw(target,renderHead,view,projection); if(Common.Config.ShowHitMarkers) RemoteCombat.DrawImpact(target,renderHead,view,projection); }
-                if(current!=null && (DateTime.UtcNow-current.Time).TotalSeconds<=1 && markersVisible)
+                if(current!=null && (DateTime.UtcNow-current.Time).TotalSeconds<=MaxCaptureAge && markersVisible)
                 {
                     SignalPainter.Draw(target,layout,signalHead,view,projection,Common.Config.FaceMarkersTowardViewer,signalUp);
                     if(Common.Config.SignalRings) NativeLead.Draw(target,current.Lead,view,projection,signalUp,Common.Config.FaceMarkersTowardViewer);
