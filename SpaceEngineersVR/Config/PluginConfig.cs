@@ -177,6 +177,8 @@ namespace SpaceEngineersVR.Config
         private StickPlacementSetting[] stickPlacements=new StickPlacementSetting[0];
         private CockpitActionSetting[] cockpitActions=new CockpitActionSetting[0];
         public CockpitActionSetting[] CockpitActions { get => cockpitActions; set => SetValue(ref cockpitActions,value ?? new CockpitActionSetting[0]); }
+        private QuickToolbarSetting[] quickToolbars=new QuickToolbarSetting[0];
+        public QuickToolbarSetting[] QuickToolbars { get => quickToolbars; set => SetValue(ref quickToolbars,value ?? new QuickToolbarSetting[0]); }
         private CockpitStateSetting[] cockpitStates=new CockpitStateSetting[0];
         public CockpitStateSetting[] CockpitStates { get => cockpitStates; set => SetValue(ref cockpitStates,value ?? new CockpitStateSetting[0]); }
         private MenuWindowSetting[] menuWindows=new MenuWindowSetting[0];

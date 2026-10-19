@@ -292,11 +292,16 @@ namespace SpaceEngineersVR.Multiplayer
         }
         private static void ClearAnalogToolbar(AnalogToolbar value)
         {
-            if(value.Seat.HasInventory) value.Seat.GetInventory().ContentsChanged-=value.Toolbar.CharacterInventory_OnContentsChanged;
-            DetachGrid(value.Toolbar);
+            Detach(value.Toolbar);
             value.Toolbar.Clear();
         }
         internal static readonly System.Reflection.MethodInfo FatBlockClosed=AccessTools.Method(typeof(MyToolbar),"OnFatBlockClosed");
+        // Undoes the inventory and grid subscriptions MyToolbar.Init adds for its owner.
+        internal static void Detach(MyToolbar toolbar)
+        {
+            if(toolbar?.Owner?.HasInventory==true) toolbar.Owner.GetInventory().ContentsChanged-=toolbar.CharacterInventory_OnContentsChanged;
+            DetachGrid(toolbar);
+        }
         // MyToolbar.Init subscribes to the owner grid's OnFatBlockClosed and never unsubscribes, since vanilla
         // cockpit toolbars live as long as the cockpit. Ours are re-initialized, so release the grid's reference first.
         internal static void DetachGrid(MyToolbar toolbar)

@@ -119,7 +119,11 @@ def generate():
         source(right + "y", "button", {"click": "/actions/common/in/Dampener"}),
         source(left + "view", "button", {"click": "/actions/common/in/Inventory"}),
         source(right + "menu", "button", {"click": "/actions/common/in/Pause"})]
-    frame["description"] = "Bumpers open the wheels; X jetpack, Y dampeners, View inventory, Menu pause."
+    frame["bindings"]["/actions/common"]["sources"] += [
+        source(left + "dpad_" + d.lower(), "button",
+               {"click": "/actions/common/in/QuickSlot" + d, "touch": "/actions/common/in/QuickToolbarTouch"})
+        for d in ("Up", "Left", "Right", "Down")]
+    frame["description"] = "Bumpers open the wheels; X jetpack, Y dampeners, View inventory, Menu pause, D-pad quick toolbar."
     save(frame)
 
     wmr_paths = {left + "x": left + "trackpad", left + "y": left + "trackpad",

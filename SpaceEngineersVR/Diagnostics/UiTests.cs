@@ -1,6 +1,8 @@
 #if SEVR_DIAGNOSTICS
 using System;
 using Sandbox.Game.Gui;
+using Sandbox.Game.Screens.Helpers;
+using VRage.Game;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -166,8 +168,16 @@ namespace SpaceEngineersVR.Diagnostics
                         Enabled=page.Select(c=>c!=null).ToArray(),SubIcons=new string[9],ItemText=new string[9]};
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"wheel-"+fixture.Item1+".png"));
                 }
+                foreach(int pressed in new[] {-1,1})
+                {
+                    var model=QuickToolbar.View(new MyToolbar(MyToolbarType.Character,QuickToolbar.Slots,1),pressed);
+                    model.Labels=new[] {"Welder","Lights","Assign","Rocket launcher"};
+                    model.Icons=new[] {new[] {NativeSprites.Hud("MultiBlockBuilding")},new[] {NativeSprites.Hud("Light")},new[] {GameActions.ConfigureToolbarAction.Icon},new[] {NativeSprites.Hud("Handbrake")}};
+                    Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"quick-toolbar-"+(pressed<0 ? "touch":"pressed")+".png"));
+                }
             }
             log("PASS focused production build planner wheel renders.");
+            log("PASS production quick toolbar wheel renders resting and with a direction pressed.");
         }
         public static void Tablet(string game,string output,Action<string> log)
         {

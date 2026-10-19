@@ -395,6 +395,31 @@
       "name": "/actions/common/in/ToolbarWheel",
       "type": "boolean",
       "requirement": "optional"
+    },
+    {
+      "name": "/actions/common/in/QuickSlotUp",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/common/in/QuickSlotLeft",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/common/in/QuickSlotRight",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/common/in/QuickSlotDown",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/common/in/QuickToolbarTouch",
+      "type": "boolean",
+      "requirement": "optional"
     }
   ],
   "action_sets": [
@@ -464,6 +489,11 @@
       "/actions/common/in/Terminal": "Terminal",
       "/actions/common/in/Inventory": "Inventory (hold: terminal)",
       "/actions/common/in/ToolbarWheel": "Toolbar wheel",
+      "/actions/common/in/QuickSlotUp": "Quick toolbar up (hold: assign)",
+      "/actions/common/in/QuickSlotLeft": "Quick toolbar left (hold: assign)",
+      "/actions/common/in/QuickSlotRight": "Quick toolbar right (hold: assign)",
+      "/actions/common/in/QuickSlotDown": "Quick toolbar down (hold: assign)",
+      "/actions/common/in/QuickToolbarTouch": "Quick toolbar touch",
       "/actions/common/in/ActionsWheel": "Actions wheel",
       "/actions/common/in/ColorSelector": "Color selector",
       "/actions/common/in/ColorPicker": "Color picker",

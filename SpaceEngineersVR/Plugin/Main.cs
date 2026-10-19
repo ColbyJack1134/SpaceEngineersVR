@@ -199,6 +199,7 @@ namespace SpaceEngineersVR.Plugin
                     Player.BuildOrientationHud.Hide();
                     Player.PerformanceHud.Hide();
                     Player.ToolbarWheel.Hide();
+                    Player.QuickToolbar.Reset();
                 }
                 catch (Exception ex) { Logger.Critical(ex, "VR failure cleanup"); }
             }
@@ -378,6 +379,7 @@ namespace SpaceEngineersVR.Plugin
             Player.DampenerTargeting.Update();
             Player.GridSelection.Update();
             Player.ToolbarWheel.Update();
+            Player.QuickToolbar.Update();
             Player.GameActions.RunScheduled();
             Player.CockpitControls.Update();
             Player.PlacementControls.Update();

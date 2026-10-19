@@ -475,11 +475,11 @@ namespace SpaceEngineersVR.Diagnostics
             int index=(phase-100)/2;
             bool menusOnly=!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY"));
             bool setupOnly=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="setup";
-            if(index>=(setupOnly ? 19:menusOnly ? 35:12))
+            if(index>=(setupOnly ? 19:menusOnly ? 36:12))
             {
                 if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions" && (!symmetryPreviewsSaved || !rotationPreviewsSaved))
                     throw new InvalidOperationException("Native gameplay gizmo and placement indicator fixtures were not rendered");
-                options?.CloseScreenNow();options=null;
+                if(options is AssignmentPreview preview) preview.Finish(); else options?.CloseScreenNow();options=null;
                 Stop();
                 Logger.Info(menusOnly ? "PHYSICAL RENDER SMOKE PASSED: native menu checks and gallery only." :
                     "PHYSICAL RENDER SMOKE PASSED: native interface, camera HUD, hand layer, reference cockpit and menu gallery. Rig sweep excluded.");return;
@@ -496,7 +496,7 @@ namespace SpaceEngineersVR.Diagnostics
                 }
                 if(index>=13 && index<=16 && options is GUI.MyPluginConfigDialog settings)
                 { settings.SelectPage(new[] {1,2,4,3}[index-13]);next=DateTime.UtcNow.AddSeconds(2);phase++;return; }
-                options?.CloseScreenNow();
+                if(options is AssignmentPreview preview) preview.Finish(); else options?.CloseScreenNow();
                 options=index<GUI.BindingHelp.TopicCount ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.BindingHelp(index) :
                     index==10 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.HudStateOptions() : new GUI.MyPluginConfigDialog();
                 if(index>=24 && index<29)
@@ -533,12 +533,13 @@ namespace SpaceEngineersVR.Diagnostics
                 if(index==32) options=new GUI.SettingsPage("HUD visibility");
                 if(index==33) options=new GUI.SettingsPage("Signals");
                 if(index==34) options=new GUI.SettingsPage("Advanced controls");
+                if(index==35) options=new AssignmentPreview(quickToolbar:true);
                 Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);next=DateTime.UtcNow.AddSeconds(2);
             }
             else
             {
                 if(index>=24 && index<29 && options is GUI.BindingHelp scrolled) scrolled.ScrollTo(index==25 ? .45f:1);
-                string name=index==34 ? "settings-advanced-native":index==33 ? "settings-signals-native":index==32 ? "settings-hud-visibility-native":index==31 ? "settings-turning-native":index==30 ? "settings-character-native":index==29 ? "hand-alignment-native":index>=24 ? "guide-scrolled-"+index:index==9 ? "guide-common-bottom":index==22 ? "actions-recent-native":index==23 ? "actions-filtered-native":index<12 ? "menu-gallery-"+index : index<20 ? "settings-native-"+(index+25) : index==20 ? "main-vr-options":"pause-vr-options";
+                string name=index==35 ? "quick-toolbar-assignment-native":index==34 ? "settings-advanced-native":index==33 ? "settings-signals-native":index==32 ? "settings-hud-visibility-native":index==31 ? "settings-turning-native":index==30 ? "settings-character-native":index==29 ? "hand-alignment-native":index>=24 ? "guide-scrolled-"+index:index==9 ? "guide-common-bottom":index==22 ? "actions-recent-native":index==23 ? "actions-filtered-native":index<12 ? "menu-gallery-"+index : index<20 ? "settings-native-"+(index+25) : index==20 ? "main-vr-options":"pause-vr-options";
                 MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,name+".png"),false,false,false);
                 next=DateTime.UtcNow.AddSeconds(1);
             }

@@ -190,6 +190,19 @@ namespace SpaceEngineersVR.Diagnostics
             }
             log("PASS radial hotbar assignment: native Character/Ship toolbars, current-page empty slots, occupied/disabled override without activation or removal, neutral cancel and ordinary activation.");
 
+            var onFoot=QuickToolbar.Store.Create(MyToolbarType.Character);
+            Require(Enumerable.Range(0,QuickToolbar.Slots).All(i=>onFoot.GetItemAtIndex(i)==null),"On-foot quick toolbar kept the game's default blocks");
+            var quickSlots=QuickToolbar.Store.Create(MyToolbarType.Ship);
+            quickSlots.SetItemAtIndex(2,MyToolbarItemFactory.CreateToolbarItem(new MyObjectBuilder_ToolbarItemTerminalBlock {BlockEntityId=987654321,_Action="OnOff"}));
+            var stored=Multiplayer.CockpitMemory.Toolbar(QuickToolbar.Store.Serialize(quickSlots));
+            Require(stored?.Slots?.Count==1 && stored.Slots[0].Index==2 && stored.Slots[0].Data is MyObjectBuilder_ToolbarItemTerminalBlock quickBlock && quickBlock.BlockEntityId==987654321 &&
+                quickBlock._Action=="OnOff" && stored.ToolbarType==MyToolbarType.Ship,"Quick toolbar slots did not round-trip through their stored XML");
+            var quickItem=new Item();
+            Require(QuickToolbar.Tap(null)==QuickToolbar.Result.Assign && QuickToolbar.Tap(quickItem)==QuickToolbar.Result.Activated,"Quick toolbar tap result");
+            quickItem.SetEnabled(false);
+            Require(QuickToolbar.Tap(quickItem)==QuickToolbar.Result.Unavailable,"Disabled quick toolbar item was not reported unavailable");
+            log("PASS quick toolbar: on-foot slots start empty, slots round-trip through stored XML with their type and action, empty taps assign, disabled items refuse.");
+
             var actions=new MyToolbar(MyToolbarType.ButtonPanel,4,1);
             Require(ToolbarWheel.Slots(actions)==4,"Toolbars without a native holster slot gained a wheel sector");
             var push=new Item(); var on=new Item(); var off=new Item();

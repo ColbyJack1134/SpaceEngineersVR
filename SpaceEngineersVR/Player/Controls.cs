@@ -24,6 +24,9 @@ namespace SpaceEngineersVR.Player
         public Button Options;
         public readonly Button MenuKeyboardFallback;
         public readonly Button QuickMenu,ActionsWheel,ToolbarWheel;
+        public readonly Button QuickSlotUp,QuickSlotRight,QuickSlotDown,QuickSlotLeft,QuickToolbarTouch;
+        // Clockwise from up, matching the wheel's sectors.
+        internal readonly Button[] QuickSlots;
         public readonly Analog MenuNavigate;
         public readonly Analog MenuPage;
         public readonly Button WheelNextPage, WheelPreviousPage;
@@ -140,6 +143,9 @@ namespace SpaceEngineersVR.Player
             QuickMenu = new Button("/actions/common/in/QuickMenu");
             ActionsWheel = new Button("/actions/common/in/ActionsWheel");
             ToolbarWheel = new Button("/actions/common/in/ToolbarWheel");
+            QuickSlots=new[] {QuickSlotUp=new Button("/actions/common/in/QuickSlotUp"),QuickSlotRight=new Button("/actions/common/in/QuickSlotRight"),
+                QuickSlotDown=new Button("/actions/common/in/QuickSlotDown"),QuickSlotLeft=new Button("/actions/common/in/QuickSlotLeft")};
+            QuickToolbarTouch=new Button("/actions/common/in/QuickToolbarTouch");
             MenuKeyboardFallback = new Button("/actions/menu/in/KeyboardFallback");
             MenuNavigate = new Analog("/actions/menu/in/Navigate");
             MenuPage = new Analog("/actions/menu/in/Page");
