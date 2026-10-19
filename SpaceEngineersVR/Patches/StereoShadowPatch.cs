@@ -100,6 +100,17 @@ namespace SpaceEngineersVR.Patches
     }
 
     [HarmonyPatch]
+    internal static class FeedShadowFramePatch
+    {
+        private static MethodBase TargetMethod() => AccessTools.Method(AccessTools.TypeByName("VRageRender.MyShadowCascades"),"PrepareQueries");
+        private static void Prefix(object __instance,ref long? __state)
+        {
+            if(__instance!=null && ReferenceEquals(__instance,FeedShadows.Instance)) __state=FeedShadows.BeginFrame();
+        }
+        private static void Finalizer(long? __state) { if(__state.HasValue) FeedShadows.EndFrame(__state.Value); }
+    }
+
+    [HarmonyPatch]
     internal static class StereoShadowStatsPatch
     {
         private static MethodBase TargetMethod() => AccessTools.Method(AccessTools.TypeByName("VRageRender.MyShadowCascades"),"Gather");

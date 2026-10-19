@@ -21,7 +21,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Render(RemoteView.View view)
         {
-            if(view==null) { image.Dispose(); source=0; return; }
+            if(view==null) { image.Dispose(); source=0; FeedShadows.Release(); return; }
             // Refresh every second headset frame; a new camera renders immediately.
             if(source==view.Source && (skip=!skip)) return;
             source=0;
@@ -51,7 +51,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Reset()
         {
-            image.Dispose(); source=0; skip=false;
+            image.Dispose(); source=0; skip=false; FeedShadows.Release();
             WindowFrame.Reset("Remote"); RemoteExposure.Reset();
         }
         internal static void Paint(OverlayCanvas canvas,RemoteView.View view) => WindowFrame.Paint(canvas,

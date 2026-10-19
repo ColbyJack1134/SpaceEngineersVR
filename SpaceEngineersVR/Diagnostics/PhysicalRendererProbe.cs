@@ -621,7 +621,20 @@ namespace SpaceEngineersVR.Diagnostics
                         Logger.Info("PASS native camera HUD allowlist: "+RemoteHud.SpriteCount+" camera/crosshair/hit sprites; options screen excluded");
                         var remote=new RemoteView.View { Source=123,Width=1.2f,Height=.675f,
                             Pose=MatrixD.CreateTranslation(0,0,-1.5)*MatrixD.Invert(camera.ViewMatrix) };
+                        var eyeCascades=FeedShadows.Eyes;
+                        var arrays=new[] {"CascadeShadowmapArray","CascadeShadowmapArrayOld"}.Select(name=>AccessTools.Property(eyeCascades?.GetType(),name)).ToArray();
+                        var eyeArrays=eyeCascades==null ? null:arrays.Select(p=>p.GetValue(eyeCascades,null)).ToArray();
                         RemoteFeed.Render(remote);
+                        if(eyeCascades!=null)
+                        {
+                            if(!ReferenceEquals(FeedShadows.Eyes,eyeCascades) || !arrays.Select(p=>p.GetValue(eyeCascades,null)).SequenceEqual(eyeArrays))
+                                throw new InvalidOperationException("Camera feed changed the eyes' shadow cascades");
+                            if(FeedShadows.Instance==null || ReferenceEquals(FeedShadows.Instance,eyeCascades)) throw new InvalidOperationException("Camera feed did not use its own shadow cascades");
+                            var resolution=AccessTools.Property(eyeCascades.GetType(),"CascadeResolution");
+                            object feedSize=resolution.GetValue(FeedShadows.Instance,null),eyeSize=resolution.GetValue(eyeCascades,null);
+                            if(!Equals(feedSize,eyeSize)) throw new InvalidOperationException("Feed shadow cascades are "+feedSize+" px; the engine renders them at "+eyeSize);
+                            Logger.Info("PASS native feed shadows: own cascade set at the eyes' "+feedSize+" px, eyes' cascade instance and depth arrays unchanged");
+                        }
                         // Restore the physical view's depth after rendering the camera feed.
                         object extra=null;
                         try { Wrappers.MyRender11.DrawGameScene(target,out extra); }
@@ -629,6 +642,7 @@ namespace SpaceEngineersVR.Diagnostics
                         RemoteFeed.Draw(physicalTarget,remote,camera.ViewMatrix,Wrappers.MyRender11.Environment_Matrices.Projection);
                         UiTests.Save(physicalTarget,Path.Combine(output,"remote-feed-native.png"));
                         RemoteFeed.Reset();
+                        if(FeedShadows.Instance!=null) throw new InvalidOperationException("Feed shadow cascades survived the feed reset");
                         int retained=RemoteHud.SpriteCount;
                         for(int i=0;i<120;i++) RemoteHud.CollectFrame(int.MinValue+i,remote,new Vector2(size.X,size.Y));
                         if(RemoteHud.SpriteCount!=retained) throw new InvalidOperationException("Camera-only frames cleared the native HUD");
