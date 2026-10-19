@@ -49,6 +49,7 @@ namespace SpaceEngineersVR.Diagnostics
             WindowFocusTests.Run(log);
             StandingMeasurementTests.Run(log);
             MultiplayerTests.Run(log);
+            GrabTests.Run(log);
             var cameraMessageA = new object(); var cameraMessageB = new object();
             var frameA = new CameraRig.Frame(MatrixD.CreateTranslation(100, 0, 0), Matrix.Identity);
             var frameB = new CameraRig.Frame(MatrixD.CreateTranslation(101, 0, 0), Matrix.CreateTranslation(0.1f, 0, 0));
@@ -115,6 +116,8 @@ namespace SpaceEngineersVR.Diagnostics
             LocomotionInputTests.Run(log);
             DriveInputTests.Run(log);
             InteractionRayTests.Run(log);
+            ModApiTests.Run(log);
+            PbFeedTests.Run(log);
             PointerIntentTests.Run(log);
             StereoStateTests.Run(log);
             AlignmentTests.Run(log);
@@ -136,6 +139,8 @@ namespace SpaceEngineersVR.Diagnostics
             StereoSceneTests.Run(log);
             PerformanceTests.Run(log);
             GameplayFeatureTests.Run(log);
+            HoloSightTests.Run(log);
+            WindowPlacementTests.Run(log);
             PlacementTests.Run(log);
             VoxelToolTests.Run(log);
             StickPlacementTests.Run(log);

@@ -15,14 +15,10 @@ namespace SpaceEngineersVR.Player
         // Zero really means empty; notifications do not temporarily resurrect the HUD.
         public static int Mode => Common.Config.WaypointMode;
         public static bool VisorClosed { get; private set; }
-        public static bool Visible
-        {
-            get
-            {
-                var current=transition;
-                return Common.Config.HudWithVisorOpen || (VisorClosed && (current==null || !current.Closing || Elapsed(current)>=Duration));
-            }
-        }
+        internal static float HudAlpha => Common.Config.HudWithVisorOpen ? 1:VisorClosure;
+        public static bool Visible => HudAlpha>0;
+        // 0 open to 1 closed along the visor animation; the HUD and the dirt texture follow it.
+        internal static float VisorClosure { get { var current=transition; return current==null ? (VisorClosed ? 1:0):Closure(Elapsed(current),current.Closing); } }
         public static bool Markers => Visible && Mode >= 1;
         public static bool Names => Visible && Mode == 2;
         internal static bool Reveal { get; private set; }
@@ -30,7 +26,7 @@ namespace SpaceEngineersVR.Player
         private static float ownRange=-1,friendlyRange=-1,otherRange=-1;
         private static readonly InputGate leftTrigger=new InputGate(),leftGrip=new InputGate();
         private static readonly VisorGesture visorGesture=new VisorGesture();
-        private static readonly HeadGesture rightGesture=new HeadGesture();
+        private static readonly HeadGesture rightGesture=new HeadGesture(),leftZone=new HeadGesture();
         internal static bool ProtectsRight { get; private set; }
         internal static bool ProtectsFire { get; private set; }
         internal static bool ViewGestureHeld { get; private set; }
@@ -87,14 +83,19 @@ namespace SpaceEngineersVR.Player
             float leftPressure=c.LeftTriggerPressure.RawPosition.X;
             if(leftPressure<=.025f) leftConsumed=false;
             if(c.PointerPressure.RawPosition.X<=.025f && !c.Primary.RawPressed) rightConsumed=false;
-            bool rifle=character?.CurrentWeapon is Sandbox.Game.Weapons.MyAutomaticRifleGun;
-            bool rightGun=rifle && !Handedness.Swapped,leftGun=rifle && Handedness.Swapped;
+            // Rifles and block tools fire or place with the trigger, so the HUD gesture must not catch a hand working near the face.
+            bool triggerTool=character?.CurrentWeapon is Sandbox.Game.Weapons.MyAutomaticRifleGun || PlacementControls.OwnsTools;
+            bool rightGun=triggerTool && !Handedness.Swapped,leftGun=triggerTool && Handedness.Swapped;
             if(rightGun) rightConsumed=false;
             if(leftGun) leftConsumed=false;
             bool active=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && !SpectatorView.Manipulating && Player.Headset.pose.isTracked;
             bool guard=InputRouter.Gameplay && !Main.MenuOpen && Player.Headset.pose.isTracked;
             rightGesture.Update(active && Player.HandR.pose.isTracked && c.Primary.Active,
                 Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,c.Primary.RawPressed,triggerAllowed:!rightGun);
+            leftZone.Update(active && Player.HandL.pose.isTracked,Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,false,left:true);
+            // Hands holding an item stay quiet so aiming does not tick.
+            if(rightGesture.Entered && !WeaponHandling.Holding(Player.HandR) && !SpatialUi.WristHovered) Player.HandR.Vibrate(0,.015f,80,.12f);
+            if(leftZone.Entered && !WeaponHandling.Holding(Player.HandL) && !CockpitControls.Held(Player.HandL)) Player.HandL.Vibrate(0,.015f,80,.12f);
             bool nearLeft=guard && Player.HandL.pose.isTracked && NearHead(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix);
             bool nearRight=guard && Player.HandR.pose.isTracked && (rightGesture.Inside || NearHead(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix));
             Reveal=active && Markers && (Mode==2 || (nearLeft && !leftGun || nearRight && !rightGun) && DateTime.UtcNow>=revealPauseUntil);
@@ -132,7 +133,8 @@ namespace SpaceEngineersVR.Player
                 c.ThrustForward.BlockUntilRelease(); c.JumpOrClimbUp.BlockUntilRelease();
             }
             if(!active || !Player.HandR.pose.isTracked || !rightGesture.Inside) return;
-            if (!rightGun && rightGesture.Pressed && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandR))
+            // A press on the wrist tablet near the face belongs to the tablet.
+            if (!rightGun && rightGesture.Pressed && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandR) && !SpatialUi.WristHovered)
             {
                 Common.Config.CycleHud();
                 revealPauseUntil=DateTime.UtcNow.AddSeconds(RevealPause);
@@ -140,7 +142,7 @@ namespace SpaceEngineersVR.Player
                 c.Primary.BlockUntilRelease();
                 Player.HandR.Vibrate(0,0.035f,130,0.35f);
             }
-            if (visorPressed)
+            if (visorPressed && !SpatialUi.WristHovered)
             {
                 GameActions.HelmetAction.Run();
                 c.BlockGripRoles(Player.HandR);

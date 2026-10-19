@@ -213,7 +213,7 @@ namespace SpaceEngineersVR.Player
             if(consumed)
             {
                 c.Primary.BlockUntilRelease(); c.Secondary.BlockUntilRelease(); c.ThrustUp.BlockUntilRelease(); c.ThrustDown.BlockUntilRelease();
-                c.CrouchOrClimbDown.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); c.ThrustLRFB.BlockUntilRelease();
+                c.Sprint.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); c.ThrustLRFB.BlockUntilRelease();
                 c.ThrustLRUD.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease(); c.ThrustForward.BlockUntilRelease(); c.ThrustBackward.BlockUntilRelease();
             }
             Publish();

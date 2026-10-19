@@ -21,12 +21,17 @@ namespace SpaceEngineersVR.Player
             public readonly float GripLift,GripInset;
             // Scales the stick finger curl (thumb, index, middle, ring, little) where the default hand clips this grip's mesh.
             public readonly float[] Curl;
-            public Stick(Vector3 contact,Vector3 pivot,Vector3 shaft,int actor,int baseActor,float gripPitch=0,float gripLift=0,float gripInset=0,Vector3? gripShaft=null,float[] curl=null)
+            internal readonly Stick Source;
+            public Stick(Vector3 contact,Vector3 pivot,Vector3 shaft,int actor,int baseActor,float gripPitch=0,float gripLift=0,float gripInset=0,Vector3? gripShaft=null,float[] curl=null,Stick source=null)
             {
-                Contact=contact; Pivot=pivot; Shaft=Vector3.Normalize(shaft); Actor=actor; BaseActor=baseActor; this.gripPitch=gripPitch; GripLift=gripLift; GripInset=gripInset; Curl=curl;
+                Contact=contact; Pivot=pivot; Shaft=Vector3.Normalize(shaft); Actor=actor; BaseActor=baseActor; this.gripPitch=gripPitch; GripLift=gripLift; GripInset=gripInset; Curl=curl; Source=source;
                 this.gripShaft=Vector3.Normalize(gripShaft ?? Shaft);
                 Frame=CockpitStickMath.ShaftFrame(Shaft);
             }
+            internal Stick Mirror(Vector3 pivot,int actor,int baseActor) =>
+                new Stick(pivot+Flip(Contact-Pivot),pivot,Flip(Shaft),actor,baseActor,gripPitch,GripLift,GripInset,Flip(gripShaft),Curl,this);
+            internal Matrix MirrorTransform => Matrix.CreateScale(-1,1,1)*Matrix.CreateTranslation(Pivot-Flip(Source.Pivot));
+            private static Vector3 Flip(Vector3 v) => new Vector3(-v.X,v.Y,v.Z);
             internal Matrix Visual(Vector3 axes) => CockpitStickMath.Visual(Pivot,axes,Frame);
             public Matrix Palm(bool left) => CockpitStickMath.RaiseGrip(
                 CockpitStickMath.GripPalm(left,Contact,gripShaft)*CockpitStickMath.Around(Contact,Matrix.CreateRotationX(gripPitch)),gripShaft,GripLift,GripInset);
@@ -254,7 +259,7 @@ namespace SpaceEngineersVR.Player
         public readonly int[] StaticActors;
         private CockpitGeometry geometry;
         private CockpitRig(string subtype,string model,string geometryModel,Vector3 panel,Vector3 normal,Stick left,Stick right,Piece[] pieces,Lever[] levers,Handle[] handles=null,
-            Button[] buttons=null,Bar[] bars=null,Screen[] screens=null,bool packedCovers=false,Steering steering=null,Vector3 defaultSeatOffset=default(Vector3))
+            Button[] buttons=null,Bar[] bars=null,Screen[] screens=null,bool packedCovers=false,Steering steering=null,Vector3 defaultSeatOffset=default(Vector3),Vector3? mirrorRight=null,Vector3? mirrorLeft=null)
         {
             Subtype=subtype; Model=model; this.geometryModel=geometryModel; Left=left; Right=right; Pieces=pieces; Wheel=steering; DefaultSeatOffset=defaultSeatOffset;
             Buttons=buttons ?? new Button[0]; Levers=levers; Handles=handles ?? new Handle[0]; Bars=bars ?? new Bar[0];
@@ -263,6 +268,9 @@ namespace SpaceEngineersVR.Player
             SeatMount=MatrixD.CreateWorld(panel,-normal,up);
             ActorCount=pieces.Length==0 ? 0 : pieces.Max(p=>Math.Max(p.Actor,p.StaticActor))+1;
             if(Buttons.Any(b=>b.TemplateActor>=0)) ActorCount=Math.Max(ActorCount,Buttons.Max(b=>b.Actor)+1);
+            // A seat with one stick gets a floating mirrored copy as its other stick, from the same installed mesh.
+            if(mirrorRight.HasValue && left!=null && right==null) { Right=left.Mirror(mirrorRight.Value,ActorCount,ActorCount+1); ActorCount+=2; }
+            if(mirrorLeft.HasValue && right!=null && left==null) { Left=right.Mirror(mirrorLeft.Value,ActorCount,ActorCount+1); ActorCount+=2; }
             StaticActors=pieces.Select(p=>p.StaticActor).Distinct().ToArray();
             // Saved Fighter cover states predate slot-indexed storage and number covers consecutively.
             coverIndices=new int[Count];
@@ -335,6 +343,11 @@ namespace SpaceEngineersVR.Player
                         actors[button.Actor].Sections[i]=section;
                     }
             }
+            foreach(var stick in new[] {Left,Right}.Where(s=>s?.Source!=null))
+            {
+                AppendTransformed(actors[stick.Actor],actors[stick.Source.Actor],stick.MirrorTransform);
+                AppendTransformed(actors[stick.BaseActor],actors[stick.Source.BaseActor],stick.MirrorTransform);
+            }
             if(actors.Skip(1).Any(a=>a.Indices.Count==0)) throw new InvalidDataException("Cockpit rig has an empty actor: "+Subtype);
             // Native runtime meshes use 16-bit indices.
             if(actors.Any(a=>a.Positions.Count>ushort.MaxValue+1)) throw new InvalidDataException("Cockpit actor exceeds native index range: "+Subtype);
@@ -356,8 +369,11 @@ namespace SpaceEngineersVR.Player
         }
         private static void AppendTransformed(MyModelData target,MyModelData source,Matrix transform)
         {
-            int first=target.Positions.Count;
+            int first=target.Positions.Count,firstIndex=target.Indices.Count;
             Append(target,source);
+            // A mirroring transform turns the triangles inside out unless their winding is reversed.
+            if(transform.Determinant()<0)
+                for(int i=firstIndex;i<target.Indices.Count;i+=3) { int swap=target.Indices[i+1]; target.Indices[i+1]=target.Indices[i+2]; target.Indices[i+2]=swap; }
             for(int i=0;i<source.Positions.Count;i++)
             {
                 target.Positions[first+i]=Vector3.Transform(source.Positions[i],transform);

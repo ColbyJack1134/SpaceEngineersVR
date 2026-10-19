@@ -46,6 +46,8 @@ namespace SpaceEngineersVR.Patches
         private static int hostAimFrame;
         internal static Vector3D? HostAim => MySession.Static!=null && MySession.Static.GameplayFrameCounter-hostAimFrame<=2 ? hostAim:null;
         private const double ConvergeRange=300;
+        // Vanilla zeroes the crosshair on a hit within min(MaximumShotLength,100 m) and otherwise aims 25 km out.
+        private const float SightRange=100,SightFallback=25000;
 
         internal static bool TryAim(MyCharacter character,out MatrixD hand,out Vector3D muzzle,out Vector3D direction)
         {
@@ -58,6 +60,14 @@ namespace SpaceEngineersVR.Patches
             }
             var profile=Multiplayer.HeldItemPose.Profile(character);
             direction=profile==null ? hand.Forward:Vector3D.TransformNormal(profile.Direction,hand);
+            if(profile?.Sight!=null && character.ZoomMode==MyZoomModeEnum.IronSight)
+            {
+                var sight=Vector3D.Transform(profile.Sight.Value,hand); var line=Vector3D.Normalize(Vector3D.TransformNormal(profile.SightDirection,hand));
+                float zeroRange=Math.Min(character.CurrentWeapon?.MaximumShotLength ?? SightRange,SightRange);
+                direction=SightAim(muzzle,line,sight,start=> {
+                    float hit=HandInteraction.ObstacleDistance(MatrixD.CreateWorld(start,line,Vector3D.CalculatePerpendicularVector(line)),zeroRange);
+                    return hit<zeroRange ? hit:SightFallback; });
+            }
             if(profile?.Tool==true && Multiplayer.HeldItemPose.TryToolRay(character,out var ray))
             { muzzle=ray.Translation; direction=ray.Forward; }
             return true;
@@ -88,6 +98,14 @@ namespace SpaceEngineersVR.Patches
             catch(Exception ex) { disabled=true; hostAim=null; Logger.Warning(ex,"Motion tool override disabled; default aiming retained"); }
         }
 
+        // The sight line is sampled from the muzzle plane so the gun's own front sight cannot block the ray.
+        internal static Vector3D SightAim(Vector3D muzzle,Vector3D direction,Vector3D sight,Func<Vector3D,float> reach)
+        {
+            var start=sight+direction*Vector3D.Dot(muzzle-sight,direction);
+            var target=start+direction*Math.Max(.05f,reach(start));
+            var aim=target-muzzle;
+            return aim.LengthSquared()>1e-6 ? Vector3D.Normalize(aim):direction;
+        }
         private static Vector3D? Converge(MyCharacter character,Vector3D origin,Vector3D muzzle,Vector3D direction)
         {
             var profile=Multiplayer.HeldItemPose.Profile(character);

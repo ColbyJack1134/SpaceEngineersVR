@@ -27,6 +27,8 @@ namespace SpaceEngineersVR.GUI
         private readonly int count,selected;
         private readonly bool switches;
         private readonly CockpitAssignmentLayout layout;
+        private readonly string title;
+        private readonly bool holster;
         private MyGuiControlToolbar toolbar;
         private MyGuiControlGrid sourceGrid;
         private MyGuiControlGridDragAndDrop drag;
@@ -45,8 +47,8 @@ namespace SpaceEngineersVR.GUI
                 if(__result==null && slotIndex>=0) __result=new StringBuilder((slotIndex+1).ToString());
             }
         }
-        public CockpitAssignment(MyGuiScreenToolbarConfigBase screen,MyToolbar target,MyToolbar source,int count,int selected,bool switches=true,CockpitAssignmentLayout layout=null)
-        { this.screen=screen; this.target=target; this.source=source; this.count=count; this.selected=selected; this.switches=switches; this.layout=layout; sourcePage=source?.CurrentPage ?? 0; current=this; screen.Closed+=Closed; }
+        public CockpitAssignment(MyGuiScreenToolbarConfigBase screen,MyToolbar target,MyToolbar source,int count,int selected,bool switches=true,CockpitAssignmentLayout layout=null,string title=null,bool holster=true)
+        { this.screen=screen; this.target=target; this.source=source; this.count=count; this.selected=selected; this.switches=switches; this.layout=layout; this.title=title; this.holster=holster; sourcePage=source?.CurrentPage ?? 0; current=this; screen.Closed+=Closed; }
         private int Control(int index) => layout!=null ? layout.Control(index):index>=0 && index<count ? index:-1;
         internal static void Update(MyGuiScreenToolbarConfigBase screen)
         { if(current?.screen==screen) current.Update(); }
@@ -66,12 +68,13 @@ namespace SpaceEngineersVR.GUI
                 foreach(var page in (System.Collections.Generic.List<MyGuiControlLabel>)AccessTools.Field(typeof(MyGuiControlToolbar),"m_pageLabelList").GetValue(toolbar)) page.Visible=false;
             var label=screen.Controls.GetControlByName("LabelToolbar") as MyGuiControlLabel;
             int first=target.CurrentPage*target.SlotCount;
-            if(label!=null) { label.Text=layout!=null ? layout.Pages[target.CurrentPage].Name+" · "+(target.CurrentPage+1)+" / "+target.PageCount : switches ? (selected>=first && selected<first+target.SlotCount ? "Switch "+(selected+1)+" · " : "Switches ")+ (first+1)+"–"+Math.Min(first+target.SlotCount,count) :
-                    (selected>=first && selected<first+target.SlotCount ? "Assign slot "+(selected-first+1)+" · " : "Toolbar · ")+"Page "+(target.CurrentPage+1)+" / "+target.PageCount;
+            if(label!=null) { label.Text=title ?? (layout!=null ? layout.Pages[target.CurrentPage].Name+" · "+(target.CurrentPage+1)+" / "+target.PageCount : switches ? (selected>=first && selected<first+target.SlotCount ? "Switch "+(selected+1)+" · " : "Switches ")+ (first+1)+"–"+Math.Min(first+target.SlotCount,count) :
+                    (selected>=first && selected<first+target.SlotCount ? "Assign slot "+(selected-first+1)+" · " : "Toolbar · ")+"Page "+(target.CurrentPage+1)+" / "+target.PageCount);
                 label.TextScale=.65f;
                 label.Position=toolbar.ToolbarGrid.GetPositionAbsoluteTopLeft()-screen.GetPosition()-new Vector2(0,.017f);
                 label.OriginAlign=MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER; }
             if(layout!=null) toolbar.ToolbarGrid.MaxItemCount=layout.Pages[target.CurrentPage].Controls.Length;
+            else if(!holster) toolbar.ToolbarGrid.MaxItemCount=target.SlotCount;
             if(selected>=0) toolbar.ToolbarGrid.SelectedIndex=selected>=first && selected<first+target.SlotCount ? (int?)(selected-first) : null;
             for(int i=0;i<target.SlotCount;i++)
                 if(Control(first+i)<0)
@@ -138,12 +141,12 @@ namespace SpaceEngineersVR.GUI
         }
         private void FillSource()
         {
-            sourceLabel.Text="Ship toolbar "+(sourcePage+1)+" · drag to assign";
+            sourceLabel.Text=(source.ToolbarType==MyToolbarType.Character ? "Toolbar ":"Ship toolbar ")+(sourcePage+1)+" · drag to assign";
             for(int i=0;i<source.SlotCount;i++)
             {
                 var item=source.GetItemAtIndex(sourcePage*source.SlotCount+i);
                 sourceGrid.SetItemAt(i,item==null ? null : new MyGuiGridItem(item.Icons,item.SubIcon,item.DisplayName.ToString(),item) {
-                    Enabled=item.AllowedInToolbarType(MyToolbarType.ButtonPanel) });
+                    Enabled=item.AllowedInToolbarType(target.ToolbarType) });
             }
         }
         private void DragSource(MyGuiControlGrid sender,MyGuiControlGrid.EventArgs args)
@@ -254,7 +257,7 @@ namespace SpaceEngineersVR.GUI
             if(c.sourceGrid==null) return false;
             if(args.DropTo?.Grid==c.sourceGrid) return true;
             if(args.DragFrom?.Grid!=c.sourceGrid) return false;
-            if(target && index>=0 && args.Item.UserData is MyToolbarItem item && item.AllowedInToolbarType(MyToolbarType.ButtonPanel))
+            if(target && index>=0 && args.Item.UserData is MyToolbarItem item && item.AllowedInToolbarType(c.target.ToolbarType))
             {
                 var data=item.GetObjectBuilder();
                 var copy=data==null ? null:MyToolbarItemFactory.CreateToolbarItem(data);

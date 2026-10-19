@@ -12,6 +12,8 @@ Read Common Controls once, then find your state.
 - [Other](#other)
 
 <a name="start"></a>
+## Common Controls
+
 ![Common Controls](SpaceEngineersVR/Assets/Guide/start.png)
 
 
@@ -25,6 +27,8 @@ Read Common Controls once, then find your state.
 
 
 <a name="foot"></a>
+## On Foot & Tools
+
 ![On Foot & Tools](SpaceEngineersVR/Assets/Guide/foot.png)
 
 
@@ -32,10 +36,14 @@ Read Common Controls once, then find your state.
 
 
 <a name="jetpack"></a>
+## Jetpack
+
 ![Jetpack](SpaceEngineersVR/Assets/Guide/jetpack.png)
 
 
 <a name="cockpit"></a>
+## Flight & Driving
+
 ![Flight & Driving](SpaceEngineersVR/Assets/Guide/cockpit.png)
 
 
@@ -43,6 +51,8 @@ Read Common Controls once, then find your state.
 
 
 <a name="cockpit-controls"></a>
+## Cockpit Interaction
+
 ![Cockpit Interaction](SpaceEngineersVR/Assets/Guide/cockpit-controls.png)
 
 
@@ -50,6 +60,8 @@ Read Common Controls once, then find your state.
 
 
 <a name="building"></a>
+## Building
+
 ![Building](SpaceEngineersVR/Assets/Guide/building.png)
 
 
@@ -57,10 +69,14 @@ Read Common Controls once, then find your state.
 
 
 <a name="view"></a>
+## 3rd Person
+
 ![3rd Person](SpaceEngineersVR/Assets/Guide/view.png)
 
 
 <a name="menus"></a>
+## Floating Menus
+
 ![Floating Menus](SpaceEngineersVR/Assets/Guide/menus.png)
 
 

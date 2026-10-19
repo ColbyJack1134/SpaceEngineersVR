@@ -46,6 +46,19 @@ namespace SpaceEngineersVR.Multiplayer
         internal const float EndZone=.02f;
         internal static float FromLever(float position) => MathHelper.Clamp((position-EndZone)/(1-2*EndZone),0,1);
         internal static float ToLever(float fraction) => fraction<=0 ? 0 : fraction>=1 ? 1 : EndZone+fraction*(1-2*EndZone);
+        // Levers report in 0.1% steps, so a still hand sends nothing and the host skips values a block already holds.
+        internal const float LeverStep=.001f;
+        internal static float Quantize(float position) => (float)Math.Round(position/LeverStep)*LeverStep;
+        // Ranges that cross zero get a notch there: the lever snaps inside this band and the block receives an exact zero.
+        internal const float DetentZone=.04f;
+        internal static float? DetentPosition(float min,float max,float? normalizedZero=null)
+        {
+            if(!Finite(min) || !Finite(max) || min>=0 || max<=0) return null;
+            float n=normalizedZero ?? -min/(max-min);
+            return Finite(n) ? ToLever(MathHelper.Clamp(n,0,1)):(float?)null;
+        }
+        internal static bool InDetent(float position,float? detent) => detent.HasValue && Math.Abs(position-detent.Value)<=DetentZone;
+        internal static float Snap(float position,float? detent) => InDetent(position,detent) ? detent.Value:position;
         internal sealed class Channel
         {
             internal Block Block;
@@ -69,9 +82,20 @@ namespace SpaceEngineersVR.Multiplayer
             }
             internal float Actual => Type==Kind.Piston ? ((IMyPistonBase)Block).CurrentPosition :
                 Type==Kind.Rotor ? ((IMyMotorStator)Block).Angle : Type==Kind.Thrust ? ((IMyThrust)Block).ThrustOverridePercentage : Property.GetValue(Block);
+            internal float? Detent
+            {
+                get
+                {
+                    if(Type==Kind.Thrust || Type==Kind.Piston || !Range(out float min,out float max) || min>=0 || max<=0) return null;
+                    float? zero=null;
+                    if(Type==Kind.Slider && Normalize!=null) { float n=(float)Normalize.DynamicInvoke(Block,0f); if(!Finite(n)) return null; zero=n; }
+                    return DetentPosition(min,max,zero);
+                }
+            }
             internal float Value(float position)
             {
                 if(!Range(out float min,out float max)) return Actual;
+                if(InDetent(position,Detent)) return 0;
                 position=FromLever(position);
                 return Type==Kind.Slider && Denormalize!=null ? (float)Denormalize.DynamicInvoke(Block,position) : MathHelper.Lerp(min,max,position);
             }
@@ -189,9 +213,13 @@ namespace SpaceEngineersVR.Multiplayer
                     // Respect sliders the terminal disables, such as jump distance while a GPS target is selected.
                     if(channel.Property is IMyTerminalControl control && control.Enabled?.Invoke((Sandbox.ModAPI.IMyTerminalBlock)channel.Block)==false) continue;
                     if(channel.Property.Id=="Velocity") motions.Remove(channel.Block.EntityId);
-                    channel.Property.SetValue(channel.Block,value);
+                    if(Math.Abs(channel.Property.GetValue(channel.Block)-value)>LeverStep*.1f) channel.Property.SetValue(channel.Block,value);
                 }
-                else if(channel.Type==Kind.Thrust) ((IMyThrust)channel.Block).ThrustOverridePercentage=value;
+                else if(channel.Type==Kind.Thrust)
+                {
+                    var thrust=(IMyThrust)channel.Block;
+                    if(Math.Abs(thrust.ThrustOverridePercentage-value)>LeverStep*.1f) thrust.ThrustOverridePercentage=value;
+                }
                 else
                 {
                     var motion=new Motion { Channel=channel,Seat=seat,Pilot=seat.Pilot.EntityId,Identity=identity,Target=value };

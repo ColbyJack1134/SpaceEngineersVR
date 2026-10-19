@@ -25,7 +25,7 @@ namespace SpaceEngineersVR.Diagnostics
             Require(tabletQuery=="damps" && tabletTarget.Text==tabletQuery,"Standalone keyboard did not append at the query end");
             tabletTarget.KeypressBackspace(true);
             Require(tabletQuery=="damp","Standalone tablet keyboard backspace failed");
-            foreach(var route in new[] {new[] {"Flight","Controller flight"},new[] {"Rendering","Reset resolution"},new[] {"Controls","Rebind in SteamVR"}})
+            foreach(var route in new[] {new[] {"Flight","Controller flight"},new[] {"Rendering","Reset resolution"}})
             {
                 var destination=GUI.MyPluginConfigDialog.CreatePage(route[0]);destination.RecreateControls(true);
                 Require(destination.Controls.OfType<MyGuiControlButton>().Any(b=>b.Text.ToString()==route[1]),"Settings search opens the wrong category: "+route[0]);
@@ -44,7 +44,7 @@ namespace SpaceEngineersVR.Diagnostics
             var menuScreens=Enumerable.Range(0,5).Select(i=>(MyGuiScreenBase)new GUI.MyPluginConfigDialog(i))
                 .Concat(Enumerable.Range(0,GUI.BindingHelp.TopicCount).Select(i=>(MyGuiScreenBase)new GUI.BindingHelp(i)))
                 .Concat(Enumerable.Range(0,2).Select(i=>(MyGuiScreenBase)new GUI.FirstRunSetup(i)))
-                .Concat(new MyGuiScreenBase[] {new GUI.HudStateOptions(),new GUI.BindingOptions()});
+                .Concat(new MyGuiScreenBase[] {new GUI.HudStateOptions()});
             foreach(var menu in menuScreens)
             {
                 menu.RecreateControls(true);
@@ -63,7 +63,7 @@ namespace SpaceEngineersVR.Diagnostics
                     Require(gap.X>=extent.X-.001f || gap.Y>=extent.Y-.001f,"Native menu buttons overlap: "+menu.GetFriendlyName()+" / "+a.Text+" / "+b.Text);
                 }
             }
-            log("PASS native menu layouts: settings routes, visual guide topics, setup without VR, HUD editor and binding pages have non-overlapping buttons.");
+            log("PASS native menu layouts: settings routes, visual guide topics, setup without VR and HUD editor have non-overlapping buttons.");
             var catalog=ActionCatalog.NativeEntries();
             Require(catalog.Length>=30 && catalog.All(a=>!string.IsNullOrWhiteSpace(a.Label)),"Native action catalog lost system actions");
             log("PASS tablet search: shared native text editing and "+catalog.Length+" native system actions without execution.");

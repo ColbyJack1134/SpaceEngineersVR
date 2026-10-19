@@ -62,14 +62,14 @@ namespace SpaceEngineersVR.Player
         }
         internal static ActionChoice[] CommonEntries(bool spectator) => GameActions.Quick.Concat(GameActions.Building).Concat(GameActions.Developer)
                 .Concat(BuildPlannerActions.Shortcuts)
-                .Concat(new[] {GameActions.HudOptions,GameActions.UnequipAction,GameActions.RecenterAction,GameActions.DesktopFloating,GameActions.DesktopWrist,GameActions.CycleSymmetryAction,GameActions.ExitSymmetryAction,SpectatorView.EnterAction})
+                .Concat(new[] {GameActions.HudOptions,GameActions.UnequipAction,GameActions.RecenterAction,GameActions.ResetScreens,GameActions.DesktopFloating,GameActions.DesktopWrist,GameActions.CycleSymmetryAction,GameActions.ExitSymmetryAction,SpectatorView.EnterAction})
                 .Concat(spectator ? SpectatorView.Actions():Array.Empty<ActionChoice>())
                 .GroupBy(a=>a.HistoryKey ?? a.Label).Select(g=>g.Last()).ToArray();
         private static IEnumerable<ActionChoice> Entries()
         {
             foreach(var action in CommonEntries(SpectatorView.Active)) yield return action;
             if(WeaponCoreBridge.ApiReady) { foreach(var action in TargetLock.Actions) yield return action; yield return GameActions.CycleAmmoAction; }
-            foreach(string category in new[] {"Character","Flight","Third person","HUD & Interface","Rendering","Controls"})
+            foreach(string category in new[] {"Character","Flight","Third person","HUD & Interface","Rendering"})
             {
                 string title=category;
                 yield return new ActionChoice("VR: "+title,()=>Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(GUI.MyPluginConfigDialog.CreatePage(title)),true,searchTerms:"settings options controls");
@@ -78,6 +78,7 @@ namespace SpaceEngineersVR.Player
             if(SymmetrySetupControls.Active) foreach(var action in SymmetrySetupControls.Actions().Skip(1).Take(5)) yield return action;
             // Native suicide asks for confirmation and honors campaign respawn rules.
             yield return new ActionChoice("Respawn",()=>NativeActions.Pulse(Sandbox.Game.MyControlsSpace.SUICIDE),searchTerms:"suicide kill die stuck");
+            if(PbFeed.ArmsAction.Enabled) yield return PbFeed.ArmsAction;
             if(native==null) native=NativeEntries();
             foreach(var action in native) yield return action;
             var ids=new HashSet<MyStringId>();

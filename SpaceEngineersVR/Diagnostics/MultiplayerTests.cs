@@ -29,7 +29,12 @@ namespace SpaceEngineersVR.Diagnostics
             Require(bytes.Length==PlayerPose.HeadSize && decoded!=null && decoded.Character==100 && decoded.Tracked==3,"Pose packet round trip failed");
             Require(decoded.Left==original.Left && decoded.Right==original.Right && Math.Abs(decoded.RightTrigger-.8f)<.005f,"Pose transforms or trigger lost");
             for(int n=0;n<bytes.Length;n++) if(n!=PlayerPose.LegacySize) Require(PlayerPose.Decode(bytes.Take(n).ToArray())==null,"Truncated pose accepted");
-            var bad=(byte[])bytes.Clone(); bad[24]=64; Require(PlayerPose.Decode(bad)==null,"Unknown tracking bits accepted");
+            var bad=(byte[])bytes.Clone(); bad[24]=(byte)(3|PlayerPose.LeftCurls|PlayerPose.RightCurls); Require(PlayerPose.Decode(bad)?.Tracked==3,"Curl bits survived a packet without curls");
+            var curled=Pose(); curled.Tracked|=PlayerPose.LeftCurls; for(int i=0;i<5;i++) curled.LeftCurl[i]=.2f*i; curled.RightCurl[0]=float.NaN;
+            var curledBytes=curled.Encode(); var curledDecoded=PlayerPose.Decode(curledBytes);
+            Require(curledBytes.Length==PlayerPose.HeadSize+PlayerPose.CurlBytes && curledDecoded!=null && (curledDecoded.Tracked&PlayerPose.LeftCurls)!=0 && (curledDecoded.Tracked&PlayerPose.RightCurls)==0 &&
+                Enumerable.Range(0,5).All(i=>Math.Abs(curledDecoded.LeftCurl[i]-.2f*i)<.005f) && curledDecoded.RightCurl[0]==0,"Finger curls lost in transit");
+            for(int n=PlayerPose.HeadSize+1;n<curledBytes.Length;n++) Require(PlayerPose.Decode(curledBytes.Take(n).ToArray())==null,"Partial curls accepted");
             var looking=Pose(); looking.Tracked|=PlayerPose.HeadTracked; looking.Head=Matrix.CreateFromYawPitchRoll(.6f,-.3f,.1f); looking.Head.Translation=new Vector3(0,1.6f,0);
             var lookingBytes=looking.Encode(); var lookingDecoded=PlayerPose.Decode(lookingBytes);
             Require(lookingDecoded!=null && lookingDecoded.Tracked==7 && Vector3.Distance(lookingDecoded.Head.Forward,looking.Head.Forward)<1e-4f,"Head pose lost in transit");
@@ -38,7 +43,10 @@ namespace SpaceEngineersVR.Diagnostics
             var aimedBytes=aiming.Encode(); var aimed=PlayerPose.Decode(aimedBytes);
             Require(aimedBytes.Length==PlayerPose.Size && aimed!=null && (aimed.Tracked&PlayerPose.ToolRayTracked)!=0 &&
                 Vector3.Distance(aimed.ToolRay.Forward,aiming.ToolRay.Forward)<1e-5f && Vector3.Distance(aimed.ToolRay.Translation,aiming.ToolRay.Translation)<1e-5f,"Independent tool ray lost in transit");
-            for(int n=PlayerPose.HeadSize+1;n<PlayerPose.Size;n++) Require(PlayerPose.Decode(aimedBytes.Take(n).ToArray())==null,"Partial tool ray accepted");
+            for(int n=PlayerPose.HeadSize+1;n<PlayerPose.Size;n++) if(n!=PlayerPose.HeadSize+PlayerPose.CurlBytes) Require(PlayerPose.Decode(aimedBytes.Take(n).ToArray())==null,"Partial tool ray accepted");
+            aiming.Tracked|=PlayerPose.RightCurls; aiming.RightCurl[4]=1; var aimedCurled=PlayerPose.Decode(aiming.Encode());
+            Require(aimedCurled!=null && (aimedCurled.Tracked&PlayerPose.ToolRayTracked)!=0 && aimedCurled.RightCurl[4]==1 && Vector3.Distance(aimedCurled.ToolRay.Forward,aiming.ToolRay.Forward)<1e-5f,"Tool ray and curls do not coexist");
+            aiming.Tracked&=unchecked((byte)~PlayerPose.RightCurls);
             var headOnly=PlayerPose.Decode(aimedBytes.Take(PlayerPose.HeadSize).ToArray());
             Require(headOnly!=null && (headOnly.Tracked&PlayerPose.ToolRayTracked)==0,"Legacy pose invented a tool ray");
             foreach(bool tool in new[] {false,true})
@@ -247,12 +255,28 @@ namespace SpaceEngineersVR.Diagnostics
             }
             BoundedStrings();
             RequestBudgets();
+            Relay();
             var bare=(Sandbox.Game.Screens.Helpers.MyToolbar)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Screens.Helpers.MyToolbar));
             Require(MultiplayerRuntime.FatBlockClosed!=null && Delegate.CreateDelegate(typeof(Action<Sandbox.Game.Entities.MyCubeBlock>),bare,MultiplayerRuntime.FatBlockClosed)!=null,"Toolbar grid handler no longer matches the game");
             MultiplayerRuntime.DetachGrid(bare); MultiplayerRuntime.DetachGrid(null);
             ToolbarCap(log);
             CorruptPaste();
-            log("PASS multiplayer payloads: pose round trip, truncated/nonfinite/out-of-reach rejection, finger flags, ordering/wrap, interpolation, seat changes, stale timeout, cockpit record persistence, bounded string lengths and request budgets.");
+            log("PASS multiplayer payloads: pose round trip, truncated/nonfinite/out-of-reach rejection, finger flags, ordering/wrap, interpolation, seat changes, stale timeout, cockpit record persistence, bounded string lengths, request budgets and host pose relay.");
+        }
+        private static void Relay()
+        {
+            const ulong origin=76561198000000001UL;
+            var aiming=Pose(); aiming.Tracked|=PlayerPose.ToolRayTracked|PlayerPose.HeadTracked; aiming.ToolRay.Translation=new Vector3(.1f,1.1f,-.6f);
+            var bytes=aiming.Encode(); var packet=MultiplayerRuntime.RelayPacket(origin,bytes);
+            Require(bytes.Length==PlayerPose.Size && packet.Length==MultiplayerRuntime.RelaySize && packet.Length<=1024,"Full relay packet exceeds the unreliable message limit");
+            Require(MultiplayerRuntime.ReadRelay(packet,true,out ulong from,out var relayed) && from==origin && relayed.SequenceEqual(bytes) &&
+                PlayerPose.Decode(relayed)?.Character==100,"Relay round trip failed");
+            Require(!MultiplayerRuntime.ReadRelay(packet,false,out _,out _),"Relay from a client accepted");
+            Require(!MultiplayerRuntime.ReadRelay(packet.Take(8).ToArray(),true,out _,out _) && !MultiplayerRuntime.ReadRelay(null,true,out _,out _),"Relay without a pose accepted");
+            var positions=new Dictionary<ulong,Vector3D> {{origin,new Vector3D(1000,0,0)},{2,new Vector3D(1100,0,0)},{3,new Vector3D(1000,249,0)},{4,new Vector3D(1250,0,0)},{5,new Vector3D(1000,0,-300)},{9,new Vector3D(1000,10,0)}};
+            Vector3D? Locate(ulong id) => positions.TryGetValue(id,out var at) ? at:(Vector3D?)null;
+            var audience=MultiplayerRuntime.Audience(origin,9,positions[origin],new ulong[] {origin,2,3,4,5,6,9},Locate).ToArray();
+            Require(audience.SequenceEqual(new ulong[] {2,3}),"Relay audience includes the origin, the host, far or unlocated peers: "+string.Join(",",audience));
         }
         private static void Write7Bit(BinaryWriter writer,int value)
         {
@@ -419,7 +443,7 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Export(string game,string output,Action<string> log)
         {
             UiTests.Initialize(game,Path.Combine(output,"data")); Directory.CreateDirectory(output); Run(log);
-            foreach(string scenario in new[] {"standing","wrist-local","wrist-remote","seated","look-left","look-down"})
+            foreach(string scenario in new[] {"standing","wrist-local","wrist-remote","seated","seated-lean-forward","seated-lean-left","seated-lean-right-twist","look-left","look-down"})
             {
                 var bones=ArmTests.InstalledBones();
                 var packet=Pose();
@@ -431,7 +455,7 @@ namespace SpaceEngineersVR.Diagnostics
                     packet.Left=Matrix.CreateFromYawPitchRoll(-.7f,-.4f,.7f); packet.Left.Translation=new Vector3(-.15f,1.35f,-.4f);
                     packet.Right.Translation=new Vector3(.1f,1.3f,-.55f); packet.RightFingers=ArmSkeleton.Fingers.Pinch;
                 }
-                if(scenario=="seated")
+                if(scenario.StartsWith("seated"))
                 {
                     foreach(string side in new[] {"L","R"})
                     {
@@ -445,6 +469,13 @@ namespace SpaceEngineersVR.Diagnostics
                     }
                     packet.Left.Translation=new Vector3(-.35f,1.0f,-.35f); packet.Right.Translation=new Vector3(.35f,1.0f,-.35f);
                     packet.LeftFingers=packet.RightFingers=ArmSkeleton.Fingers.Stick;
+                    if(scenario!="seated")
+                    {
+                        var head=ArmSkeleton.Head(name=>bones.FirstOrDefault(b=>b.Name==name),"HeadDummy");
+                        var chain=SpineLean.Find(name=>bones.FirstOrDefault(b=>b.Name==name),head,ArmSkeleton.Below(head,bones.FirstOrDefault(b=>b.Name=="HeadDummy")));
+                        var lean=scenario=="seated-lean-forward" ? new Vector3(0,-.05f,-.25f):scenario=="seated-lean-left" ? new Vector3(-.18f,-.03f,-.05f):new Vector3(.1f,0,-.05f);
+                        Require(SpineLean.Apply(chain,lean,scenario.EndsWith("twist") ? SpineLean.Twist(new Vector3(.8f,0,-.6f)):0),"Seated lean export failed");
+                    }
                 }
                 var stream=new PoseStream(); stream.Push(PlayerPose.Decode(packet.Encode()),0); stream.Sample(0,out var received);
                 foreach(bool left in new[] {true,false})
@@ -452,7 +483,7 @@ namespace SpaceEngineersVR.Diagnostics
                     string side=left ? "L":"R";
                     var arm=ArmSkeleton.Find(name=>bones.FirstOrDefault(b=>b.Name==name),"SE_Rig"+side+"Upperarm","SE_Rig"+side+"Forearm1","SE_Rig"+side+"Palm",left ? -1:1);
                     var target=stream.Hand(left,0);
-                    Require(ArmSkeleton.Apply(arm,target,true,left && scenario=="wrist-local" ? 1:0,1,left ? received.LeftFingers:received.RightFingers,left ? received.LeftTrigger:received.RightTrigger),"Received arm pose failed");
+                    Require(ArmSkeleton.Apply(arm,target,ArmSolve.Options.Reach,1,left ? received.LeftFingers:received.RightFingers,left ? received.LeftTrigger:received.RightTrigger),"Received arm pose failed");
                     Require(Vector3.Distance(arm.Palm.Bone.AbsoluteTransform.Translation,target.Translation)<.001f,"Received palm missed transmitted target");
                 }
                 if(scenario.StartsWith("look"))

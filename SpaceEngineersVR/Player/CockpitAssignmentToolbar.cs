@@ -1,7 +1,4 @@
 using System;
-using HarmonyLib;
-using Sandbox.Game.Entities;
-using Sandbox.Game.Entities.Cube;
 using Sandbox.Game.Screens.Helpers;
 using VRage.Game;
 
@@ -21,9 +18,7 @@ namespace SpaceEngineersVR.Player
             if(controls.Owner!=null)
             {
                 Toolbar.Init(null,controls.Owner);
-                if(controls.Owner.HasInventory) controls.Owner.GetInventory().ContentsChanged-=Toolbar.CharacterInventory_OnContentsChanged;
-                if(controls.Owner is MyCockpit cockpit && cockpit.CubeGrid!=null)
-                    cockpit.CubeGrid.OnFatBlockClosed-=(Action<MyCubeBlock>)Delegate.CreateDelegate(typeof(Action<MyCubeBlock>),Toolbar,AccessTools.Method(typeof(MyToolbar),"OnFatBlockClosed"));
+                Multiplayer.MultiplayerRuntime.Detach(Toolbar);
             }
             for(int control=0;control<layout.Pages.Length*CockpitAssignmentLayout.SlotsPerPage;control++)
             {
@@ -32,7 +27,7 @@ namespace SpaceEngineersVR.Player
             }
             Toolbar.ItemChanged+=Changed;
         }
-        private static MyToolbarItem Copy(MyToolbarItem item)
+        internal static MyToolbarItem Copy(MyToolbarItem item)
         {
             var data=item?.GetObjectBuilder();
             return data==null ? null:MyToolbarItemFactory.CreateToolbarItem(data);

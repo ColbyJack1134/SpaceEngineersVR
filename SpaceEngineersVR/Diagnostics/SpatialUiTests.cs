@@ -65,8 +65,8 @@ namespace SpaceEngineersVR.Diagnostics
             var quickActions=GameActions.WheelActions(false,false,false);
             var pages=ToolbarWheel.Layout(ToolbarWheel.ToolGroups("Building",buildingTool,new[] {new ToolbarWheel.Group("Variants",variants,true)},quickActions),out var titles,out var variantFlags);
             Require(pages.Length==4 && pages.All(p=>p.Length==9),"Building wheel loses fixed actions or overflow pages");
-            Require(pages[0].Where(a=>a!=null).SequenceEqual(buildingTool) && titles[0]=="Building","Building actions do not open first");
-            Require(pages.Skip(1).Take(2).SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(variants) && variantFlags.SequenceEqual(new[] {false,true,true,false}),"Building variant paging loses or duplicates entries");
+            Require(pages.Take(2).SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(variants) && variantFlags.SequenceEqual(new[] {true,true,false,false}),"Block variants do not open first or lose entries");
+            Require(pages[2].Where(a=>a!=null).SequenceEqual(buildingTool) && titles[2]=="Building","Building actions do not follow the variants");
             Require(pages[3].Where(a=>a!=null).SequenceEqual(quickActions) && titles[3]=="Quick actions","Quick actions are not last");
             Require(!buildingTool.Contains(GameActions.PauseAction) && quickActions.Contains(GameActions.PauseAction),"Pause left the quick actions page");
             Require(ToolbarWheel.Layout(ToolbarWheel.ToolGroups("Building",buildingTool,new[] {new ToolbarWheel.Group("Variants",new ActionChoice[0],true)},quickActions),out _,out _).Length==2,"A block without variants gained empty pages");
@@ -342,8 +342,19 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(local.Y<-.30f,"Right hand overlaps bottom of the radial menu");
             }
             var keys=MenuKeyboard.MakeKeys(false);
-            Require(keys.Length==51 && keys.Any(k=>k.Label=="DONE") && keys.Any(k=>k.Label=="BKSP") &&
+            Require(keys.Length==51 && keys.Any(k=>k.Label=="DONE") && keys.Any(k=>k.Label=="BKSP") && keys.Any(k=>k.Label=="'") && keys.Any(k=>k.Label=="-") &&
                 keys.Any(k=>k.Label=="Preview") && keys.Any(k=>k.Label=="◀") && keys.Any(k=>k.Label=="▶"),"Keyboard layout incomplete");
+            var symbols=MenuKeyboard.MakeKeys(2);
+            Require(symbols.Length==51 && symbols.Any(k=>k.Label=="[") && symbols.Any(k=>k.Label=="\\") && symbols.Any(k=>k.Label=="{") && symbols.Any(k=>k.Label=="|") && symbols.Any(k=>k.Label=="`") && symbols.Any(k=>k.Label==MenuKeyboard.PageLabels[2]),"Symbol page incomplete");
+            var multiline=MenuKeyboard.MakeKeys(0,"DONE",true);
+            Require(multiline.Length==54 && multiline.Any(k=>k.Label=="↑") && multiline.Any(k=>k.Label=="↓") && multiline.Any(k=>k.Label=="ENTER"),"Multiline keyboard layout incomplete");
+            foreach(var set in new[] {keys,symbols,multiline}) foreach(var a in set) foreach(var b in set)
+                if(!ReferenceEquals(a,b) && !a.Invisible && !b.Invisible && a.Bounds.X<b.Bounds.X+b.Bounds.Width && b.Bounds.X<a.Bounds.X+a.Bounds.Width && a.Bounds.Y<b.Bounds.Y+b.Bounds.Height && b.Bounds.Y<a.Bounds.Y+a.Bounds.Height)
+                    throw new Exception("Keyboard keys overlap: "+a.Label+" / "+b.Label);
+            Require(MenuKeyboard.CaretLine("ab\ncdef\ng",6,-1)==2 && MenuKeyboard.CaretLine("ab\ncdef\ng",6,1)==9 && MenuKeyboard.CaretLine("ab\ncdef\ng",1,-1)==1 &&
+                MenuKeyboard.CaretLine("ab\ncdef\ng",9,1)==9 && MenuKeyboard.CaretLine("ab\ncdef\ng",0,1)==3,"Caret line stepping is wrong");
+            var hotkeys=MenuKeyboard.MakeHotkeys();
+            Require(hotkeys.Any(k=>k.Label=="RMB") && hotkeys.Any(k=>k.Label=="MMB") && hotkeys.Any(k=>k.Label=="Scr↑") && hotkeys.Any(k=>k.Label=="[") && hotkeys.Any(k=>k.Label=="`"),"Hotkey layout incomplete");
             foreach(var key in keys) Require(window.Window.Handle(new Vector3((key.Bounds.Center.X-.5f)*window.Width,(.5f-key.Bounds.Center.Y)*window.Height,0),true)==0,"A key overlaps a window handle");
             var surface=new SurfaceView { Keys=keys,Width=.5f,Height=.3f,Pose=MatrixD.CreateTranslation(1e9,2e9,-3e9) };
             foreach(var key in keys)

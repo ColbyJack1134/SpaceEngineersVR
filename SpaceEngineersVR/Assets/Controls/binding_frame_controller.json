@@ -166,6 +166,54 @@
               "output": "/actions/common/in/Pause"
             }
           }
+        },
+        {
+          "path": "/user/hand/left/input/dpad_up",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/QuickSlotUp"
+            },
+            "touch": {
+              "output": "/actions/common/in/QuickToolbarTouch"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/dpad_left",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/QuickSlotLeft"
+            },
+            "touch": {
+              "output": "/actions/common/in/QuickToolbarTouch"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/dpad_right",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/QuickSlotRight"
+            },
+            "touch": {
+              "output": "/actions/common/in/QuickToolbarTouch"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/dpad_down",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/common/in/QuickSlotDown"
+            },
+            "touch": {
+              "output": "/actions/common/in/QuickToolbarTouch"
+            }
+          }
         }
       ]
     },
@@ -320,7 +368,7 @@
   },
   "category": "steamvr_input",
   "controller_type": "frame_controller",
-  "description": "Bumpers open the wheels; X jetpack, Y dampeners, View inventory, Menu pause.",
+  "description": "Bumpers open the wheels; X jetpack, Y dampeners, View inventory, Menu pause, D-pad quick toolbar.",
   "name": "SEVR Steam Frame",
   "options": {},
   "simulated_actions": []

@@ -19,7 +19,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Interact=new Button(0),
                 ThrustRoll=new Button(0),
                 JumpOrClimbUp=new Button(0),
-                CrouchOrClimbDown=new Button(0),
+                Sprint=new Button(0),
                 PointerPressure=new Analog(0,.55f),
                 LeftTriggerPressure=new Analog(0,.55f),
                 RightGripPressure=new Analog(0,InteractionInput.GripThreshold),
@@ -55,7 +55,7 @@ namespace SpaceEngineersVR.Diagnostics
                 c.ThrustForward.AcceptSample(new InputAnalogActionData_t { bActive=true,x=trigger });
                 c.ThrustDown.AcceptSample(new InputAnalogActionData_t { bActive=true,x=grip });
                 c.JumpOrClimbUp.AcceptSample(button);
-                c.CrouchOrClimbDown.AcceptSample(new InputDigitalActionData_t { bActive=true,bState=grip>.8f });
+                c.Sprint.AcceptSample(new InputDigitalActionData_t { bActive=true,bState=grip>.8f });
                 c.WalkLongitudinal.AcceptSample(new InputAnalogActionData_t { bActive=true,y=axis });
                 c.ThrustLRFB.AcceptSample(new InputAnalogActionData_t { bActive=true,y=axis });
             }
@@ -97,7 +97,7 @@ namespace SpaceEngineersVR.Diagnostics
                 input.Update(input.Read(c,right,false),true,near,now);
                 input.Consume(c,right);
                 Require(input.Secondary && !input.Primary,"Grip did not remain secondary at both distances");
-                Require(right ? !c.Secondary.IsPressed && !c.ThrustRoll.IsPressed : !c.CrouchOrClimbDown.IsPressed && c.ThrustDown.Position.X==0,"Grip aliases escaped to gameplay");
+                Require(right ? !c.Secondary.IsPressed && !c.ThrustRoll.IsPressed : !c.Sprint.IsPressed && c.ThrustDown.Position.X==0,"Grip aliases escaped to gameplay");
                 input.Cancel();
                 Poll(c,0,.9f,right);
                 input.Update(input.Read(c,right,false),false,near,now); input.Consume(c,right);

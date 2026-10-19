@@ -59,6 +59,15 @@ namespace SpaceEngineersVR.Diagnostics
             Require(!PlacementControls.Rotating(false,true,rotateTap.Update(false,true,false,tapped.AddSeconds(1.2)),false),"Grip chord started rotate mode");
             rotateTap.Update(true,false,false,tapped.AddSeconds(2));
             Require(!PlacementControls.Rotating(rotating,true,rotateTap.Update(false,true,false,tapped.AddSeconds(2.1)),false),"Second grip tap did not end rotate mode");
+            foreach(bool setting in new[] {false,true}) foreach(bool adjusting in new[] {false,true}) foreach(bool placed in new[] {false,true})
+                Require(PlacementControls.HoldsPose(setting,adjusting,placed,placed,false,false)==(setting && (adjusting || placed)),"Rotation lock held the pose outside rotate mode or dropped it on the placing press");
+            // Placing press, trigger held two updates, released, then the grace updates the builder needs for a line or plane build.
+            bool holding=PlacementControls.HoldsPose(true,false,true,true,true,false);
+            holding=PlacementControls.HoldsPose(true,false,false,true,holding,true); Require(holding,"Rotation lock dropped while the placing trigger was still held");
+            holding=PlacementControls.HoldsPose(true,false,false,true,holding,true); Require(holding,"Rotation lock dropped on the second held update");
+            for(int i=0;i<PlacementControls.ReleaseGrace;i++) { holding=PlacementControls.HoldsPose(true,false,false,false,holding,true); Require(holding,"Rotation lock dropped during the release grace"); }
+            holding=PlacementControls.HoldsPose(true,false,false,false,holding,false); Require(!holding,"Rotation lock survived the release grace");
+            Require(!PlacementControls.HoldsPose(true,false,false,true,false,false) && !PlacementControls.HoldsPose(true,false,false,false,false,true),"A trigger or grace without a prior lock locked the pose");
             foreach(double scale in new[] {.1,1,3,100,100000})
             foreach(double origin in new[] {0d,1e9})
             {
@@ -82,6 +91,12 @@ namespace SpaceEngineersVR.Diagnostics
                     Require(!PlacementControls.BuildReach(box,inverse,outside,gridSize,range),"Detached hand extended native character range");
                     var adjacent=box; adjacent.Translate(grid.Right*2);
                     Require(PlacementControls.BuildReach(adjacent,inverse,target,gridSize,range),"Proximity requires the add cell to intersect the pointing ray");
+                }
+                foreach(var hand in new[] {new Vector3D(.3,-.2,-.7),new Vector3D(-.5,.1,.2),Vector3D.Zero})
+                foreach(var direction in new[] {Vector3D.Forward,Vector3D.Normalize(new Vector3D(1,-1,-2)),Vector3D.Backward})
+                {
+                    double reach=PlacementControls.HandDistance(hand,direction,Vector3D.Zero,5);
+                    Require(Math.Abs((hand+direction*reach).Length()-5)<1e-9,"Extended arm moves the free placement point beyond native head reach");
                 }
             }
             foreach(double scale in new[] {.1,1,3,100})
@@ -196,7 +211,7 @@ namespace SpaceEngineersVR.Diagnostics
             Require(nativeReach.Any(i=>i.operand is System.Reflection.MethodInfo m && m.Name=="GetHeadMatrix"),"Installed reach no longer uses character head");
             Require(AccessTools.Field(typeof(MyCubeBuilder),"m_gizmo")?.FieldType==typeof(MyCubeBuilderGizmo) && AccessTools.Method(typeof(MyCubeBuilder),"Change")!=null,"Native paint/gizmo contract changed");
             var rewrites=DistanceRewrites().ToArray();
-            Require(rewrites.OrderBy(m=>m).SequenceEqual(new[] {"InitialBuildDistancePatch.Postfix","MyCubeBuilder.HandleBlockCreationMovement"}),
+            Require(rewrites.OrderBy(m=>m).SequenceEqual(new[] {"MyCubeBuilder.HandleBlockCreationMovement"}),
                 "Unguarded read-modify-write of the observer-scaled build distance: "+string.Join(", ",rewrites));
             log("PASS observer building: consistent observer distances at five scales and billion-metre origins; independent character reach; paint chord ownership; only guarded methods rewrite the build distance; installed character/cockpit camera, paint and reach APIs.");
             log("PASS placement: continuous free-space and five grid steps/second at 36/72/90 Hz with neutral/reverse/cancel; build/clipboard/tool ownership, simultaneous cancel priority, alternate-trigger isolation, transition release gates; installed native remove/paste/cancel/distance IDs, Creative checks and clipboard pose API. No world modified.");

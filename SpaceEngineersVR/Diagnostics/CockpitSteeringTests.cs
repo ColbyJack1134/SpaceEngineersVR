@@ -387,9 +387,17 @@ namespace SpaceEngineersVR.Diagnostics
         }
         private static void VehicleSettings()
         {
+            foreach(bool saddle in new[] {false,true})
+            for(int mode=0;mode<3;mode++)
+            {
+                var value=new FlightTuning(); FlightSettings.SetVehicleMode(value,saddle,mode);
+                if(FlightSettings.VehicleMode(value,saddle)!=mode || value.FlightMode!=(mode>0) || (saddle ? value.BarTiltEnabled:value.WheelMotion)!=(mode==2))
+                    throw new Exception("Vehicle mode did not round trip: "+(saddle ? "saddle ":"wheel ")+mode);
+            }
+            if(FlightSettings.VehicleMode(new FlightTuning(),false)!=0) throw new Exception("Default vehicle mode is not Driving");
             foreach(string subtype in new[] {"RoverCockpit","BuggyCockpit","SpeederCockpit","SpeederCockpitCompact"})
             foreach(bool personal in new[] {false,true})
-            for(int page=0;page<3;page++)
+            for(int page=0;page<4;page++)
             {
                 var keys=FlightSettings.Layout(new FlightTuning {FlightMode=true,BarTiltEnabled=true,WheelMotion=true},personal,false,false,"Vehicle Settings",false,subtype,page);
                 foreach(var key in keys)

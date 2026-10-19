@@ -22,17 +22,20 @@ namespace SpaceEngineersVR.Player
         internal sealed class View
         {
             public string Title, Hint;
+            public string Footer, Idle;
+            public bool Compact;
             public string[] Labels, SubIcons, ItemText;
             public string[][] Icons;
             public bool[] Enabled;
             public bool Variants;
             public int Selected,Group,Page,Pages;
             public Matrix Pose;
-            public bool SameAs(View other) => other!=null && Title==other.Title && Variants==other.Variants && Group==other.Group && Page==other.Page && Pages==other.Pages && Selected==other.Selected && Pose==other.Pose &&
+            public bool SameAs(View other) => other!=null && Title==other.Title && Footer==other.Footer && Idle==other.Idle && Compact==other.Compact && Variants==other.Variants && Group==other.Group && Page==other.Page && Pages==other.Pages && Selected==other.Selected && Pose==other.Pose &&
                 Enumerable.SequenceEqual(Labels,other.Labels) && Enumerable.SequenceEqual(Enabled,other.Enabled) && Enumerable.SequenceEqual(SubIcons,other.SubIcons) &&
                 Enumerable.SequenceEqual(ItemText,other.ItemText) && Icons.Zip(other.Icons,(a,b)=>Enumerable.SequenceEqual(a,b)).All(equal=>equal);
         }
-        private static volatile View view;
+        private static volatile View view,external;
+        internal static void Show(View value) { if(value==null ? external!=null : !value.SameAs(external)) external=value; }
         private static View drawn;
         private static OverlayCanvas canvas;
         private static ShaderResourceView texture;
@@ -71,7 +74,7 @@ namespace SpaceEngineersVR.Player
                 if (InputRouter.RadialOpen) Close();
                 if (InputRouter.Gameplay && controls.Unequip.HasPressed)
                 {
-                    if(ThirdPersonView.Active) ThirdPersonView.Toggle();
+                    if(ThirdPersonView.Active) { if(!PlacementControls.TryCancelRotation()) ThirdPersonView.Toggle(); }
                     else if(CockpitButtons.HoveredSwitch>=0) CockpitActions.Configure(CockpitButtons.HoveredSwitch);
                     else GameActions.Execute(GameActions.ConfigureToolbarAction);
                 }
@@ -149,11 +152,11 @@ namespace SpaceEngineersVR.Player
             if(quick==ToolbarGesture.Action.OpenWheel) { Open(true,controls.QuickMenu); return; }
             var action=gesture.Update(InputRouter.Gameplay && !Main.MenuOpen,
                 controls.Unequip.HasPressed,controls.Unequip.IsPressed,controls.Unequip.HasReleased,
-                MySession.Static?.ControlledEntity,CockpitBuilding.Active ? -1:CockpitButtons.HoveredSwitch,DateTime.UtcNow,ThirdPersonView.Active && !ThirdPersonView.Character && !CockpitBuilding.Active);
+                MySession.Static?.ControlledEntity,CockpitBuilding.Active ? -1:CockpitButtons.HoveredSwitch,DateTime.UtcNow,ThirdPersonView.Active && !CockpitBuilding.Active);
             if(action==ToolbarGesture.Action.None) return;
             if(action==ToolbarGesture.Action.Unequip && CockpitBuilding.Active) { CockpitBuilding.Toggle(); return; }
             if(action!=ToolbarGesture.Action.OpenWheel && (DesktopWindow.CloseIfPointed() || SpatialUi.CollapseIfOpen())) return;
-            if(action==ToolbarGesture.Action.FirstPerson) { ThirdPersonView.Toggle(); InputRouter.Update(); return; }
+            if(action==ToolbarGesture.Action.FirstPerson) { if(!PlacementControls.TryCancelRotation()) ThirdPersonView.Toggle(); InputRouter.Update(); return; }
             if(action==ToolbarGesture.Action.AssignSwitch) { CockpitActions.Configure(gesture.Switch); InputRouter.Update(); return; }
             if(action==ToolbarGesture.Action.Unequip) { GameActions.Unequip(); InputRouter.Update(); return; }
             Open(false,controls.Unequip);
@@ -187,14 +190,15 @@ namespace SpaceEngineersVR.Player
                 var block=symmetry || PlacementControls.ClipboardActive ? Array.Empty<ActionChoice>():BlockActions.Capture(PlacementControls.OwnsTools);
                 ActionChoice[] Contextual(ActionChoice[] choices) => choices.Select(choice=>choice==GameActions.Quick[11] || choice==GameActions.Quick[12] ?
                     block.FirstOrDefault(c=>c.Label==choice.Label) ?? choice:choice).ToArray();
-                var groups=new List<Group> {new Group("Block actions",block)};
+                var aimed=new Group("Block actions",block);
+                var groups=new List<Group>();
                 if(InputRouter.Mode==InputMode.Building && !symmetry)
                 {
                     var voxel=VoxelTools.Current;
                     groups.AddRange(ToolGroups(voxel?.Title ?? "Building",quickChoices,voxel!=null ? voxel.Materials() : new[] {new Group("Variants",BlockVariants.Choices(),true)},
-                        Contextual(GameActions.WheelActions(false,false,ThirdPersonView.Active,jetpack))));
+                        Contextual(GameActions.WheelActions(false,false,ThirdPersonView.Active,jetpack)),aimed));
                 }
-                else groups.Add(new Group(symmetry ? "Symmetry setup":"Quick actions",Contextual(quickChoices)));
+                else groups.AddRange(new[] {aimed,new Group(symmetry ? "Symmetry setup":"Quick actions",Contextual(quickChoices))});
                 var recent=ActionCatalog.Recent();
                 if(MySession.Static.ControlledEntity is Sandbox.Game.Entities.MyShipController)
                     recent=recent.Where(action=>action!=GameActions.SymmetryAction && action!=GameActions.SymmetrySetupAction).ToArray();
@@ -285,9 +289,9 @@ namespace SpaceEngineersVR.Player
             internal readonly bool Variants;
             internal Group(string title,ActionChoice[] items,bool variants=false) { Title=title; Items=items; Variants=variants; }
         }
-        // Y wheel order: aimed-block actions, the held tool's actions, its variants or materials, general quick actions, recent searches.
-        internal static Group[] ToolGroups(string title,ActionChoice[] tool,Group[] variants,ActionChoice[] quick) =>
-            new[] {new Group(title,tool)}.Concat(variants).Concat(new[] {new Group("Quick actions",quick)}).ToArray();
+        // Y wheel order: the held tool's variants or materials, aimed-block actions, the tool's actions, general quick actions, recent searches.
+        internal static Group[] ToolGroups(string title,ActionChoice[] tool,Group[] variants,ActionChoice[] quick,Group aimed=null) =>
+            variants.Concat(aimed!=null ? new[] {aimed}:new Group[0]).Concat(new[] {new Group(title,tool),new Group("Quick actions",quick)}).ToArray();
         internal static ActionChoice[][] Layout(IEnumerable<Group> groups,out string[] titles,out bool[] variants)
         {
             var pages=new List<ActionChoice[]>(); var titleList=new List<string>(); var variantList=new List<bool>();
@@ -328,7 +332,7 @@ namespace SpaceEngineersVR.Player
             if (failed) return;
             try
             {
-                var current = view;
+                var current = view ?? external;
                 if (current == null) { canvas?.Hide(); drawn = null; return; }
                 if (canvas == null)
                 {
@@ -342,14 +346,14 @@ namespace SpaceEngineersVR.Player
                 }
                 // Anchor motion uses every predicted render pose; texture content can update at 10Hz.
                 MatrixD anchor=(MatrixD)HandPose((current.Group==1 ? Player.HandL:Player.HandR).RenderGripTracking,Player.Headset.renderPose.deviceToAbsolute.matrix)*trackingToWorld;
-                var sprite=Sprite(texture,anchor,viewMatrix,projection);
+                var sprite=Sprite(texture,anchor,viewMatrix,projection,current.Compact ? .40f:.52f);
                 NativeSprites.Draw(target,new[] { sprite },PhysicalSurface.SceneDepth());
             }
             catch (Exception ex) { drawn = null; recovery.Fail(ex, "Toolbar wheel rendering disabled"); RenderRecovery.Quietly(() => canvas?.Hide()); }
         }
-        internal static NativeSprite Sprite(ShaderResourceView texture,MatrixD anchor,MatrixD view,MatrixD projection)
+        internal static NativeSprite Sprite(ShaderResourceView texture,MatrixD anchor,MatrixD view,MatrixD projection,float size=.52f)
         {
-            var sprite=PhysicalSurface.Quad(texture,anchor,new VRageMath.RectangleF(-.26f,.26f,.52f,.52f),new Vector4(0,0,1,1),Vector4.One,view,projection);
+            var sprite=PhysicalSurface.Quad(texture,anchor,new VRageMath.RectangleF(-size/2,size/2,size,size),new Vector4(0,0,1,1),Vector4.One,view,projection);
             sprite.IgnoreSceneDepth=true;
             return sprite;
         }
@@ -357,19 +361,22 @@ namespace SpaceEngineersVR.Player
         {
             target.Clear(Color.Transparent);
             var g = target.Graphics;
-            using (var center = new SolidBrush(Color.FromArgb(220, 9, 18, 26))) g.FillEllipse(center, 335, 308, 354, 354);
-            // The title sits where the 177 px center disc narrows; fit it to the chord at its cap height.
-            float titleWidth=2*(float)Math.Sqrt(177*177-140*140)-12;
+            float disc=current.Compact ? 140:177,inner=current.Compact ? 152:190,ring=current.Compact ? 281:298;
+            using (var center = new SolidBrush(Color.FromArgb(220, 9, 18, 26))) g.FillEllipse(center, 512-disc, 485-disc, disc*2, disc*2);
+            // The title sits where the center disc narrows; fit it to the chord at its cap height.
+            float titleTop=485-disc+29,titleWidth=2*(float)Math.Sqrt(disc*disc-(disc-37)*(disc-37))-12;
             g.DrawString(current.Title,TextFit.Font(g,current.Title,titleFont,titleWidth,1,18),Brushes.White,
-                new System.Drawing.RectangleF(512-titleWidth/2,337,titleWidth,40),centered);
-            if(current.Selected>=0) foreach(string icon in current.Icons[current.Selected]) target.Icon(icon,456,389,112);
-            else target.Icon(current.Group==0 ? GameActions.ConfigureToolbarAction.Icon : current.Group==1 ? GameActions.InventoryAction.Icon :
-                GameActions.Building[0].Icon,456,389,112);
-            string selected=current.Selected<0 ? "Cancel" : current.Labels[current.Selected];
-            g.DrawString(selected,TextFit.Font(g,selected,titleFont,280,2,20),Brushes.Cyan,new System.Drawing.RectangleF(372,514,280,76),centered);
+                new System.Drawing.RectangleF(512-titleWidth/2,titleTop,titleWidth,40),centered);
+            float iconSize=current.Compact ? 84:112,iconTop=current.Compact ? 400:389;
+            if(current.Selected>=0) foreach(string icon in current.Icons[current.Selected]) target.Icon(icon,512-iconSize/2,iconTop,iconSize);
+            else if(current.Idle==null) target.Icon(current.Group==0 ? GameActions.ConfigureToolbarAction.Icon : current.Group==1 ? GameActions.InventoryAction.Icon :
+                GameActions.Building[0].Icon,512-iconSize/2,iconTop,iconSize);
+            string selected=current.Selected<0 ? current.Idle ?? "Cancel" : current.Labels[current.Selected];
+            float labelWidth=current.Compact ? 230:280,labelTop=iconTop+iconSize+13;
+            g.DrawString(selected,TextFit.Font(g,selected,titleFont,labelWidth,2,20),Brushes.Cyan,new System.Drawing.RectangleF(512-labelWidth/2,labelTop,labelWidth,current.Compact ? 60:76),centered);
             int pages=Math.Min(9,Math.Max(1,current.Pages));
             for(int i=0;(current.Group==0 || current.Pages>1) && i<pages;i++) g.FillEllipse(i==current.Page ? Brushes.Cyan : Brushes.SlateGray,512-(pages*24)/2+i*24,602,13,13);
-            g.DrawString(current.Group==0 ? "A: Assign" : "X: Inventory",font,Brushes.LightGray,new System.Drawing.RectangleF(392,624,240,28),centered);
+            g.DrawString(current.Footer ?? (current.Group==0 ? "A: Assign" : "X: Inventory"),font,Brushes.LightGray,new System.Drawing.RectangleF(392,current.Compact ? 568:624,240,28),centered);
             int count=current.Labels.Length;
             float degrees=360f/count;
             var sectors=new System.Drawing.Drawing2D.GraphicsPath[count];
@@ -384,11 +391,11 @@ namespace SpaceEngineersVR.Player
                 {
                     var sector=sectors[i]=new System.Drawing.Drawing2D.GraphicsPath();
                     sector.AddArc(102,75,820,820,-90+i*degrees-degrees/2+1,degrees-2);
-                    sector.AddArc(322,295,380,380,-90+i*degrees+degrees/2-1,-degrees+2);
+                    sector.AddArc(512-inner,485-inner,inner*2,inner*2,-90+i*degrees+degrees/2-1,-degrees+2);
                     sector.CloseFigure();
                     double angle=i*Math.PI*2/count;
                     // Upper segments narrow toward the center, where their label sits; move the stack outward.
-                    float x=512+(float)Math.Sin(angle)*298,y=485-(float)Math.Cos(angle)*298-24*(float)Math.Max(0,Math.Cos(angle));
+                    float x=512+(float)Math.Sin(angle)*ring,y=485-(float)Math.Cos(angle)*ring-24*(float)Math.Max(0,Math.Cos(angle));
                     centers[i]=new PointF(x,y);
                     // Native item text (weapon ammo "0 • 20x") gets its own line under the icon; the label follows it.
                     labelTops[i]=y+(string.IsNullOrEmpty(current.ItemText[i]) ? 38:62);

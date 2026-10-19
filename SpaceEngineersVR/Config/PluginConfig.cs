@@ -68,10 +68,14 @@ namespace SpaceEngineersVR.Config
         public float CameraZoomSensitivity { get => cameraZoomSensitivity; set => SetValue(ref cameraZoomSensitivity,Bound(value,.25f,4,2)); }
         private bool inspectWithoutGrip;
         public bool InspectWithoutGrip { get => inspectWithoutGrip; set => SetValue(ref inspectWithoutGrip,value); }
+        private bool grabSnapToCenter;
+        public bool GrabSnapToCenter { get => grabSnapToCenter; set => SetValue(ref grabSnapToCenter,value); }
         private bool doNotDisturb;
         public bool DoNotDisturb { get => doNotDisturb; set => SetValue(ref doNotDisturb,value); }
         private bool developerTools;
         public bool DeveloperTools { get => developerTools; set => SetValue(ref developerTools,value); }
+        private bool programmableBlockData=true;
+        public bool ProgrammableBlockData { get => programmableBlockData; set => SetValue(ref programmableBlockData,value); }
         private bool stableShadows=true,distantFlares=true,mirrorDesktop=true;
         public bool StableShadows { get => stableShadows; set => SetValue(ref stableShadows,value); }
         public bool DistantFlares { get => distantFlares; set => SetValue(ref distantFlares,value); }
@@ -96,6 +100,8 @@ namespace SpaceEngineersVR.Config
         private float snapTurnAngle=30;
         public float SnapTurnAngle { get => snapTurnAngle; set => SetValue(ref snapTurnAngle,Bound(value,15,90,30)); }
         public bool HudWithVisorOpen { get => hudWithVisorOpen; set => SetValue(ref hudWithVisorOpen,value); }
+        private bool reduceScreenEffects=true;
+        public bool ReduceScreenEffects { get => reduceScreenEffects; set => SetValue(ref reduceScreenEffects,value); }
         public bool ShowVitals { get => showVitals ?? helmetHudMode>0; set => SetValue(ref showVitals,(bool?)value); }
         public int WaypointMode { get => waypointMode<0 ? Math.Max(0,helmetHudMode-1):waypointMode; set => SetValue(ref waypointMode,Math.Max(0,Math.Min(2,value))); }
         private bool signalEdges=true,signalRings=true,showGps=true,showContacts=true,showResources=true;
@@ -142,6 +148,10 @@ namespace SpaceEngineersVR.Config
         public AnchorOffsetSetting[] AnchorOffsets { get => anchorOffsets; set => SetValue(ref anchorOffsets,value ?? new AnchorOffsetSetting[0]); }
         public bool LegacyShipTilt { get => legacyShipTilt; set => SetValue(ref legacyShipTilt, value); }
         public bool HoldGripRotation { get => holdGripRotation; set => SetValue(ref holdGripRotation, value); }
+        private bool doubleTapToolLock=true;
+        public bool DoubleTapToolLock { get => doubleTapToolLock; set => SetValue(ref doubleTapToolLock,value); }
+        private bool lockBlockWhileRotating=true;
+        public bool LockBlockWhileRotating { get => lockBlockWhileRotating; set => SetValue(ref lockBlockWhileRotating,value); }
         private bool leftHanded;
         public bool LeftHanded { get => leftHanded; set => SetValue(ref leftHanded,value); }
         public const float DefaultJetpackRoll = 0.15f, DefaultShipRollSensitivity = 0.6f;
@@ -169,6 +179,8 @@ namespace SpaceEngineersVR.Config
         private StickPlacementSetting[] stickPlacements=new StickPlacementSetting[0];
         private CockpitActionSetting[] cockpitActions=new CockpitActionSetting[0];
         public CockpitActionSetting[] CockpitActions { get => cockpitActions; set => SetValue(ref cockpitActions,value ?? new CockpitActionSetting[0]); }
+        private QuickToolbarSetting[] quickToolbars=new QuickToolbarSetting[0];
+        public QuickToolbarSetting[] QuickToolbars { get => quickToolbars; set => SetValue(ref quickToolbars,value ?? new QuickToolbarSetting[0]); }
         private CockpitStateSetting[] cockpitStates=new CockpitStateSetting[0];
         public CockpitStateSetting[] CockpitStates { get => cockpitStates; set => SetValue(ref cockpitStates,value ?? new CockpitStateSetting[0]); }
         private MenuWindowSetting[] menuWindows=new MenuWindowSetting[0];
@@ -206,6 +218,8 @@ namespace SpaceEngineersVR.Config
         private bool tapHoldSticks,tapHoldLevers;
         public bool TapHoldSticks { get => tapHoldSticks; set => SetValue(ref tapHoldSticks,value); }
         public bool TapHoldLevers { get => tapHoldLevers; set => SetValue(ref tapHoldLevers,value); }
+        private bool keepScreenPlacement;
+        public bool KeepScreenPlacement { get => keepScreenPlacement; set => SetValue(ref keepScreenPlacement,value); }
         private string desktopMonitor;
         public string DesktopMonitor { get => desktopMonitor; set => SetValue(ref desktopMonitor,value); }
         private bool controllerRelativeMovement;

@@ -477,11 +477,11 @@ namespace SpaceEngineersVR.Diagnostics
             int index=(phase-100)/2;
             bool menusOnly=!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY"));
             bool setupOnly=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="setup";
-            if(index>=(setupOnly ? 19:menusOnly ? 33:12))
+            if(index>=(setupOnly ? 19:menusOnly ? 36:12))
             {
                 if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions" && (!symmetryPreviewsSaved || !rotationPreviewsSaved))
                     throw new InvalidOperationException("Native gameplay gizmo and placement indicator fixtures were not rendered");
-                options?.CloseScreenNow();options=null;
+                if(options is AssignmentPreview preview) preview.Finish(); else options?.CloseScreenNow();options=null;
                 Stop();
                 Logger.Info(menusOnly ? "PHYSICAL RENDER SMOKE PASSED: native menu checks and gallery only." :
                     "PHYSICAL RENDER SMOKE PASSED: native interface, camera HUD, hand layer, reference cockpit and menu gallery. Rig sweep excluded.");return;
@@ -498,9 +498,9 @@ namespace SpaceEngineersVR.Diagnostics
                 }
                 if(index>=13 && index<=16 && options is GUI.MyPluginConfigDialog settings)
                 { settings.SelectPage(new[] {1,2,4,3}[index-13]);next=DateTime.UtcNow.AddSeconds(2);phase++;return; }
-                options?.CloseScreenNow();
+                if(options is AssignmentPreview preview) preview.Finish(); else options?.CloseScreenNow();
                 options=index<GalleryGuideTopics ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.BindingHelp(index) :
-                    index==10 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.HudStateOptions() : new GUI.BindingOptions();
+                    index==10 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.HudStateOptions() : new GUI.MyPluginConfigDialog();
                 if(index>=24 && index<29)
                 {
                     var scrolled=new GUI.BindingHelp(new[] {1,4,4,5,8}[index-24]);
@@ -533,12 +533,15 @@ namespace SpaceEngineersVR.Diagnostics
                 if(index==30) options=new GUI.SettingsPage("Character");
                 if(index==31) options=new GUI.SettingsPage("Character turning");
                 if(index==32) options=new GUI.SettingsPage("HUD visibility");
+                if(index==33) options=new GUI.SettingsPage("Signals");
+                if(index==34) options=new GUI.SettingsPage("Advanced controls");
+                if(index==35) options=new AssignmentPreview(quickToolbar:true);
                 Sandbox.Graphics.GUI.MyGuiSandbox.AddScreen(options);next=DateTime.UtcNow.AddSeconds(2);
             }
             else
             {
                 if(index>=24 && index<29 && options is GUI.BindingHelp scrolled) scrolled.ScrollTo(index==25 ? .45f:1);
-                string name=index==32 ? "settings-hud-visibility-native":index==31 ? "settings-turning-native":index==30 ? "settings-character-native":index==29 ? "hand-alignment-native":index>=24 ? "guide-scrolled-"+index:index==9 ? "guide-common-bottom":index==22 ? "actions-recent-native":index==23 ? "actions-filtered-native":index<12 ? "menu-gallery-"+index : index<20 ? "settings-native-"+(index+25) : index==20 ? "main-vr-options":"pause-vr-options";
+                string name=index==35 ? "quick-toolbar-assignment-native":index==34 ? "settings-advanced-native":index==33 ? "settings-signals-native":index==32 ? "settings-hud-visibility-native":index==31 ? "settings-turning-native":index==30 ? "settings-character-native":index==29 ? "hand-alignment-native":index>=24 ? "guide-scrolled-"+index:index==9 ? "guide-common-bottom":index==22 ? "actions-recent-native":index==23 ? "actions-filtered-native":index<12 ? "menu-gallery-"+index : index<20 ? "settings-native-"+(index+25) : index==20 ? "main-vr-options":"pause-vr-options";
                 MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,name+".png"),false,false,false);
                 next=DateTime.UtcNow.AddSeconds(1);
             }
@@ -621,7 +624,20 @@ namespace SpaceEngineersVR.Diagnostics
                         Logger.Info("PASS native camera HUD allowlist: "+RemoteHud.SpriteCount+" camera/crosshair/hit sprites; options screen excluded");
                         var remote=new RemoteView.View { Source=123,Width=1.2f,Height=.675f,
                             Pose=MatrixD.CreateTranslation(0,0,-1.5)*MatrixD.Invert(camera.ViewMatrix) };
+                        var eyeCascades=FeedShadows.Eyes;
+                        var arrays=new[] {"CascadeShadowmapArray","CascadeShadowmapArrayOld"}.Select(name=>AccessTools.Property(eyeCascades?.GetType(),name)).ToArray();
+                        var eyeArrays=eyeCascades==null ? null:arrays.Select(p=>p.GetValue(eyeCascades,null)).ToArray();
                         RemoteFeed.Render(remote);
+                        if(eyeCascades!=null)
+                        {
+                            if(!ReferenceEquals(FeedShadows.Eyes,eyeCascades) || !arrays.Select(p=>p.GetValue(eyeCascades,null)).SequenceEqual(eyeArrays))
+                                throw new InvalidOperationException("Camera feed changed the eyes' shadow cascades");
+                            if(FeedShadows.Instance==null || ReferenceEquals(FeedShadows.Instance,eyeCascades)) throw new InvalidOperationException("Camera feed did not use its own shadow cascades");
+                            var resolution=AccessTools.Property(eyeCascades.GetType(),"CascadeResolution");
+                            object feedSize=resolution.GetValue(FeedShadows.Instance,null),eyeSize=resolution.GetValue(eyeCascades,null);
+                            if(!Equals(feedSize,eyeSize)) throw new InvalidOperationException("Feed shadow cascades are "+feedSize+" px; the engine renders them at "+eyeSize);
+                            Logger.Info("PASS native feed shadows: own cascade set at the eyes' "+feedSize+" px, eyes' cascade instance and depth arrays unchanged");
+                        }
                         // Restore the physical view's depth after rendering the camera feed.
                         object extra=null;
                         try { Wrappers.MyRender11.DrawGameScene(target,out extra); }
@@ -629,6 +645,7 @@ namespace SpaceEngineersVR.Diagnostics
                         RemoteFeed.Draw(physicalTarget,remote,camera.ViewMatrix,Wrappers.MyRender11.Environment_Matrices.Projection);
                         UiTests.Save(physicalTarget,Path.Combine(output,"remote-feed-native.png"));
                         RemoteFeed.Reset();
+                        if(FeedShadows.Instance!=null) throw new InvalidOperationException("Feed shadow cascades survived the feed reset");
                         int retained=RemoteHud.SpriteCount;
                         for(int i=0;i<120;i++) RemoteHud.CollectFrame(int.MinValue+i,remote,new Vector2(size.X,size.Y));
                         if(RemoteHud.SpriteCount!=retained) throw new InvalidOperationException("Camera-only frames cleared the native HUD");
@@ -679,12 +696,12 @@ namespace SpaceEngineersVR.Diagnostics
                         SpatialUi.DrawFloating(physicalTarget,MatrixD.Identity,camera.ProjectionMatrix,new[] {settings});
                         UiTests.Save(physicalTarget,Path.Combine(output,"flight-settings-native-cockpit.png"));
                         foreach(string vehicleSubtype in new[] {"SpeederCockpit","RoverCockpit"})
-                        for(int page=0;page<4;page++)
+                        for(int page=0;page<5;page++)
                         {
                             texture.Device.ImmediateContext.CopyResource(texture,physicalTarget);
                             string title=vehicleSubtype=="SpeederCockpit" ? "Saddle Controls":"Vehicle Controls";
                             var vehicle=FlightSettings.View("vehicle-native-"+page,window.Pose,.55f,.31f,
-                                FlightSettings.Layout(new Multiplayer.FlightTuning {FlightMode=true,BarTiltEnabled=true,WheelMotion=true},page==3,false,false,title,false,vehicleSubtype,page),title);
+                                FlightSettings.Layout(new Multiplayer.FlightTuning {FlightMode=true,BarTiltEnabled=true,WheelMotion=true},page==4,false,false,title,false,vehicleSubtype,page),title);
                             vehicle.WindowPose=window.Pose;
                             SpatialUi.DrawFloating(physicalTarget,MatrixD.Identity,camera.ProjectionMatrix,new[] {vehicle});
                             UiTests.Save(physicalTarget,Path.Combine(output,"vehicle-settings-native-"+vehicleSubtype+"-"+page+".png"));

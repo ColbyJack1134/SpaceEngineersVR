@@ -151,7 +151,11 @@ namespace SpaceEngineersVR.Player
                     if(s.Hover>=0 && HoveredSwitch<0) HoveredSwitch=i;
                     if(target.Analog && CockpitActions.ReadAnalog(i,out _,out _))
                     {
-                        if(input.Held>=0 && input.Position.HasValue && (!sentAnalog[i].HasValue || Math.Abs(input.Position.Value-sentAnalog[i].Value)>.0001f)) pendingAnalog[i]=input.Position.Value;
+                        if(input.Held>=0 && input.Position.HasValue)
+                        {
+                            float position=AnalogControl.Quantize(input.Position.Value);
+                            pendingAnalog[i]=sentAnalog[i].HasValue && position==sentAnalog[i].Value ? (float?)null : position;
+                        }
                         if(pendingAnalog[i].HasValue && (input.Held<0 || MultiplayerRuntime.Now>=nextAnalogSend[i]))
                         {
                             CockpitActions.SetAnalog(i,pendingAnalog[i].Value);

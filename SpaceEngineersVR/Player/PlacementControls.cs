@@ -34,6 +34,10 @@ namespace SpaceEngineersVR.Player
         }
         private static object poseOwner;
         private static MatrixD? lastPose;
+        // Rotation lock: the pose is kept in the controlled entity's frame so it rides a moving grid and ignores room-scale drift.
+        private static MatrixD? heldPose;
+        private static bool cancelRotation;
+        internal static bool HoldingPose { get; private set; }
         [ThreadStatic] internal static bool EditingDistance;
 
         // Rotate mode: a right grip tap lets the sticks rotate the preview, so a held grip still rolls in flight.
@@ -72,6 +76,7 @@ namespace SpaceEngineersVR.Player
             bool tap=rotateTap.Update(grip,c.ActionGripClick.HasReleased,chord || !tools || hold,now);
             bool placed=Adjusting && c.Fire.HasPressed;
             bool active=hold ? tools && grip:Rotating(Adjusting,tools,tap,placed);
+            if(cancelRotation) { active=false; cancelRotation=false; }
             if(active && !Adjusting)
             {
                 leftReady=rightReady=false; Array.Clear(repeat,0,repeat.Length);
@@ -84,6 +89,8 @@ namespace SpaceEngineersVR.Player
                 c.WalkLongitudinal.BlockUntilRelease(); c.WalkRotate.BlockUntilRelease(); c.ThrustLRFB.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease();
             }
             Adjusting=active;
+            if(HoldingPose && c.Fire.IsPressed) releaseGrace=ReleaseGrace; else if(releaseGrace>0) releaseGrace--;
+            HoldingPose=HoldsPose(Common.Config.LockBlockWhileRotating,active,placed,c.Fire.IsPressed,HoldingPose,releaseGrace>0);
             VoxelTools.Update(active && !Painting && (Math.Abs(right.X)>=.55f || Math.Abs(right.Y)>=.55f || Math.Abs(left.X)>=.55f));
             if(!active || Painting) return;
             if(left.LengthSquared()<.09f) leftReady=true;
@@ -127,6 +134,18 @@ namespace SpaceEngineersVR.Player
             next=now.AddSeconds(interval); return true;
         }
         internal static bool Rotating(bool rotating,bool tools,bool tap,bool placed) => tools && !placed && (tap ? !rotating:rotating);
+        // Single blocks are added on the press; line and plane shapes are built on the release from the pose read after it,
+        // so the lock outlives the trigger by a few updates.
+        internal const int ReleaseGrace=3;
+        private static int releaseGrace;
+        internal static bool HoldsPose(bool setting,bool rotating,bool placed,bool fireHeld,bool wasHolding,bool grace) =>
+            setting && (rotating || placed || wasHolding && (fireHeld || grace));
+        // Tap mode only: a held grip would re-enter rotation on the next update.
+        internal static bool TryCancelRotation()
+        {
+            if(!Adjusting || Common.Config.HoldGripRotation) return false;
+            cancelRotation=true; return true;
+        }
         internal static bool PaintChord(InputMode mode,bool grip,bool interact,bool blocked) =>
             mode==InputMode.Building && grip && interact && !blocked;
 
@@ -134,14 +153,33 @@ namespace SpaceEngineersVR.Player
         public static bool TryPose(out MatrixD pose)
         {
             object owner = MySession.Static?.ControlledEntity;
-            if (!ReferenceEquals(owner, poseOwner)) { lastPose = null; poseOwner = owner; }
+            if (!ReferenceEquals(owner, poseOwner)) { lastPose = null; heldPose = null; poseOwner = owner; }
             bool active = ClipboardActive || Sandbox.Game.Entities.MyCubeBuilder.Static?.IsActivated == true || VoxelTools.Active;
-            if (!Main.VrActive || !active) { lastPose = null; pose = MatrixD.Identity; return false; }
-            if ((OwnsTools || InputRouter.Mode==InputMode.Radial) && !Main.MenuOpen && HandInteraction.TryVisiblePointerPose(Handedness.ActionHand, out pose)) lastPose = pose;
+            if (!Main.VrActive || !active) { lastPose = null; heldPose = null; pose = MatrixD.Identity; return false; }
+            MatrixD frame = PoseFrame(owner);
+            pose = MatrixD.Identity;
+            bool live = (OwnsTools || InputRouter.Mode==InputMode.Radial) && !Main.MenuOpen && HandInteraction.TryVisiblePointerPose(Handedness.ActionHand, out pose);
+            if (!HoldingPose)
+            {
+                heldPose = null;
+                if (live) lastPose = pose;
+            }
+            else
+            {
+                if (!heldPose.HasValue && live) lastPose = pose;
+                if (!heldPose.HasValue && lastPose.HasValue) heldPose = lastPose.Value * MatrixD.Invert(frame);
+                if (heldPose.HasValue) lastPose = heldPose.Value * frame;
+            }
             pose = lastPose ?? MatrixD.Identity;
             return lastPose.HasValue;
         }
 
+        // A seat frame turns with its grid; on foot only the position follows the body, so head-driven body yaw cannot swing the held pose.
+        private static MatrixD PoseFrame(object owner)
+        {
+            if (owner is MyShipController controller) return controller.PositionComp.WorldMatrixRef;
+            return owner is VRage.Game.Entity.MyEntity entity ? MatrixD.CreateTranslation(entity.PositionComp.WorldMatrixRef.Translation) : MatrixD.Identity;
+        }
         public static bool TryBuilderPose(out MatrixD pose)
         {
             pose=MatrixD.Identity;
@@ -152,10 +190,26 @@ namespace SpaceEngineersVR.Player
         }
         internal static float BuildDistance(float native)
         {
-            if(!Observer || EditingDistance) return native;
+            if(EditingDistance) return native;
+            if(!Observer) return SurvivalDistance(native);
             if(Creative) return (float)CreativeObserverDistance(native,ThirdPersonView.Current.UnitsPerMeter,
                 MyBlockBuilderBase.CubeBuilderDefinition.DefaultBlockBuildingDistance);
             return (float)ObserverDistance(native,ThirdPersonView.Current.UnitsPerMeter);
+        }
+        private static float heldDistance,heldNative;
+        // Survival reach is measured from the head, so the hand ray ends at the native distance from the head.
+        private static float SurvivalDistance(float native)
+        {
+            var character=MySession.Static?.LocalCharacter;
+            if(Creative || MyBlockBuilderBase.SpectatorIsBuilding || character==null || !TryBuilderPose(out MatrixD pose)) return native;
+            if(!HoldingPose || native!=heldNative) heldDistance=(float)HandDistance(pose.Translation,Vector3D.Normalize(pose.Forward),character.GetHeadMatrix(true).Translation,heldNative=native);
+            return heldDistance;
+        }
+        internal static double HandDistance(Vector3D hand,Vector3D direction,Vector3D head,double distance)
+        {
+            var offset=hand-head;
+            double along=offset.Dot(direction),square=along*along-offset.LengthSquared()+distance*distance;
+            return square<0 ? distance:Math.Max(0,Math.Sqrt(square)-along);
         }
         // Third person keeps the first-person world distance from the finger; the scaled distance is only the grid search range.
         internal static bool TryFreeTarget(out Vector3D target)

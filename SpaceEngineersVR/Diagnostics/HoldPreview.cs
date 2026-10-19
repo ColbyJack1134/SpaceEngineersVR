@@ -47,11 +47,11 @@ namespace SpaceEngineersVR.Diagnostics
                         model=(Matrix)Matrix.Invert((Matrix)profile.Hold(nativeRight,nativeLeft,false,palmMirror))*primaryPalm;
                     }
                     var holding=left ? leftArm:rightArm; var supporting=left ? rightArm:leftArm;
-                    ArmSkeleton.Apply(holding,Matrix.Invert(holding.PalmOffset)*primaryPalm,true,0,1,ArmSkeleton.Fingers.Stick,0,null,profile,false);
+                    ArmSkeleton.Apply(holding,Matrix.Invert(holding.PalmOffset)*primaryPalm,ArmSolve.Options.Local,1,ArmSkeleton.Fingers.Stick,0,null,profile,false);
                     if(two)
                     {
                         var supportPalm=(Matrix)profile.Hold(nativeRight,nativeLeft,true,palmMirror)*model;
-                        ArmSkeleton.Apply(supporting,Matrix.Invert(supporting.PalmOffset)*supportPalm,true,0,1,ArmSkeleton.Fingers.Stick,0,null,profile,true);
+                        ArmSkeleton.Apply(supporting,Matrix.Invert(supporting.PalmOffset)*supportPalm,ArmSolve.Options.Local,1,ArmSkeleton.Fingers.Stick,0,null,profile,true);
                     }
                     bones[0].ComputeAbsoluteTransform(true,true);
                     string model3d=profile.Model.Substring("Models/Weapons/".Length).Replace(".mwm","");

@@ -43,11 +43,14 @@ namespace SpaceEngineersVR.Plugin
         private static readonly Integration touchScreens=new Integration("TouchScreenAPI",Player.TouchScreenBridge.Reset,Player.TouchScreenBridge.RefreshRegistrations,Player.TouchScreenBridge.Update,Player.TouchScreenBridge.Draw),
             arthurLcd=new Integration("Arthur's LCD",Player.ArthurLcdBridge.Reset,Player.ArthurLcdBridge.RefreshRegistrations,Player.ArthurLcdBridge.Update,Player.ArthurLcdBridge.Draw),
             weaponCore=new Integration("WeaponCore",Player.WeaponCoreIntegration.Reset,Player.WeaponCoreIntegration.Refresh,Player.WeaponCoreIntegration.Update),
-            shields=new Integration("Defense Shields",Player.ShieldsIntegration.Reset,Player.ShieldsIntegration.Refresh,Player.ShieldsIntegration.Update);
-        internal static readonly Integration[] Integrations={touchScreens,arthurLcd,weaponCore,shields,
+            shields=new Integration("Defense Shields",Player.ShieldsIntegration.Reset,Player.ShieldsIntegration.Refresh,Player.ShieldsIntegration.Update),
+            pbFeed=new Integration("Programmable block VR data",PbFeed.Reset,PbFeed.Refresh,PbFeed.Update);
+        internal static readonly Integration[] Integrations={touchScreens,arthurLcd,weaponCore,shields,pbFeed,
             new Integration("Mod HUD",Patches.ModHud.Reset,Patches.ModHud.RefreshRegistrations),
-            new Integration("Voxel tool mods",Patches.DigiTools.Reset,Patches.DigiTools.RefreshRegistrations)};
+            new Integration("Voxel tool mods",Patches.DigiTools.Reset,Patches.DigiTools.RefreshRegistrations),
+            new Integration("Mod API",ModApi.Reset,ModApi.Refresh)};
         private static int recoveryAttempts;
+        private static DateTime recoveredAt;
         public static void Fail(Exception error, string context)
         {
             menuFallback = false;
@@ -101,6 +104,7 @@ namespace SpaceEngineersVR.Plugin
                 {
                     Harmony=new Harmony(Common.Name);
                     Harmony.PatchAll(Assembly.GetExecutingAssembly());
+                    Player.StereoFoliage.Warm();
                     PhysicalRendererProbe.Start(Harmony);
                     return;
                 }
@@ -198,6 +202,7 @@ namespace SpaceEngineersVR.Plugin
                     Player.BuildOrientationHud.Hide();
                     Player.PerformanceHud.Hide();
                     Player.ToolbarWheel.Hide();
+                    Player.QuickToolbar.Reset();
                 }
                 catch (Exception ex) { Logger.Critical(ex, "VR failure cleanup"); }
             }
@@ -219,6 +224,7 @@ namespace SpaceEngineersVR.Plugin
                     if (chord && MyInput.Static.IsNewKeyPressed(MyKeys.D)) ShowDesktopPanel = !ShowDesktopPanel;
                     if (chord && MyInput.Static.IsNewKeyPressed(MyKeys.V)) OpenConfigDialog();
                     CustomUpdate();
+                    recoveryAttempts=RecoveryAttempts(recoveryAttempts,recoveredAt,DateTime.UtcNow);
                 }
                 catch (Exception ex)
                 {
@@ -238,7 +244,7 @@ namespace SpaceEngineersVR.Plugin
                 session?.LocalCharacter?.IsDead==false,session?.ControlledEntity?.Entity!=null,dialog,changed,recoveryAttempts))
             {
                 ResetWorldState();
-                recoveryAttempts++;
+                recoveryAttempts++; recoveredAt=DateTime.UtcNow;
                 failedSession=failedCharacter=failedControl=null;
                 menuFallback=false; failed=false; WorldAvailable=true; MenuOpen=false;
                 Logger.Info("VR gameplay resumed after menu recovery");
@@ -253,6 +259,9 @@ namespace SpaceEngineersVR.Plugin
             Player.MenuPointer.Update();
         }
 
+        // Any failure returns to the fallback menu, so time since the last resume is healthy play.
+        internal static readonly TimeSpan RecoveryForgiven=TimeSpan.FromMinutes(5);
+        internal static int RecoveryAttempts(int attempts,DateTime recovered,DateTime now) => attempts>0 && now-recovered>=RecoveryForgiven ? 0:attempts;
         internal static bool CanResumeMenu(bool worldReady,bool characterAlive,bool controlled,bool dialog,bool changed,int attempts) =>
             worldReady && characterAlive && controlled && !dialog && changed && attempts<2;
 
@@ -297,6 +306,7 @@ namespace SpaceEngineersVR.Plugin
                 Harmony.PatchAll(Assembly.GetExecutingAssembly());
 
                 Patches.FrameInjections.Install(Harmony);
+                Player.StereoFoliage.Warm();
                 Multiplayer.MultiplayerRuntime.Capture=seq=>VrActive ? Player.TrackedArms.CapturePose(seq):null;
                 Multiplayer.MultiplayerRuntime.Notify=message=> { if(VrActive) Player.EssentialHud.Notify(message); };
                 Multiplayer.MultiplayerRuntime.ControlCount=seat=>Player.CockpitLayout.Count(seat.BlockDefinition.Id.SubtypeName);
@@ -367,12 +377,14 @@ namespace SpaceEngineersVR.Plugin
             Player.HandInteraction.UpdateTouch();
             Player.ThirdPersonView.Update();
             Player.SpectatorView.UpdateGestures();
+            Player.HandGrab.Update();
             Player.BlockInspection.Update();
             Player.DampenerTargeting.Update();
             Player.GridSelection.Update();
             weaponCore.Update();
             shields.Update();
             Player.ToolbarWheel.Update();
+            Player.QuickToolbar.Update();
             Player.GameActions.RunScheduled();
             Player.CockpitControls.Update();
             Player.PlacementControls.Update();
@@ -385,6 +397,7 @@ namespace SpaceEngineersVR.Plugin
             Player.BootsHaptics.Update();
             if(Player.SeatFit.Eligible(Player.SeatFit.Seat))
                 Player.TrackedArms.Update(Player.SeatFit.Seat.Pilot);
+            pbFeed.Update();
             if (Player.Controls.Static.Options.HasPressed) OpenConfigDialog();
             Player.MenuPointer.Update();
 
@@ -397,6 +410,7 @@ namespace SpaceEngineersVR.Plugin
             touchScreens.Draw();
             arthurLcd.Draw();
             Player.EssentialHud.Update();
+            Player.ScreenEffects.Update();
             Player.HelmetLight.Publish();
             Player.SpatialUi.Publish();
         }

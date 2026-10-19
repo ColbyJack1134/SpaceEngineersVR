@@ -42,17 +42,29 @@ namespace SpaceEngineersVR.Player
             OpenVR.Input.GetActionHandle(hapticsName, ref hapticsActionHandle);
         }
 
-        public void Vibrate(float delay, float duration, float frequency, float amplitude)
+        private long pulseStart,pulseLast;
+        private bool pulseReported;
+        public void Vibrate(float delay, float duration, float frequency, float amplitude,[System.Runtime.CompilerServices.CallerMemberName] string caller="",[System.Runtime.CompilerServices.CallerFilePath] string file="")
         {
             if (hapticsActionHandle == 0)
                 return;
-
+            Watch(caller,file);
             var error=OpenVR.Input.TriggerHapticVibrationAction(hapticsActionHandle, delay, duration, frequency, amplitude, OpenVR.k_ulInvalidInputValueHandle);
             if(error!=EVRInputError.None && !hapticsReported)
             { hapticsReported=true; Plugin.Logger.Warning("Controller haptic output failed: "+error); }
         }
 
 
+        // Every pulse is short, so a buzz that lasts is a caller pulsing every frame; name it once per episode with developer tools on.
+        private void Watch(string caller,string file)
+        {
+            long now=System.Diagnostics.Stopwatch.GetTimestamp(),frequency=System.Diagnostics.Stopwatch.Frequency;
+            if(now-pulseLast>frequency*3/10) { pulseStart=now; pulseReported=false; }
+            pulseLast=now;
+            if(pulseReported || now-pulseStart<frequency || Plugin.Common.Config?.DeveloperTools!=true) return;
+            pulseReported=true;
+            Plugin.Logger.Info("Haptics: "+(ReferenceEquals(this,Player.HandL) ? "left":ReferenceEquals(this,Player.HandR) ? "right":"device")+" hand pulsed continuously for 1 s from "+System.IO.Path.GetFileNameWithoutExtension(file)+"."+caller);
+        }
         public virtual void MainUpdate()
         {
         }

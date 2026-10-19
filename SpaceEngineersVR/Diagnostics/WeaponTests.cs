@@ -121,6 +121,14 @@ namespace SpaceEngineersVR.Diagnostics
             Require(WeaponAmmo.Inspecting(MatrixD.Identity,head,label.Pose),"Side inspection label hidden");
             head=MatrixD.CreateWorld(new Vector3D(0,.05,.4),Vector3D.Forward,Vector3D.Up);
             Require(!WeaponAmmo.Inspecting(MatrixD.Identity,head,label.Pose),"Label obscures aiming posture");
+            // A left-handed hold puts the label on the gun's right side, facing out and readable from there.
+            foreach(var profile in WeaponProfile.All.Where(p=>!p.Tool))
+            {
+                label=WeaponAmmo.Label(profile.Mirror,MatrixD.Identity,18,20);
+                Require(label.Pose.Translation.X>.02 && label.Pose.Backward.X>.99 && label.Pose.Right.Z<-.99,profile.Item+": left-handed ammo label is not on the right side facing out");
+            }
+            head=MatrixD.CreateWorld(new Vector3D(.4,.1,0),Vector3D.Left,Vector3D.Up);
+            Require(WeaponAmmo.Inspecting(MatrixD.Identity,head,WeaponAmmo.Label(WeaponProfile.Rifle.Mirror,MatrixD.Identity,18,20).Pose),"Left-handed side inspection label hidden");
             log("PASS held items: 22 installed attachment matches, 440 large-coordinate working-frame/support cases, impossible support rejection, pistol underside reload and release ownership, ammo visibility.");
         }
         internal static void Animate(MyCharacterBone[] bones,string name,double fraction)
@@ -163,7 +171,7 @@ namespace SpaceEngineersVR.Diagnostics
                 var model=Matrix.CreateTranslation(0,1.25f,-.45f);
                 var palm=(Matrix)profile.Palm(Palm(items[item],"Left"),true)*model;
                 var wrist=Matrix.Invert(arm.PalmOffset)*palm;
-                Require(ArmSkeleton.Apply(arm,wrist,true,rigid ? 1:0,1,ArmSkeleton.Fingers.Stick,1,null,profile,true),"Support arm fixture failed");
+                Require(ArmSkeleton.Apply(arm,wrist,new ArmSolve.Options(true,true,rigid ? 1:0),1,ArmSkeleton.Fingers.Stick,1,null,profile,true),"Support arm fixture failed");
                 Require(Vector3.Distance(arm.Palm.Bone.AbsoluteTransform.Translation,palm.Translation)<.001f,"Articulated support left its anchor");
                 WritePose(bones,Matrix.Invert(model),Path.Combine(output,item+"-support-"+(rigid ? "rigid":"flex")+".json"));
             }
@@ -307,6 +315,18 @@ namespace SpaceEngineersVR.Diagnostics
                     }
                     UiTests.Save(eye,Path.Combine(output,"hit-markers.png"));
                     RemoteCombat.Reset();
+                    var frameEyes=new[] {VrMath.Projection(-1.664f,1.210f,-1.724f,1.174f,.03),VrMath.Projection(-1.210f,1.664f,-1.724f,1.174f,.03)};
+                    foreach(float alpha in new[] {.35f,.8f,1f})
+                        for(int side=0;side<2;side++)
+                        {
+                            for(int pass=0;pass<2;pass++)
+                            {
+                                using(var rtv=new RenderTargetView(device,eye)) device.ImmediateContext.ClearRenderTargetView(rtv,new SharpDX.Mathematics.Interop.RawColor4(.10f,.14f,.18f,1));
+                                BloodOverlay.Draw(eye,frameEyes[side],alpha);
+                                if(pass==0) SignalTests.WaitIcons();
+                            }
+                            UiTests.Save(eye,Path.Combine(output,"blood-"+(int)(alpha*100)+(side==0 ? "-left":"-right")+".png"));
+                        }
                 }
                 UiTests.Render(canvas,()=>PhysicalSurface.Paint(canvas,WeaponAmmo.Label(WeaponProfile.Launcher,MatrixD.Identity,1,1)));
                 UiTests.Save(canvas.Texture,Path.Combine(output,"ammo-single.png"));

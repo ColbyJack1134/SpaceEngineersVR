@@ -7,8 +7,9 @@ namespace SpaceEngineersVR.Multiplayer
 {
     internal sealed class PlayerPose
     {
-        // Version 1 packets (85 bytes) carry hands only; the head pose is appended.
-        internal const int LegacySize=85,HeadSize=113,Size=141,HeadTracked=4,ToolRayTracked=8,ItemSupported=16,ItemMirrored=32;
+        // Version 1 packets (85 bytes) carry hands only; the head pose, the tool ray and the finger curls are appended in that order.
+        internal const int LegacySize=85,HeadSize=113,Size=141,CurlBytes=10,HeadTracked=4,ToolRayTracked=8,ItemSupported=16,ItemMirrored=32,LeftCurls=64,RightCurls=128;
+        internal readonly float[] LeftCurl=new float[5],RightCurl=new float[5];
         internal long Character,Seat;
         internal uint Sequence;
         internal byte Tracked;
@@ -27,26 +28,35 @@ namespace SpaceEngineersVR.Multiplayer
                 writer.Write((byte)(MathHelper.Clamp(LeftTrigger,0,1)*255)); writer.Write((byte)(MathHelper.Clamp(RightTrigger,0,1)*255));
                 Write(writer,Head);
                 if((Tracked&ToolRayTracked)!=0) Write(writer,ToolRay);
+                if((Tracked&(LeftCurls|RightCurls))!=0) { Write(writer,LeftCurl); Write(writer,RightCurl); }
                 return stream.ToArray();
             }
         }
         internal static PlayerPose Decode(byte[] data)
         {
-            if(data==null || data.Length!=Size && data.Length!=HeadSize && data.Length!=LegacySize) return null;
+            if(data==null) return null;
+            bool curls=data.Length==HeadSize+CurlBytes || data.Length==Size+CurlBytes;
+            if(!curls && data.Length!=Size && data.Length!=HeadSize && data.Length!=LegacySize) return null;
             using(var reader=new BinaryReader(new MemoryStream(data,false)))
             {
                 if(reader.ReadInt32()!=0x31525653) return null;
                 var value=new PlayerPose {Character=reader.ReadInt64(),Seat=reader.ReadInt64(),Sequence=reader.ReadUInt32(),Tracked=reader.ReadByte()};
-                if(value.Character==0 || value.Tracked>63 || !Read(reader,out value.Left) || !Read(reader,out value.Right)) return null;
+                if(value.Character==0 || !Read(reader,out value.Left) || !Read(reader,out value.Right)) return null;
                 value.LeftFingers=(ArmSkeleton.Fingers)reader.ReadByte(); value.RightFingers=(ArmSkeleton.Fingers)reader.ReadByte();
                 value.LeftTrigger=reader.ReadByte()/255f; value.RightTrigger=reader.ReadByte()/255f;
                 if(data.Length==LegacySize) value.Tracked&=3;
                 else if(!Read(reader,out value.Head)) return null;
                 if(data.Length<Size) value.Tracked&=unchecked((byte)~ToolRayTracked);
                 else if(!Read(reader,out value.ToolRay)) return null;
+                if(!curls) value.Tracked&=unchecked((byte)~(LeftCurls|RightCurls));
+                else { Read(reader,value.LeftCurl); Read(reader,value.RightCurl); }
                 return value.LeftFingers>ArmSkeleton.Fingers.Stick || value.RightFingers>ArmSkeleton.Fingers.Stick ? null:value;
             }
         }
+        private static void Write(BinaryWriter writer,float[] curls)
+        { foreach(float curl in curls) writer.Write((byte)(MathHelper.Clamp(float.IsNaN(curl) ? 0:curl,0,1)*255)); }
+        private static void Read(BinaryReader reader,float[] curls)
+        { for(int i=0;i<curls.Length;i++) curls[i]=reader.ReadByte()/255f; }
         private static void Write(BinaryWriter writer,Matrix matrix)
         {
             var q=Quaternion.CreateFromRotationMatrix(matrix);

@@ -75,10 +75,12 @@ namespace SpaceEngineersVR.Player
                 nextDraw=now.AddMilliseconds(1000.0/30);
                 if(canvas==null) { canvas=new OverlayCanvas("Build orientation",384,384,Width); canvas.Position(Mount,true); }
                 Paint(canvas,view); canvas.Upload();
+                float alpha=HelmetHud.HudAlpha; if(alpha!=shownAlpha) { canvas.Show(alpha); shownAlpha=alpha; }
             }
             catch(Exception ex) { failed=true; Logger.Warning(ex,"Build orientation HUD disabled"); Hide(); }
         }
-        public static void Hide() => canvas?.Hide();
+        private static float shownAlpha=-1;
+        public static void Hide() { canvas?.Hide(); shownAlpha=-1; }
         public static void Reset() { current=null; nextDraw=DateTime.MinValue; }
     }
 }

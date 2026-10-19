@@ -322,6 +322,7 @@ namespace SpaceEngineersVR.Player
             if (failed || Main.MenuOpen || InputRouter.RadialOpen || !Main.WorldAvailable) return;
             try
             {
+                NativeSprites.Fade(target,HelmetHud.HudAlpha);
                 if(ShipCrosshair.Enabled(Common.Config,HelmetHud.Visible)) ShipCrosshair.Draw(target,renderCrosshair,renderHead,view,projection,Common.Config.FaceMarkersTowardViewer);
                 if(HelmetHud.Visible) { DamageMarkers.Draw(target,renderHead,view,projection); if(Common.Config.ShowHitMarkers) RemoteCombat.DrawImpact(target,renderHead,view,projection); }
                 if(current!=null && (DateTime.UtcNow-current.Time).TotalSeconds<=MaxCaptureAge && markersVisible)
@@ -331,6 +332,7 @@ namespace SpaceEngineersVR.Player
                 }
             }
             catch (Exception ex) { recovery.Fail(ex,"VR marker drawing disabled"); }
+            finally { NativeSprites.Fade(null,1); }
         }
         public static void Reset()
         {

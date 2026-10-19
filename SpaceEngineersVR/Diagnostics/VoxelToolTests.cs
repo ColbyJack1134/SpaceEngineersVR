@@ -54,7 +54,7 @@ namespace SpaceEngineersVR.Diagnostics
                 "Native voxel hand aim reads changed");
             Require(instructions.Any(i=>i.Calls(AccessTools.Method(typeof(Sandbox.Game.Entities.Character.MyCharacter),nameof(Sandbox.Game.Entities.Character.MyCharacter.GetHeadMatrix)))),
                 "Native voxel hand no longer aims from the head matrix");
-            log("PASS voxel tools: voxel hand statics only read in a world, brush rotation matches native cube builder axes, 60 deg/s at any frame rate, Digi distance/scale clamps, wheel order and native aim reads");
+            log("PASS voxel tools: voxel hand statics only read in a world, brush rotation matches native cube builder axes, 60 deg/s at any frame rate, Digi distance/scale clamps, remove mode, wheel order and native aim reads");
         }
 
         private static void NativeRotation()
@@ -118,6 +118,9 @@ namespace SpaceEngineersVR.Diagnostics
                 }
         }
         internal static DigiTool Fixture() => DigiTool.TryCreate(typeof(DigiFixture));
+        // Previews read the selected type and remove state through the production path, which needs the mod's static instance.
+        internal static void Attach() => DigiFixture.Instance=new DigiFixture();
+        internal static void Detach() => DigiFixture.Instance=null;
         private static bool Close(MatrixD a,MatrixD b)
         {
             for(int row=0;row<4;row++) for(int column=0;column<4;column++) if(Math.Abs(a[row,column]-b[row,column])>1e-9) return false;
@@ -157,14 +160,49 @@ namespace SpaceEngineersVR.Diagnostics
                     Require((float)scale.GetValue(mod)==3f,"Size mode exceeded the mod's box limit");
                 }
                 finally { VoxelTools.StickSizes=false; }
+                RemoveMode(tool);
                 var groups=ToolbarWheel.ToolGroups(tool.Title,tool.Actions(),tool.Materials(),new[] {GameActions.PauseAction});
                 var pages=ToolbarWheel.Layout(groups,out var titles,out var variants);
-                Require(titles.SequenceEqual(new[] {"Terrain tool"}.Concat(Enumerable.Repeat("Soil and stone",5)).Concat(Enumerable.Repeat("Snow and ice",2)).Concat(new[] {"Quick actions"})),
-                    "Terrain wheel is not ordered tool actions, soil, ice, quick actions");
-                Require(variants.SequenceEqual(new[] {false}.Concat(Enumerable.Repeat(true,7)).Concat(new[] {false})),"Terrain pages are not icon-only variant pages");
-                Require(pages.Skip(1).Take(5).SelectMany(p=>p).Count(c=>c!=null)==42 && pages.Skip(6).Take(2).SelectMany(p=>p).Count(c=>c!=null)==10,"Terrain pages lost a type");
+                Require(titles.SequenceEqual(Enumerable.Repeat("Soil and stone",5).Concat(Enumerable.Repeat("Snow and ice",2)).Concat(new[] {"Terrain tool","Quick actions"})),
+                    "Terrain wheel is not ordered soil, ice, tool actions, quick actions");
+                Require(variants.SequenceEqual(Enumerable.Repeat(true,7).Concat(new[] {false,false})),"Terrain pages are not icon-only variant pages");
+                Require(pages.Take(5).SelectMany(p=>p).Count(c=>c!=null)==42 && pages.Skip(5).Take(2).SelectMany(p=>p).Count(c=>c!=null)==10,"Terrain pages lost a type");
             }
             finally { DigiFixture.Instance=null; }
+        }
+
+        private static void RemoveMode(DigiTool tool)
+        {
+            var frame=new Player.Control.ActionFrame();
+            var remove=tool.Actions().First(a=>a.HistoryKey=="Remove terrain");
+            try
+            {
+                Require(remove.Label=="Remove terrain: off","Remove mode starts latched");
+                tool.Queue(frame,true,true);
+                Require(tool.Removing,"Grip and trigger do not remove");
+                VoxelTools.Update(true);
+                tool.Queue(frame,false,true);
+                Require(!tool.Removing,"A held grip sends the rotation modifier while the sticks rotate");
+                tool.Queue(frame,true,true);
+                Require(tool.Removing,"A removal hold stops when the sticks move");
+                VoxelTools.Update(false);
+                remove.Run();
+                Require(remove.Label=="Remove terrain: on","Remove mode did not latch");
+                tool.Queue(frame,false,false);
+                Require(tool.Removing,"Latched remove shows no preview before the trigger");
+                tool.Queue(frame,true,false);
+                Require(tool.Removing,"Latched remove does not remove on the trigger alone");
+                VoxelTools.Update(true);
+                tool.Queue(frame,false,false);
+                Require(!tool.Removing,"Latched remove sends the rotation modifier while the sticks rotate");
+                Require(tool.Selected(out string name,out _) && name=="Remove terrain","Latched remove is not shown in the tool slot");
+                VoxelTools.Update(false);
+                remove.Run();
+                tool.Queue(frame,true,false);
+                Require(!tool.Removing,"Unlatching remove left the tool removing");
+                Require(tool.Selected(out name,out _) && name=="T0","The tool slot kept the remove label after unlatching");
+            }
+            finally { if(remove.Label=="Remove terrain: on") remove.Run(); tool.ResetModifiers(); VoxelTools.Update(false); }
         }
 
         // Reads the installed workshop sources so a mod update that renames what the adapter binds fails here.
@@ -180,7 +218,8 @@ namespace SpaceEngineersVR.Diagnostics
                 foreach(string pattern in new[] {@"namespace Digi\.ConcreteTool",@"public static "+mod.Item3+@" Instance",@"internal IMyAutomaticRifleGun holdingTool;",
                     @"private float placeDistance\b",@"private float placeScale\b",@"private MatrixD placeMatrix\b",@"public void HoldingTool\(IMyCharacter character\)",
                     @"const float MIN_DISTANCE",@"const float MAX_DISTANCE",@"const float MIN_SCALE",@"const float MAX_SCALE",@"const float SCALE_STEP",
-                    @"character\.GetHeadMatrix\(",@"IsAnyCtrlKeyPressed\(\)",@"FREE_ROTATION"})
+                    @"character\.GetHeadMatrix\(",@"IsAnyCtrlKeyPressed\(\)",@"FREE_ROTATION",
+                    @"removeMode = ctrl;",@"bool increments = ctrl \|\| shift \|\| alt;",@"angleDeg = 90;"})
                     Require(Regex.IsMatch(source,pattern),mod.Item3+" no longer matches the adapter: "+pattern);
                 Require(Regex.IsMatch(input,@"namespace Digi\b") && Regex.IsMatch(input,@"IsControlPressedIgnoreBlock\(MyStringId controlId, bool newPress"),mod.Item3+" input helper changed");
                 if(mod.Item2=="Terrain")

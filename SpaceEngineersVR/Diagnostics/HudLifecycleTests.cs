@@ -68,6 +68,9 @@ namespace SpaceEngineersVR.Diagnostics
                     Main.CanResumeMenu(true,true,true,false,true,2) ||
                     !Main.CanResumeMenu(true,true,true,false,true,0))
                     throw new Exception("VR menu recovery ignored respawn readiness or retry limit");
+                var recovered=new DateTime(2026,10,17,12,0,0,DateTimeKind.Utc);
+                if(Main.RecoveryAttempts(2,recovered,recovered.AddMinutes(4.9))!=2 || Main.RecoveryAttempts(2,recovered,recovered+Main.RecoveryForgiven)!=0)
+                    throw new Exception("VR menu recovery attempts did not reset after healthy play");
                 ref int hudState=ref AccessTools.StaticFieldRefAccess<int>(typeof(MyHud),"m_hudState");
                 int previousHudState=hudState; bool previousMinimal=MyHud.MinimalHud,previousCutscene=MyHud.CutsceneHud;
                 try

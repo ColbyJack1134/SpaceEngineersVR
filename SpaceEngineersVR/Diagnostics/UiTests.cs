@@ -1,5 +1,8 @@
 #if SEVR_DIAGNOSTICS
 using System;
+using Sandbox.Game.Gui;
+using Sandbox.Game.Screens.Helpers;
+using VRage.Game;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -100,6 +103,21 @@ namespace SpaceEngineersVR.Diagnostics
                 model.Notices=notices;
                 Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"foot-hud-notices.png"));
                 Wrist("wrist-foot-inline");
+                var chat=new[] {notices[3],
+                    NativeNotices.Chat(new MyChatItem("Engineer","heading to the ore field, meet at the north airlock","White",VRageMath.Color.CornflowerBlue,VRageMath.Color.White)),
+                    NativeNotices.Chat(new MyChatItem("Pilot","ok, bringing the small grid miner and two spare hydrogen bottles, give me a minute to fill them before we head out past the asteroid ring and down to the second moon",
+                        "White",VRageMath.Color.LightGreen,VRageMath.Color.LimeGreen))};
+                void Chat(string name)
+                {
+                    model.Notices=chat;
+                    Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,name+"-chat.png"));
+                    Render(hud,()=>EssentialHud.Paint(hud,model,false)); Save(hud.Texture,Path.Combine(output,name+"-chat-novitals.png"));
+                    Render(hud,()=>EssentialHud.Paint(hud,model,false,false)); Save(hud.Texture,Path.Combine(output,name+"-chat-only.png"));
+                    Render(hud,()=>EssentialHud.Paint(hud,model,true,true,false)); Save(hud.Texture,Path.Combine(output,name+"-chat-off.png"));
+                }
+                Chat("foot-hud");
+                Wrist("wrist-foot-chat"); model.Takeover=true; Wrist("wrist-takeover-chat");
+                model.Notices=notices;
                 model.Takeover=true; Wrist("wrist-takeover");
                 model.Notices=new[] {new Notice(notices[0].Text,notices[0].Style)}; Wrist("wrist-takeover-single");
                 model.Takeover=false; model.Notices=new Notice[0];
@@ -107,6 +125,7 @@ namespace SpaceEngineersVR.Diagnostics
                 model.Inventory="84%"; model.InventoryLevel=.84f;
                 Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"ship-hud.png"));
                 Wrist("wrist-ship");
+                Chat("ship-hud"); model.Notices=new Notice[0];
                 model.Piloting=false; model.Selected="Enhanced Welder"; model.Icons=new[] {@"Textures\GUI\Icons\WeaponWelder.dds"}; model.Ammo="";
                 model.Inventory="46%"; model.InventoryLevel=.46f;
                 if(Plugin.Common.AssetFolder==null) Plugin.Common.SetAssetPath(Util.Util.GetDefaultAssetFolder());
@@ -149,8 +168,16 @@ namespace SpaceEngineersVR.Diagnostics
                         Enabled=page.Select(c=>c!=null).ToArray(),SubIcons=new string[9],ItemText=new string[9]};
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"wheel-"+fixture.Item1+".png"));
                 }
+                foreach(int pressed in new[] {-1,1})
+                {
+                    var model=QuickToolbar.View(new MyToolbar(MyToolbarType.Character,QuickToolbar.Slots,1),pressed);
+                    model.Labels=new[] {"Welder","Lights","Assign","Rocket launcher"};
+                    model.Icons=new[] {new[] {NativeSprites.Hud("MultiBlockBuilding")},new[] {NativeSprites.Hud("Light")},new[] {GameActions.ConfigureToolbarAction.Icon},new[] {NativeSprites.Hud("Handbrake")}};
+                    Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); Save(wheel.Texture,Path.Combine(output,"quick-toolbar-"+(pressed<0 ? "touch":"pressed")+".png"));
+                }
             }
             log("PASS focused production build planner wheel renders.");
+            log("PASS production quick toolbar wheel renders resting and with a direction pressed.");
         }
         public static void Tablet(string game,string output,Action<string> log)
         {
@@ -534,6 +561,8 @@ namespace SpaceEngineersVR.Diagnostics
                 Save(scene.Texture,Path.Combine(output,"keyboard-multiline-3d.png"));
                 keyboard.Text="reactor|";
                 keyboard.Keys=MenuKeyboard.MakeKeys(true);
+                PhysicalSurface.Paint(canvas,keyboard); canvas.Upload(); Save(canvas.Texture,Path.Combine(output,"keyboard-shift-preview.png"));
+                keyboard.Keys=MenuKeyboard.MakeKeys(2);
                 PhysicalSurface.Paint(canvas,keyboard); canvas.Upload(); Save(canvas.Texture,Path.Combine(output,"keyboard-symbols-preview.png"));
                 keyboard.Keys=MenuKeyboard.MakeHotkeys(); keyboard.Text="Ctrl+";
                 foreach(var key in keyboard.Keys) key.Active=key.Label=="CTRL";
@@ -579,16 +608,16 @@ namespace SpaceEngineersVR.Diagnostics
                         Save(face.Texture,Path.Combine(output,"seat-proximity-"+state+"-face.png"));
                     }
                 }
-                foreach(bool personal in new[] {false,true})
+                foreach(int page in new[] {0,FlightSettings.TriggerPage,-1})
                 {
                     var settings=FlightSettings.View("flight-preview",MatrixD.Identity,.40f,.225f,
-                        FlightSettings.Layout(new Multiplayer.FlightTuning(),personal,false,false,"Fighter Cockpit Flight Settings"),"Fighter Cockpit Flight Settings");
-                    WristPreview(device,canvas,settings,output,personal ? "flight-grip":"flight-tuning");
+                        FlightSettings.Layout(new Multiplayer.FlightTuning(),page<0,false,false,"Fighter Cockpit Flight Settings",false,null,Math.Max(0,page)),"Fighter Cockpit Flight Settings");
+                    WristPreview(device,canvas,settings,output,page<0 ? "flight-grip":page==0 ? "flight-tuning":"flight-triggers");
                 }
                 foreach(string subtype in new[] {"RoverCockpit","BuggyCockpit","SpeederCockpit","SpeederCockpitCompact"})
-                for(int page=0;page<4;page++)
+                for(int page=0;page<5;page++)
                 {
-                    bool saddle=subtype.StartsWith("Speeder"),personal=page==3;
+                    bool saddle=subtype.StartsWith("Speeder"),personal=page==4;
                     string title=(saddle ? "Saddle":"Vehicle")+" Controls";
                     var settings=FlightSettings.View("vehicle-preview",MatrixD.Identity,.40f,.225f,
                         FlightSettings.Layout(new Multiplayer.FlightTuning {FlightMode=true,BarTiltEnabled=true,WheelMotion=true},personal,false,false,title,false,subtype,page),title);
@@ -707,6 +736,9 @@ namespace SpaceEngineersVR.Diagnostics
                 WristPanel.StopEditing();
                 wrist.Keys=WristPanel.Keys(null,false,false,false,true,wrist.Status);
                 WristPreview(device,canvas,wrist,output,"wrist-search-results");
+                WristPanel.SetQuery("reset"); WristPanel.StopEditing(); WristPanel.SelectCategory(4);
+                wrist.Keys=WristPanel.Keys(null,false,false,false,true,wrist.Status);
+                WristPreview(device,canvas,wrist,output,"wrist-search-reset");
                 WristPanel.Reset();
                 var ray=new SurfaceView { Id="Cockpit ray test",Style=SurfaceStyle.Pointer,Width=.004f,Height=.35f,
                     Pose=MatrixD.CreateWorld(new Vector3D(.1,-.1,-.5),Vector3D.Normalize(new Vector3D(-.3,.1,-.4)),Vector3D.Up) };

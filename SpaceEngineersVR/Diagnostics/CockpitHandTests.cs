@@ -207,20 +207,19 @@ namespace SpaceEngineersVR.Diagnostics
             foreach(string reach in new[] {"wrist","extended","inward"}) foreach(bool rigid in new[] {false,true})
             {
                 var arm=ArmTests.InstalledBones();
-                var palm=arm.Single(b=>b.Name=="SE_RigLPalm");
-                var lower=arm.Single(b=>b.Name=="SE_RigLForearm1"); var upper=lower.Parent;
+                var left=ArmSkeleton.Find(name=>arm.FirstOrDefault(b=>b.Name==name),"SE_RigLUpperarm","SE_RigLForearm1","SE_RigLPalm",-1);
                 Matrix desired=Matrix.Identity;
                 desired.Right=new Vector3(-.9470054f,-.2854625f,-.1475649f);
                 desired.Up=new Vector3(-.3211800f,.8273234f,.4607469f);
                 desired.Backward=new Vector3(-.0094374f,.4837239f,-.8751677f);
                 desired.Translation=new Vector3(-.0685918f,1.2402833f,-.4206055f);
-                var correction=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),-1);
+                var correction=left.PalmOffset;
                 if(reach!="wrist")
                 {
                     desired=correction*CockpitHandPose.GripWrist(Matrix.Identity)*(reach=="inward" ? Matrix.CreateRotationY(-1.1f):Matrix.Identity);
                     desired.Translation=reach=="inward" ? new Vector3(.02f,1.3f,-.42f):new Vector3(-.25f,1.35f,-.55f);
                 }
-                if(!ArmMath.ApplyPose(upper,lower,palm,Matrix.Invert(correction)*desired,correction,new Vector3(-.55f,-1,.3f),rigidWrist:rigid))
+                if(!ArmSkeleton.Apply(left,Matrix.Invert(correction)*desired,new ArmSolve.Options(true,true,rigid ? 1:0),1,ArmSkeleton.Fingers.Native,0))
                     throw new Exception("Wrist inspection solve failed");
                 Curl(arm,"L",false);
                 var export=new PoseExport(); foreach(var bone in arm) export.absolute[bone.Name]=Elements(bone.AbsoluteTransform);
@@ -231,11 +230,10 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 var arm=ArmTests.InstalledBones();
                 var palm=arm.Single(b=>b.Name=="SE_RigLPalm");
-                var lower=arm.Single(b=>b.Name=="SE_RigLForearm1"); var upper=lower.Parent;
-                var correction=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),-1);
+                var left=ArmSkeleton.Find(name=>arm.FirstOrDefault(b=>b.Name==name),"SE_RigLUpperarm","SE_RigLForearm1","SE_RigLPalm",-1);
                 var desired=CockpitRig.Find(CockpitLayout.Fighter).Left.Palm(true)*Matrix.CreateRotationX(reach*.3f);
                 desired.Translation=new Vector3(-.28f,1.05f+reach*.1f,-.3f-reach*.08f);
-                if(!ArmMath.ApplyPose(upper,lower,palm,Matrix.Invert(correction)*desired,correction,new Vector3(-.55f,-1,.3f),rigidWrist:rigid))
+                if(!ArmSkeleton.Apply(left,Matrix.Invert(left.PalmOffset)*desired,new ArmSolve.Options(true,true,rigid ? 1:0),1,ArmSkeleton.Fingers.Native,0))
                     throw new Exception("Joystick arm inspection solve failed");
                 if(Vector3.Distance(palm.AbsoluteTransform.Translation,desired.Translation)>.0001f ||
                     Vector3.Distance(palm.AbsoluteTransform.Up,desired.Up)>.0001f)

@@ -141,6 +141,7 @@ namespace SpaceEngineersVR.Wrappers
 
         private static readonly FieldInfo m_rc;
         public static MyRenderContext RC => new MyRenderContext(m_rc.GetValue(null));
+        internal static object RawRC => m_rc.GetValue(null);
 
         private static readonly FieldInfo environment;
         private static readonly FieldInfo environment_matrices;

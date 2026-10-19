@@ -23,7 +23,7 @@ namespace SpaceEngineersVR.Player.Components
         private static volatile bool anchorPending = true;
         private static readonly object panelLock = new object();
         private static Matrix panelPose;
-        private static float panelHeight,panelWidth=2.4f;
+        private static float panelHeight,panelWidth=MenuWindow.DefaultHeight*16/9;
         public static bool TryPanelHit(Matrix hand, out Vector2 uv)
         {
             lock(panelLock)
@@ -52,13 +52,13 @@ namespace SpaceEngineersVR.Player.Components
         static VRGUIManager()
         {
             Check(OpenVR.Overlay.CreateOverlay("sevr.prototype.menu","Space Engineers menu",ref overlayHandle));
-            Check(OpenVR.Overlay.SetOverlayWidthInMeters(overlayHandle,2.4f));
+            Check(OpenVR.Overlay.SetOverlayWidthInMeters(overlayHandle,MenuWindow.DefaultHeight*16/9));
             Check(OpenVR.Overlay.SetOverlayTexelAspect(overlayHandle,1f));
         }
         public static MyGuiScreenBase TopScreen => MyScreenManager.Screens.LastOrDefault(screen =>
             !(screen is MyGuiScreenGamePlay) && !(screen is MyGuiScreenHudSpace));
         public static bool IsAnyDialogOpen() => TopScreen != null;
-        public static void RequestRecenter() { anchorPending = true; FloatingMenu.Recenter(); }
+        public static void RequestRecenter() { anchorPending = true; FloatingMenu.RecenterView(); }
         private static Texture_t Texture(Texture2D value) => new Texture_t {
             eColorSpace=EColorSpace.Auto,eType=ETextureType.DirectX,handle=value.NativePointer };
         public static void Draw()
@@ -69,8 +69,8 @@ namespace SpaceEngineersVR.Player.Components
                 var spatial=FloatingMenu.Current;
                 if ((spatial!=null || !visible || anchorPending) && Player.Headset.renderPose.isTracked)
                 {
-                    Matrix panel = spatial?.Pose ?? Matrix.CreateTranslation(0,0,-2.2f) * VrMath.TrackingOrigin(Player.Headset.renderPose.deviceToAbsolute.matrix);
-                    lock(panelLock) { panelPose=panel; panelWidth=spatial?.Width ?? 2.4f; }
+                    Matrix panel = spatial?.Pose ?? MenuWindow.Ahead(Player.Headset.renderPose.deviceToAbsolute.matrix);
+                    lock(panelLock) { panelPose=panel; panelWidth=spatial?.Width ?? MenuWindow.DefaultHeight/FloatingMenu.Aspect; }
                     Check(OpenVR.Overlay.SetOverlayWidthInMeters(overlayHandle,panelWidth));
                     var transform = new HmdMatrix34_t {
                         m0=panel.M11,m1=panel.M21,m2=panel.M31,m3=panel.M41,

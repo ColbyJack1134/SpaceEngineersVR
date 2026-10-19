@@ -16,7 +16,7 @@ namespace SpaceEngineersVR.Player
 
         public static void Update(MyCharacter character)
         {
-            if (disabled || MySession.Static?.ControlledEntity != character || character.Physics?.CharacterProxy == null ||
+            if (disabled || MySession.Static?.ControlledEntity != character && !RemoteView.CharacterAnchor || character.Physics?.CharacterProxy == null ||
                 character.IsSitting || character.IsDead || !Player.Headset.pose.isTracked) return;
             try
             {

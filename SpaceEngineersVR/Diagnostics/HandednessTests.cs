@@ -127,7 +127,7 @@ namespace SpaceEngineersVR.Diagnostics
                 bool support=right==swapped;
                 string context=" (swapped="+swapped+", right="+right+")";
                 Require((c.ThrustUp.Position.X==0)==support,"ThrustUp blocking followed the wrong trigger"+context);
-                Require((c.ThrustDown.Position.X==0)==support && !c.CrouchOrClimbDown.IsPressed==support,"Descent/sprint blocking followed the wrong grip"+context);
+                Require((c.ThrustDown.Position.X==0)==support && !c.Sprint.IsPressed==support,"Descent/sprint blocking followed the wrong grip"+context);
                 Require(!c.ThrustRoll.IsPressed==!support,"Roll blocking followed the wrong grip"+context);
                 Require(!(right ? c.Secondary:c.LeftGripClick).IsPressed,"Consumed grip click escaped"+context);
             }
@@ -143,7 +143,7 @@ namespace SpaceEngineersVR.Diagnostics
         {
             var down=new InputDigitalActionData_t { bActive=true,bState=held };
             var pulled=new InputAnalogActionData_t { bActive=true,x=held ? 1:0 };
-            foreach(var button in new[] { c.Primary,c.LeftClick,c.Secondary,c.LeftGripClick,c.ThrustRoll,c.CrouchOrClimbDown,c.Interact,c.JumpOrClimbUp }) button.AcceptSample(down);
+            foreach(var button in new[] { c.Primary,c.LeftClick,c.Secondary,c.LeftGripClick,c.ThrustRoll,c.Sprint,c.Interact,c.JumpOrClimbUp }) button.AcceptSample(down);
             foreach(var analog in new[] { c.PointerPressure,c.LeftTriggerPressure,c.RightGripPressure,c.LeftGripPressure,c.ThrustUp,c.ThrustDown,c.ThrustForward }) analog.AcceptSample(pulled);
         }
     }

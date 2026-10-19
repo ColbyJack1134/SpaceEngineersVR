@@ -209,7 +209,7 @@ namespace SpaceEngineersVR.Player
             }
             if(consumed || transition!=null)
             {
-                c.ThrustDown.BlockUntilRelease(); c.CrouchOrClimbDown.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); c.ActionGripClick.BlockUntilRelease();
+                c.ThrustDown.BlockUntilRelease(); c.Sprint.BlockUntilRelease(); c.ThrustRoll.BlockUntilRelease(); c.ActionGripClick.BlockUntilRelease();
                 c.Fire.BlockUntilRelease(); c.ThrustUp.BlockUntilRelease();
                 if(!FlightWhileManipulating)
                 { c.ThrustLRFB.BlockUntilRelease(); c.ThrustLRUD.BlockUntilRelease(); c.ThrustRotate.BlockUntilRelease(); }

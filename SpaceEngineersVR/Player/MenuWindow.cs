@@ -6,9 +6,11 @@ namespace SpaceEngineersVR.Player
 {
     internal sealed class MenuWindow
     {
-        public const float DefaultWidth=2.4f, MinWidth=.7f, MaxWidth=3.2f;
+        public const float MinWidth=.7f, MaxWidth=3.2f;
+        // Default spot: 1.5 m ahead, 8 cm below the eye and tilted to face it.
+        public const float DefaultDistance=1.5f,DefaultDrop=.08f,DefaultHeight=1.125f,MinHeight=MinWidth*9/16,MaxHeight=MaxWidth*9/16;
         public Matrix Pose=Matrix.Identity;
-        public float Width=DefaultWidth,Aspect=9f/16,BarOffset=.035f,TopMargin=.03f;
+        public float Width=DefaultHeight*16/9,Aspect=9f/16,BarOffset=.035f,TopMargin=.03f;
         public float MinimumWidth=MinWidth,MaximumWidth=MaxWidth,PointerRange=4;
         public float Height => Width*Aspect;
         public int Drag { get; private set; }
@@ -20,7 +22,9 @@ namespace SpaceEngineersVR.Player
         private float startWidth,startAspect;
         private readonly InputGate navigation=new InputGate();
         public void Place(Matrix head)
-        { Place(head,DefaultWidth,new Vector3(0,0,-2.2f)); }
+        { Stop(); Width=DefaultHeight/Aspect; Pose=Ahead(head); }
+        internal static Matrix Ahead(Matrix head,float yaw=0) =>
+            Matrix.CreateRotationX(-(float)Math.Atan2(DefaultDrop,DefaultDistance))*Matrix.CreateTranslation(0,-DefaultDrop,-DefaultDistance)*Matrix.CreateRotationY(yaw)*VrMath.TrackingOrigin(head);
         internal void Place(Matrix head,float width,Vector3 offset,float pitch=0)
         { Stop(); Width=width; Pose=Matrix.CreateRotationX(pitch)*Matrix.CreateTranslation(offset)*VrMath.TrackingOrigin(head); }
         internal Vector3 Local(Vector3 point,bool captured=false) => Vector3.Transform(point,Matrix.Invert(captured ? startPose:Pose));
@@ -31,7 +35,7 @@ namespace SpaceEngineersVR.Player
             float y=point.Y+Height/2+BarOffset;
             if(Math.Abs(y)<.045f)
             {
-                if(Math.Abs(point.X)<.19f) return 1;
+                if(Math.Abs(point.X)<WindowFrame.BarHalf(Width)) return 1;
             }
             if(point.X>Width/2-.065f && point.X<Width/2+.065f && Math.Abs(y)<.065f) return 2;
             return 0;

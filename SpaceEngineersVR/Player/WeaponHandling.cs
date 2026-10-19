@@ -24,6 +24,7 @@ namespace SpaceEngineersVR.Player
         public static bool ConsumesSupportGrip => support.Consumed || reload.Consumed;
         internal static bool GripsItem(Controller hand) => hand==Handedness.SupportHand && ConsumesSupportGrip;
         public static bool Supported => valid && support.Held;
+        public static bool Aiming { get; private set; }
         internal static bool Holding(Controller hand) => valid && (hand==Handedness.ActionHand || hand==Handedness.SupportHand && support.Held);
         // Support hand is at the held item's support grip or magazine, where a fist also pulls the trigger.
         internal static bool SupportAtItem => valid && hover!=0;
@@ -39,7 +40,7 @@ namespace SpaceEngineersVR.Player
         {
             support.Release(); reload.Release(); valid=wasSupported=wasReloading=false; weapon=null; profile=null; releaseBlend=0;
             Multiplayer.HeldItemPose.Local=null; Multiplayer.HeldItemPose.LocalToolRay=null; Multiplayer.HeldItemPose.LocalSupported=null; Multiplayer.HeldItemPose.LocalMirrored=null;
-            hover=0; ItemGrabVisual.Reset();
+            hover=0; ItemGrabVisual.Reset(); Aiming=false;
         }
         public static void Update()
         {
@@ -53,10 +54,10 @@ namespace SpaceEngineersVR.Player
             var controls=Controls.Static;
             Controller actionHand=Handedness.ActionHand,supportHand=Handedness.SupportHand;
             bool down=ConsumesSupportGrip ? controls.SupportGripPressure.RawPosition.X>.1f:
-                InputRouter.Flying ? controls.ThrustDown.Position.X>.5f:controls.CrouchOrClimbDown.IsPressed;
+                InputRouter.Flying ? controls.ThrustDown.Position.X>.5f:controls.Sprint.IsPressed;
             if(current!=weapon || profile!=null && profile.Mirrored!=Handedness.Swapped)
             {
-                support.Release(); reload.Release(); valid=wasSupported=wasReloading=false; releaseBlend=0; weapon=current;
+                support.Release(); reload.Release(); valid=wasSupported=wasReloading=false; releaseBlend=0; weapon=current; Aiming=false;
                 profile=WeaponProfile.Find(character?.CurrentWeapon?.PhysicalObject?.SubtypeName,current?.Model?.AssetName);
                 if(Handedness.Swapped) profile=profile?.Mirror;
                 hover=0; ItemGrabVisual.Reset();
@@ -66,7 +67,7 @@ namespace SpaceEngineersVR.Player
                 (!profile.Mirrored || TrackedArms.TryPalmMirror(character,out palmMirror));
             if(!available || !TrackedArms.TryFreePalm(character,actionHand,out var actionPalm) || character.HandItemDefinition==null ||
                 !WeaponPose.TryHandItem(Hold(character,false),actionPalm,out var oneWorld))
-            { support.Update(false,down,false,false); reload.Update(false,down,false,false); valid=wasSupported=false; hover=0; ItemGrabVisual.Reset(); return; }
+            { support.Update(false,down,false,false); reload.Update(false,down,false,false); valid=wasSupported=false; hover=0; ItemGrabVisual.Reset(); UpdateAim(character,false); return; }
             oneWorld=Alignment.Apply(Alignment.ToolKey(character),oneWorld);
             var parent=character.WorldMatrix; var inverse=character.PositionComp.WorldMatrixNormalizedInv;
             var one=(Matrix)(oneWorld*inverse); var primary=Vector3.Transform(profile.Primary,one);
@@ -78,7 +79,7 @@ namespace SpaceEngineersVR.Player
                 !character.CurrentWeapon.IsReloading && !CockpitTouch.Owns(supportHand) && !HandInteraction.Owns(supportHand) &&
                 !FloatingWindows.PointingFor(supportHand) && !TouchScreenBridge.PointingFor(supportHand) && !ArthurLcdBridge.PointingFor(supportHand) && !HelmetHud.Consumes(supportHand));
             var supportPoint=profile.SupportContact(character.HandItemDefinition.LeftHand);
-            int candidate=interaction && !ConsumesSupportGrip ? profile.Grab(local,supportPoint):0;
+            int candidate=interaction && !ConsumesSupportGrip ? profile.Grab(local,supportPoint,hover):0;
             if(candidate==1 && !reachable) candidate=0;
             bool near=candidate==1,mag=candidate==2;
             if(candidate!=hover && candidate!=0) CockpitFeedback.Hover(supportHand);
@@ -103,7 +104,28 @@ namespace SpaceEngineersVR.Player
             if(!reloading && wasReloading) actionHand.Vibrate(0,.035f,140,.25f);
             wasReloading=reloading;
             ItemGrabVisual.Update(current,profile,supportPoint,hover,Supported);
-
+            var eye=CameraRig.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Translation;
+            var muzzle=Vector3D.Transform(profile.Muzzle,worldPose);
+            UpdateAim(character,!profile.Tool && InputRouter.Gameplay && !Main.MenuOpen &&
+                Sighted(eye,muzzle,profile.Sight.HasValue ? Vector3D.Transform(profile.Sight.Value,worldPose):muzzle,
+                    Vector3D.Normalize(Vector3D.TransformNormal(profile.Sight.HasValue ? profile.SightDirection:profile.Direction,worldPose)),Aiming));
+        }
+        // Vanilla narrows the spread only in ironsight mode or while crouching; in VR, looking down the sights is aiming.
+        internal static bool Sighted(Vector3D eye,Vector3D muzzle,Vector3D sight,Vector3D direction,bool was)
+        {
+            double along=Vector3D.Dot(eye-muzzle,direction);
+            if(along>-.12 || along<-1.1) return false;
+            var offset=eye-sight;
+            return (offset-direction*Vector3D.Dot(offset,direction)).Length()<(was ? .14:.09);
+        }
+        private static void UpdateAim(MyCharacter character,bool sighted)
+        {
+            bool changed=sighted!=Aiming; Aiming=sighted;
+            if(character?.CurrentWeapon==null || !Main.VrActive) return;
+            if(changed) { if(sighted) Handedness.ActionHand.Vibrate(0,.03f,160,.45f); else Handedness.ActionHand.Vibrate(0,.02f,120,.25f); }
+            // Vanilla drops ironsight mode on its own while reloading and on view changes, so the mode is re-asserted, not just toggled.
+            if(sighted ? character.ZoomMode!=MyZoomModeEnum.IronSight && !character.CurrentWeapon.IsReloading:character.ZoomMode==MyZoomModeEnum.IronSight)
+                character.EnableIronsight(sighted,true,false);
         }
         private static MatrixD? LocalToolRay(MyCharacter character) => Patches.MotionToolPatch.Eligible(character) && character==MySession.Static?.LocalCharacter &&
             ToolEquipped && TrackedArms.TryFreePointPose(Handedness.ActionHand,out var ray) ? ray:(MatrixD?)null;

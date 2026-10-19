@@ -67,6 +67,7 @@ namespace SpaceEngineersVR.Player
         private static string battery="--",hydrogen="--";
         private static float batteryLevel,hydrogenLevel;
         private static View drawn;
+        private static int drawnMode;
         private static OverlayCanvas canvas;
         private static DateTime nextSample;
         private static readonly Font small = new Font("Segoe UI", 21, FontStyle.Regular, GraphicsUnit.Pixel);
@@ -93,7 +94,8 @@ namespace SpaceEngineersVR.Player
         private static readonly List<Entry> entries=new List<Entry>();
         private const int VitalY=422,ShipY=VitalY-115;
         internal const double NoticeRepeat=20,NoticeFade=1;
-        internal const int MaxNotices=5;
+        // Room for every live source (native lines, one plugin notice, chat), so trimming only drops fading entries.
+        internal const int MaxNotices=NativeNotices.MaxLines+1+NativeNotices.ChatMessages,ChatRows=3,NoticeRow=28,NoticeWidth=700;
         public static void Notify(string message) { notice = message; noticeUntil = DateTime.UtcNow.AddSeconds(3); }
         private static VRage.ModAPI.IMyHudStat Stat(string id) => MyHud.Static == null ? null : MyHud.Stats?.GetStat(MyStringHash.GetOrCompute(id));
         private static bool On(string id) => Stat(id)?.CurrentValue > 0;
@@ -215,9 +217,14 @@ namespace SpaceEngineersVR.Player
             }
             if(hasAmmo) view.Ammo=ammo.ToString("N0");
         }
-        internal static void Paint(OverlayCanvas target, View current)
+        internal static void Paint(OverlayCanvas target,View current,bool vitals=true,bool notifications=true,bool chat=true)
         {
             target.Clear(Color.Transparent);
+            if(vitals) Vitals(target,current);
+            NoticeLines(target,current,notifications,chat);
+        }
+        private static void Vitals(OverlayCanvas target,View current)
+        {
             var g=target.Graphics;
             const int left=55,right=1080,lower=8,vitalY=VitalY,shipY=ShipY,valueY=vitalY+65,environmentY=valueY+46;
             if(current.Piloting)
@@ -269,16 +276,44 @@ namespace SpaceEngineersVR.Player
             GravityReadout(target,current,900,451,1.15f);
             float equipmentX=Math.Max(430,environmentX+14);
             EquipmentReadout(target,current,equipmentX,514,Math.Max(0,900-equipmentX),42,true);
-            NoticeLines(target,current);
         }
-        private static void NoticeLines(OverlayCanvas target,View current)
+        internal static IEnumerable<Notice> Shown(IEnumerable<Notice> notices,bool notifications,bool chat) =>
+            notices.Where(n=>n.Style==NoticeStyle.Chat ? chat:notifications);
+        // Newest at the bottom, stacked upward from the same baseline with or without vitals.
+        private static void NoticeLines(OverlayCanvas target,View current,bool notifications,bool chat)
         {
-            int bottom=(current.Piloting ? ShipY : VitalY)-46;
-            using(var format=new StringFormat { FormatFlags=StringFormatFlags.NoWrap,Trimming=StringTrimming.EllipsisCharacter })
-                for(int i=current.Notices.Length-1,row=0;i>=0;i--,row++)
-                    using(var brush=new SolidBrush(NoticeColor(current.Notices[i])))
-                        target.Graphics.DrawString(current.Notices[i].Text,small,brush,new System.Drawing.RectangleF(55,bottom-row*28,700,28),format);
+            var g=target.Graphics;
+            float edge=(current.Piloting ? ShipY : VitalY)-46+NoticeRow;
+            using(var single=new StringFormat { FormatFlags=StringFormatFlags.NoWrap,Trimming=StringTrimming.EllipsisCharacter })
+            using(var wrapped=new StringFormat { FormatFlags=StringFormatFlags.LineLimit,Trimming=StringTrimming.EllipsisWord })
+                foreach(var notice in Enumerable.Reverse(Shown(current.Notices,notifications,chat).ToArray()))
+                {
+                    bool isChat=notice.Style==NoticeStyle.Chat;
+                    int rows=isChat ? Math.Max(1,Math.Min(ChatRows,(int)Math.Round(ChatHeight(g,notice,small,NoticeWidth,wrapped)/NoticeRow))):1;
+                    edge-=rows*NoticeRow;
+                    if(edge<0) break;
+                    var bounds=new System.Drawing.RectangleF(55,edge,NoticeWidth,rows*NoticeRow);
+                    if(isChat) DrawChat(g,notice,small,bounds,wrapped);
+                    else using(var brush=new SolidBrush(NoticeColor(notice))) g.DrawString(notice.Text,small,brush,bounds,single);
+                }
         }
+        // Same layout and colours as the wrist chat panel: sender column, message wrapped beside it.
+        private static float NameWidth(Graphics g,Notice notice,Font font,float width) =>
+            string.IsNullOrEmpty(notice.Sender) ? 0:Math.Min(g.MeasureString(notice.Sender+": ",font).Width,width*.4f);
+        private static float ChatHeight(Graphics g,Notice notice,Font font,float width,StringFormat format) =>
+            g.MeasureString(notice.Body,font,(int)(width-NameWidth(g,notice,font,width)),format).Height;
+        private static void DrawChat(Graphics g,Notice notice,Font font,System.Drawing.RectangleF bounds,StringFormat format)
+        {
+            float name=NameWidth(g,notice,font,bounds.Width);
+            using(var sender=new SolidBrush(Faded(notice.SenderColor,notice.Alpha)))
+            using(var body=new SolidBrush(Faded(notice.BodyColor,notice.Alpha)))
+            using(var label=new StringFormat { FormatFlags=StringFormatFlags.NoWrap,Trimming=StringTrimming.EllipsisCharacter })
+            {
+                if(name>0) g.DrawString(notice.Sender+": ",font,sender,new System.Drawing.RectangleF(bounds.X,bounds.Y,name,font.GetHeight(g)+2),label);
+                g.DrawString(notice.Body,font,body,new System.Drawing.RectangleF(bounds.X+name,bounds.Y,bounds.Width-name,bounds.Height),format);
+            }
+        }
+        private static Color Faded(Color color,float alpha) => Color.FromArgb((int)(color.A*MathHelper.Clamp(alpha,0,1)),color);
         private static Color NoticeColor(Notice notice) => Color.FromArgb((int)(255*MathHelper.Clamp(notice.Alpha,0,1)),
             notice.Style==NoticeStyle.Warning ? Color.LightSalmon : notice.Style==NoticeStyle.Title ? colors[3] : Color.LightCyan);
         private static void Speedometer(OverlayCanvas target,View current,int x,int y)
@@ -344,9 +379,12 @@ namespace SpaceEngineersVR.Player
                 }
                 else EquipmentReadout(target,s,18,244,604,56);
                 if(s.Notices.Length>0)
-                    using(var brush=new SolidBrush(NoticeColor(s.Notices.Last())))
                     using(var format=new StringFormat { FormatFlags=StringFormatFlags.NoWrap,Trimming=StringTrimming.EllipsisCharacter })
-                        g.DrawString(s.Notices.Last().Text,small,brush,new System.Drawing.RectangleF(18,307,605,28),format);
+                    {
+                        var last=s.Notices.Last(); var bounds=new System.Drawing.RectangleF(18,307,605,28);
+                        if(last.Style==NoticeStyle.Chat) DrawChat(g,last,small,bounds,format);
+                        else using(var brush=new SolidBrush(NoticeColor(last))) g.DrawString(last.Text,small,brush,bounds,format);
+                    }
             });
             target.Graphics.FillRectangle(Brushes.White,1020,636,4,4);
         }
@@ -355,14 +393,18 @@ namespace SpaceEngineersVR.Player
             var g=target.Graphics;
             using(var title=new Font("Segoe UI",34,FontStyle.Bold,GraphicsUnit.Pixel))
             using(var body=new Font("Segoe UI",30,FontStyle.Regular,GraphicsUnit.Pixel))
-            using(var format=new StringFormat { Alignment=StringAlignment.Near,Trimming=StringTrimming.EllipsisWord })
+            using(var format=new StringFormat { Alignment=StringAlignment.Near,Trimming=StringTrimming.EllipsisWord,FormatFlags=StringFormatFlags.LineLimit })
             {
-                var sizes=s.Notices.Select(n=>g.MeasureString(n.Text,n.Style==NoticeStyle.Title ? title:body,600,format).Height+10).ToArray();
-                float y=Math.Max(8,(height-sizes.Sum())/2);
-                for(int i=0;i<s.Notices.Length && y<height;i++)
+                var sizes=s.Notices.Select(n=>(n.Style==NoticeStyle.Chat ? ChatHeight(g,n,body,600,format):g.MeasureString(n.Text,n.Style==NoticeStyle.Title ? title:body,600,format).Height)+10).ToArray();
+                int first=0;
+                while(first<sizes.Length-1 && sizes.Skip(first).Sum()>height-8) first++;
+                float y=Math.Max(8,(height-sizes.Skip(first).Sum())/2);
+                for(int i=first;i<s.Notices.Length && y<height;i++)
                 {
-                    using(var brush=new SolidBrush(NoticeColor(s.Notices[i])))
-                        g.DrawString(s.Notices[i].Text,s.Notices[i].Style==NoticeStyle.Title ? title:body,brush,new System.Drawing.RectangleF(20,y,600,Math.Min(sizes[i],height-y)),format);
+                    var bounds=new System.Drawing.RectangleF(20,y,600,Math.Min(sizes[i],height-y));
+                    if(s.Notices[i].Style==NoticeStyle.Chat) DrawChat(g,s.Notices[i],body,bounds,format);
+                    else using(var brush=new SolidBrush(NoticeColor(s.Notices[i])))
+                        g.DrawString(s.Notices[i].Text,s.Notices[i].Style==NoticeStyle.Title ? title:body,brush,bounds,format);
                     y+=sizes[i];
                 }
             }
@@ -370,6 +412,7 @@ namespace SpaceEngineersVR.Player
         private static void ReadNotices(View view)
         {
             var current=NativeNotices.Read();
+            NativeNotices.ReadChat(current);
             var now=DateTime.UtcNow;
             if(now<noticeUntil) current.Insert(0,new Notice(notice,NoticeStyle.Warning));
             bool fresh=false;
@@ -383,10 +426,10 @@ namespace SpaceEngineersVR.Player
                 seen[item.Text]=now;
             }
             entries.RemoveAll(e=>e.Gone.HasValue && (now-e.Gone.Value).TotalSeconds>=NoticeFade);
-            if(entries.Count>MaxNotices) entries.RemoveRange(0,entries.Count-MaxNotices);
+            while(entries.Count>MaxNotices) { int gone=entries.FindIndex(e=>e.Gone.HasValue); entries.RemoveAt(Math.Max(0,gone)); }
             foreach(string old in seen.Where(p=>(now-p.Value).TotalSeconds>NoticeRepeat).Select(p=>p.Key).ToArray()) seen.Remove(old);
             // Alpha steps of 0.1 limit how often a fade republishes the HUD.
-            view.Notices=entries.Select(e=>new Notice(e.Notice.Text,e.Notice.Style,
+            view.Notices=entries.Select(e=>e.Notice.WithAlpha(
                 e.Gone.HasValue ? (float)Math.Round(1-(now-e.Gone.Value).TotalSeconds/NoticeFade,1) : 1)).ToArray();
             view.Takeover=takeover.Update(now,fresh,entries.Count>0 && !Common.Config.DoNotDisturb);
         }
@@ -556,9 +599,13 @@ namespace SpaceEngineersVR.Player
             if (failed) return;
             try
             {
-                var current=snapshot;
-                if (!HelmetHud.Visible || !Common.Config.ShowVitals || Main.MenuOpen || InputRouter.RadialOpen || current==null) { canvas?.Hide(); drawn=null; return; }
-                if (ReferenceEquals(current,drawn) && iconRevision==NativeSprites.Revision) return;
+                var current=snapshot; float alpha=HelmetHud.HudAlpha; var config=Common.Config;
+                bool vitals=config.ShowVitals,notifications=config.ShowNotifications,chat=config.ShowChat;
+                if (alpha<=0 || Main.MenuOpen || InputRouter.RadialOpen || current==null || !vitals && !Shown(current.Notices,notifications,chat).Any())
+                { canvas?.Hide(); drawn=null; shownAlpha=-1; return; }
+                int mode=(vitals ? 1:0)|(notifications ? 2:0)|(chat ? 4:0);
+                if (ReferenceEquals(current,drawn) && mode==drawnMode && iconRevision==NativeSprites.Revision)
+                { if(alpha!=shownAlpha) { canvas?.Show(alpha); shownAlpha=alpha; } return; }
                 if (canvas==null)
                 {
                     float scale=FitScale(HeadProjection(EVREye.Eye_Left),HeadProjection(EVREye.Eye_Right));
@@ -567,13 +614,14 @@ namespace SpaceEngineersVR.Player
                     canvas.Position(Matrix.CreateTranslation(0,OverlayY*scale,-OverlayDepth),true);
                     Logger.Info("HUD field-of-view fit: "+scale.ToString("0.000",CultureInfo.InvariantCulture));
                 }
-                Paint(canvas,current);
-                canvas.Upload(); drawn=current; iconRevision=NativeSprites.Revision;
+                Paint(canvas,current,vitals,notifications,chat);
+                canvas.Upload(); canvas.Show(alpha); shownAlpha=alpha; drawn=current; drawnMode=mode; iconRevision=NativeSprites.Revision;
                 recovery.Succeeded();
             }
             catch (Exception ex) { drawn=null; recovery.Fail(ex,"Essential HUD disabled"); RenderRecovery.Quietly(()=>canvas?.Hide()); }
         }
         public static void Reset() { snapshot=null; notice=null; nextSample=DateTime.MinValue; seen.Clear(); entries.Clear(); takeover.Reset(); NativeNotices.Reset(); }
-        public static void Hide() => canvas?.Hide();
+        private static float shownAlpha=-1;
+        public static void Hide() { canvas?.Hide(); shownAlpha=-1; }
     }
 }

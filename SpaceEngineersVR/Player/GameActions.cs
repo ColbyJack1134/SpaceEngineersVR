@@ -36,6 +36,7 @@ namespace SpaceEngineersVR.Player
             if (Label.StartsWith("Yaw") || Label.StartsWith("Pitch") || Label.StartsWith("Roll") || Label.StartsWith("Camera:")) return "BlockRotate";
             if (Label.StartsWith("Offset:")) return "SwitchSymmetryAxis";
             if (Label.StartsWith("Build shape:")) return "MultiBlockBuilding";
+            if (Label.StartsWith("Remove terrain:") || Label.StartsWith("Remove concrete:")) return "CutGrid";
             if (Label.StartsWith("Snap to voxel:")) return "GridSize";
             if (Label.StartsWith("Project to surface:")) return "MoveFurther";
             if (Label.StartsWith("Left stick:")) return Label.EndsWith("size") ? "ScaleUp":"MoveFurther";
@@ -111,8 +112,14 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice AllActions=new ActionChoice("All actions",()=>MyGuiSandbox.AddScreen(new GUI.ActionBrowser()),true);
         public static readonly ActionChoice RelativeDampeners=new ActionChoice("Auto dampeners",DampenerTargeting.Activate);
         public static readonly ActionChoice Dampeners=Native("Dampeners",MyControlsSpace.DAMPING);
-        public static readonly ActionChoice ResetFeed=new ActionChoice("Reset camera screen",RemoteView.Recenter);
-        public static readonly ActionChoice ExitFeed=new ActionChoice(()=>RemoteView.RemoteGrid ? "Exit remote control":"Exit camera control",RemoteView.Exit,historyKey:"Exit feed");
+        public static readonly ActionChoice ResetFeed=new ActionChoice("Reset camera screen",RemoteView.Recenter,enabled:()=>RemoteView.Current!=null);
+        public static readonly ActionChoice ResetScreens=new ActionChoice("Reset screens",WindowSpots.ResetAll,searchTerms:"recenter menu window position default");
+        public static readonly ActionChoice ExitFeed=new ActionChoice(()=>RemoteView.RemoteGrid ? "Exit remote control":RemoteView.Turret ? "Exit turret":"Exit camera control",
+            RemoteView.Exit,historyKey:"Exit feed");
+        // Native camera cycling only answers while a camera block is the active camera (MyGridCameraSystem.Update).
+        private static bool CameraFeed => MySession.Static?.CameraController is MyCameraBlock;
+        public static readonly ActionChoice PreviousCamera=Native("Previous camera",MyControlsSpace.SWITCH_LEFT,()=>CameraFeed);
+        public static readonly ActionChoice NextCamera=Native("Next camera",MyControlsSpace.SWITCH_RIGHT,()=>CameraFeed);
         public static readonly ActionChoice Inspect=new ActionChoice(()=>Common.Config?.InspectWithoutGrip==true ? "Block info: automatic" : "Block info: hold grip",()=>Common.Config.InspectWithoutGrip=!Common.Config.InspectWithoutGrip,historyKey:"Block info");
         public static readonly ActionChoice PlayPosture=new ActionChoice(()=>Common.Config?.SeatedPlay==true ? "Switch to standing play":"Switch to seated play",()=>BodyFit.SetSeated(!Common.Config.SeatedPlay),historyKey:"Play posture");
         public static readonly ActionChoice Tablet=new ActionChoice("Tablet",SpatialUi.Expand);
@@ -136,6 +143,7 @@ namespace SpaceEngineersVR.Player
             Execute(action,hand,fromSearch);
         }
         public static readonly ActionChoice CockpitBuild=new ActionChoice(()=>CockpitBuilding.Label,CockpitBuilding.Toggle,historyKey:"Cockpit building");
+        internal static readonly ActionChoice SnapHeldGrid=new ActionChoice(()=>HandGrab.SnapLabel,HandGrab.ToggleSnap,historyKey:"Snap held grid to center");
         public static ActionChoice[] WheelActions(bool building,bool seated,bool thirdPerson,bool jetpack=false)
         {
             if(SpectatorView.Active) return PlacementControls.ClipboardActive ? ClipboardActions(PlacementControls.GridClipboardActive):SpectatorView.Actions();
@@ -145,8 +153,9 @@ namespace SpaceEngineersVR.Player
             if(building && PlacementControls.ClipboardActive) return ClipboardActions(PlacementControls.GridClipboardActive);
             if(building) return VoxelTools.Current?.Actions() ?? BuildingWheelActions();
             if(seated) return new[] { PauseAction,TerminalAction,LightsAction,Dampeners,PowerAction,ParkAction,HelmetAction,BroadcastAction,CockpitBuild };
-            if(jetpack) return WithHandLock(new[] { PauseAction,BlueprintsAction,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,BroadcastAction },BlueprintsAction,BroadcastAction);
-            return WithHandLock(new[] { PauseAction,BlueprintsAction,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],Quick[12] },Quick[11],Quick[12]);
+            var last=HandGrab.Active ? SnapHeldGrid : jetpack ? BroadcastAction:Quick[12];
+            if(jetpack) return WithHandLock(new[] { PauseAction,BlueprintsAction,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,last },BlueprintsAction,last);
+            return WithHandLock(new[] { PauseAction,BlueprintsAction,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],last },Quick[11],last);
         }
         // A smart WeaponCore hand weapon swaps two wheel slots for target lock and release.
         private static ActionChoice[] WithHandLock(ActionChoice[] actions,ActionChoice first,ActionChoice second) =>
@@ -158,7 +167,8 @@ namespace SpaceEngineersVR.Player
             return new[] {Building[17],PlacementAction,Building[8],PaletteAction,SymmetryAction,SymmetrySetupAction,BuildShapeAction,Building[9],Building[10]};
         }
         internal static ActionChoice[] CockpitBuildActions() => new[] { PauseAction,TerminalAction,CockpitBuild,ConfigureToolbarAction,PaletteAction,Building[17],Building[8],PlacementAction,BuildShapeAction };
-        internal static ActionChoice[] RemoteWheelActions() => new[] { PauseAction,TerminalAction,ExitFeed,ResetFeed,ConfigureToolbarAction,Native("Previous camera",MyControlsSpace.SWITCH_LEFT),Native("Next camera",MyControlsSpace.SWITCH_RIGHT),Inspect };
+        internal static ActionChoice[] RemoteWheelChoices() => new[] { PauseAction,TerminalAction,ExitFeed,ResetFeed,ConfigureToolbarAction,PreviousCamera,NextCamera,Inspect };
+        internal static ActionChoice[] RemoteWheelActions() => RemoteWheelChoices().Where(choice=>choice.Enabled).ToArray();
         internal static ActionChoice[] ClipboardActions(bool grid=true) => grid ?
             new[] { PauseAction,TerminalAction,AlignGravity,Building[21],Building[20],Building[6],Building[7],BlueprintsAction } :
             new[] { PauseAction,TerminalAction,Building[20],Building[6],Building[7],BlueprintsAction };
@@ -167,7 +177,7 @@ namespace SpaceEngineersVR.Player
             NativeSprites.Hud("ActiveBuff"),()=>MySession.Static!=null && SpaceEngineers.Game.EntityComponents.GameLogic.Buffs.MySurvivalBuffsProgression.BuffsEnabled,"survival buffs");
         public static readonly ActionChoice HudOptions=new ActionChoice("HUD",()=>MyGuiSandbox.AddScreen(new GUI.MyPluginConfigDialog(3)),true);
         public static bool AlternateTrigger { get; private set; }
-        private static ActionChoice Native(string label, MyStringId control) => new ActionChoice(label, () => NativeActions.Pulse(control));
+        private static ActionChoice Native(string label, MyStringId control,Func<bool> enabled=null) => new ActionChoice(label, () => NativeActions.Pulse(control),enabled:enabled);
         internal static readonly ActionChoice CycleAmmoAction=new ActionChoice("Cycle ammo",Patches.WeaponCoreReload.Cycle,enabled:()=>Patches.WeaponCoreReload.Ready,
             searchTerms:"weaponcore wc ammo cycle switch magazine type");
         // WeaponCore hand weapons ignore the vanilla Reload control and only react to its raw key.
@@ -176,7 +186,17 @@ namespace SpaceEngineersVR.Player
             if(Patches.WeaponCoreReload.Ready) Patches.WeaponCoreReload.Tap();
             else NativeActions.Pulse(MyControlsSpace.RELOAD);
         }
-        public static readonly ActionChoice InventoryAction = new ActionChoice("Inventory", () => MySession.Static.ControlledEntity?.ShowInventory(), true);
+        public static readonly ActionChoice InventoryAction = new ActionChoice("Inventory", ShowInventoryOrTerminal, true);
+        // Blocks such as the custom turret controller leave ShowInventory empty; their terminal still reaches every inventory.
+        // The character path always answers, and asking it twice would repeat a refusal on a block the player cannot open.
+        private static void ShowInventoryOrTerminal()
+        {
+            var controlled=MySession.Static?.ControlledEntity;
+            if(controlled==null) return;
+            controlled.ShowInventory();
+            if(!ReferenceEquals(controlled,MySession.Static.LocalCharacter) && !MyGuiScreenTerminal.IsOpen && MyGuiScreenGamePlay.ActiveGameplayScreen==null)
+                controlled.ShowTerminal();
+        }
         public static readonly ActionChoice TerminalAction = new ActionChoice("Terminal", () => MySession.Static.ControlledEntity?.ShowTerminal(), true);
         public static readonly ActionChoice ConfigureToolbarAction = new ActionChoice("G menu / toolbar", ToolbarConfig, true);
         public static readonly ActionChoice LightsAction = new ActionChoice("Lights", () => new MyActionToggleLights().ExecuteAction());
@@ -222,7 +242,7 @@ namespace SpaceEngineersVR.Player
             new ActionChoice("Controller help", () => MyGuiSandbox.AddScreen(new GUI.BindingHelp()), true),
             new ActionChoice("Add missing components", AddToPlanner,searchTerms:"add build planner unfinished block"),
             BuildPlannerActions.Shortcuts[0],
-            new ActionChoice("Planner / deposit UI", () => MySession.Static.ControlledEntity?.ShowInventory(), true),
+            new ActionChoice("Planner / deposit UI", ShowInventoryOrTerminal, true),
             ParkAction,
             ParkAction,
             PowerAction,
@@ -240,7 +260,8 @@ namespace SpaceEngineersVR.Player
             new ActionChoice("Turrets and cameras",()=>MyGuiSandbox.AddScreen(new GUI.SettingsPage("Turrets and cameras")),true),
             new ActionChoice("Body and seated play",()=>MyGuiSandbox.AddScreen(new GUI.BodyOptions()),true),
             new ActionChoice("Chat",WristChat.Open),
-            new ActionChoice("Hotkey keyboard",MenuKeyboard.OpenHotkeys)
+            new ActionChoice("Hotkey keyboard",MenuKeyboard.OpenHotkeys),
+            SnapHeldGrid
         };
         public static readonly ActionChoice[] Developer = {
             new ActionChoice("Developer options", () => MyGuiSandbox.AddScreen(new GUI.DeveloperOptions()), true),
@@ -362,6 +383,7 @@ namespace SpaceEngineersVR.Player
             if (interact && RemoteView.Active) { RemoteView.Exit(); InputRouter.Update(); return; }
             if (interact && !PlacementControls.Painting)
             {
+                ModApi.Use(HandInteraction.UseHand);
                 if (!HandInteraction.TryInteract()) { UseControlled(); HandInteraction.Feedback(); }
                 InputRouter.Update();
                 if (!InputRouter.Gameplay) return;

@@ -92,11 +92,11 @@ namespace SpaceEngineersVR.Player
             return true;
         }
 
-        public static bool TryInteractionRay(out LineD ray)
+        public static bool TryInteractionRay(out LineD ray) => TryInteractionRay(detectionHand ?? UseHand, out ray);
+        internal static bool TryInteractionRay(Controller hand, out LineD ray)
         {
             ray = default(LineD);
             var character = MySession.Static?.LocalCharacter;
-            var hand = detectionHand ?? UseHand;
             if (!InputRouter.Gameplay || character == null || character.IsDead || character.IsSitting ||
                 MySession.Static.ControlledEntity != character || !TryCharacterPointerPose(hand, out MatrixD pose)) return false;
             var head=character.GetHeadMatrix(true,true,forceHeadBone:true).Translation;
@@ -307,7 +307,7 @@ namespace SpaceEngineersVR.Player
                 !ThirdPersonView.Active && hand.pose.isTracked && !PlacementControls.OwnsTools && !HelmetHud.Consumes(hand) &&
                 !Owns(hand) && !CockpitTouch.Owns(hand) && !TouchScreenBridge.PointingFor(hand) && !ArthurLcdBridge.PointingFor(hand) && !FloatingWindows.PointingFor(hand) &&
                 !(hand==Player.HandR && (SpatialUi.OwnsRight || SpatialUi.RayTargeted || SpatialUi.Pointing)) &&
-                !WeaponHandling.ConsumesSupportGrip && !WeaponHandling.SupportAtItem && c.SupportTriggerPressure.Active;
+                !WeaponHandling.ConsumesSupportGrip && !WeaponHandling.SupportAtItem && !HandGrab.Holding(hand) && c.SupportTriggerPressure.Active;
             // Raw pressure keeps the laser up through a full pull, like the action ray; the gate uses once per pull.
             float pressure=allowed ? c.SupportTriggerPressure.RawPosition.X : 0;
             SupportAiming=ShowRay(pressure,SupportAiming);
@@ -323,6 +323,7 @@ namespace SpaceEngineersVR.Player
             SupportUseHeld=supportUse.Held && click.Held && !supportUse.Pressed;
             if(!supportUse.Pressed || !click.Pressed) return;
             RefreshTarget();
+            ModApi.Use(hand);
             if(!TryInteract()) { character.Use(); Feedback(); }
         }
 
@@ -376,7 +377,7 @@ namespace SpaceEngineersVR.Player
                         MyStringId.GetOrCompute("Square"),ref lineColor,0.025f);
                     bool show = hand != action ? SupportAiming :
                         !SupportAiming && rayVisible && !(hand == Player.HandR && SpatialUi.RayTargeted) && !SpatialUi.Owns(hand) && !CockpitTouch.Owns(hand) &&
-                        !Holding(hand) && !TouchScreenBridge.Pointing && !ArthurLcdBridge.PointingFor(hand);
+                        !Holding(hand) && !HandGrab.Holding(hand) && !TouchScreenBridge.Pointing && !ArthurLcdBridge.PointingFor(hand);
                     if (show && !GridSelection.Owns(hand) && !WeaponHandling.HideUseRay && TryInteractionRay(out LineD ray))
                     {
                         var aim=MatrixD.CreateWorld(ray.From,ray.Direction,Vector3D.CalculatePerpendicularVector(ray.Direction));

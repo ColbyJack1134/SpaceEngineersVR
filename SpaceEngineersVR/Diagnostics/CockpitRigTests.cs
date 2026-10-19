@@ -30,6 +30,26 @@ namespace SpaceEngineersVR.Diagnostics
                     throw new Exception("Cockpit rig model or actor count mismatch: "+rig.Subtype);
                 int copied=rig.Levers.Where(l=>l.TemplateActor>=0).Sum(l=>mesh.Parts[l.Actor].Indices.Count+(l.TemplateBase?.Triangles ?? 0)*3)+
                     rig.Buttons.Where(b=>b.TemplateActor>=0).Sum(b=>mesh.Parts[b.Actor].Indices.Count);
+                foreach(var stick in new[] {rig.Left,rig.Right}.Where(s=>s?.Source!=null))
+                {
+                    var copy=mesh.Parts[stick.Actor]; var source=mesh.Parts[stick.Source.Actor];
+                    copied+=copy.Indices.Count+mesh.Parts[stick.BaseActor].Indices.Count;
+                    if(copy.Indices.Count!=source.Indices.Count || mesh.Parts[stick.BaseActor].Indices.Count!=mesh.Parts[stick.Source.BaseActor].Indices.Count)
+                        throw new Exception("Mirrored stick lost triangles: "+rig.Subtype);
+                    if(Vector3.Distance(copy.AABB.Center,Vector3.Transform(source.AABB.Center,stick.MirrorTransform))>.001f)
+                        throw new Exception("Mirrored stick is not at its pivot: "+rig.Subtype);
+                    for(int t=0;t<copy.Indices.Count;t+=3)
+                    {
+                        float Facing(VRageRender.Messages.MyModelData part)
+                        {
+                            Vector3 a=part.Positions[part.Indices[t]],b=part.Positions[part.Indices[t+1]],c=part.Positions[part.Indices[t+2]];
+                            return Vector3.Dot(Vector3.Cross(b-a,c-a),part.Normals[part.Indices[t]]);
+                        }
+                        if(Math.Sign(Facing(copy))!=Math.Sign(Facing(source))) throw new Exception("Mirrored stick winding is inside out: "+rig.Subtype);
+                    }
+                    if(Vector3.Distance(stick.Shaft,new Vector3(-stick.Source.Shaft.X,stick.Source.Shaft.Y,stick.Source.Shaft.Z))>1e-5f)
+                        throw new Exception("Mirrored stick is not a mirror of its source: "+rig.Subtype);
+                }
                 if(mesh.Parts.Sum(p=>p.Indices.Count)-copied!=mesh.NativeTriangles*3)
                     throw new Exception("Cockpit partition lost native triangles: "+rig.Subtype);
                 for(int actor=0;actor<mesh.Parts.Length;actor++)

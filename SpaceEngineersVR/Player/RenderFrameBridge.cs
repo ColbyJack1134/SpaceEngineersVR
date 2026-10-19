@@ -5,7 +5,7 @@ namespace SpaceEngineersVR.Player
 {
     internal static class RenderFrameBridge
     {
-        private sealed class Packet { public CameraRig.Frame Rig; public RemoteView.View Remote; public SurfaceView[] Surfaces; public WorldMarkers.View Markers; public ShipCrosshair.View Crosshair; public TargetFeedback.View Selection; public SymmetryPlanes.View[] Symmetry; public VRageRender.Messages.MyRenderMessageDebugDrawSphere[] Planets; }
+        private sealed class Packet { public CameraRig.Frame Rig; public RemoteView.View Remote; public SurfaceView[] Surfaces; public WorldMarkers.View Markers; public ShipCrosshair.View Crosshair; public TargetFeedback.View Selection; public HoloSight.View Holo; public SymmetryPlanes.View[] Symmetry; public VRageRender.Messages.MyRenderMessageDebugDrawSphere[] Planets; }
         private static readonly ConditionalWeakTable<object, Packet> packets = new ConditionalWeakTable<object, Packet>();
         private static readonly List<Packet> pending=new List<Packet>();
         private static WorldMarkers.View latestMarkers;
@@ -15,6 +15,7 @@ namespace SpaceEngineersVR.Player
         public static WorldMarkers.View Markers { get; private set; }
         public static ShipCrosshair.View Crosshair { get; private set; }
         internal static TargetFeedback.View Selection { get; private set; }
+        internal static HoloSight.View Holo { get; private set; }
         internal static SymmetryPlanes.View[] Symmetry { get; private set; }
         internal static VRageRender.Messages.MyRenderMessageDebugDrawSphere[] Planets { get; private set; }
         public static CameraRig.Frame ForCurrentOwner(CameraRig.Frame current)
@@ -44,6 +45,7 @@ namespace SpaceEngineersVR.Player
                 packet.Markers=markers;
                 packet.Surfaces=surfaces;
                 packet.Selection=GridSelection.Feedback ?? TargetLock.Feedback;
+                packet.Holo=HoloSight.Capture();
                 packet.Planets=PlacementControls.ClipboardActive ? PlanetPreview.Current:null;
                 packet.Symmetry=SymmetryPlanes.Current.Length>0 && Sandbox.Game.Entities.MyCubeBuilder.Static?.IsActivated==true ? SymmetryPlanes.Current:null;
             }
@@ -58,6 +60,7 @@ namespace SpaceEngineersVR.Player
             Markers=packet?.Markers;
             Crosshair=packet?.Crosshair;
             Selection=packet?.Selection;
+            Holo=packet?.Holo;
             Symmetry=packet?.Symmetry;
             Planets=packet?.Planets;
         }

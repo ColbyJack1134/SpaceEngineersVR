@@ -39,13 +39,20 @@ namespace SpaceEngineersVR.Diagnostics
                 .Cast<Match>().Select(m=>m.Groups[1].Value).ToArray() : new string[0];
             var terrainChoices=terrain.Select(name=>new ActionChoice(VoxelTools.Words(name),()=> {},icon:previews.TryGetValue(name,out var icon) ? icon:null)).ToArray();
             var quick=GameActions.WheelActions(false,false,false);
+            var digi=VoxelToolTests.Fixture();
+            var remove=digi.Actions().First(a=>a.HistoryKey=="Remove terrain");
             using(var wheel=new OverlayCanvas("Voxel wheel",1024,1024,1,false,device))
             {
-                Wheel(wheel,ToolbarWheel.ToolGroups(VoxelTools.Hand.Title,VoxelTools.Hand.Actions(),materials,quick),new[] {0,1,2,materials.Length+1},output,"wheel-voxel-");
-                var digi=VoxelToolTests.Fixture();
+                Wheel(wheel,ToolbarWheel.ToolGroups(VoxelTools.Hand.Title,VoxelTools.Hand.Actions(),materials,quick),new[] {0,1,materials.Length,materials.Length+1},output,"wheel-voxel-");
                 if(terrainChoices.Length>0)
-                    Wheel(wheel,ToolbarWheel.ToolGroups("Terrain tool",digi.Actions(),new[] {new ToolbarWheel.Group("Soil and stone",terrainChoices.Take(DigiTool.IceStart).ToArray(),true),
-                        new ToolbarWheel.Group("Snow and ice",terrainChoices.Skip(DigiTool.IceStart).ToArray(),true)},quick),new[] {0,1,6},output,"wheel-terrain-");
+                {
+                    var groups=ToolbarWheel.ToolGroups("Terrain tool",digi.Actions(),new[] {new ToolbarWheel.Group("Soil and stone",terrainChoices.Take(DigiTool.IceStart).ToArray(),true),
+                        new ToolbarWheel.Group("Snow and ice",terrainChoices.Skip(DigiTool.IceStart).ToArray(),true)},quick);
+                    Wheel(wheel,groups,new[] {0,5,7},output,"wheel-terrain-");
+                    remove.Run();
+                    Wheel(wheel,groups,new[] {7},output,"wheel-terrain-removing-");
+                    remove.Run();
+                }
             }
             using(var hud=new OverlayCanvas("Voxel HUD",1280,560,1,false,device))
             {
@@ -60,6 +67,16 @@ namespace SpaceEngineersVR.Diagnostics
                 {
                     model.Selected=terrainChoices[2].Label; model.Icons=new[] {terrainChoices[2].Icon}; model.Ammo="38";
                     UiTests.Render(hud,()=>EssentialHud.Paint(hud,model)); UiTests.Save(hud.Texture,Path.Combine(output,"hud-terrain-tool.png"));
+                    VoxelToolTests.Attach(); remove.Run();
+                    try
+                    {
+                        if(digi.Selected(out string name,out string icon))
+                        {
+                            model.Selected=name; model.Icons=new[] {icon};
+                            UiTests.Render(hud,()=>EssentialHud.Paint(hud,model)); UiTests.Save(hud.Texture,Path.Combine(output,"hud-terrain-removing.png"));
+                        }
+                    }
+                    finally { remove.Run(); VoxelToolTests.Detach(); }
                 }
             }
             log("PASS voxel tool previews: "+materials.Sum(m=>m.Items.Length)+" native materials in "+materials.Length+" groups, "+terrain.Length+" terrain types");

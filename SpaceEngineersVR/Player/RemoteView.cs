@@ -112,6 +112,8 @@ namespace SpaceEngineersVR.Player
             interaction.Reset(true); recenter=false; rayStart=rayEnd=null; lastHover=0; epoch++;
         }
         public static void Recenter() { recenter=true; }
+        internal static void Follow(Matrix oldOrigin,Matrix newOrigin)
+        { if(Active && seat!=null) { window.Cancel(); window.Pose=WindowSpots.Follow(window.Pose,oldOrigin,newOrigin); } }
         public static void ReleaseInput()
         {
             if(placementDirty) Save();
@@ -195,8 +197,15 @@ namespace SpaceEngineersVR.Player
         }
         private static void Place()
         {
-            window.Place(Player.Headset.pose.deviceToAbsolute.matrix,1.2f,new Vector3(0,0,-1.5f));
-            window.Aspect=9f/16; interaction.Reset();
+            var head=Player.Headset.pose.deviceToAbsolute.matrix;
+            window.Aspect=9f/16;
+            if(seat!=null && CockpitScreens.Main(seat,((MatrixD)head*PhysicalTrackingToWorld).Translation,out var screen,out var area))
+            {
+                window.Stop(); window.Width=CockpitScreens.Fit(area,window.Aspect,MenuWindow.MinWidth);
+                window.Pose=(Matrix)(screen*MatrixD.Invert(PhysicalTrackingToWorld));
+            }
+            else window.Place(head);
+            interaction.Reset();
             recenter=false;
         }
         public static void Update()
@@ -306,22 +315,13 @@ namespace SpaceEngineersVR.Player
         {
             placementDirty=false;
             if(seat==null) return;
-            var local=(Matrix)((MatrixD)window.Pose*TrackingToSeat);
-            var p=local.Translation; var q=Quaternion.CreateFromRotationMatrix(local);
-            var saved=new MenuWindowSetting { Screen=key,World=world,Cockpit=seat.EntityId,Width=window.Width,X=p.X,Y=p.Y,Z=p.Z,QX=q.X,QY=q.Y,QZ=q.Z,QW=q.W };
-            Common.Config.MenuWindows=Common.Config.MenuWindows.Where(s=>s.Screen!=key || s.World!=world || s.Cockpit!=seat.EntityId).Concat(new[] {saved}).ToArray();
+            WindowSpots.Store(key,(Matrix)((MatrixD)window.Pose*TrackingToSeat),window.Width,window.Height);
         }
         private static void Restore()
         {
             if(seat==null) return;
-            var saved=Common.Config.MenuWindows.FirstOrDefault(s=>s.Screen==key && s.World==world && s.Cockpit==seat.EntityId) ??
-                Common.Config.MenuWindows.FirstOrDefault(s=>s.Screen==key && s.World==null && s.Cockpit==0);
-            if(saved==null) return;
-            var p=new Vector3(saved.X,saved.Y,saved.Z); var q=new Quaternion(saved.QX,saved.QY,saved.QZ,saved.QW);
-            if(!p.IsValid() || p.Length()>10 || !q.LengthSquared().IsValid() || q.LengthSquared()<.9f || q.LengthSquared()>1.1f ||
-                !saved.Width.IsValid() || saved.Width<MenuWindow.MinWidth || saved.Width>MenuWindow.MaxWidth) return;
-            q.Normalize(); var local=MatrixD.CreateFromQuaternion(q); local.Translation=p;
-            window.Pose=(Matrix)(local*MatrixD.Invert(TrackingToSeat)); window.Width=saved.Width;
+            if(!WindowSpots.Find(key,out var local,out var saved) || !saved.Width.IsValid() || saved.Width<MenuWindow.MinWidth || saved.Width>MenuWindow.MaxWidth) return;
+            window.Pose=(Matrix)((MatrixD)local*MatrixD.Invert(TrackingToSeat)); window.Width=saved.Width;
         }
     }
 }

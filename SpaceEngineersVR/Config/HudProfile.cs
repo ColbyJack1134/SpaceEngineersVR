@@ -12,6 +12,8 @@ namespace SpaceEngineersVR.Config
         public bool Group { get; set; }=true;
         public bool Distances { get; set; }=true;
         public bool HitMarkers { get; set; }=true;
+        public bool Notifications { get; set; }=true;
+        public bool Chat { get; set; }=true;
         internal HudProfile Copy() => (HudProfile)MemberwiseClone();
         internal string Name => Markers==2 ? "Details":Markers==1 ? (Vitals ? "Vitals":"Markers"):Vitals ? "Vitals":"Off";
     }
@@ -26,6 +28,9 @@ namespace SpaceEngineersVR.Config
         public bool ShowSignalDistances { get=>showSignalDistances; set=>SetValue(ref showSignalDistances,value); }
         private bool showHitMarkers=true;
         public bool ShowHitMarkers { get=>showHitMarkers; set=>SetValue(ref showHitMarkers,value); }
+        private bool showNotifications=true,showChat=true;
+        public bool ShowNotifications { get=>showNotifications; set=>SetValue(ref showNotifications,value); }
+        public bool ShowChat { get=>showChat; set=>SetValue(ref showChat,value); }
         private float signalIconScale=1.5f,signalTextScale=1,wristSignalTint=.15f;
         public float SignalIconScale { get=>signalIconScale; set=>SetValue(ref signalIconScale,Bound(value,.75f,2.5f,1.5f)); }
         public float SignalTextScale { get=>signalTextScale; set=>SetValue(ref signalTextScale,Bound(value,.75f,1.5f,1)); }
@@ -48,7 +53,8 @@ namespace SpaceEngineersVR.Config
             return p;
         }
         private HudProfile CaptureHudProfile() => new HudProfile { Vitals=ShowVitals,Markers=WaypointMode,
-            IconScale=SignalIconScale,TextScale=SignalTextScale,Group=GroupSignals,Distances=ShowSignalDistances,HitMarkers=ShowHitMarkers };
+            IconScale=SignalIconScale,TextScale=SignalTextScale,Group=GroupSignals,Distances=ShowSignalDistances,HitMarkers=ShowHitMarkers,
+            Notifications=ShowNotifications,Chat=ShowChat };
         internal void InitializeHudProfiles(bool created=false)
         {
             if(hudProfilesReady) return;
@@ -68,7 +74,10 @@ namespace SpaceEngineersVR.Config
             }
             if(HudProfileVersion<2)
                 foreach(var p in hudProfiles) p.HitMarkers=p.Vitals || p.Markers>0;
-            HudProfileVersion=2;
+            // Notices used to draw only with vitals.
+            if(HudProfileVersion<3)
+                foreach(var p in hudProfiles) p.Notifications=p.Chat=p.Vitals;
+            HudProfileVersion=3;
             hudProfilesReady=true;
             SelectHudProfile(hudProfileIndex);
         }
@@ -79,6 +88,7 @@ namespace SpaceEngineersVR.Config
             {
                 case nameof(ShowVitals): case nameof(WaypointMode): case nameof(GroupSignals):
                 case nameof(SignalIconScale): case nameof(SignalTextScale): case nameof(ShowSignalDistances): case nameof(ShowHitMarkers):
+                case nameof(ShowNotifications): case nameof(ShowChat):
                     hudProfiles[hudProfileIndex]=CaptureHudProfile(); break;
             }
         }
@@ -90,6 +100,7 @@ namespace SpaceEngineersVR.Config
             // Notify persistence only after all fields have switched.
             applyingHudProfile=true;
             showVitals=p.Vitals; waypointMode=p.Markers; showSignalDistances=p.Distances; showHitMarkers=p.HitMarkers;
+            showNotifications=p.Notifications; showChat=p.Chat;
             signalIconScale=p.IconScale; signalTextScale=p.TextScale;
             applyingHudProfile=false;
             OnPropertyChanged(nameof(HudProfiles));
@@ -105,7 +116,7 @@ namespace SpaceEngineersVR.Config
         {
             InitializeHudProfiles();
             if(hudProfiles.Length==5) return;
-            hudProfiles=hudProfiles.Concat(new[] {new HudProfile {Vitals=false}}).ToArray();
+            hudProfiles=hudProfiles.Concat(new[] {new HudProfile {Vitals=false,Notifications=false,Chat=false}}).ToArray();
             OnPropertyChanged(nameof(HudProfiles));
         }
         internal void RemoveExtraHudProfile()
@@ -114,12 +125,13 @@ namespace SpaceEngineersVR.Config
             if(hudProfiles.Length!=5) return;
             hudProfiles=hudProfiles.Take(4).ToArray(); SelectHudProfile(Math.Min(hudProfileIndex,3));
         }
-        private static HudProfile DefaultHudProfile(int index) => new HudProfile {Vitals=index==2,Markers=index==0 ? 0:index==3 ? 2:1,HitMarkers=index!=0};
+        private static HudProfile DefaultHudProfile(int index) => new HudProfile {Vitals=index==2,Markers=index==0 ? 0:index==3 ? 2:1,HitMarkers=index!=0,
+            Notifications=index==2,Chat=index==2};
         internal void ResetHudProfile(int index)
         {
             EditHudProfile(index,p=> {var d=DefaultHudProfile(index);
                 p.Vitals=d.Vitals; p.Markers=d.Markers; p.IconScale=d.IconScale; p.TextScale=d.TextScale;
-                p.Group=true; p.Distances=d.Distances; p.HitMarkers=d.HitMarkers; });
+                p.Group=true; p.Distances=d.Distances; p.HitMarkers=d.HitMarkers; p.Notifications=d.Notifications; p.Chat=d.Chat; });
         }
     }
 }

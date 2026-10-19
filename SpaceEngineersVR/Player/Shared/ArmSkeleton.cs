@@ -14,9 +14,13 @@ namespace SpaceEngineersVR.Player
             public MyCharacterBone Bone;
             public Quaternion Original,Applied;
             public Vector3 Translation,AppliedTranslation;
-            public void Save() { Original=Bone.Rotation; Translation=Bone.Translation; }
+            public bool Saved;
+            public void Save() { Original=Bone.Rotation; Translation=Bone.Translation; Saved=true; }
+            // Two solves may touch one bone in a frame (lean then look); only the first sees the vanilla pose.
+            public void SaveOnce() { if(!Saved) Save(); }
             public bool Restore(bool force)
             {
+                Saved=false;
                 // Do not overwrite a new pose that vanilla animation has already written.
                 if(!force && (Bone.Rotation!=Applied || Bone.Translation!=AppliedTranslation)) return false;
                 Bone.Rotation=Original; Bone.Translation=Translation; return true;
@@ -26,9 +30,11 @@ namespace SpaceEngineersVR.Player
         {
             public SavedBone Upper,Lower,Palm,Collar;
             public SavedBone[] Fingers,Twists;
+            public MyCharacterBone[] Chain;
             public MyCharacterBone IndexTip,ThumbTip;
             public Matrix PalmOffset,PointFinger;
-            public Vector3 Hint;
+            public ArmSolve.Rig Rig;
+            public readonly ArmSolve.State State=new ArmSolve.State();
             public bool Applied;
             public void Restore(bool force=false)
             {
@@ -54,6 +60,8 @@ namespace SpaceEngineersVR.Player
             var fingers=new List<SavedBone>();
             var twists=new List<SavedBone>();
             for(var bone=palm.Parent;bone!=lower;bone=bone.Parent) twists.Add(new SavedBone { Bone=bone });
+            var chain=new MyCharacterBone[twists.Count];
+            for(int i=0;i<chain.Length;i++) chain[i]=twists[chain.Length-1-i].Bone;
             string prefix=side<0 ? "SE_RigL_" : "SE_RigR_";
             foreach(string digit in new[] { "Thumb","Index","Middle","Ring","Little" })
                 for(int i=1;i<=3;i++)
@@ -64,11 +72,11 @@ namespace SpaceEngineersVR.Player
             var index=find(prefix+"Index_3");
             return new Arm {
                 PointFinger=index==null ? Matrix.Identity : CockpitHandPose.FingerPose(palm,index,false),
-                Fingers=fingers.ToArray(),Twists=twists.ToArray(),
+                Fingers=fingers.ToArray(),Twists=twists.ToArray(),Chain=chain,
                 IndexTip=find(prefix+"Index_3"),ThumbTip=find(prefix+"Thumb_3"),
                 Upper=new SavedBone { Bone=upper },Lower=new SavedBone { Bone=lower },Palm=new SavedBone { Bone=palm },Collar=upper.Parent==null ? null:new SavedBone { Bone=upper.Parent },
                 PalmOffset=ArmMath.PalmCorrection(palm.GetAbsoluteRigTransform(),lower.GetAbsoluteRigTransform(),side),
-                Hint=new Vector3(side*0.55f,-1,0.3f) };
+                Rig=ArmSolve.MeasureRig(upper,lower,palm,find(prefix+"Thumb_1"),find(prefix+"Little_1"),side) };
         }
         // Vanilla animates the collarbones for an item in the right hand; a left-handed hold swaps them as mirror images.
         internal static void MirrorCollars(Arm left,Arm right)
@@ -97,15 +105,14 @@ namespace SpaceEngineersVR.Player
             for(var node=child.Parent;node!=null;node=node.Parent) if(node==parent) return true;
             return false;
         }
-        internal static bool Apply(Arm arm, Matrix target, bool adaptive, float rigidity, float scale, Fingers fingers, float trigger,float[] curls=null,WeaponProfile item=null,bool support=false,float[] stickCurl=null)
+        internal static bool Apply(Arm arm,Matrix target,ArmSolve.Options options,float scale,Fingers fingers,float trigger,float[] curls=null,WeaponProfile item=null,bool support=false,float[] stickCurl=null)
         {
             if(arm==null || !target.IsValid()) return false;
             arm.Upper.Save(); arm.Lower.Save(); arm.Palm.Save();
             foreach(var twist in arm.Twists) twist.Save();
             foreach(var finger in arm.Fingers) finger.Save();
             arm.Applied=true;
-            if(!(rigidity>0 && rigidity<1 ? Blend(arm,target,adaptive,rigidity,scale) :
-                ArmMath.ApplyPose(arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone,target,arm.PalmOffset,arm.Hint,adaptive,rigidity>=1,scale)))
+            if(!ArmSolve.Apply(arm.Upper.Bone,arm.Lower.Bone,arm.Chain,arm.Palm.Bone,arm.Rig,target,arm.PalmOffset,options,scale,arm.State))
             { arm.Restore(true); return false; }
             if(fingers!=Fingers.Native)
                 foreach(var finger in arm.Fingers)
@@ -119,33 +126,11 @@ namespace SpaceEngineersVR.Player
             foreach(var twist in arm.Twists) Remember(twist);
             return true;
         }
-        // Mixes the rigid-wrist and articulated solves; the palm keeps the tracked pose shared by both.
-        private static bool Blend(Arm arm,Matrix target,bool adaptive,float rigidity,float scale)
-        {
-            var chain=new SavedBone[arm.Twists.Length+3];
-            chain[0]=arm.Upper; chain[1]=arm.Lower; chain[chain.Length-1]=arm.Palm;
-            for(int i=0;i<arm.Twists.Length;i++) chain[2+i]=arm.Twists[arm.Twists.Length-1-i];
-            if(!ArmMath.ApplyPose(arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone,target,arm.PalmOffset,arm.Hint,adaptive,true,scale)) return false;
-            var rotations=new Quaternion[chain.Length]; var translations=new Vector3[chain.Length];
-            for(int i=0;i<chain.Length;i++) { rotations[i]=chain[i].Bone.Rotation; translations[i]=chain[i].Bone.Translation; }
-            Matrix palm=arm.Palm.Bone.AbsoluteTransform;
-            foreach(var saved in chain) { saved.Bone.Rotation=saved.Original; saved.Bone.Translation=saved.Translation; }
-            arm.Upper.Bone.ComputeAbsoluteTransform(true,true);
-            if(!ArmMath.ApplyPose(arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone,target,arm.PalmOffset,arm.Hint,adaptive,false,scale)) return false;
-            for(int i=0;i<chain.Length-1;i++)
-            {
-                chain[i].Bone.Rotation=Quaternion.Slerp(chain[i].Bone.Rotation,rotations[i],rigidity);
-                chain[i].Bone.Translation=Vector3.Lerp(chain[i].Bone.Translation,translations[i],rigidity);
-            }
-            arm.Upper.Bone.ComputeAbsoluteTransform(true,true);
-            arm.Palm.Bone.SetCompleteTransformFromAbsoluteMatrix(ref palm,false); arm.Palm.Bone.ComputeAbsoluteTransform(true,true);
-            return arm.Palm.Bone.AbsoluteTransform.IsValid();
-        }
         // Turns the head to a character-space orientation, limited to a natural range from the animated pose.
         internal static bool Look(SavedBone head,Matrix target,float limit)
         {
             if(head?.Bone.Parent==null || !target.IsValid() || Math.Abs(target.Forward.LengthSquared()-1)>.1f || Math.Abs(target.Up.LengthSquared()-1)>.1f) return false;
-            head.Save();
+            head.SaveOnce();
             var rest=head.Bone.GetAbsoluteRigTransform().GetOrientation();
             var animated=Quaternion.CreateFromRotationMatrix(head.Bone.AbsoluteTransform);
             var desired=Quaternion.CreateFromRotationMatrix(rest*target.GetOrientation());
@@ -165,7 +150,7 @@ namespace SpaceEngineersVR.Player
             if(!Look(head,target,limit)) return false;
             if(anchored.HasValue)
             {
-                var absolute=anchored.Value; eye.Save();
+                var absolute=anchored.Value; eye.SaveOnce();
                 eye.Bone.SetCompleteTransformFromAbsoluteMatrix(ref absolute,false);
                 eye.Bone.ComputeAbsoluteTransform(true,true);
                 Remember(eye);
@@ -173,7 +158,7 @@ namespace SpaceEngineersVR.Player
             return true;
         }
         internal static SavedBone Below(MyCharacterBone head,MyCharacterBone bone) => head!=null && bone!=null && Descends(bone,head) ? new SavedBone {Bone=bone}:null;
-        private static void Remember(SavedBone saved)
+        internal static void Remember(SavedBone saved)
         { saved.Applied=saved.Bone.Rotation; saved.AppliedTranslation=saved.Bone.Translation; }
     }
 }

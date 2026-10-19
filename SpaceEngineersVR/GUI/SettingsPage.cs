@@ -21,15 +21,16 @@ namespace SpaceEngineersVR.GUI
             switch(page)
             {
                 case "Character":
-                    Toggle(-.28f,"Left-handed",c.LeftHanded,v=>c.LeftHanded=v);
-                    Toggle(-.21f,"Body follows head turns",c.UseHeadRotationForCharacter,v=>c.UseHeadRotationForCharacter=v);
-                    Toggle(-.14f,"Roomscale body movement",c.RoomscaleMovement,v=>c.RoomscaleMovement=v);
-                    Toggle(-.07f,"Controller-relative movement",c.ControllerRelativeMovement,v=>c.ControllerRelativeMovement=v);
-                    Toggle(0f,"Invert jetpack pitch",c.InvertJetpackPitch,v=>c.InvertJetpackPitch=v);
-                    Toggle(.07f,"Hold grip to rotate blocks",c.HoldGripRotation,v=>c.HoldGripRotation=v);
-                    Link(.14f,"Body and seated play",()=>new BodyOptions());
+                    Toggle(-.31f,"Left-handed",c.LeftHanded,v=>c.LeftHanded=v);
+                    Toggle(-.245f,"Body follows head turns",c.UseHeadRotationForCharacter,v=>c.UseHeadRotationForCharacter=v);
+                    Toggle(-.18f,"Roomscale body movement",c.RoomscaleMovement,v=>c.RoomscaleMovement=v);
+                    Toggle(-.115f,"Controller-relative movement",c.ControllerRelativeMovement,v=>c.ControllerRelativeMovement=v);
+                    Toggle(-.05f,"Invert jetpack pitch",c.InvertJetpackPitch,v=>c.InvertJetpackPitch=v);
+                    Toggle(.015f,"Hold grip to rotate blocks",c.HoldGripRotation,v=>c.HoldGripRotation=v);
+                    Toggle(.08f,"Lock block position while rotating in build mode",c.LockBlockWhileRotating,v=>c.LockBlockWhileRotating=v);
+                    Link(.15f,"Body and seated play",()=>new BodyOptions());
                     Link(.21f,"Body visibility",()=>new SettingsPage("Body visibility"));
-                    Link(.28f,"Advanced controls",()=>new SettingsPage("Advanced controls"));
+                    Link(.27f,"Advanced controls",()=>new SettingsPage("Advanced controls"));
                     break;
                 case "Character turning":
                     Toggle(-.23f,"Snap turning",c.SnapTurn,v=>c.SnapTurn=v);
@@ -52,6 +53,8 @@ namespace SpaceEngineersVR.GUI
                     Toggle(-.14f,"Keyboard / mouse gameplay",c.EnableKeyboardAndMouseControls,v=>c.EnableKeyboardAndMouseControls=v);
                     Toggle(-.05f,"Tracked arms",c.TrackedArms,v=>c.TrackedArms=v);
                     Toggle(.04f,"Legacy hand-tilt ship steering",c.LegacyShipTilt,v=>c.LegacyShipTilt=v);
+                    Toggle(.13f,"Double-tap to keep tools running",c.DoubleTapToolLock,v=>c.DoubleTapToolLock=v);
+                    Toggle(.22f,"VR data to [SEVR] programmable blocks",c.ProgrammableBlockData,v=>c.ProgrammableBlockData=v);
                     break;
                 case "Turrets and cameras":
                     Slider(-.24f,"Turret aim sensitivity",c.TurretAimSensitivity,.25f,v=>c.TurretAimSensitivity=v,400);
@@ -107,6 +110,7 @@ namespace SpaceEngineersVR.GUI
                     Toggle(-.12f,"Ship crosshair",c.ShipCrosshair,v=>c.ShipCrosshair=v);
                     Toggle(-.01f,"Block info without grip",c.InspectWithoutGrip,v=>c.InspectWithoutGrip=v);
                     Slider(.10f,"Crosshair size",c.CrosshairScale,.2f,v=>c.CrosshairScale=v,100,Config.PluginConfig.DefaultCrosshairScale);
+                    Toggle(.24f,"Reduce screen effects",c.ReduceScreenEffects,v=>c.ReduceScreenEffects=v);
                     break;
             }
             Controls.Add(new MyGuiControlButton(new Vector2(.18f,.34f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));

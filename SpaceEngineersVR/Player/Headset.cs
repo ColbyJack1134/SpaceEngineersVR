@@ -150,6 +150,7 @@ namespace SpaceEngineersVR.Player
             FeatureTiming.End(eye==EVREye.Eye_Left ? FeatureTiming.Area.SceneLeft : FeatureTiming.Area.SceneRight,sceneStart);
             GpuTiming.End(sceneArea);
             GpuTiming.Begin(uiArea);
+            BloodOverlay.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),projection);
             WorldMarkers.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection);
             MatrixD trackingView=MatrixD.Invert((MatrixD)OpenVR.System.GetEyeToHeadTransform(eye).ToMatrix()*renderPose.deviceToAbsolute.matrix);
             RemoteFeed.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),RenderFrameBridge.Remote,trackingView,VrMath.Projection(l,r,t,b,.03));
@@ -164,6 +165,7 @@ namespace SpaceEngineersVR.Player
                 rig?.TrackingToWorld ?? (MatrixD)originInverse*MatrixD.Invert(gameView));
             NativeGizmos.Draw(target.Instance,RenderFrameBridge.Symmetry,RenderFrameBridge.Planets);
             TargetFeedback.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),GridSelection.Active || TargetLock.Aiming ? RenderFrameBridge.Selection:null,view,projection,PhysicalSurface.SceneDepth());
+            if(rig?.ThirdPerson!=true) HoloSight.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),RenderFrameBridge.Holo,view,projection,PhysicalSurface.SceneDepth());
             GpuTiming.End(uiArea);
             var input = new Texture_t { eColorSpace=EColorSpace.Auto, eType=ETextureType.DirectX, handle=target.GetResource().NativePointer };
             var error = OpenVR.Compositor.Submit(eye,ref input,ref bounds,EVRSubmitFlags.Submit_Default);

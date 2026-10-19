@@ -43,9 +43,9 @@ namespace SpaceEngineersVR.Diagnostics
         private static int Count => Player.CockpitLayout.Count(Player.CockpitLayout.ControlSeat);
         public override string GetFriendlyName() => "SEVR assignment preview";
         private static void Set(object instance,string field,object value) => AccessTools.Field(instance.GetType(),field).SetValue(instance,value);
-        internal AssignmentPreview(bool ordinary=false) : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.95f,.70f))
+        internal AssignmentPreview(bool ordinary=false,bool quickToolbar=false) : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.95f,.70f))
         {
-            this.ordinary=ordinary;
+            this.ordinary=ordinary=ordinary || quickToolbar;
             var file=Path.Combine(VRage.FileSystem.MyFileSystem.ContentPath,"Data","Hud","Default.sbc");
             MyObjectBuilder_Definitions definitions;
             if(!MyObjectBuilderSerializer.DeserializeXML(file,out definitions)) throw new Exception("Native HUD definition unavailable");
@@ -54,16 +54,17 @@ namespace SpaceEngineersVR.Diagnostics
             previousComponent=AccessTools.Field(typeof(MyToolbarComponent),"m_instance").GetValue(null);
             if(previousComponent==null) AccessTools.Field(typeof(MyToolbarComponent),"m_instance").SetValue(null,FormatterServices.GetUninitializedObject(typeof(MyToolbarComponent)));
             previous=MyToolbarComponent.CurrentToolbar;
-            if(ordinary) target=new MyToolbar(MyToolbarType.Ship,9,3);
+            if(quickToolbar) target=new MyToolbar(MyToolbarType.Character,Player.QuickToolbar.Slots,1);
+            else if(ordinary) target=new MyToolbar(MyToolbarType.Ship,9,3);
             else
             {
                 physical=new MyToolbar(MyToolbarType.ButtonPanel,9,(Count+8)/9);
                 grouped=new Player.CockpitAssignmentToolbar(physical,Player.CockpitAssignmentLayout.Find(Player.CockpitLayout.ControlSeat));
                 target=grouped.Toolbar;
             }
-            selected=ordinary ? 10:grouped.Layout.DisplayIndex(58);
-            if(ordinary) { occupied=new NativeIntegrationTests.Item(); target.SetItemAtIndex(selected,occupied); }
-            source=ordinary ? null:new MyToolbar(MyToolbarType.Ship,9,3);
+            selected=quickToolbar ? 1:ordinary ? 10:grouped.Layout.DisplayIndex(58);
+            if(ordinary && !quickToolbar) { occupied=new NativeIntegrationTests.Item(); target.SetItemAtIndex(selected,occupied); }
+            source=quickToolbar ? new MyToolbar(MyToolbarType.Character,9,9) : ordinary ? null:new MyToolbar(MyToolbarType.Ship,9,3);
             target.SwitchToPage(selected/target.SlotCount);
             MyToolbarComponent.CurrentToolbar=target;
             toolbar=new PreviewToolbar(style) { Position=new Vector2(.33f,.20f),OriginAlign=MyGuiDrawAlignEnum.HORISONTAL_RIGHT_AND_VERTICAL_BOTTOM };
@@ -82,16 +83,17 @@ namespace SpaceEngineersVR.Diagnostics
             var drag=new MyGuiControlGridDragAndDrop(MyGuiConstants.DRAG_AND_DROP_BACKGROUND_COLOR,MyGuiConstants.DRAG_AND_DROP_TEXT_COLOR,.7f,MyGuiConstants.DRAG_AND_DROP_TEXT_OFFSET,true);
             Set(owner,"m_dragAndDrop",drag); Controls.Add(drag);
             Controls.Add(new MyGuiControlLabel(new Vector2(-.32f,.10f),text:"Switches") {Name="LabelToolbar"});
-            Controls.Add(new MyGuiControlLabel(new Vector2(0,-.23f),text:ordinary ? "Toolbar assignment":"Cockpit assignment",originAlign:MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER));
-            assignment=new CockpitAssignment(owner,target,source,target.SlotCount*target.PageCount,selected,switches:!ordinary,layout:grouped?.Layout); assignment.Update();
+            Controls.Add(new MyGuiControlLabel(new Vector2(0,-.23f),text:quickToolbar ? "Quick toolbar assignment":ordinary ? "Toolbar assignment":"Cockpit assignment",originAlign:MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER));
+            assignment=new CockpitAssignment(owner,target,source,target.SlotCount*target.PageCount,selected,switches:!ordinary,layout:grouped?.Layout,
+                title:quickToolbar ? "Quick toolbar · "+Player.QuickToolbar.Names[selected]:null,holster:!quickToolbar); assignment.Update();
             FillArtwork();
-            if(ordinary) VerifyInputSelection();
+            if(ordinary && !quickToolbar) VerifyInputSelection();
         }
         private void FillArtwork()
         {
             string[] art={"GridPowerOn","Dampeners","Handbrake","Light","ToggleConnectors","GridPowerOn","Dampeners","Light","Handbrake"};
             foreach(var grid in Controls.OfType<MyGuiControlGrid>().Concat(new[] {toolbar.ToolbarGrid}))
-                for(int i=0;i<Math.Min(9,grid.MaxItemCount);i++)
+                for(int i=0;i<Math.Min(9,Math.Min(grid.MaxItemCount,grid.ColumnsCount*grid.RowsCount));i++)
                     grid.SetItemAt(i,ordinary && target.CurrentPage==1 && i==1 && target.GetItemAtIndex(selected)==null ? null:new MyGuiGridItem(Player.NativeSprites.Hud(art[i]),null,"Action",null));
         }
         private void VerifyInputSelection()

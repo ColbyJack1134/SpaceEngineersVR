@@ -36,8 +36,15 @@ namespace SpaceEngineersVR.Diagnostics
                 oldDefaults.HudProfiles.Select(p=>p.Vitals).SequenceEqual(new[] {false,false,true,false}),"Old default states did not migrate");
             Require(oldDefaults.HudProfiles.All(p=>p.IconScale==1.25f && p.TextScale==.875f && p.Group),"Migration lost sizing or retained ungrouped states");
             Require(oldDefaults.HudProfiles.Select(p=>p.HitMarkers).SequenceEqual(new[] {false,true,true,true}),"Hit markers did not migrate off only for the empty state");
+            var vitalsOnly=new PluginConfig {HudProfileVersion=2,HudProfiles=Enumerable.Range(0,4).Select(i=>new HudProfile {Vitals=i!=1,Markers=1}).ToArray()};
+            vitalsOnly.InitializeHudProfiles();
+            Require(vitalsOnly.HudProfiles.All(p=>p.Notifications==p.Vitals && p.Chat==p.Vitals),"Notices and chat did not migrate to follow each state's vitals");
             var c=new PluginConfig(); c.InitializeHudProfiles(); WristHud.Open(c);
             Require(c.HudProfiles.Select(p=>p.HitMarkers).SequenceEqual(new[] {false,true,true,true}),"Default hit markers are not off only for the empty state");
+            Require(c.HudProfiles.All(p=>p.Notifications==p.Vitals && p.Chat==p.Vitals),"Default notices and chat do not follow vitals");
+            Press(c,"2  Markers"); Press(c,"Notifications"); Press(c,"Chat");
+            Require(c.ShowNotifications && c.ShowChat && c.HudProfiles[1].Notifications && c.HudProfiles[1].Chat && !c.HudProfiles[0].Chat,"Wrist notice and chat toggles did not change only the active state");
+            Press(c,"Notifications"); Require(!c.ShowNotifications && c.ShowChat,"Notice toggle changed chat");
             Press(c,"4  Details");
             Require(c.HudProfileIndex==3 && !c.ShowVitals,"Selecting a state did not activate it immediately");
             Press(c,"Hit markers on foot");
@@ -47,7 +54,7 @@ namespace SpaceEngineersVR.Diagnostics
             c.GroupSignals=false; c.SignalIconScale=2; c.SignalTextScale=1.25f;
             Press(c,"+ State"); Require(c.HudProfiles.Length==5 && c.HudProfileIndex==4,"Adding a state failed to activate it");
              Require(c.HudProfileIndex==4 && !c.ShowVitals && c.WaypointMode==1,"Fifth state unavailable");
-            Press(c,"Ship crosshair"); Require(!c.ShipCrosshair,"Shared ship crosshair toggle failed");
+            c.ShipCrosshair=false;
             c.WristSignalTint=.6f; c.HudWithVisorOpen=true; c.SignalEdges=false; c.ShowContacts=false;
             c.CycleHud(); Require(c.HudProfileIndex==0 && !c.ShowVitals && c.WaypointMode==0,"Five-state wrap skipped Off");
             c.SelectHudProfile(3); Require(c.GroupSignals && c.SignalIconScale==2 && c.SignalTextScale==1.25f,"Profile edits lost during cycling");
@@ -55,10 +62,10 @@ namespace SpaceEngineersVR.Diagnostics
             Press(c,"Distances"); Require(!c.ShowSignalDistances,"Selected state distance toggle ignored");
             c.SelectHudProfile(2); Require(c.ShowSignalDistances,"Distance visibility leaked across profiles"); c.SelectHudProfile(3);
             Require(c.CharacterMarkerRoll && c.FaceMarkersTowardViewer,"HUD orientation defaults lost");
-            Press(c,"Marker roll"); Require(!c.CharacterMarkerRoll && !Panel(c).Keys.Any(k=>k.Label=="Grouping"),"Marker roll selector or grouping removal failed");
+            c.CharacterMarkerRoll=false; Require(!Panel(c).Keys.Any(k=>k.Label=="Grouping"),"Grouping removal failed");
             c.SetupCompleted=true;c.PlayerHeight=1.905f;c.MeasuredEyeHeight=1.837f;
             var serializer=new XmlSerializer(typeof(PluginConfig));
-            Press(c,"Face viewer"); Require(!c.FaceMarkersTowardViewer,"Facing toggle ignored");
+            c.FaceMarkersTowardViewer=false;
             using(var text=new StringWriter())
             {
                 serializer.Serialize(text,c);
@@ -68,6 +75,7 @@ namespace SpaceEngineersVR.Diagnostics
             Require(c.SetupCompleted && Math.Abs(c.PlayerHeight-1.905f)<.0001f && Math.Abs(c.MeasuredEyeHeight-1.837f)<.0001f,"Setup completion or height references lost after XML round trip");
             c.InitializeHudProfiles(); Require(!c.CharacterMarkerRoll && !c.ShowSignalDistances,"Marker roll or profile distances lost after XML round trip"); Require(c.HudProfiles.Length==5 && c.HudProfileIndex==3 && !c.ShowVitals && c.WaypointMode==2 && c.SignalIconScale==2,"Profile XML round trip lost the active state");
             Require(!c.FaceMarkersTowardViewer,"Explicit marker facing choice lost after XML round trip");
+            c.SelectHudProfile(1); Require(!c.ShowNotifications && c.ShowChat,"Notice and chat choices lost after XML round trip"); c.SelectHudProfile(3);
             Require(!c.ShipCrosshair && c.WristSignalTint==.6f && c.HudWithVisorOpen && !c.SignalEdges && !c.ShowContacts,"Legacy profile fields overwrote global XML settings");
             c.SelectHudProfile(4); c.RemoveExtraHudProfile(); Require(c.HudProfiles.Length==4 && c.HudProfileIndex==3,"Removing active extra state left an invalid index");
             c.ResetHudProfile(3); Require(!c.ShowVitals && c.ShowSignalDistances && c.WaypointMode==2 && c.GroupSignals && c.SignalIconScale==1.5f,"Reset state failed");
@@ -91,15 +99,16 @@ namespace SpaceEngineersVR.Diagnostics
             Require(touch.Update("ring",new Vector3(0,0,.04f),0)<0 && touch.Update("ring",new Vector3(0,0,.008f),0)==0 &&
                 touch.Update("ring",new Vector3(0,0,.005f),0)<0,"Ring poke failed to require withdrawal");
             WristPanel.Reset();
-            log("PASS HUD profiles: immediate state selection, global visibility/tint, four/five-state cycle, remove/reset, legacy XML and hit marker migration, wrist hit marker toggle, rotary tint and production touch regions.");
+            log("PASS HUD profiles: immediate state selection, global visibility/tint, four/five-state cycle, remove/reset, legacy XML, hit marker and notice migration, wrist hit marker, notice and chat toggles, rotary tint and production touch regions.");
         }
         internal static void Render(Device device,string output,Action<string> log)
         {
             var c=new PluginConfig(); c.InitializeHudProfiles(); WristHud.Open(c);
             using(var scene=new OverlayCanvas("Wrist HUD settings scenarios",1600,1000,1,false,device))
             {
-                foreach(string scenario in new[] {"display","details","fifth","large","small"})
+                foreach(string scenario in new[] {"display","markers","details","fifth","large","small"})
                 {
+                    if(scenario=="markers") Press(c,"2  Markers");
                     if(scenario=="details") Press(c,"4  Details");
                     if(scenario=="fifth") {Press(c,"+ State");}
                     if(scenario=="large") c.EditHudProfile(4,p=> {p.IconScale=2.5f; p.TextScale=1.5f;});

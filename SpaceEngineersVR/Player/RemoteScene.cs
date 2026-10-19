@@ -48,9 +48,13 @@ namespace SpaceEngineersVR.Player
         {
             try
             {
-                var settings=MyRender11.Settings;
-                var saved=settings; restore.Add(()=>MyRender11.Settings=saved);
-                settings.ShadowCameraFrozen=true; MyRender11.Settings=settings;
+                if(!FeedShadows.Use(restore))
+                {
+                    // Without a feed cascade set, keep the eyes' cascades fitted to the eyes.
+                    var settings=MyRender11.Settings;
+                    var saved=settings; restore.Add(()=>MyRender11.Settings=saved);
+                    settings.ShadowCameraFrozen=true; MyRender11.Settings=settings;
+                }
                 var lodding=Read(common,"LoddingSettings");
                 var global=Read(lodding,"Global");
                 Write(global,"IsUpdateEnabled",false);

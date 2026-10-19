@@ -58,19 +58,25 @@ namespace SpaceEngineersVR.Player
             if(!StereoRenderState.Active && !RemoteScene.Active) return original;
             Ensure(MyRender11.DeviceInstance);
             var head=MatrixD.Invert(StereoRenderState.PhysicalEye ? StereoRenderState.CenterView : MyRender11.Environment_Matrices.ViewD);
-            var values=new[] {new Vector4((Vector3)(hasCamera ? particleCamera-MyRender11.Environment_Matrices.CameraPosition : Vector3D.Zero),0),
+            var buffer=Upload(rc,new Vector4((Vector3)(hasCamera ? particleCamera-MyRender11.Environment_Matrices.CameraPosition : Vector3D.Zero),0),
                 (Vector4)new Vector4D(MyRender11.Environment_Matrices.CameraPosition-head.Translation,0),
-                new Vector4((Vector3)head.Up,0)};
-            var buffer=objectBuffer.Invoke(rc,new object[] {48});
+                new Vector4((Vector3)head.Up,0));
+            vertexBuffer.Invoke(CockpitRender.Member(rc,"VertexShader"),new[] {(object)2,buffer});
+            var debug=(VertexShader)getShader.Invoke(null,new[] {debugId.GetValue(null)});
+            return original.NativePointer==debug.NativePointer ? debugVertex : vertex;
+        }
+
+        // Fills a per-frame object constant buffer of the given render context.
+        internal static object Upload(object rc,params Vector4[] values)
+        {
+            var buffer=objectBuffer.Invoke(rc,new object[] {16*values.Length});
             var mapped=map.Invoke(null,new[] {rc,buffer});
             try
             {
                 foreach(var value in values) vectorWrite.Invoke(mapped,new object[] {value});
             }
             finally { unmap.Invoke(mapped,null); }
-            vertexBuffer.Invoke(CockpitRender.Member(rc,"VertexShader"),new[] {(object)2,buffer});
-            var debug=(VertexShader)getShader.Invoke(null,new[] {debugId.GetValue(null)});
-            return original.NativePointer==debug.NativePointer ? debugVertex : vertex;
+            return buffer;
         }
 
         private static MethodInfo Writer(Type type) => mapping.GetMethods(BindingFlags.Instance|BindingFlags.NonPublic)
@@ -100,10 +106,10 @@ namespace SpaceEngineersVR.Player
             }
             device=target;
         }
-        private static string Replace(string source,string before,string after)
+        internal static string Replace(string source,string before,string after)
         {
             if(source.IndexOf(before,StringComparison.Ordinal)<0 || source.IndexOf(before,StringComparison.Ordinal)!=source.LastIndexOf(before,StringComparison.Ordinal))
-                throw new InvalidOperationException("Native particle shader layout changed");
+                throw new InvalidOperationException("Native shader layout changed near: "+before);
             return source.Replace(before,after);
         }
         internal static void ResetCamera() { hasCamera=false; }

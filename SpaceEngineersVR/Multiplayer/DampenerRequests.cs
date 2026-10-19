@@ -16,7 +16,7 @@ namespace SpaceEngineersVR.Multiplayer
 {
     internal static class DampenerRequests
     {
-        private const ushort Channel=48985;
+        private const ushort Channel=MultiplayerRuntime.DampenerChannel;
         private const int RequestSize=70,ResultSize=18;
         internal static Action<uint,long,bool> Result { get; set; }
         private sealed class Message { internal byte[] Data; internal ulong Sender; internal bool Server; }

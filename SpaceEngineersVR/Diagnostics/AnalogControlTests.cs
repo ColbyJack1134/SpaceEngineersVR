@@ -25,6 +25,7 @@ namespace SpaceEngineersVR.Diagnostics
         private sealed class Actuator : RealProxy
         {
             internal float Min,Max,Position,Velocity,Override;
+            internal int OverrideWrites;
             internal Sandbox.ModAPI.Interfaces.ITerminalProperty<float> Property;
             internal Actuator(Type type) : base(type) { }
             public override IMessage Invoke(IMessage message)
@@ -39,7 +40,7 @@ namespace SpaceEngineersVR.Diagnostics
                     case "get_Velocity": case "get_TargetVelocityRad": result=Velocity; break;
                     case "set_Velocity": case "set_TargetVelocityRad": Velocity=(float)call.Args[0]; break;
                     case "get_ThrustOverridePercentage": result=Override; break;
-                    case "set_ThrustOverridePercentage": Override=(float)call.Args[0]; break;
+                    case "set_ThrustOverridePercentage": Override=(float)call.Args[0]; OverrideWrites++; break;
                     default: throw new Exception("Unexpected actuator call: "+call.MethodName);
                 }
                 return new ReturnMessage(result,null,0,call.LogicalCallContext,call);
@@ -103,7 +104,15 @@ namespace SpaceEngineersVR.Diagnostics
             Require(Math.Abs(thruster.Override-.5f)<.0001f,"Thrust override handle missed its midpoint");
             AnalogControl.Set(null,0,thrust,AnalogControl.EndZone*.5f);
             Require(thruster.Override==0 && !thrust[0].Label().Contains("%"),"Thrust override handle near its rear stop left the override enabled");
-            log("PASS analog actuators: piston/rotor range mapping, end zones reaching exact limits, thrust override disabled at the rear stop, external movement feedback, intermediate targets, reversal, stop, changing limits, wrapped angles, zero speed and invalid targets; limit setters never called.");
+            int writes=thruster.OverrideWrites;
+            AnalogControl.Set(null,0,thrust,AnalogControl.EndZone*.5f);
+            AnalogControl.Set(null,0,thrust,0);
+            Require(thruster.OverrideWrites==writes,"Repeated lever value was written to the thruster again");
+            AnalogControl.Set(null,0,thrust,.5f);
+            Require(thruster.OverrideWrites==writes+1,"Changed lever value was not written");
+            Require(AnalogControl.Quantize(.12345f)==.123f && AnalogControl.Quantize(.1226f)==AnalogControl.Quantize(.1234f) &&
+                AnalogControl.Quantize(0)==0 && AnalogControl.Quantize(1)==1 && AnalogControl.Quantize(.9996f)==1,"Lever quantisation is not 0.1% steps");
+            log("PASS analog actuators: piston/rotor range mapping, end zones reaching exact limits, thrust override disabled at the rear stop, external movement feedback, intermediate targets, reversal, stop, changing limits, wrapped angles, zero speed and invalid targets; limit setters never called; 0.1% lever steps and no rewrite of an unchanged override.");
         }
         internal static void RunNative(Action<string> log)
         {
@@ -155,6 +164,16 @@ namespace SpaceEngineersVR.Diagnostics
             numeric.Property.SetValue(numeric.Block,numeric.Value(lever));
             Require(Math.Abs(scalar-100)<.01f,"Native slider setter did not receive the lever value");
             Require(AnalogControl.Resolve((IMyTerminalBlock)sliderOwner.GetTransparentProxy(),"OnOff")==null,"Boolean switch became analog");
+            Require(!numeric.Detent.HasValue && !AnalogControl.DetentPosition(0,1).HasValue && !AnalogControl.DetentPosition(-1,0).HasValue,"A one-sided range got a centre notch");
+            float velocity=0;
+            var speed=new Sandbox.Game.Gui.MyTerminalControlSlider<Sandbox.Game.Entities.Blocks.MyPistonBase>("Velocity",VRage.Utils.MyStringId.NullOrEmpty,VRage.Utils.MyStringId.NullOrEmpty);
+            speed.SetLimits(-5,5); speed.Getter=_=>velocity; speed.Setter=(_,value)=>velocity=value;
+            var signed=AnalogControl.Resolve((IMyTerminalBlock)new Actuator(typeof(IMyPistonBase)) {Property=speed}.GetTransparentProxy(),"IncreaseVelocity");
+            signed.Block=numeric.Block;
+            float notch=signed.Detent ?? -1;
+            Require(Math.Abs(notch-AnalogControl.ToLever(.5f))<1e-5f && Math.Abs(AnalogControl.DetentPosition(-2,6).Value-AnalogControl.ToLever(.25f))<1e-5f,"Centre notch is not at the zero position");
+            Require(signed.Value(notch+.039f)==0 && signed.Value(notch-.039f)==0 && signed.Value(notch+.05f)>0 && signed.Value(notch-.05f)<0,"Notch band does not hold an exact zero");
+            Require(AnalogControl.Snap(notch+.03f,notch)==notch && AnalogControl.Snap(notch+.06f,notch)==notch+.06f && AnalogControl.Snap(.3f,null)==.3f,"Lever snap outside the band or without a notch");
             float ratio=50; bool targeted=false;
             var distance=new Sandbox.Game.Gui.MyTerminalControlSlider<Sandbox.Game.Entities.MyJumpDrive>("JumpDistance",VRage.Utils.MyStringId.NullOrEmpty,VRage.Utils.MyStringId.NullOrEmpty);
             distance.SetLimits(0,100); distance.Getter=_=>ratio; distance.Setter=(_,value)=>ratio=value; distance.Enabled=_=>!targeted;

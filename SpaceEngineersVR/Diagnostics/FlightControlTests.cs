@@ -105,6 +105,10 @@ namespace SpaceEngineersVR.Diagnostics
                 for(int i=0;i<keys.Length;i++) for(int j=i+1;j<keys.Length;j++) {var a=keys[i].Bounds; var b=keys[j].Bounds; Require(a.Right<=b.X || b.Right<=a.X || a.Bottom<=b.Y || b.Bottom<=a.Y,"Flight controls overlap");}
                 Require(keys.Count(k=>k.Slider.HasValue)==(personal ? 0:5),"Flight slider count changed");
             }
+            var triggerKeys=FlightSettings.Layout(new FlightTuning(),false,false,false,"Test Flight Settings",false,null,FlightSettings.TriggerPage);
+            foreach(var key in triggerKeys) Require(key.Bounds.X>=0 && key.Bounds.Y>=0 && key.Bounds.Right<=1 && key.Bounds.Bottom<=1,"Trigger control outside panel");
+            for(int i=0;i<triggerKeys.Length;i++) for(int j=i+1;j<triggerKeys.Length;j++) {var a=triggerKeys[i].Bounds; var b=triggerKeys[j].Bounds; Require(a.Right<=b.X || b.Right<=a.X || a.Bottom<=b.Y || b.Bottom<=a.Y,"Trigger controls overlap");}
+            Require(triggerKeys.Count(k=>k.Active)==4,"Trigger page does not show Triggers, Forward and Brake / up as the defaults plus Apply");
             log("PASS flight settings: short/long/toggle/release/interrupt capture, shared tuning and legacy cockpit persistence, separate deadzones, raw visual angles, immediate input release, VTOL blend and panel bounds.");
         }
         private static void Yoke(Action<string> log)
@@ -156,12 +160,26 @@ namespace SpaceEngineersVR.Diagnostics
             var tuning=new FlightTuning {Rotation=1.5f,Translation=.5f,TwistDeadzone=.15f,FlightMode=true,BarTiltEnabled=true,
                 ThrottleSensitivity=1.25f,PitchSensitivity=.75f,RollSensitivity=1.75f,BarPitchTravel=.04f,BarPitchDeadzone=.015f,
                 BarRollTravel=MathHelper.ToRadians(8),BarRollDeadzone=MathHelper.ToRadians(3),WheelMotion=true,
-                WheelPitchTravel=.05f,WheelPitchDeadzone=.012f,WheelRollTravel=MathHelper.ToRadians(45)};
+                WheelPitchTravel=.05f,WheelPitchDeadzone=.012f,WheelRollTravel=MathHelper.ToRadians(45),
+                RightTrigger=RightTrigger.Off,LeftTrigger=LeftTrigger.Reverse};
             var record=new CockpitMemory.Record {Toolbar="saved assignments",Covers=new[] {true,false},Flight=tuning};
             var restored=CockpitMemory.Decode(CockpitMemory.Encode(record));
             Require(restored.Flight.Encode()==tuning.Encode() && restored.Toolbar==record.Toolbar && Enumerable.SequenceEqual(restored.Covers,record.Covers) &&
                 restored.LayoutVersion==record.LayoutVersion,"Flight persistence changed cockpit assignments or tuning");
             Require(FlightTuning.Decode(tuning.Encode()).Encode()==tuning.Encode(),"Network tuning roundtrip changed flight settings");
+            var plain=tuning.Copy(); plain.RightTrigger=RightTrigger.Forward; plain.LeftTrigger=LeftTrigger.Brake;
+            Require(Convert.FromBase64String(plain.Encode()).Length==71 && BitConverter.ToInt32(Convert.FromBase64String(CockpitMemory.Encode(new CockpitMemory.Record {Flight=plain})),0)==6 &&
+                BitConverter.ToInt32(Convert.FromBase64String(CockpitMemory.Encode(record)),0)==7,"Default triggers did not keep the version 6 layout");
+            Require(CockpitMemory.Decode(CockpitMemory.Encode(new CockpitMemory.Record {Flight=plain})).Flight.Encode()==plain.Encode(),"Version 6 record with default triggers did not round trip");
+            var v6=Convert.FromBase64String(tuning.Encode()).Take(71).ToArray();
+            var fromV6=FlightTuning.Decode(Convert.ToBase64String(v6));
+            Require(fromV6.RightTrigger==RightTrigger.Forward && fromV6.LeftTrigger==LeftTrigger.Brake && fromV6.WheelMotion,"Version 6 tuning did not default the triggers to forward and brake");
+            var badTrigger=Convert.FromBase64String(tuning.Encode()); badTrigger[72]=3; bool triggerRejected=false;
+            try {FlightTuning.Decode(Convert.ToBase64String(badTrigger));} catch(InvalidDataException) {triggerRejected=true;}
+            Require(triggerRejected,"Unknown left trigger action accepted from network");
+            float up=.8f,back=.1f; FlightAxes.ApplyLeftTrigger(LeftTrigger.Brake,ref up,ref back); Require(up==.8f && back==.1f,"Brake left trigger changed up thrust");
+            FlightAxes.ApplyLeftTrigger(LeftTrigger.Reverse,ref up,ref back); Require(up==0 && back==.8f,"Reverse left trigger did not move to backward thrust");
+            up=.8f; back=.1f; FlightAxes.ApplyLeftTrigger(LeftTrigger.Off,ref up,ref back); Require(up==0 && back==.1f,"Off left trigger still thrusts");
             using(var stream=new MemoryStream()) using(var writer=new BinaryWriter(stream))
             {
                 writer.Write(1); writer.Write(9L); writer.Write("legacy toolbar"); writer.Write(1); writer.Write(true);
@@ -249,13 +267,13 @@ namespace SpaceEngineersVR.Diagnostics
                 try {FlightTuning.Decode(Convert.ToBase64String(invalidBody));} catch(InvalidDataException) {rejected=true;}
                 Require(rejected,"Invalid retired body settings bypassed validation during migration");
             }
-            foreach(int length in new[] {27,29,49,51,57,59,70,72})
+            foreach(int length in new[] {27,29,49,51,57,59,70,72,74})
             {
                 bool rejected=false;
                 try {FlightTuning.Decode(Convert.ToBase64String(new byte[length]));} catch(InvalidDataException) {rejected=true;}
                 Require(rejected,"Invalid tuning payload length accepted");
             }
-            log("PASS vehicle settings persistence: bar/yoke network/storage roundtrip, v1-v5 migration, safe opt-in defaults, following layout alignment and malformed value/length rejection.");
+            log("PASS vehicle settings persistence: bar/yoke/trigger network/storage roundtrip, v1-v6 migration, trigger mapping, safe opt-in defaults, following layout alignment and malformed value/length rejection.");
         }
     }
 }

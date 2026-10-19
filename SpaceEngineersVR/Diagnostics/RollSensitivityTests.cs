@@ -92,7 +92,17 @@ namespace SpaceEngineersVR.Diagnostics
                 if(FlightAxes.ControllerInputAllowed(true,false,enabled)==enabled)
                     throw new Exception("First-person controller flight ignores physical-only setting");
             }
-            log("PASS physical-only flight preference: legacy default off, enabled persistence, first-person ship gate and third-person/jetpack exceptions.");
+            foreach(var (translation,rotation) in new[] {(false,false),(true,false),(false,true),(true,true)})
+            {
+                var move=Vector3.One; var rotate=Vector2.One; float roll=1;
+                FlightAxes.MissingStickAxes(false,translation,rotation,ref move,ref rotate,ref roll);
+                if((move!=Vector3.Zero)!=translation || (rotate!=Vector2.Zero)!=rotation || (roll!=0)!=rotation)
+                    throw new Exception("Physical-only seat missing a stick did not take exactly that stick's axes from the controller");
+                move=Vector3.One; rotate=Vector2.One; roll=1;
+                FlightAxes.MissingStickAxes(true,translation,rotation,ref move,ref rotate,ref roll);
+                if(move!=Vector3.One || rotate!=Vector2.One || roll!=1) throw new Exception("Controller flight lost axes to the missing-stick rule");
+            }
+            log("PASS physical-only flight preference: legacy default off, enabled persistence, first-person ship gate, third-person/jetpack exceptions and missing-stick controller axes.");
             foreach(bool physicalOnly in new[] {false,true})
                 foreach(bool available in new[] {false,true})
                     foreach(bool held in new[] {false,true})

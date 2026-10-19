@@ -22,7 +22,9 @@ namespace SpaceEngineersVR.Player
         internal static bool Hotkeys { get; private set; }
         public static bool Standalone => target!=null && valid!=null;
         public static bool IsOpen => target != null;
-        private static bool shift;
+        private static int page;
+        // Declared before Keys, whose initialiser reads these labels.
+        internal static readonly string[] PageLabels={"⇧ #@","⇧ #+=","⇧ 123"};
         private static DateTime navigateAfter;
         public static int Selected { get; private set; }
         public static string Preview => target==null ? "" : Hotkeys ? HotkeyInput.Status : TextPreview(target);
@@ -62,6 +64,29 @@ namespace SpaceEngineersVR.Player
             var selection=AccessTools.Field(type,"m_selection").GetValue(control);
             AccessTools.Method(selection.GetType(),"Reset").Invoke(selection,new object[] {control});
         }
+        // Keeps the column when stepping to the previous or next line of a multiline editor.
+        internal static int CaretLine(string text,int caret,int step)
+        {
+            caret=Math.Max(0,Math.Min(text.Length,caret));
+            int lineStart=text.LastIndexOf('\n',Math.Max(0,caret-1))+1;
+            if(caret==0) lineStart=0;
+            int column=caret-lineStart;
+            if(step<0)
+            {
+                if(lineStart==0) return caret;
+                int previousStart=lineStart>=2 ? text.LastIndexOf('\n',lineStart-2)+1 : 0;
+                return Math.Min(previousStart+column,lineStart-1);
+            }
+            int lineEnd=text.IndexOf('\n',caret);
+            if(lineEnd<0) return caret;
+            int nextEnd=text.IndexOf('\n',lineEnd+1);
+            return Math.Min(lineEnd+1+column,nextEnd<0 ? text.Length:nextEnd);
+        }
+        internal static void MoveCaretLine(MyGuiControlBase control,int step)
+        {
+            if(!(control is MyGuiControlMultilineEditableText editor)) return;
+            MoveCaret(control,CaretLine(editor.Text.ToString(),(int)CockpitRender.Member(control,"CarriagePositionIndex"),step));
+        }
         internal static int PreviewCaretAt(MyGuiControlBase control,float x)
         {
             string line=PreviewLine(control,out int start,out _);
@@ -99,27 +124,31 @@ namespace SpaceEngineersVR.Player
             void Add(string label,float left,float top,float units) => keys.Add(new SurfaceKey(label,left,top,units*step-gap,height));
             string[] function={"Esc","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12"};
             for(int i=0;i<function.Length;i++) keys.Add(new SurfaceKey(function[i],.015f+i*.074f,.195f,.068f,height));
-            string[] rows={"1234567890","qwertyuiop","asdfghjkl;","zxcvbnm,./"};
+            string[] rows={"1234567890","qwertyuiop","asdfghjkl;","zxcvbnm,./","`-=[]\\'"};
             for(int row=0;row<rows.Length;row++)
-                for(int col=0;col<rows[row].Length;col++) Add(rows[row][col].ToString(),.015f+col*step,.335f+row*.13f,1);
+                for(int col=0;col<rows[row].Length;col++) keys.Add(new SurfaceKey(rows[row][col].ToString(),.015f+col*step,.31f+row*.107f,step-gap,.098f));
             float x=.015f;
             foreach(var key in new[] {("Tab",1f),("SHIFT",1.5f),("CTRL",1.25f),("ALT",1.25f),("SPACE",2.5f),("ENTER",1.25f),("DONE",1.25f)})
             { Add(key.Item1,x,.855f,key.Item2); x+=key.Item2*step; }
-            string[,] cluster={{"Ins","Home","PgUp"},{"Del","End","PgDn"},{null,null,null},{null,"↑",null},{"←","↓","→"}};
-            for(int row=0;row<5;row++)
+            string[,] cluster={{"Ins","Home","PgUp"},{"Del","End","PgDn"},{"RMB","MMB","Scr↑"},{null,null,"Scr↓"},{null,"↑",null},{"←","↓","→"}};
+            for(int row=0;row<6;row++)
                 for(int col=0;col<3;col++)
-                    if(cluster[row,col]!=null) keys.Add(new SurfaceKey(cluster[row,col],nav+col*navStep,.335f+row*.13f,.068f,height));
+                    if(cluster[row,col]!=null) keys.Add(new SurfaceKey(cluster[row,col],nav+col*navStep,.31f+row*.107f,.068f,.098f));
             return keys.ToArray();
         }
-        internal static SurfaceKey[] MakeKeys(bool caps,string done="DONE",bool multiline=false)
+        internal static SurfaceKey[] MakeKeys(bool caps,string done="DONE",bool multiline=false) => MakeKeys(caps ? 1:0,done,multiline);
+        // Pages: 0 lower case and digits, 1 upper case and shifted digits, 2 the remaining symbols.
+        internal static SurfaceKey[] MakeKeys(int page,string done="DONE",bool multiline=false)
         {
             var keys=new System.Collections.Generic.List<SurfaceKey>();
-            string[] rows=caps ? new[] { "!@#$%^&*()","QWERTYUIOP","ASDFGHJKL:","ZXCVBNM<>?" } : new[] { "1234567890","qwertyuiop","asdfghjkl;","zxcvbnm,./" };
+            string[] rows=page==1 ? new[] { "!@#$%^&*()","QWERTYUIOP","ASDFGHJKL:","ZXCVBNM<>?" } :
+                page==2 ? new[] { "[]{}\\|`~_+","-=<>'\";:/?","!@#$%^&*()","1234567890" } : new[] { "1234567890","qwertyuiop","asdfghjkl;","zxcvbnm,./" };
             for(int row=0;row<rows.Length;row++)
                 for(int col=0;col<rows[row].Length;col++) keys.Add(new SurfaceKey(rows[row][col].ToString(),.025f+col*.095f,.28f+row*.125f,.085f,.108f));
-            string[] navigation={"<<","◀","▶",">>"};
-            for(int i=0;i<navigation.Length;i++) keys.Add(new SurfaceKey(navigation[i],.29f+i*.11f,.23f,.10f,.04f));
-            keys.AddRange(new[] { new SurfaceKey(caps ? "⇧ 123" : "⇧ #@",.025f,.79f,.14f,.115f),new SurfaceKey("SPACE",.18f,.79f,multiline ? .115f:.25f,.115f),
+            string[] navigation=multiline ? new[] {"<<","◀","▶",">>","↑","↓"} : new[] {"<<","◀","▶",">>"};
+            float navigationLeft=.5f-navigation.Length*.055f+.005f;
+            for(int i=0;i<navigation.Length;i++) keys.Add(new SurfaceKey(navigation[i],navigationLeft+i*.11f,.23f,.10f,.04f));
+            keys.AddRange(new[] { new SurfaceKey(PageLabels[page],.025f,.79f,.14f,.115f),new SurfaceKey("SPACE",.18f,.79f,multiline ? .115f:.25f,.115f),
                 new SurfaceKey("'",.445f,.79f,.08f,.115f),new SurfaceKey("-",.54f,.79f,.08f,.115f),
                 new SurfaceKey("BKSP",.635f,.79f,.155f,.115f),new SurfaceKey(done,.805f,.79f,.17f,.115f) });
             if(multiline) keys.Add(new SurfaceKey("ENTER",.31f,.79f,.115f,.115f));
@@ -148,7 +177,9 @@ namespace SpaceEngineersVR.Player
             }
             switch(label)
             {
-                case "⇧ 123": case "⇧ #@": shift=!shift; Keys=MakeKeys(shift,done,target is MyGuiControlMultilineEditableText); break;
+                case "⇧ #@": case "⇧ #+=": case "⇧ 123": page=(page+1)%3; Keys=MakeKeys(page,done,target is MyGuiControlMultilineEditableText); break;
+                case "↑": MoveCaretLine(target,-1); break;
+                case "↓": MoveCaretLine(target,1); break;
                 case "BKSP": Backspace(target); break;
                 case "DONE": Close(); break;
                 case "SEND":
@@ -250,7 +281,7 @@ namespace SpaceEngineersVR.Player
             bool standalone=Standalone; var callback=closed;
             FloatingKeyboard.Close();
             valid=null; closed=null; submitted=null; Hotkeys=false;
-            shift=false; done="DONE"; Keys=MakeKeys(false);
+            page=0; done="DONE"; Keys=MakeKeys(0);
             target = null;
             screen = null;
             callback?.Invoke();
