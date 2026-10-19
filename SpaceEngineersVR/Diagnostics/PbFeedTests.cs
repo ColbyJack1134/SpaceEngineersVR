@@ -1,6 +1,7 @@
 #if SEVR_DIAGNOSTICS
 using System;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -10,7 +11,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Diagnostics
 {
-    internal static class PbFeedTests
+    public static class PbFeedTests
     {
         public static void Run(Action<string> log)
         {
@@ -57,6 +58,13 @@ namespace SpaceEngineersVR.Diagnostics
                 if((bool)Call(data,"TryParse",bad)) throw new Exception("Example script accepted: "+bad);
             Expect(Get(data,"Sequence"),8u,"sequence after rejected messages");
             log("PASS programmable block VR data: invariant layout, example script parses poses, inputs, curls and stop, rejects malformed arguments");
+        }
+
+        // Checks a programmable block script file against the game's compiler and whitelist without loading a world.
+        public static void CompileFile(string path,Action<string> log)
+        {
+            Compile(ModApiTests.Scripting(),File.ReadAllText(path));
+            log("PASS "+Path.GetFileName(path)+" compiles as a programmable block script");
         }
 
         // Compiled exactly as a programmable block compiles its program (CompileIngameScriptAsync).
