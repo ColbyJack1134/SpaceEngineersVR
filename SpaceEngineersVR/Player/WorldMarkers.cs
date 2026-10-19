@@ -129,6 +129,17 @@ namespace SpaceEngineersVR.Player
             }
             catch(Exception ex) { ((IList)points.GetValue(renderer)).Clear(); RenderFrameBridge.CaptureMarkers(null); recovery.Fail(ex,"VR markers with a hidden native HUD disabled"); }
         }
+        // The lock ring's progress updates only in the targeting markers' draw, which the game skips while its crosshair is off,
+        // as it is with the desktop HUD hidden; run it with its desktop sprites discarded so the VR ring still fills.
+        private static bool targetingStatsFailed;
+        internal static void UpdateTargetingStats()
+        {
+            if(failed || targetingStatsFailed || Sandbox.MySandboxGame.Config.ShowCrosshairHUD || HelmetHud.NativeSuppressed || MyHud.TargetingMarkers==null) return;
+            RemoteHud.Discarding++;
+            try { MyHud.TargetingMarkers.Draw(); }
+            catch(Exception ex) { targetingStatsFailed=true; Logger.Warning(ex,"VR lock ring progress with a hidden native crosshair disabled"); }
+            finally { RemoteHud.Discarding--; }
+        }
         private static View renderSnapshot;
         private static MatrixD renderHead,signalHead;
         private static Vector3D signalUp;

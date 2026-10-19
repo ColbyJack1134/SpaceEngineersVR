@@ -26,7 +26,9 @@ namespace SpaceEngineersVR.Patches
     {
         private static void Prefix(Sandbox.Game.Gui.MyGuiScreenHudSpace __instance,MyHudMarkerRender ___m_markerRender)
         {
-            if(SpaceEngineersVR.Plugin.Main.VrActive) WorldMarkers.CaptureHidden(__instance,___m_markerRender);
+            if(!SpaceEngineersVR.Plugin.Main.VrActive) return;
+            WorldMarkers.CaptureHidden(__instance,___m_markerRender);
+            WorldMarkers.UpdateTargetingStats();
         }
     }
     [HarmonyPatch(typeof(MyHudMarkerRender), nameof(MyHudMarkerRender.Draw))]

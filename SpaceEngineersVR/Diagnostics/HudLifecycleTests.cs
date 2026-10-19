@@ -80,6 +80,13 @@ namespace SpaceEngineersVR.Diagnostics
                         hudState=state; MyHud.MinimalHud=minimal; MyHud.CutsceneHud=cutscene;
                         if(HelmetHud.NativeSuppressed!=suppressed) throw new Exception("VR HUD suppression wrong for native state "+state+"/"+minimal+"/"+cutscene);
                     }
+                    // A hidden HUD with the default crosshair skips the lock ring's progress update, so VR runs it.
+                    var config=new Sandbox.Engine.Utils.MyConfig("sevr-crosshair-test.cfg") {ShowCrosshair=Sandbox.Engine.Utils.MyConfig.CrosshairSwitch.VisibleWithHud};
+                    MyHud.MinimalHud=false; MyHud.CutsceneHud=false;
+                    hudState=0; bool hidden=config.ShowCrosshairHUD;
+                    hudState=1; bool shown=config.ShowCrosshairHUD;
+                    if(hidden || !shown || AccessTools.Method(typeof(MyHudTargetingMarkers),"Draw",Type.EmptyTypes)==null)
+                        throw new Exception("Native crosshair gate changed; the VR lock ring may not fill with the desktop HUD hidden");
                 }
                 finally { hudState=previousHudState; MyHud.MinimalHud=previousMinimal; MyHud.CutsceneHud=previousCutscene; }
                 if(!WorldMarkers.CollectorsResolved || AccessTools.Method(typeof(MyGuiScreenHudSpace),"AsyncUpdate")==null || AccessTools.Field(typeof(MyGuiScreenHudSpace),"m_markerRender")==null)
