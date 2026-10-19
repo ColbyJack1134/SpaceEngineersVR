@@ -26,7 +26,7 @@ namespace SpaceEngineersVR.Player
         private static float ownRange=-1,friendlyRange=-1,otherRange=-1;
         private static readonly InputGate leftTrigger=new InputGate(),leftGrip=new InputGate();
         private static readonly VisorGesture visorGesture=new VisorGesture();
-        private static readonly HeadGesture rightGesture=new HeadGesture();
+        private static readonly HeadGesture rightGesture=new HeadGesture(),leftZone=new HeadGesture();
         internal static bool ProtectsRight { get; private set; }
         internal static bool ProtectsFire { get; private set; }
         internal static bool ViewGestureHeld { get; private set; }
@@ -92,6 +92,10 @@ namespace SpaceEngineersVR.Player
             bool guard=InputRouter.Gameplay && !Main.MenuOpen && Player.Headset.pose.isTracked;
             rightGesture.Update(active && Player.HandR.pose.isTracked && c.Primary.Active,
                 Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,c.Primary.RawPressed,triggerAllowed:!rightGun);
+            leftZone.Update(active && Player.HandL.pose.isTracked,Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,false,left:true);
+            // Hands holding an item stay quiet so aiming does not tick.
+            if(rightGesture.Entered && !WeaponHandling.Holding(Player.HandR) && !SpatialUi.WristHovered) Player.HandR.Vibrate(0,.015f,80,.12f);
+            if(leftZone.Entered && !WeaponHandling.Holding(Player.HandL) && !CockpitControls.Held(Player.HandL)) Player.HandL.Vibrate(0,.015f,80,.12f);
             bool nearLeft=guard && Player.HandL.pose.isTracked && NearHead(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix);
             bool nearRight=guard && Player.HandR.pose.isTracked && (rightGesture.Inside || NearHead(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix));
             Reveal=active && Markers && (Mode==2 || (nearLeft && !leftGun || nearRight && !rightGun) && DateTime.UtcNow>=revealPauseUntil);
@@ -129,7 +133,8 @@ namespace SpaceEngineersVR.Player
                 c.ThrustForward.BlockUntilRelease(); c.JumpOrClimbUp.BlockUntilRelease();
             }
             if(!active || !Player.HandR.pose.isTracked || !rightGesture.Inside) return;
-            if (!rightGun && rightGesture.Pressed && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandR))
+            // A press on the wrist tablet near the face belongs to the tablet.
+            if (!rightGun && rightGesture.Pressed && !CockpitTouch.OwnsRight && !CockpitControls.Held(Player.HandR) && !SpatialUi.WristHovered)
             {
                 Common.Config.CycleHud();
                 revealPauseUntil=DateTime.UtcNow.AddSeconds(RevealPause);
@@ -137,7 +142,7 @@ namespace SpaceEngineersVR.Player
                 c.Primary.BlockUntilRelease();
                 Player.HandR.Vibrate(0,0.035f,130,0.35f);
             }
-            if (visorPressed)
+            if (visorPressed && !SpatialUi.WristHovered)
             {
                 GameActions.HelmetAction.Run();
                 c.BlockGripRoles(Player.HandR);

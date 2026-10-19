@@ -28,6 +28,8 @@ namespace SpaceEngineersVR.Player
         internal static bool Owns(Controller hand) => hand==Player.HandR && OwnsRight;
         internal static bool ContentCaptured => wristTouch.Committed;
         internal static bool WristInUse => fold>0 || wristTouch.Surface!=null;
+        // Last frame's hover: head gestures update before the tablet.
+        internal static bool WristHovered => wristHover>=0 || wristTouch.Consumed;
         public static bool RayTargeted { get; private set; }
         public static bool Available => !failed;
         private static int wristHover=-1,wristPressed=-1,seatHover=-1,seatPressed=-1;

@@ -222,6 +222,23 @@ namespace SpaceEngineersVR.Diagnostics
             Require(!visor.Update(true,true,true,true,true,visorTime.AddSeconds(1.6)) &&
                 !visor.Update(true,true,true,true,false,visorTime.AddSeconds(1.8)),"Same-frame pan request toggled visor");
             log("PASS visor gesture: third-person pan delay/cancellation, deliberate short tap, held-grip release gate, temple exit and immediate first-person toggle");
+            foreach(bool left in new[] {false,true})
+            {
+                float side=left ? -1:1;
+                var zone=new HeadGesture();
+                zone.Update(true,Matrix.CreateTranslation(side*.40f,0,0),Matrix.Identity,false,left:left);
+                zone.Update(true,Matrix.CreateTranslation(side*.21f,0,0),Matrix.Identity,false,left:left);
+                Require(zone.Entered,"Entering the temple zone was not reported");
+                zone.Update(true,Matrix.CreateTranslation(side*.30f,0,0),Matrix.Identity,false,left:left);
+                zone.Update(true,Matrix.CreateTranslation(side*.21f,0,0),Matrix.Identity,false,left:left);
+                Require(!zone.Entered && zone.Inside,"Moving inside the held temple zone reported a new entry");
+                zone.Update(true,Matrix.CreateTranslation(side*.40f,0,0),Matrix.Identity,false,left:left);
+                zone.Update(true,Matrix.CreateTranslation(side*.21f,0,0),Matrix.Identity,false,left:left);
+                Require(zone.Entered,"Re-entering the temple zone was not reported");
+                zone.Update(true,Matrix.CreateTranslation(-side*.21f,0,0),Matrix.Identity,false,left:left);
+                Require(!zone.Inside,"Temple zone accepted the other side of the head");
+            }
+            log("PASS temple zone entry: one report per entry, none inside the held zone, mirrored for the left hand");
             var temple=Matrix.CreateTranslation(.21f,0,0);
             gesture.Update(true,temple,Matrix.Identity,false); gameTrigger.Update(true,false);
             int cycles=0;
