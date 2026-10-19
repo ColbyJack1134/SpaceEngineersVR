@@ -40,7 +40,7 @@ namespace SpaceEngineersVR.Multiplayer
     internal static class MultiplayerRuntime
     {
         // The server drops client-to-client SendMessageTo, so the host relays client poses on RelayChannel.
-        private const ushort PoseChannel=48983,StateChannel=48984,RelayChannel=48985;
+        internal const ushort PoseChannel=48983,StateChannel=48984,DampenerChannel=48985,RelayChannel=48986;
         internal const int RelaySize=PlayerPose.Size+8;
         private const double Reach=250;
         internal static bool Enabled;
