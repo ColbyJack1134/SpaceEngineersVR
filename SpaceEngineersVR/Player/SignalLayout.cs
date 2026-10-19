@@ -13,6 +13,8 @@ namespace SpaceEngineersVR.Player
         {
             public bool Group=true,Edges=true,Rings=true,Gps=true,Contacts=true,Resources=true,Distances=true;
             public float LimitX=EdgeX,LimitY=EdgeY,IconScale=1.5f,TextScale=1,Tint=.15f;
+            // Layout units (view tangent) per headset eye pixel; the lock ring is drawn at its native size in those pixels.
+            public float PixelTan;
             internal void Projection(MatrixD projection)
             { LimitX=Math.Min(EdgeX,.96f/(float)Math.Abs(projection.M11)); LimitY=Math.Min(EdgeY,.96f/(float)Math.Abs(projection.M22)); }
             public static Options Current => new Options { IconScale=Common.Config.SignalIconScale,TextScale=Common.Config.SignalTextScale,Tint=Common.Config.WristSignalTint,Group=Common.Config.GroupSignals,Distances=Common.Config.ShowSignalDistances,Edges=Common.Config.SignalEdges,
@@ -99,10 +101,14 @@ namespace SpaceEngineersVR.Player
             var relations=values.Select(Relation).Distinct().ToArray();
             return new Entry { Members=values,Representatives=Representatives(values),Position=position,Point=p,Edge=edge,Color=relations.Length==1 ? values[0].Color : Vector4.One,
                 Id=string.Join("|",values.Select(m=>m.Id).OrderBy(id=>id,StringComparer.Ordinal)),Relation=relations.Length==1 ? relations[0]:"Mixed",
-                IconScale=options.IconScale,TextScale=options.TextScale,SymbolBounds=SymbolBounds(p,values.Any(m=>m.Ring!=null),options.IconScale*(values[0].Kind=="Objective" ? 2:values[0].Span)),
+                IconScale=options.IconScale,TextScale=options.TextScale,SymbolBounds=SymbolBounds(p,RingHalf(values.FirstOrDefault(m=>m.Ring!=null)?.Ring,options),options.IconScale*(values[0].Kind=="Objective" ? 2:values[0].Span)),
                 Ring=options.Rings && values.Any(m=>m.Ring!=null) };
         }
-        private static RectangleF SymbolBounds(Vector2 p,bool ring,float scale) => ring ? new RectangleF(p.X-.048f,p.Y-.048f,.096f,.096f):new RectangleF(p.X-.011f*scale,p.Y-.011f*scale,.022f*scale,.022f*scale);
+        private static RectangleF SymbolBounds(Vector2 p,float ringHalf,float scale) => ringHalf>0 ? new RectangleF(p.X-ringHalf,p.Y-ringHalf,2*ringHalf,2*ringHalf):new RectangleF(p.X-.011f*scale,p.Y-.011f*scale,.022f*scale,.022f*scale);
+        private const float RingFallback=.048f;
+        private static float RingHalf(SignalRing ring,Options options) => ring==null ? 0:options.PixelTan>0 ? ring.Size.X/2*options.PixelTan:RingFallback;
+        // As the native HUD draws the range: text centred 10 px below the ring's bottom edge.
+        private static float RingLabelOffset(SignalRing ring,Options options) => options.PixelTan>0 && ring!=null ? (ring.Size.Y/2+10)*options.PixelTan:RingFallback;
         internal static Entry[] Build(WorldMarkers.View source,MatrixD head,Options options,DateTime now)
         {
             if(source==null || source.Mode==MyHudMarkerRender.SignalMode.Off || !head.IsValid()) { return new Entry[0]; }
@@ -142,7 +148,7 @@ namespace SpaceEngineersVR.Player
                     row.LineHeight=.025f*options.TextScale;
                     var primary=e.Primary;
                     float half=GroupUnit(e.IconScale)*.5f*(e.Arrow==Vector2.Zero ? primary.Span:1);
-                    float offset=e.Ring ? .048f:half+GroupUnit(e.IconScale)*.4375f;
+                    float offset=e.Ring ? RingLabelOffset(primary.Ring,options):half+GroupUnit(e.IconScale)*.4375f;
                     row.NameY=e.Point.Y-offset-row.LineHeight/2;
                     row.DistanceY=e.Point.Y+offset*(.7f+.3f*e.NameAlpha)-row.LineHeight*row.DistanceScale/2;
                     float x=e.Point.X-width/2;
@@ -198,7 +204,7 @@ namespace SpaceEngineersVR.Player
             float reach=1/(float)Math.Sqrt(direction.X*direction.X/(rx*rx)+direction.Y*direction.Y/(ry*ry));
             e.Point=direction*reach; e.Arrow=direction; e.Edge=false;
             e.Position=Vector3D.Transform(new Vector3D(e.Point.X,-e.Point.Y,-1)*ArrowDepth,head);
-            e.SymbolBounds=SymbolBounds(e.Point,false,e.IconScale);
+            e.SymbolBounds=SymbolBounds(e.Point,0,e.IconScale);
             return true;
         }
         private static void Focus(Entry e,WorldMarkers.View source,Options options)

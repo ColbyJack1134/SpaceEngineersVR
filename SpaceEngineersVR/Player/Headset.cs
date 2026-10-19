@@ -69,7 +69,7 @@ namespace SpaceEngineersVR.Player
                     OpenVR.System.GetProjectionRaw(eye,ref left,ref right,ref top,ref bottom);
                     signalLimits=Vector2.Min(signalLimits,new Vector2(Math.Min(-left,right),Math.Min(-top,bottom))*.96f);
                 }
-                WorldMarkers.BeginFrame(MatrixD.Invert(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale)),markers,signalLimits,rig?.TrackingToWorld,crosshair);
+                WorldMarkers.BeginFrame(MatrixD.Invert(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale)),markers,signalLimits,rig?.TrackingToWorld,crosshair,size.X);
                 RenderEye(EVREye.Eye_Left, leftTexture, matrices, gameView, sceneCamera, originInverse,rig,out leftAmbient);
                 if(leftAmbient!=null) { new BorrowedRtvTexture(leftAmbient).Release(); leftAmbient=null; }
                 RenderEye(EVREye.Eye_Right, rightTexture, matrices, gameView, sceneCamera, originInverse,rig,out rightAmbient);

@@ -297,13 +297,14 @@ namespace SpaceEngineersVR.Player
             MyHudMarkerRender.AppendDistance(text,metres);
             return text.ToString();
         }
-        public static void BeginFrame(MatrixD head,View markers,Vector2? limits=null,MatrixD? trackingToWorld=null,ShipCrosshair.View crosshair=null)
+        public static void BeginFrame(MatrixD head,View markers,Vector2? limits=null,MatrixD? trackingToWorld=null,ShipCrosshair.View crosshair=null,int eyeWidth=0)
         {
             renderSnapshot=markers?.Generation==generation ? markers : null;
             renderHead=head;
             renderCrosshair=crosshair;
             var options=SignalLayout.Options.Current;
             if(limits.HasValue) { options.LimitX=Math.Min(options.LimitX,limits.Value.X); options.LimitY=Math.Min(options.LimitY,limits.Value.Y); }
+            if(eyeWidth>0) options.PixelTan=2*(float)StereoRenderState.PixelSlopeX/eyeWidth;
             renderOptions=options; markersVisible=HelmetHud.Markers;
             var windows=new List<SurfaceView>();
             foreach(var panel in RenderFrameBridge.Surfaces ?? new SurfaceView[0])
