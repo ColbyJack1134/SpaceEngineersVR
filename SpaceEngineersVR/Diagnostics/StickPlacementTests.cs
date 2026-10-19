@@ -28,6 +28,12 @@ namespace SpaceEngineersVR.Diagnostics
             Near(placement.Left,Vector3.Zero,"Invalid saved position accepted"); Near(placement.Right,Vector3.Zero,"Invalid right position accepted");
             Near(StickPlacement.Limit(new Vector3(999),true),new Vector3(.40f,.30f,.35f),"Left placement upper bounds");
             Near(StickPlacement.Limit(new Vector3(-999),false),new Vector3(-.40f,-.15f,-.25f),"Right placement lower bounds");
+            var suspended=CockpitRig.Find("LargeBlockSuspendedControlSeat").Right.Pivot;
+            var moved=new StickPlacementSetting { Subtype="LargeBlockSuspendedControlSeat",RightX=-.1f,RightZ=.05f };
+            Near(suspended+CockpitControls.SavedRight(moved),new Vector3(.455f,-.03f,-.10f)+new Vector3(-.1f,0,.05f),"Older moved Suspended stick did not stay in place");
+            moved.Version=StickPlacementSetting.Current;
+            Near(CockpitControls.SavedRight(moved),new Vector3(-.1f,0,.05f),"Current Suspended stick offset was shifted");
+            Near(CockpitControls.SavedRight(new StickPlacementSetting { Subtype="LargeBlockSuspendedControlSeat" }),Vector3.Zero,"Unmoved Suspended stick left the new default");
             foreach(bool left in new[] {false,true})
             {
                 var contact=left ? CockpitRig.Find(CockpitLayout.Fighter).Left.Contact : CockpitRig.Find(CockpitLayout.Fighter).Right.Contact;

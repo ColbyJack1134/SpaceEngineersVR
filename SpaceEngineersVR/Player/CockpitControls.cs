@@ -127,10 +127,16 @@ namespace SpaceEngineersVR.Player
             Release(); placement.Load(Vector3.Zero,Vector3.Zero); SetVisuals(); SavePlacement();
             Controls.Static.BlockUntilRelease();
         }
+        // The Suspended seats' floating right stick moved inboard; an older moved stick stays where the player left it.
+        internal static Vector3 SavedRight(StickPlacementSetting saved)
+        {
+            var right=new Vector3(saved.RightX,saved.RightY,saved.RightZ);
+            return saved.Version<1 && right!=Vector3.Zero && saved.Subtype?.Contains("SuspendedControlSeat")==true ? right+new Vector3(.145f,-.01f,.14f):right;
+        }
         private static void SavePlacement()
         {
             var value=new StickPlacementSetting { Subtype=seat.BlockDefinition.Id.SubtypeName,LeftX=placement.Left.X,LeftY=placement.Left.Y,LeftZ=placement.Left.Z,
-                RightX=placement.Right.X,RightY=placement.Right.Y,RightZ=placement.Right.Z };
+                RightX=placement.Right.X,RightY=placement.Right.Y,RightZ=placement.Right.Z,Version=StickPlacementSetting.Current };
             Common.Config.StickPlacements=Common.Config.StickPlacements.Where(s=>s!=null && s.Subtype!=value.Subtype).Concat(new[] {value}).ToArray();
         }
         private static void BlockGrip(bool isLeft)
@@ -207,7 +213,7 @@ namespace SpaceEngineersVR.Player
                 Reset(); seat=next; origin=Player.PlayerToAbsolute.matrix; fit=SeatFit.Offset;
                 var saved=Common.Config.StickPlacements.FirstOrDefault(s=>s!=null && s.Subtype==seat.BlockDefinition.Id.SubtypeName);
                 placement.Load(saved==null ? Vector3.Zero : new Vector3(saved.LeftX,saved.LeftY,saved.LeftZ),
-                    saved==null ? Vector3.Zero : new Vector3(saved.RightX,saved.RightY,saved.RightZ));
+                    saved==null ? Vector3.Zero : SavedRight(saved));
                 SetVisuals();
             }
             if (origin!=Player.PlayerToAbsolute.matrix || fit!=SeatFit.Offset) { Release(); origin=Player.PlayerToAbsolute.matrix; fit=SeatFit.Offset; }

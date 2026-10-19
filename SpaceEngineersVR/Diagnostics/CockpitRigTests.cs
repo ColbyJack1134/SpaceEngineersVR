@@ -47,7 +47,7 @@ namespace SpaceEngineersVR.Diagnostics
                         }
                         if(Math.Sign(Facing(copy))!=Math.Sign(Facing(source))) throw new Exception("Mirrored stick winding is inside out: "+rig.Subtype);
                     }
-                    if(Math.Abs(stick.Pivot.X+stick.Source.Pivot.X)>.05f || stick.Shaft.X!=-stick.Source.Shaft.X)
+                    if(Vector3.Distance(stick.Shaft,new Vector3(-stick.Source.Shaft.X,stick.Source.Shaft.Y,stick.Source.Shaft.Z))>1e-5f)
                         throw new Exception("Mirrored stick is not a mirror of its source: "+rig.Subtype);
                 }
                 if(mesh.Parts.Sum(p=>p.Indices.Count)-copied!=mesh.NativeTriangles*3)

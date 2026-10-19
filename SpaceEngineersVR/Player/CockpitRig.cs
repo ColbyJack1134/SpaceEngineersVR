@@ -259,7 +259,7 @@ namespace SpaceEngineersVR.Player
         public readonly int[] StaticActors;
         private CockpitGeometry geometry;
         private CockpitRig(string subtype,string model,string geometryModel,Vector3 panel,Vector3 normal,Stick left,Stick right,Piece[] pieces,Lever[] levers,Handle[] handles=null,
-            Button[] buttons=null,Bar[] bars=null,Screen[] screens=null,bool packedCovers=false,Steering steering=null,Vector3 defaultSeatOffset=default(Vector3),Vector3? mirrorRight=null)
+            Button[] buttons=null,Bar[] bars=null,Screen[] screens=null,bool packedCovers=false,Steering steering=null,Vector3 defaultSeatOffset=default(Vector3),Vector3? mirrorRight=null,Vector3? mirrorLeft=null)
         {
             Subtype=subtype; Model=model; this.geometryModel=geometryModel; Left=left; Right=right; Pieces=pieces; Wheel=steering; DefaultSeatOffset=defaultSeatOffset;
             Buttons=buttons ?? new Button[0]; Levers=levers; Handles=handles ?? new Handle[0]; Bars=bars ?? new Bar[0];
@@ -268,8 +268,9 @@ namespace SpaceEngineersVR.Player
             SeatMount=MatrixD.CreateWorld(panel,-normal,up);
             ActorCount=pieces.Length==0 ? 0 : pieces.Max(p=>Math.Max(p.Actor,p.StaticActor))+1;
             if(Buttons.Any(b=>b.TemplateActor>=0)) ActorCount=Math.Max(ActorCount,Buttons.Max(b=>b.Actor)+1);
-            // A seat with one stick gets a floating mirrored copy as its right stick, from the same installed mesh.
+            // A seat with one stick gets a floating mirrored copy as its other stick, from the same installed mesh.
             if(mirrorRight.HasValue && left!=null && right==null) { Right=left.Mirror(mirrorRight.Value,ActorCount,ActorCount+1); ActorCount+=2; }
+            if(mirrorLeft.HasValue && right!=null && left==null) { Left=right.Mirror(mirrorLeft.Value,ActorCount,ActorCount+1); ActorCount+=2; }
             StaticActors=pieces.Select(p=>p.StaticActor).Distinct().ToArray();
             // Saved Fighter cover states predate slot-indexed storage and number covers consecutively.
             coverIndices=new int[Count];
