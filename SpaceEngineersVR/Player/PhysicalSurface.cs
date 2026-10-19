@@ -40,6 +40,7 @@ namespace SpaceEngineersVR.Player
         public bool SignalWindow,SeatSettings,FlightPage,Desktop;
         public WristSignals.View Signals;
         public WristHud.View HudSettings;
+        public ShieldsPanel.View ShieldsView;
         public WristChat.View ChatView;
         public string[] Icons=new string[0];
         public string SubIcon;
@@ -65,7 +66,7 @@ namespace SpaceEngineersVR.Player
         public float[] Levels;
         public int Handle;
         public string ContentKey => Desktop+"|"+FlightPage+"|"+SeatSettings+"|"+SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+(SignalWindow && Signals?.Candidates.Length==0)+"|"+(SignalWindow ? Plugin.Common.Config?.WaypointMode:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+HoverAlt+"|"+PressedAlt+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Horizontal+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
-            "|"+Selection+"|"+HudSettings?.Key+"|"+ChatView?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob+":"+k.Slider))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
+            "|"+Selection+"|"+HudSettings?.Key+"|"+ShieldsView?.Key+"|"+ChatView?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob+":"+k.Slider))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
         public int KeyAt(Vector2 uv)
         {
@@ -133,7 +134,7 @@ namespace SpaceEngineersVR.Player
             }
             if(s.Id=="Seat") { PaintSeat(target,s); return; }
             if(s.Style==SurfaceStyle.WristStatus) { PaintWrist(target,s); return; }
-            if(s.Style==SurfaceStyle.WristMenu) { if(s.Desktop) PaintDesktopKeys(target,s); else if(s.SignalWindow) WristSignals.Paint(target,s); else if(s.HudSettings!=null) WristHud.Paint(target,s); else if(s.ChatView!=null) WristChat.Paint(target,s); else PaintWristMenu(target,s); return; }
+            if(s.Style==SurfaceStyle.WristMenu) { if(s.Desktop) PaintDesktopKeys(target,s); else if(s.SignalWindow) WristSignals.Paint(target,s); else if(s.HudSettings!=null) WristHud.Paint(target,s); else if(s.ShieldsView!=null) ShieldsPanel.Paint(target,s); else if(s.ChatView!=null) WristChat.Paint(target,s); else PaintWristMenu(target,s); return; }
             target.Clear(Color.FromArgb(255,12,20,28));
             var g=target.Graphics;
             using (var pen=new Pen(Color.FromArgb(255,84,125,143),6)) g.DrawRectangle(pen,5,5,1014,630);
@@ -378,7 +379,7 @@ namespace SpaceEngineersVR.Player
                         float verticalX=r.X+r.Width*.5f,railTop=r.Y+10,railHeight=r.Height-20;
                         using(var rail=new Pen(Color.FromArgb(91,112,123),6)) g.DrawLine(rail,verticalX,railTop,verticalX,railTop+railHeight);
                         float thumbY=railTop+railHeight*key.Slider.Value;
-                        g.FillEllipse(Brushes.LightCyan,verticalX-10,thumbY-10,20,20);
+                        if(key.Enabled) g.FillEllipse(Brushes.LightCyan,verticalX-10,thumbY-10,20,20);
                         continue;
                     }
                     using(var left=new StringFormat {Alignment=StringAlignment.Near})
@@ -389,7 +390,8 @@ namespace SpaceEngineersVR.Player
                     float railY=r.Y+r.Height*.76f,railX=r.X+10,railWidth=r.Width-20;
                     using(var rail=new Pen(Color.FromArgb(91,112,123),6)) g.DrawLine(rail,railX,railY,railX+railWidth,railY);
                     using(var fill=new Pen(Color.FromArgb(111,214,232),6)) g.DrawLine(fill,railX,railY,railX+railWidth*key.Slider.Value,railY);
-                    g.FillEllipse(Brushes.LightCyan,railX+railWidth*key.Slider.Value-9,railY-9,18,18);
+                    // Read-only bars get no handle.
+                    if(key.Enabled) g.FillEllipse(Brushes.LightCyan,railX+railWidth*key.Slider.Value-9,railY-9,18,18);
                     continue;
                 }
                 if(key.Caption) { g.DrawString(key.Label,labelFont,Brushes.LightCyan,r); continue; }

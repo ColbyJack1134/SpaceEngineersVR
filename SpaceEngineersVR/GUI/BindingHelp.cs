@@ -22,6 +22,7 @@ namespace SpaceEngineersVR.GUI
         {
             internal readonly string Title;
             internal readonly Diagram[] Diagrams;
+            internal Func<bool> Shown;
             internal Topic(string title, params Diagram[] diagrams) { Title=title; Diagrams=diagrams; }
         }
         private static readonly Topic[] topics={
@@ -34,8 +35,11 @@ namespace SpaceEngineersVR.GUI
             new Topic("3rd Person", new Diagram("view", 1600, 760)),
             new Topic("Floating Menus", new Diagram("menus", 1600, 650)),
             new Topic("Other", new Diagram("seat-panel", 1600, 760), new Diagram("other", 1600, 809), new Diagram("other-end", 1600, 160)),
+            new Topic("WeaponCore", new Diagram("weaponcore", 1600, 650), new Diagram("weaponcore-joystick", 1600, 650),
+                new Diagram("weaponcore-combat", 1600, 575), new Diagram("weaponcore-hand", 1600, 600)) {Shown=()=>Player.WeaponCoreBridge.ApiReady},
         };
-        internal static int TopicCount => topics.Length;
+        private static Topic[] Topics => topics.Where(t=>t.Shown?.Invoke()!=false).ToArray();
+        internal static int TopicCount => Topics.Length;
         private static string GuideFolder => Path.Combine(Common.AssetFolder ?? Util.Util.GetDefaultAssetFolder(),"Guide");
         internal static string[] ImagePaths => topics.SelectMany(t=>t.Diagrams)
             .Select(d=>Path.Combine(GuideFolder,d.Name+".dds")).Concat(Directory.GetFiles(GuideFolder,FramePrefix+"*.dds")).ToArray();
@@ -51,9 +55,9 @@ namespace SpaceEngineersVR.GUI
             return Path.Combine(GuideFolder,diagram.Name+".dds");
         }
         public BindingHelp(int topic=0) : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(1.03f,.91f))
-        { page=Math.Max(0,Math.Min(topics.Length-1,topic)); m_closeOnEsc=true; CloseButtonEnabled=true; }
+        { page=Math.Max(0,Math.Min(TopicCount-1,topic)); m_closeOnEsc=true; CloseButtonEnabled=true; }
         public override string GetFriendlyName()=>"SEVR controls guide";
-        internal void SelectTopic(int topic) { page=Math.Max(0,Math.Min(topics.Length-1,topic)); RecreateControls(false); }
+        internal void SelectTopic(int topic) { page=Math.Max(0,Math.Min(TopicCount-1,topic)); RecreateControls(false); }
         internal void ScrollTo(float fraction)
         {
             scroll.ScrollbarVPosition=MathHelper.Clamp(fraction,0,1)*Math.Max(0,scroll.ScrolledControl.Size.Y-scroll.ScrolledAreaSize.Y);
@@ -62,6 +66,8 @@ namespace SpaceEngineersVR.GUI
         public override void RecreateControls(bool constructor)
         {
             base.RecreateControls(constructor); AddCaption("Controls guide");
+            var topics=Topics;
+            page=Math.Min(page,topics.Length-1);
             for(int i=0;i<topics.Length;i++)
             {
                 int index=i;

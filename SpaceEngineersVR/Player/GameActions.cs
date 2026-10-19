@@ -93,6 +93,11 @@ namespace SpaceEngineersVR.Player
                 case "Snap mode": return "PlacementMode";
                 case "Snap lock": return "SwitchSymmetryAxis";
                 case "Tool help": return "HelpScreen";
+                case "Lock target": case "Cancel lock": case "Lock target ahead": case "Toggle focus lock": return "SignalMode";
+                case "Release target": case "Clear paint": return "RotateCounterClockWise";
+                case "Next target": return "ValueIncrease";
+                case "Previous target": return "ValueDecrease";
+                case "Paint target": return "ColorPicker";
                 default: return "RadialMenu";
             }
         }
@@ -156,6 +161,14 @@ namespace SpaceEngineersVR.Player
             if(jetpack) return new[] { PauseAction,BlueprintsAction,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,HandGrab.Active ? SnapHeldGrid:BroadcastAction };
             return new[] { PauseAction,BlueprintsAction,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],HandGrab.Active ? SnapHeldGrid:Quick[12] };
         }
+        // Its own Actions wheel page while a WeaponCore hand weapon is out.
+        internal static ActionChoice[] WeaponCoreWheelActions()
+        {
+            var actions=new List<ActionChoice>();
+            if(HandLock.Shooter()!=null) { actions.Add(HandLock.Action); actions.Add(TargetLock.ReleaseTargetAction); }
+            if(Patches.WeaponCoreReload.Ready) actions.Add(CycleAmmoAction);
+            return actions.ToArray();
+        }
         internal static ActionChoice[] BuildingWheelActions(bool? symmetrySetup=null)
         {
             bool setup=symmetrySetup ?? (MySession.Static!=null && MyCubeBuilder.Static?.IsSymmetrySetupMode()==true);
@@ -174,6 +187,14 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice HudOptions=new ActionChoice("HUD",()=>MyGuiSandbox.AddScreen(new GUI.MyPluginConfigDialog(3)),true);
         public static bool AlternateTrigger { get; private set; }
         private static ActionChoice Native(string label, MyStringId control,Func<bool> enabled=null) => new ActionChoice(label, () => NativeActions.Pulse(control),enabled:enabled);
+        internal static readonly ActionChoice CycleAmmoAction=new ActionChoice("Cycle ammo",Patches.WeaponCoreReload.Cycle,icon:@"Textures\GUI\Icons\buttons\Ammo.dds",
+            enabled:()=>Patches.WeaponCoreReload.Ready,searchTerms:"weaponcore wc ammo cycle switch magazine type");
+        // WeaponCore hand weapons ignore the Reload control and react only to its raw key.
+        private static void Reload()
+        {
+            if(Patches.WeaponCoreReload.Ready) Patches.WeaponCoreReload.Tap();
+            else NativeActions.Pulse(MyControlsSpace.RELOAD);
+        }
         public static readonly ActionChoice InventoryAction = new ActionChoice("Inventory", ShowInventoryOrTerminal, true);
         // Blocks such as the custom turret controller leave ShowInventory empty; their terminal still reaches every inventory.
         // The character path always answers, and asking it twice would repeat a refusal on a block the player cannot open.
@@ -220,7 +241,7 @@ namespace SpaceEngineersVR.Player
             InventoryAction,
             TerminalAction,
             ConfigureToolbarAction,
-            Native("Reload", MyControlsSpace.RELOAD),
+            new ActionChoice("Reload",Reload),
             LightsAction,
             HelmetAction,
             Dampeners,

@@ -152,6 +152,12 @@ namespace SpaceEngineersVR.Diagnostics
             Require(!tap.Update(false,true,false,pressed.AddMilliseconds(500)),"Held roll grip requested a lock on release");
             tap.Update(true,false,false,pressed);
             Require(!tap.Update(false,false,false,pressed.AddMilliseconds(100)) && !tap.Update(false,true,false,pressed.AddMilliseconds(150)),"Blocked third-person grip requested a lock");
+            // A WeaponCore lock aimed through a camera feed holds the grip as long as needed and locks on release.
+            tap.Update(true,false,false,pressed,double.MaxValue);
+            Require(tap.Holding && !tap.Update(true,false,false,pressed.AddSeconds(3),double.MaxValue) && tap.Holding,"Held feed lock grip stopped aiming");
+            Require(tap.Update(false,true,false,pressed.AddSeconds(3),double.MaxValue) && !tap.Holding,"Feed lock grip release did not lock");
+            tap.Update(true,false,false,pressed,double.MaxValue); tap.Update(true,false,true,pressed.AddSeconds(1),double.MaxValue);
+            Require(!tap.Holding && !tap.Update(false,true,false,pressed.AddSeconds(2),double.MaxValue),"Cancelled feed lock grip still locked");
             var menuClick=new PartialClick(); int clicks=0;
             foreach(float pressure in new[] {0,.3f,1,.75f,1,.65f,.95f,.6f,.1f,0,.26f})
             { menuClick.Update(pressure>=.2f,pressure>=.25f && !menuClick.Held && pressure<=.3f,pressure); if(menuClick.Pressed) clicks++; }

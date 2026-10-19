@@ -23,6 +23,8 @@ namespace SpaceEngineersVR.Player
             public Vector4 Color;
             public Vector2 CircleSize,RangeTextSize;
             public bool InRange;
+            // Drawn only where both eyes see it, like the other markers; the native lead already follows the desktop view.
+            public bool Binocular;
         }
         private static readonly FieldInfo lead=AccessTools.Field(typeof(MyHudMarkerRender.MyTargetIndicatorRender),"m_targetLeadRender");
         private static readonly FieldInfo prediction=AccessTools.Field(lead.FieldType,"m_positionPrediction");

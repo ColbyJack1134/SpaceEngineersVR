@@ -51,6 +51,9 @@ namespace SpaceEngineersVR.Player
         }
         private static MatrixD SurfacePose(Matrix tracking) => CameraRig.Detached || !Main.WorldAvailable ? (MatrixD)tracking:DeviceWorld(tracking);
         public static void Expand() { expanded=true; }
+        // With WeaponCore a pull aimed at a panel never fires, even between keys, since its aimed weapons would hit the panel.
+        internal static bool SwallowsTrigger(bool trigger,int wristHover,bool rayTargeted,bool seatRayTargeted,int seatPressed,bool weaponCore) =>
+            seatPressed>=0 || trigger && (wristHover>=0 || weaponCore && (rayTargeted || seatRayTargeted));
         public static void Collapse() { if(FlightSettings.IsOpen && FlightSettings.OnWrist) FlightSettings.Close(); expanded=false; wristTouch.Reset(); heldKey=null; wristHover=wristPressed=-1; WristPanel.StopEditing(); }
         public static bool CollapseIfOpen() { if(!expanded || WristPanel.DesktopOpen && !DesktopPointed) return false; Collapse(); return true; }
         private static DateTime desktopSeen;
@@ -173,7 +176,7 @@ namespace SpaceEngineersVR.Player
             else { seatRayPress.Block(); seatRayTargeted=false; }
             // A touch owns its input while the finger is on a surface, preventing tool use.
             if(wristTouch.Consumed) InteractionInput.Read(Player.HandR,wristDirect).Consume();
-            if(seatPressed>=0 || (wristHover>=0 && trigger)) { c.Primary.BlockUntilRelease(); c.BlockTriggerRoles(Player.HandR); }
+            if(SwallowsTrigger(trigger,wristHover,RayTargeted,seatRayTargeted,seatPressed,WeaponCoreBridge.ApiReady)) { c.Primary.BlockUntilRelease(); c.BlockTriggerRoles(Player.HandR); }
             Publish();
         }
         private static int Interact(SurfaceView s,MatrixD pointer,ref int hover,ref int pressed)
@@ -312,6 +315,7 @@ namespace SpaceEngineersVR.Player
                 FlightPage=fold>=.99f && FlightSettings.IsOpen && FlightSettings.OnWrist,Title=FlightSettings.IsOpen ? FlightSettings.Title:null,
                 Levels=WristPanel.SeatOpen ? SeatPanel.States():null,Handle=CockpitControls.Adjusting ? 1:0,
                 HudSettings=fold>=.99f && WristPanel.HudOpen ? WristHud.Current:null,
+                ShieldsView=fold>=.99f && WristPanel.ShieldsOpen ? ShieldsPanel.Current:null,
                 ChatView=fold>=.99f && WristPanel.ChatOpen ? WristChat.Snapshot():null,Desktop=fold>=.99f && WristPanel.DesktopOpen };
             if(menu.Desktop) DesktopCapture.Request();
             return new[] {compact,menu};

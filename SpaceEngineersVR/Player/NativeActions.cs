@@ -45,7 +45,11 @@ namespace SpaceEngineersVR.Player
         internal static bool WheelJumpAllowed => InputRouter.Mode==InputMode.Piloting && MySession.Static?.ControlledEntity is MyShipController ship &&
             ship.ControlWheels && !ToolbarWheel.QuickPending && !FloatingWindows.OwnsInput && !PlacementControls.Adjusting && !CockpitControls.Adjusting && !ThirdPersonView.Manipulating;
         public static bool Read(MyStringId action, MyControlStateType type) =>
-            Main.VrActive && InputRouter.Gameplay && !Main.MenuOpen && frame.Read(action, type);
+            Main.VrActive && InputRouter.Gameplay && !Main.MenuOpen && frame.Read(action, type) && !Blocked(action);
+
+        // WeaponCore blocks vanilla fire while it fires itself. Only honoured with WeaponCore: TouchScreenAPI and Arthur's LCD
+        // block fire while the head faces their screens, which in VR is not where the hand points.
+        internal static bool Blocked(MyStringId action) => WeaponCoreBridge.ApiReady && MyInput.Static?.IsControlBlocked(action)==true;
 
         private static bool WasHeld(MyStringId action) => frame.Read(action, MyControlStateType.PRESSED) || frame.Read(action, MyControlStateType.NEW_RELEASED);
         public static void Reset()

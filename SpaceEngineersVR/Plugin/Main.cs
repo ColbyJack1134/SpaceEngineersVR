@@ -42,8 +42,10 @@ namespace SpaceEngineersVR.Plugin
         private static bool fallbackSawDialog;
         private static readonly Integration touchScreens=new Integration("TouchScreenAPI",Player.TouchScreenBridge.Reset,Player.TouchScreenBridge.RefreshRegistrations,Player.TouchScreenBridge.Update,Player.TouchScreenBridge.Draw),
             arthurLcd=new Integration("Arthur's LCD",Player.ArthurLcdBridge.Reset,Player.ArthurLcdBridge.RefreshRegistrations,Player.ArthurLcdBridge.Update,Player.ArthurLcdBridge.Draw),
+            weaponCore=new Integration("WeaponCore",Player.WeaponCoreIntegration.Reset,Player.WeaponCoreIntegration.Refresh,Player.WeaponCoreIntegration.Update),
+            shields=new Integration("Defense Shields",Player.ShieldsIntegration.Reset,Player.ShieldsIntegration.Refresh,Player.ShieldsIntegration.Update),
             pbFeed=new Integration("Programmable block VR data",PbFeed.Reset,PbFeed.Refresh,PbFeed.Update);
-        internal static readonly Integration[] Integrations={touchScreens,arthurLcd,pbFeed,
+        internal static readonly Integration[] Integrations={touchScreens,arthurLcd,weaponCore,shields,pbFeed,
             new Integration("Mod HUD",Patches.ModHud.Reset,Patches.ModHud.RefreshRegistrations),
             new Integration("Voxel tool mods",Patches.DigiTools.Reset,Patches.DigiTools.RefreshRegistrations),
             new Integration("Mod API",ModApi.Reset,ModApi.Refresh)};
@@ -379,6 +381,8 @@ namespace SpaceEngineersVR.Plugin
             Player.BlockInspection.Update();
             Player.DampenerTargeting.Update();
             Player.GridSelection.Update();
+            weaponCore.Update();
+            shields.Update();
             Player.ToolbarWheel.Update();
             Player.QuickToolbar.Update();
             Player.GameActions.RunScheduled();

@@ -7,6 +7,7 @@ using HarmonyLib;
 using Sandbox.Game.World;
 using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Plugin;
+using SpaceEngineersVR.Util;
 using VRageMath;
 using VRageRender;
 
@@ -16,6 +17,8 @@ namespace SpaceEngineersVR.Patches
     {
         private const double Reach=.3,Depth=10;
         [ThreadStatic] private static int drawing;
+        [ThreadStatic] private static int suppressing;
+        private static readonly Dictionary<MethodBase,Func<bool>> suppressWhile=new Dictionary<MethodBase,Func<bool>>();
         private static readonly List<MethodBase> patched=new List<MethodBase>();
         private static readonly HashSet<Type> attempted=new HashSet<Type>();
         private static readonly Dictionary<Type,RichPool> richPools=new Dictionary<Type,RichPool>();
@@ -57,8 +60,20 @@ namespace SpaceEngineersVR.Patches
                 if(text!=null && AccessTools.Field(text,"instance")?.GetValue(null)!=null) AttachText(assembly,text);
                 var rich=assembly.GetType("RichHudFramework.UI.Rendering.BillBoardUtils",false);
                 if(rich!=null && AccessTools.Field(rich,"instance")?.GetValue(null)!=null) AttachRich(rich);
+                var weaponCore=assembly.GetType("CoreSystems.Session",false);
+                if(weaponCore!=null && WeaponCoreBridge.ApiReady && ModReflection.StaticReader(weaponCore,"I")?.Invoke()!=null)
+                    Suppress("WeaponCore",()=>WeaponCoreBridge.ApiReady,weaponCore,
+                        assembly.GetType("WeaponCore.Data.Scripts.CoreSystems.Ui.Targeting.TargetUi",false)?.GetMethod("DrawTargetUi",Declared,null,Type.EmptyTypes,null),
+                        assembly.GetType("WeaponCore.Data.Scripts.CoreSystems.Ui.Hud.Hud",false)?.GetMethod("DrawTextures",Declared,null,Type.EmptyTypes,null),
+                        assembly.GetType("WeaponCore.Data.Scripts.CoreSystems.Ui.Hud.Hud",false)?.GetMethod("DrawText",Declared,null,Type.EmptyTypes,null));
+                var shields=assembly.GetType("DefenseShields.Session",false);
+                if(shields!=null && ShieldsBridge.Ready && ModReflection.StaticReader(shields,"Instance")?.Invoke()!=null)
+                    Suppress("Defense Shields",()=>ShieldsBridge.Ready,shields,
+                        assembly.GetType("DefenseShields.DefenseShields",false)?.GetMethod("UpdateIcon",Declared,null,new[] {typeof(bool)},null),
+                        shields.GetMethod("DrawText",Declared,null,Type.EmptyTypes,null));
             }
         }
+        private const BindingFlags Declared=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.DeclaredOnly;
         private static void Patch(MethodBase method,string prefix=null,string postfix=null,string finalizer=null)
         {
             Common.Plugin.Harmony.Patch(method,prefix==null ? null:new HarmonyMethod(typeof(ModHud),prefix),
@@ -80,6 +95,20 @@ namespace SpaceEngineersVR.Patches
             }
             catch(Exception ex) { Rollback(start); Logger.Warning(ex,"Text HUD API VR adapter unavailable"); }
         }
+        // WeaponCore and Defense Shields draw their HUD 10 cm in front of the camera, which cannot be right in both eyes. The
+        // headset hides it once the mod's API answered and the VR markers and wrist pages replace it; camera feeds keep it.
+        private static void Suppress(string mod,Func<bool> ready,Type session,params MethodBase[] methods)
+        {
+            if(!attempted.Add(session)) return;
+            int start=patched.Count;
+            try
+            {
+                if(methods.Any(method=>method==null)) { Logger.Info(mod+" HUD draw methods not found; its HUD is left unchanged in VR"); return; }
+                foreach(var method in methods) { Patch(method,nameof(BeginSuppressed),finalizer:nameof(EndSuppressed)); suppressWhile[method]=ready; }
+                Logger.Info(mod+" HUD hidden in the headset");
+            }
+            catch(Exception ex) { Rollback(start); Logger.Warning(ex,mod+" VR HUD adapter unavailable"); }
+        }
         private static void AttachRich(Type type)
         {
             if(!attempted.Add(type)) return;
@@ -99,15 +128,22 @@ namespace SpaceEngineersVR.Patches
         private static void Rollback(int start)
         {
             foreach(var method in patched.Skip(start).ToArray())
-                foreach(string name in new[] {nameof(Begin),nameof(End),nameof(RichUpdated)})
+                foreach(string name in new[] {nameof(Begin),nameof(BeginSuppressed),nameof(End),nameof(EndSuppressed),nameof(RichUpdated)})
                     Common.Plugin.Harmony.Unpatch(method,AccessTools.Method(typeof(ModHud),name));
             patched.RemoveRange(start,patched.Count-start);
         }
         internal static void Reset()
         {
-            Rollback(0); attempted.Clear(); richPools.Clear(); drawing=0; retry=DateTime.MinValue;
+            Rollback(0); attempted.Clear(); richPools.Clear(); suppressWhile.Clear(); drawing=0; suppressing=0; retry=DateTime.MinValue;
         }
         private static void Begin(out int __state) { __state=drawing; if(Main.VrActive) drawing++; }
+        // Hidden only while the mod's VR replacement is live; a failed integration shows the mod's own HUD again.
+        private static void BeginSuppressed(MethodBase __originalMethod,out int __state)
+        {
+            __state=suppressing;
+            if(Main.VrActive && RemoteView.Current==null && suppressWhile.TryGetValue(__originalMethod,out var ready) && ready()) suppressing++;
+        }
+        private static Exception EndSuppressed(Exception __exception,int __state) { suppressing=__state; return __exception; }
         private static Exception End(Exception __exception,int __state) { drawing=__state; return __exception; }
         private static void RichUpdated(object __instance)
         {
@@ -116,7 +152,7 @@ namespace SpaceEngineersVR.Patches
             try { pools.Place(__instance); }
             catch(Exception ex) { richPools.Remove(__instance.GetType()); Logger.Warning(ex,"Rich HUD Framework VR billboard placement disabled"); }
         }
-        internal static bool Place(MyBillboard billboard) => drawing==0 || PlaceKnown(billboard);
+        internal static bool Place(MyBillboard billboard) => suppressing==0 && (drawing==0 || PlaceKnown(billboard));
         private static bool PlaceKnown(MyBillboard billboard)
         {
             var camera=MySector.MainCamera;

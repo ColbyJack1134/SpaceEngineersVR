@@ -1,0 +1,174 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Sandbox.Game.Entities;
+using Sandbox.Game.World;
+using SpaceEngineersVR.Plugin;
+using SpaceEngineersVR.Util;
+using VRage.Game.Entity;
+using VRageMath;
+
+namespace SpaceEngineersVR.Player
+{
+    // WeaponCore targeting drawn by the VR marker renderer, which is correct in both eyes.
+    internal static class WeaponCoreMarkers
+    {
+        private const int MaxThreats=8;
+        private static readonly Vector4 focusColor=new Vector4(1,.25f,.2f,1),threatColor=new Vector4(1,.55f,.2f,.85f),pointedColor=new Vector4(1,0,0,1),
+            aimColor=new Vector4(.85f,.95f,1,.9f),paintColor=new Vector4(1,.35f,.9f,1);
+        private static MyEntity leadWeapon,leadFocus;
+        private static DateTime leadWeaponTime;
+
+        // Config.ThreatMarkers: all threats while aiming a lock, all always, or only the pointed one while aiming.
+        private static readonly string[] threatModes={"Aiming","Always","Pointed"};
+        internal static string ThreatModeName => threatModes[Common.Config.ThreatMarkers];
+        internal static void CycleThreatMode() => Common.Config.ThreatMarkers=(Common.Config.ThreatMarkers+1)%threatModes.Length;
+
+        // Names, threat levels and ranking cost mod calls and allocations, so they refresh at 10 Hz; positions follow every frame.
+        private sealed class Snapshot
+        {
+            public MyEntity Grid,Focus,PaintedEntity;
+            public string FocusName,FocusRelease;
+            public readonly List<KeyValuePair<MyEntity,string>> Threats=new List<KeyValuePair<MyEntity,string>>();
+            public Vector3D PaintedLocal;
+            public bool Manual;
+        }
+        private static Snapshot snapshot;
+        private static DateTime refresh;
+
+        // Lock, cycle, release and paint changes show on the next frame instead of the next refresh.
+        internal static void Invalidate() { refresh=DateTime.MinValue; }
+
+        private static Snapshot Current(MyEntity grid)
+        {
+            var now=DateTime.UtcNow;
+            if(snapshot!=null && snapshot.Grid==grid && now<refresh) return snapshot;
+            refresh=now.AddSeconds(.1);
+            var next=new Snapshot {Grid=grid,Focus=WeaponCoreBridge.Focus(grid),Manual=WeaponCoreAim.ManualActive};
+            if(next.Focus!=null)
+            {
+                string name=Label(next.Focus,WeaponCoreThreats.Threat(grid,next.Focus));
+                next.FocusName="LOCKED  "+name; next.FocusRelease="RELEASE  "+name;
+            }
+            foreach(var threat in TargetLock.RankedThreats(grid).Where(t=>t.Item1!=next.Focus).Take(MaxThreats))
+                next.Threats.Add(new KeyValuePair<MyEntity,string>(threat.Item1,
+                    Label(threat.Item1,WeaponCoreThreats.ThreatLevel(threat.Item2,WeaponCoreThreats.ShieldBonus(grid,threat.Item1)))));
+            if(WeaponCoreAim.Painted) WeaponCoreInternals.PaintMark(out next.PaintedEntity,out next.PaintedLocal);
+            return snapshot=next;
+        }
+
+        private static bool Alive(MyEntity entity) => entity!=null && !entity.Closed && !entity.MarkedForClose;
+
+        internal static void Add(List<WorldMarkers.Marker> markers)
+        {
+            if(!WeaponCoreBridge.ApiReady) return;
+            try
+            {
+                var grid=Shooter();
+                if(grid==null) return;
+                var head=CameraRig.Current?.Anchor.Translation ?? MySector.MainCamera.Position;
+                var data=Current(grid);
+                // While a lock is aimed, the threat it would lock turns red; aimed at the current lock, the name says RELEASE.
+                var pointedTarget=TargetLock.Preview ?? HandLock.Preview;
+                var pointed=pointedTarget?.GetTopMostParent();
+                bool aiming=TargetLock.Aiming || HandLock.Armed,pointedShown=false;
+                int threatMode=Common.Config.ThreatMarkers;
+                if(Alive(data.Focus))
+                {
+                    pointedShown=pointed!=null && data.Focus.GetTopMostParent()==pointed;
+                    string name=pointedShown ? data.FocusRelease:data.FocusName;
+                    var locked=Marker("wcfocus:"+data.Focus.EntityId,name,focusColor,data.Focus.PositionComp.WorldAABB.Center,head,Span(data.Focus,head,2.2f),pinned:true);
+                    locked.LockState="Locked"; locked.EdgeArrow=true;
+                    markers.Add(locked);
+                }
+                foreach(var threat in data.Threats)
+                {
+                    var target=threat.Key;
+                    if(!Alive(target)) continue;
+                    bool isPointed=pointed!=null && target.GetTopMostParent()==pointed;
+                    if(threatMode==0 && !aiming || threatMode==2 && !isPointed) continue;
+                    pointedShown|=isPointed;
+                    markers.Add(Marker("wcthreat:"+target.EntityId,threat.Value,isPointed ? pointedColor:threatColor,target.PositionComp.WorldAABB.Center,head,Span(target,head,1.7f)));
+                }
+                // Any tracked threat can be locked, not only the nearest MaxThreats with markers, so the pointed one always shows.
+                if(!pointedShown && Alive(pointedTarget))
+                    markers.Add(Marker("wcthreat:"+pointedTarget.EntityId,Label(pointedTarget,WeaponCoreThreats.Threat(grid,pointedTarget)),
+                        pointedColor,pointedTarget.PositionComp.WorldAABB.Center,head,Span(pointedTarget,head,1.7f)));
+                if(WeaponCoreAim.AimPoint.HasValue && (DateTime.UtcNow-WeaponCoreAim.AimTime).TotalSeconds<.25 && data.Manual)
+                    markers.Add(Marker("wcaim","AIM",aimColor,WeaponCoreAim.AimPoint.Value,head,1,pinned:true,symbol:"cross",side:"below"));
+                // WeaponCore's own paint mark is part of its hidden HUD.
+                if(Alive(data.PaintedEntity))
+                    markers.Add(Marker("wcpainted","PAINTED",paintColor,Vector3D.Transform(data.PaintedLocal,data.PaintedEntity.PositionComp.WorldMatrixRef),head,.9f,pinned:true,side:"upleft"));
+                var lockPreview=HandLock.Preview;
+                if(Alive(lockPreview))
+                    markers.Add(Marker("wclock","LOCK",paintColor,lockPreview.PositionComp.WorldAABB.Center,head,1.2f,pinned:true,symbol:"cross",side:"upright"));
+                if(WeaponCoreAim.PaintArmed && WeaponCoreAim.PaintPreview.HasValue)
+                    markers.Add(Marker("wcpaint","PAINT",paintColor,WeaponCoreAim.PaintPreview.Value,head,1.2f,pinned:true,symbol:"cross",side:"upright"));
+            }
+            catch(Exception ex) { Logger.Warning(ex,"WeaponCore VR markers failed this frame"); }
+        }
+
+        private static WorldMarkers.Marker Marker(string id,string name,Vector4 color,Vector3D position,Vector3D head,float span,bool pinned=false,string symbol="brackets",string side=null) =>
+            new WorldMarkers.Marker {Kind="WeaponCore",Id=id,Name=name,Relation="Enemies",Color=color,FontColor=color,Pinned=pinned,Position=position,
+                Distance=Vector3D.Distance(position,head),Symbol=symbol,Span=span,LabelSide=side,AvoidOverlap=true};
+
+        // Brackets frame the target's apparent size, never smaller than minimum (in standard marker icons).
+        private static float Span(MyEntity target,Vector3D head,float minimum)
+        {
+            double distance=Math.Max(1,Vector3D.Distance(target.PositionComp.WorldAABB.Center,head));
+            double diameter=2*Math.Atan(target.PositionComp.WorldVolume.Radius/distance);
+            double icon=MarkerBillboard.IconAngle*.55*Math.Max(.1f,Common.Config.SignalIconScale);
+            return (float)MathHelper.Clamp(diameter/icon*1.1,minimum,12);
+        }
+
+        internal static NativeLead.View Lead()
+        {
+            if(!WeaponCoreBridge.ApiReady) return null;
+            try
+            {
+                var grid=Shooter();
+                var focus=grid==null ? null:WeaponCoreBridge.Focus(grid);
+                if(focus==null || focus.Closed || focus.MarkedForClose) return null;
+                var weapon=LeadWeapon(focus);
+                if(weapon==null) return null;
+                var predicted=WeaponCoreBridge.PredictedPosition(weapon,focus);
+                var center=focus.PositionComp.WorldAABB.Center;
+                bool inRange=predicted.HasValue;
+                return new NativeLead.View {Position=predicted ?? center,Target=center,InRange=inRange,Binocular=true,CircleSize=new Vector2(64,64),
+                    RangeTextSize=inRange ? Vector2.Zero:NativeLead.MeasureRangeText(),Color=inRange ? focusColor:new Vector4(.7f,.7f,.7f,.8f)};
+            }
+            catch(Exception ex) { Logger.Warning(ex,"WeaponCore VR lead failed this frame"); return null; }
+        }
+
+        // Turrets aim themselves, so the lead pip uses a fixed weapon: the first that reaches the focus, else the first fixed one
+        // (grey). Re-chosen every 2 s or when the focus changes.
+        private static MyEntity LeadWeapon(MyEntity focus)
+        {
+            var now=DateTime.UtcNow;
+            if(leadFocus==focus && (leadWeapon==null || !leadWeapon.Closed) && (now-leadWeaponTime).TotalSeconds<2) return leadWeapon;
+            leadWeapon=null; leadFocus=focus; leadWeaponTime=now;
+            if(!WeaponCoreInternals.Available) return null;
+            MyEntity first=null;
+            foreach(var comp in WeaponCoreInternals.WeaponComps())
+            {
+                if(ModReflection.Value(comp,false,"HasTurret") || ModReflection.Value(comp,false,"HasScanTrackOnly")) continue;
+                var entity=WeaponCoreInternals.CompEntity(comp);
+                if(entity==null || entity.Closed || entity.MarkedForClose) continue;
+                if(WeaponCoreBridge.PredictedPosition(entity,focus).HasValue) return leadWeapon=entity;
+                if(first==null) first=entity;
+            }
+            return leadWeapon=first;
+        }
+
+        private static MyEntity Shooter() => TargetLock.ShooterGrid() ?? HandLock.Shooter();
+
+        // "Raider  T7  S 74%": name, threat level when rated, shield when it has one.
+        private static string Label(MyEntity target,int? level)
+        {
+            string shield=WeaponCoreThreats.ShieldLabel(target);
+            return WeaponCoreThreats.Name(target)+(level.HasValue ? "  T"+level.Value:"")+(shield==null ? "" : "  "+shield);
+        }
+
+        internal static void Reset() { leadWeapon=leadFocus=null; snapshot=null; }
+    }
+}

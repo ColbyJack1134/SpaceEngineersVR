@@ -30,6 +30,10 @@ namespace SpaceEngineersVR.Player
             public float LockProgress;
             public SignalRing Ring;
             public double Distance;
+            // Thin-line Symbol "brackets" or "cross", Span in standard icons, LabelSide null (above), "upleft", "upright" or "below".
+            public string Symbol, LabelSide;
+            public float Span=1;
+            public bool AvoidOverlap, EdgeArrow;
         }
         internal sealed class View
         {
@@ -40,6 +44,25 @@ namespace SpaceEngineersVR.Player
             public bool Reveal;
             public NativeLead.View Lead;
             public View(Marker[] markers,DateTime time) { Markers=markers; Time=time; Generation=generation; }
+            private View(Marker[] markers,DateTime time,int capturedGeneration) { Markers=markers; Time=time; Generation=capturedGeneration; }
+            // A stale capture keeps only the live markers, stamped now, so they still draw.
+            internal View With(Marker[] extra,NativeLead.View lead,bool stale) =>
+                new View(stale ? extra : Markers.Concat(extra).ToArray(),stale ? DateTime.UtcNow:Time,Generation) {Mode=Mode,Reveal=Reveal,Lead=lead};
+        }
+        // The native HUD stops capturing markers in third person; older captures are not drawn.
+        private const double MaxCaptureAge=1;
+
+        // Added on the main thread each frame, so WeaponCore is never read from the parallel HUD draw.
+        private static readonly List<Marker> weaponCore=new List<Marker>();
+        internal static View WithWeaponCore(View native)
+        {
+            if(native==null || !WeaponCoreBridge.ApiReady) return native;
+            weaponCore.Clear();
+            WeaponCoreMarkers.Add(weaponCore);
+            bool stale=(DateTime.UtcNow-native.Time).TotalSeconds>MaxCaptureAge;
+            var lead=(stale ? null:native.Lead) ?? WeaponCoreMarkers.Lead();
+            if(weaponCore.Count==0 && lead==native.Lead) return native;
+            return native.With(weaponCore.ToArray(),lead,stale);
         }
         private static readonly FieldInfo points = AccessTools.Field(typeof(MyHudMarkerRender), "m_pointsOfInterest");
         private static readonly Type point = AccessTools.Inner(typeof(MyHudMarkerRender), "PointOfInterest");
@@ -290,6 +313,12 @@ namespace SpaceEngineersVR.Player
             foreach(var window in windows) layout=WristSignals.OutsideWindow(layout,window,head);
         }
 
+        // Within the signal limits, which both eyes see.
+        private static bool InSharedView(Vector3D world)
+        {
+            var local=Vector3D.Transform(world,MatrixD.Invert(signalHead));
+            return local.Z<-.05 && Math.Abs(local.X/local.Z)<renderOptions.LimitX && Math.Abs(local.Y/local.Z)<renderOptions.LimitY;
+        }
         public static void Draw(Texture2D target, MatrixD view, MatrixD projection)
         {
             var current=renderSnapshot;
@@ -299,10 +328,12 @@ namespace SpaceEngineersVR.Player
                 NativeSprites.Fade(target,HelmetHud.HudAlpha);
                 if(ShipCrosshair.Enabled(Common.Config,HelmetHud.Visible)) ShipCrosshair.Draw(target,renderCrosshair,renderHead,view,projection,Common.Config.FaceMarkersTowardViewer);
                 if(HelmetHud.Visible) { DamageMarkers.Draw(target,renderHead,view,projection); if(Common.Config.ShowHitMarkers) RemoteCombat.DrawImpact(target,renderHead,view,projection); }
-                if(current!=null && (DateTime.UtcNow-current.Time).TotalSeconds<=1 && markersVisible)
+                if(current!=null && (DateTime.UtcNow-current.Time).TotalSeconds<=MaxCaptureAge && markersVisible)
                 {
                     SignalPainter.Draw(target,layout,signalHead,view,projection,Common.Config.FaceMarkersTowardViewer,signalUp);
-                    if(Common.Config.SignalRings) NativeLead.Draw(target,current.Lead,view,projection,signalUp,Common.Config.FaceMarkersTowardViewer);
+                    var lead=current.Lead;
+                    if(lead!=null && lead.Binocular && !(InSharedView(lead.Position) && InSharedView(lead.Target))) lead=null;
+                    if(Common.Config.SignalRings) NativeLead.Draw(target,lead,view,projection,signalUp,Common.Config.FaceMarkersTowardViewer);
                 }
             }
             catch (Exception ex) { recovery.Fail(ex,"VR marker drawing disabled"); }

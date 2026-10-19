@@ -22,6 +22,9 @@ namespace SpaceEngineersVR.Player.Components
         private bool hadControllerMovement;
         private bool wasShooting;
         private bool wasSecondary;
+        // A vanilla secondary shot in progress; tracked apart from the press, which also drives targeting.
+        private bool secondaryShooting;
+        private bool lockChordWas;
         private readonly Control.InputGate stickSecondary=new Control.InputGate();
         private readonly Control.GripTap secondaryTap=new Control.GripTap();
         private readonly Control.TurnInput turnInput=new Control.TurnInput();
@@ -162,15 +165,15 @@ namespace SpaceEngineersVR.Player.Components
                 controlled?.MoveAndRotateStopped();
             }
             StopTools(controlled);
-            hadControllerMovement = wasShooting = wasSecondary = virtualStickHeld = false;
+            hadControllerMovement = wasShooting = wasSecondary = secondaryShooting = lockChordWas = virtualStickHeld = false;
             inputOwner = null;
         }
 
         private void StopTools(Sandbox.Game.Entities.IMyControllableEntity controlled)
         {
             if(wasShooting) controlled?.EndShoot(MyShootActionEnum.PrimaryAction);
-            if(wasSecondary && !RemoteView.IsTurret(controlled)) controlled?.EndShoot(MyShootActionEnum.SecondaryAction);
-            wasShooting=wasSecondary=false;
+            if(secondaryShooting) controlled?.EndShoot(MyShootActionEnum.SecondaryAction);
+            wasShooting=wasSecondary=secondaryShooting=false;
             stickSecondary.Block();
             secondaryTap.Update(false,false,true,System.DateTime.UtcNow);
         }
@@ -211,7 +214,8 @@ namespace SpaceEngineersVR.Player.Components
             else virtualStickHeld = false;
 
             CockpitControls.ApplyFlight(RotationSpeed,ref move,ref rotate,ref roll);
-            bool gas=!ThirdPersonView.Manipulating && PrimaryPressed && SeatTuning.RightTrigger==RightTrigger.Forward;
+            // With nothing selected the trigger is the throttle, except on WeaponCore grids, where it fires without a selection.
+            bool gas=!ThirdPersonView.Manipulating && PrimaryPressed && SeatTuning.RightTrigger==RightTrigger.Forward && TargetLock.ShooterGrid()==null;
             if(CockpitControls.VehicleFlight)
             {
                 if(gas && ship.Toolbar?.SelectedItem==null)
@@ -317,6 +321,7 @@ namespace SpaceEngineersVR.Player.Components
                 CockpitControls.SticksAvailable,CockpitControls.AnyHeld);
         // Grip + trigger is ship secondary, as with tools on foot. A held physical stick owns the grip.
         private static bool ShipChord => Controls.Static.Fire.IsPressed && Controls.Static.ActionGripClick.IsPressed && !CockpitControls.Held(Handedness.ActionHand);
+        internal static bool PrimaryFire => PrimaryPressed && !TriggerArm.AnyArmed && !(MySession.Static?.ControlledEntity is MyShipController && ShipChord);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void ControlCommonFunctions()
@@ -330,7 +335,7 @@ namespace SpaceEngineersVR.Player.Components
                 !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Player.HandL) && !FloatingWindows.OwnsInput && Player.HandL.pose.isTracked;
             stickSecondary.Update(stickAction && controls.LeftTriggerPressure.Active && controls.LeftTriggerPressure.CanPress,
                 controls.LeftTriggerPressure.RawPosition.X>.55f);
-            bool primaryPressed=PrimaryPressed;
+            bool primaryPressed=PrimaryPressed && !TriggerArm.AnyArmed;
             bool ship=controlledEntity is MyShipController;
             var action=Handedness.ActionHand;
             var grip=controls.ActionGripClick;
@@ -339,20 +344,36 @@ namespace SpaceEngineersVR.Player.Components
             bool uiOwnsAction=SpatialUi.Owns(action) || CockpitTouch.Owns(action) || HandInteraction.Consumes(action) || FloatingWindows.OwnsInput || TouchScreenBridge.OwnsInput || ArthurLcdBridge.Owns(action);
             bool chord=ship && ShipChord && !uiOwnsAction;
             if(chord) primaryPressed=false;
+            // On WeaponCore grids grip + trigger aims a lock with a pointer and its release locks.
+            bool lockChord=chord && TargetLock.ShooterGrid()!=null;
             bool gripTap=secondaryTap.Update((ship || turret) && grip.IsPressed,(ship || turret) && grip.HasReleased,!gripSecondary || uiOwnsAction || chord,System.DateTime.UtcNow);
-            bool secondaryPressed=!HelmetHud.ProtectsFire && (!turret || ShipTargeting.CanLock(controlledEntity)) && !FloatingWindows.OwnsInput && !BlockInspection.ConsumesSecondary && (stickSecondary.Held || chord || (ship || turret ? gripTap && gripSecondary:grip.IsPressed && gripSecondary) || controls.Fire.IsPressed && GameActions.AlternateTrigger) && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(action);
+            bool secondaryAllowed=!HelmetHud.ProtectsFire && (!turret || ShipTargeting.CanLock(controlledEntity)) && !FloatingWindows.OwnsInput && !BlockInspection.ConsumesSecondary &&
+                !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(action);
+            bool secondaryPressed=secondaryAllowed && (stickSecondary.Held || chord && !lockChord || (ship || turret ? gripTap && gripSecondary:grip.IsPressed && gripSecondary) || controls.Fire.IsPressed && GameActions.AlternateTrigger);
+            TargetLock.Aim(lockChord && secondaryAllowed);
+            if(lockChordWas && !lockChord)
+            {
+                if(secondaryAllowed) TargetLock.OnLockPress(false);
+                // The trigger may outlast the grip; the release must not become a shot.
+                controls.Fire.BlockUntilRelease();
+            }
+            lockChordWas=lockChord;
             if(controlledEntity is Sandbox.Game.Entities.Character.MyCharacter character && character.CurrentWeapon==null)
                 secondaryPressed=false;
 
             if(WeaponHandling.ToolEquipped)
             {
-                bool trigger=controls.Fire.IsPressed && !HelmetHud.ProtectsFire && !uiOwnsAction && !PlacementControls.OwnsTools;
+                bool trigger=controls.Fire.IsPressed && !HelmetHud.ProtectsFire && !uiOwnsAction && !PlacementControls.OwnsTools && !TriggerArm.AnyArmed;
                 primaryPressed=trigger && !WeaponHandling.ToolModifier;
                 secondaryPressed=trigger && WeaponHandling.ToolModifier;
             }
+            // The shoot calls bypass the control blacklist, so a blocked fire control must not start the vanilla weapon.
+            if(NativeActions.Blocked(Sandbox.Game.MyControlsSpace.PRIMARY_TOOL_ACTION)) primaryPressed=false;
+            bool secondaryShoot=secondaryPressed && !turret && !NativeActions.Blocked(Sandbox.Game.MyControlsSpace.SECONDARY_TOOL_ACTION);
             // Release the previous action before starting the other half of a tool chord.
             if(!primaryPressed && wasShooting) { controlledEntity?.EndShoot(MyShootActionEnum.PrimaryAction); DoubleTap(MyShootActionEnum.PrimaryAction,false,false); }
-            if(!secondaryPressed && wasSecondary && !turret) { controlledEntity?.EndShoot(MyShootActionEnum.SecondaryAction); DoubleTap(MyShootActionEnum.SecondaryAction,false,false); }
+            if(!secondaryShoot && secondaryShooting) { controlledEntity?.EndShoot(MyShootActionEnum.SecondaryAction); secondaryShooting=false; }
+            if(!secondaryPressed && wasSecondary && !turret) DoubleTap(MyShootActionEnum.SecondaryAction,false,false);
             bool onFoot=controlledEntity is Sandbox.Game.Entities.Character.MyCharacter;
             if (primaryPressed && !wasShooting)
             {
@@ -361,13 +382,11 @@ namespace SpaceEngineersVR.Player.Components
                 if(controlledEntity is Sandbox.Game.Entities.Character.MyCharacter walker && walker.CurrentWeapon==null) ModApi.Use(HandInteraction.UseHand);
                 controlledEntity?.BeginShoot(MyShootActionEnum.PrimaryAction);
             }
-
-            if (secondaryPressed && !wasSecondary)
-            {
-                DoubleTap(MyShootActionEnum.SecondaryAction,true,onFoot);
-                if(!turret) controlledEntity?.BeginShoot(MyShootActionEnum.SecondaryAction);
-                ShipTargeting.SecondaryPressed(controlledEntity);
-            }
+            // BeginShoot reads the double-click flag, so it is set first.
+            if(secondaryPressed && !wasSecondary) DoubleTap(MyShootActionEnum.SecondaryAction,true,onFoot);
+            if(secondaryShoot && !secondaryShooting) { controlledEntity?.BeginShoot(MyShootActionEnum.SecondaryAction); secondaryShooting=true; }
+            // Lock-on follows the press even when the fire control is blocked.
+            if(secondaryPressed && !wasSecondary) ShipTargeting.SecondaryPressed(controlledEntity,stickSecondary.Held || CockpitControls.Held(action));
 
             bool primaryHeld=primaryPressed && wasShooting;
             wasShooting = primaryPressed;

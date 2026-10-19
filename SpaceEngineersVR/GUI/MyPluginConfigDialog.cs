@@ -77,6 +77,7 @@ namespace SpaceEngineersVR.GUI
                     Link(-.075f,"Release glide",()=>new SettingsPage("Release glide"));
                     Link(.02f,"Turret aim & camera zoom",()=>new SettingsPage("Turrets and cameras"));
                     Toggle(.115f,"Keep floating screens where left",c.KeepScreenPlacement,v=>c.KeepScreenPlacement=v);
+                    if(Player.WeaponCoreBridge.ApiReady || Player.ShieldsBridge.Ready) Link(.21f,"Weapon & shield warnings",()=>new SettingsPage("Weapon & shield warnings"));
                     break;
                 case 3:
                     c.InitializeHudProfiles();

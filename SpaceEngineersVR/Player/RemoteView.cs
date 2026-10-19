@@ -27,6 +27,8 @@ namespace SpaceEngineersVR.Player
             public int Ammo=-1,Capacity;
             public long Source;
             public Vector3D? RayStart,RayEnd;
+            // The WeaponCore target a grip release would lock, projected onto the image when drawn.
+            public BoundingSphereD? Pointed;
             public bool LeftHand;
             public uint Character=uint.MaxValue;
             public string[] FirstPersonMaterials;
@@ -78,6 +80,9 @@ namespace SpaceEngineersVR.Player
         public static bool Active => owner!=null;
         public static bool RemoteGrid => MySession.Static?.ControlledEntity is MyRemoteControl;
         public static bool OwnsInput { get; private set; }
+        // Where the pointing hand's ray meets the feed image (0..1, top-left origin); null when off the image or on the frame.
+        internal static Vector2? ImageUV { get; private set; }
+        internal static Controller PointerHand => Hand;
         public static bool Turret => IsTurret(MySession.Static?.ControlledEntity);
         internal static bool IsTurret(object entity) => entity is MyLargeTurretBase || entity is MyTurretControlBlock;
         public static MyCockpit HomeSeat => Active ? seat : null;
@@ -205,7 +210,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Update()
         {
-            OwnsInput=false; rayStart=rayEnd=null;
+            OwnsInput=false; rayStart=rayEnd=null; ImageUV=null;
             if(Current==null) { interaction.Reset(); return; }
             if(recenter) { Place(); Save(); }
             var now=DateTime.UtcNow; float seconds=(float)Math.Min(.05,Math.Max(0,(now-last).TotalSeconds)); last=now;
@@ -226,6 +231,11 @@ namespace SpaceEngineersVR.Player
             }
             interaction.Update(hand,(Matrix)aim,seconds,ExtraHit,Reachable);
             int hover=interaction.Hover;
+            if(interaction.Hit && hover==0 && !interaction.Active)
+            {
+                var point=interaction.Point;
+                if(Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2) ImageUV=window.UV(point);
+            }
             OwnsInput=interaction.Active || interaction.Released;
             if(interaction.Changed) placementDirty=true;
             if(interaction.Released) Save();
@@ -260,9 +270,12 @@ namespace SpaceEngineersVR.Player
             if(!Active || source==null) { Current=null; return; }
             RemoteCombat.ReadAmmo(source as MyLargeTurretBase,out int ammo,out int capacity);
             var character=MySession.Static?.LocalCharacter;
+            long feed=(source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0;
+            var pointed=TargetLock.Preview;
+            BoundingSphereD? pointedSphere=pointed!=null && !pointed.Closed ? pointed.PositionComp.WorldVolume : (BoundingSphereD?)null;
             Current=new View { Pose=(MatrixD)window.Pose,Width=window.Width,Height=window.Height,Hover=hover<0 ? window.Drag!=0 ? window.Drag:lastHover : hover,
-                SignalMode=ReadSignalMode(),Ammo=ammo,Capacity=capacity,
-                RayStart=rayStart,RayEnd=rayEnd,LeftHand=left,Source=(source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0,
+                SignalMode=ReadSignalMode(),Ammo=ammo,Capacity=capacity,Pointed=pointedSphere,
+                RayStart=rayStart,RayEnd=rayEnd,LeftHand=left,Source=feed,
                 Character=character?.Render.GetRenderObjectID() ?? uint.MaxValue,FirstPersonMaterials=FirstPersonMaterials(character?.Definition) };
         }
         private static Sandbox.Definitions.MyCharacterDefinition materialsDefinition;

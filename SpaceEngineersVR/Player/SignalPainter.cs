@@ -39,6 +39,7 @@ namespace SpaceEngineersVR.Player
         internal static void Icon(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,WorldMarkers.Marker m,bool box=true,float alpha=1)
         {
             if(m.Kind=="OffscreenTarget") return;
+            if(m.Symbol!=null) { Lines(output,board,view,projection,m); return; }
             if(m.Kind=="Target") { Project(output,Atlas(MyHudTexturesEnum.TargetTurret,Vector4.One),board,new RectangleF(-.5f,-.5f,1,1),view,projection); return; }
             if(box && m.Kind!="Objective") Project(output,Atlas(MyHudTexturesEnum.Target_neutral,m.Color),board,new RectangleF(-.5f,-.5f,1,1),view,projection);
             if(m.Kind=="ContractGPS" || m.Kind=="ButtonMarker") return;
@@ -47,6 +48,62 @@ namespace SpaceEngineersVR.Player
             float scale=m.Kind=="Ore" || m.Kind=="Hack" ? .8f:.625f;
             Project(output,icon,board,new RectangleF(-scale/2,-scale/2,scale,scale),view,projection);
         }
+        // Constant in icon units, so a larger Span frames the target instead of thickening the lines.
+        private const float LineWidth=.05f;
+        private const string Blank=@"Textures\GUI\Blank.dds";
+        private static void Lines(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,WorldMarkers.Marker m)
+        {
+            float half=m.Span/2;
+            if(m.Symbol=="cross")
+            {
+                float gap=half*.35f;
+                Line(output,board,view,projection,m.Color,-half,0,-gap,0); Line(output,board,view,projection,m.Color,gap,0,half,0);
+                Line(output,board,view,projection,m.Color,0,-half,0,-gap); Line(output,board,view,projection,m.Color,0,gap,0,half);
+                return;
+            }
+            foreach(var (from,to) in Brackets(Vector2.Zero,new Vector2(half),Math.Min(half*.45f,.6f)))
+                Line(output,board,view,projection,m.Color,from.X,from.Y,to.X,to.Y);
+        }
+        internal static IEnumerable<(Vector2 from,Vector2 to)> Brackets(Vector2 centre,Vector2 half,float arm)
+        {
+            for(int corner=0;corner<4;corner++)
+            {
+                float sx=corner%2==0 ? -1:1,sy=corner<2 ? -1:1;
+                var point=centre+new Vector2(sx*half.X,sy*half.Y);
+                yield return (point,point-new Vector2(sx*arm,0));
+                yield return (point,point-new Vector2(0,sy*arm));
+            }
+        }
+        private static void Line(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,Vector4 color,float x0,float y0,float x1,float y1)
+        {
+            const float w=LineWidth/2;
+            Project(output,new NativeSprite(Blank,default(RectangleF),color),board,
+                new RectangleF(Math.Min(x0,x1)-w,Math.Min(y0,y1)-w,Math.Abs(x1-x0)+2*w,Math.Abs(y1-y0)+2*w),view,projection);
+        }
+        // Chevron pointing along direction (screen space, y down), drawn over everything like the HUD.
+        private static void Arrow(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,Vector4 color,Vector2 direction)
+        {
+            var tip=direction*.55f;
+            Bar(output,board,tip,tip-Rotate(direction,.6f)*.7f,.09f,color,view,projection);
+            Bar(output,board,tip,tip-Rotate(direction,-.6f)*.7f,.09f,color,view,projection);
+        }
+        private static Vector2 Rotate(Vector2 value,float angle)
+        {
+            float cos=(float)Math.Cos(angle),sin=(float)Math.Sin(angle);
+            return new Vector2(value.X*cos-value.Y*sin,value.X*sin+value.Y*cos);
+        }
+        private static void Bar(List<NativeSprite> output,MarkerBillboard board,Vector2 from,Vector2 to,float width,Vector4 color,MatrixD view,MatrixD projection)
+        {
+            var along=to-from;
+            if(along.LengthSquared()<1e-8f) return;
+            var normal=Vector2.Normalize(new Vector2(-along.Y,along.X))*width/2;
+            MatrixD transform=view*projection;
+            output.Add(new NativeSprite(Blank,default(RectangleF),color.ToLinearRGB()) {Projected=true,Premultiplied=true,IgnoreSceneDepth=true,
+                TopLeft=Clip(board,from-normal,transform),TopRight=Clip(board,to-normal,transform),
+                BottomLeft=Clip(board,from+normal,transform),BottomRight=Clip(board,to+normal,transform)});
+        }
+        private static Vector4 Clip(MarkerBillboard board,Vector2 point,MatrixD transform) =>
+            (Vector4)Vector4D.Transform(new Vector4D(board.Point(point.X,point.Y),1),transform);
         internal static void GroupIcon(List<NativeSprite> output,MarkerBillboard board,MatrixD view,MatrixD projection,WorldMarkers.Marker[] values,Vector4 color,float expansion=0,float compactShift=0,WorldMarkers.Marker[] representatives=null)
         {
             Project(output,Atlas(MyHudTexturesEnum.Target_neutral,color),board,new RectangleF(-.5f,-.5f,1,1),view,projection);
@@ -99,7 +156,8 @@ namespace SpaceEngineersVR.Player
                 board.Scale*=e.Primary.Kind=="Objective" ? 1.1:.55;
                 if(e.Ring) e.Primary.Ring?.AddNative(sprites,e.Position,view,projection,target.Description.Width,facingUp,faceViewer);
                 board.Scale*=e.IconScale;
-                if(e.Members.Length==1) Icon(sprites,board,view,projection,e.Primary,alpha:e.SymbolAlpha);
+                if(e.Arrow!=Vector2.Zero) Arrow(sprites,board,view,projection,e.Primary.Color,e.Arrow);
+                else if(e.Members.Length==1) Icon(sprites,board,view,projection,e.Primary,alpha:e.SymbolAlpha);
                 else
                 {
                     GroupIcon(sprites,board,view,projection,e.Members,e.Color,e.Expansion,e.CompactShift,e.Representatives);

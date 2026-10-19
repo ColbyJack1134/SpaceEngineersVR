@@ -39,11 +39,12 @@ namespace SpaceEngineersVR.Player
         {
             // HUD draw follows camera enqueue. Finalize before AfterUpdate publishes the native batch.
             // Camera-only updates do not mean the native HUD removed its markers.
+            var markers=pending.Count>0 ? WorldMarkers.WithWeaponCore(latestMarkers) : null;
             foreach(var packet in pending)
             {
-                packet.Markers=latestMarkers;
+                packet.Markers=markers;
                 packet.Surfaces=surfaces;
-                packet.Selection=GridSelection.Feedback;
+                packet.Selection=GridSelection.Feedback ?? TargetLock.Feedback;
                 packet.Holo=HoloSight.Capture();
                 packet.Planets=PlacementControls.ClipboardActive ? PlanetPreview.Current:null;
                 packet.Symmetry=SymmetryPlanes.Current.Length>0 && Sandbox.Game.Entities.MyCubeBuilder.Static?.IsActivated==true ? SymmetryPlanes.Current:null;

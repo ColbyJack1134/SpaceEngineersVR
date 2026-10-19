@@ -18,13 +18,19 @@ namespace SpaceEngineersVR.Player
         internal static void OpenHud() { Show(0); HudOpen=true; WristHud.Open(); }
         internal static readonly ActionChoice HudAction=new ActionChoice("HUD",OpenHud);
         internal static bool ChatOpen { get; private set; }
+        internal const int CombatTab=4;
+        // WeaponCore and Defense Shields share one tab that opens on Weapons.
+        internal static bool CombatAvailable => WeaponCoreBridge.ApiReady || ShieldsBridge.Ready;
+        private static bool shieldsView;
+        internal static bool ShieldsOpen => tab==CombatTab && ShieldsBridge.Ready && (shieldsView || !WeaponCoreBridge.ApiReady);
+        internal static void SwitchCombatView() => shieldsView=!ShieldsOpen;
         internal static void OpenChat() { Show(0); ChatOpen=true; SpatialUi.Expand(); }
         internal static bool DesktopOpen { get; private set; }
         internal static void OpenDesktop() { StopEditing(); HudOpen=SeatOpen=ChatOpen=false; DesktopOpen=true; SpatialUi.Expand(); }
-        public static void Reset() { StopEditing(); tab=page=category=0; HudOpen=SeatOpen=DesktopOpen=ChatOpen=false; query=""; WristSignals.Reset(); WristChat.Reset(); }
+        public static void Reset() { StopEditing(); tab=page=category=0; HudOpen=SeatOpen=DesktopOpen=ChatOpen=shieldsView=false; query=""; WristSignals.Reset(); WristChat.Reset(); }
         internal static bool Inspecting => tab==3;
         public static void StopEditing() { if(editing || ChatOpen && MenuKeyboard.Standalone) MenuKeyboard.Close(); editing=false; }
-        internal static void Show(int selected) { StopEditing(); HudOpen=SeatOpen=DesktopOpen=ChatOpen=false; tab=selected; }
+        internal static void Show(int selected) { StopEditing(); HudOpen=SeatOpen=DesktopOpen=ChatOpen=shieldsView=false; tab=selected; }
         internal static void SetQuery(string text) { query=text; page=0; }
         internal static void Edit()
         {
@@ -34,14 +40,16 @@ namespace SpaceEngineersVR.Player
         }
         public static SurfaceKey[] Keys(MyToolbar toolbar,bool building,bool seated,bool thirdPerson,bool jetpack,EssentialHud.View status,bool? previewToolbar=null)
         {
-            int selected=previewToolbar.HasValue ? (previewToolbar.Value ? 1 : 0) : tab;
+            int selected=previewToolbar.HasValue ? (previewToolbar.Value ? 1 : 0) : tab==CombatTab && !CombatAvailable ? 0 : tab;
             if(DesktopOpen && !previewToolbar.HasValue) return DesktopKeys(SpatialUi.DesktopRevealed,DesktopCapture.DisplayedNumber);
             bool showToolbar=selected==1;
             var keys=new List<SurfaceKey>();
             var tabs=new[] {
                 new ActionChoice("Quick",()=>Show(0)),new ActionChoice("Toolbar",()=>Show(1)),
                 new ActionChoice("Search",()=>Show(2)),new ActionChoice("Navigation",()=>Show(3)) };
-            for(int i=0;i<tabs.Length;i++) keys.Add(new SurfaceKey(tabs[i].Label,.02f+i*.243f,.025f,.231f,.1f) {
+            if(CombatAvailable) tabs=tabs.Concat(new[] {new ActionChoice("Combat",()=>Show(CombatTab))}).ToArray();
+            float tabPitch=.972f/tabs.Length;
+            for(int i=0;i<tabs.Length;i++) keys.Add(new SurfaceKey(tabs[i].Label,.02f+i*tabPitch,.025f,tabPitch-.012f,.1f) {
                 Action=tabs[i],Active=i==selected });
             if(selected==0 && SeatOpen && !previewToolbar.HasValue)
             {
@@ -51,6 +59,7 @@ namespace SpaceEngineersVR.Player
             else if(selected==3) { WristSignals.Keys(keys); return keys.ToArray(); }
             else if(selected==0 && HudOpen && !previewToolbar.HasValue) WristHud.Keys(keys);
             else if(selected==0 && ChatOpen && !previewToolbar.HasValue) WristChat.Keys(keys);
+            else if(selected==CombatTab) { if(ShieldsOpen) ShieldsPanel.Keys(keys); else WeaponCoreStatus.Keys(keys); }
             else if(selected==2) SearchKeys(keys);
             else if(showToolbar)
             {
@@ -80,9 +89,17 @@ namespace SpaceEngineersVR.Player
                     seated ? GameActions.PowerAction:GameActions.JetpackAction,GameActions.Dampeners,
                     seated ? GameActions.RelativeDampeners:GameActions.DetachBootsAction,GameActions.BroadcastAction,
                     GameActions.Quick.First(a=>a.Label=="Chat"),GameActions.Quick.First(a=>a.Label=="Hotkey keyboard")};
+                // A WeaponCore hand weapon reloads and cycles ammo from its raw key, so its Reload tile splits in two.
+                bool cycleAmmo=!seated && Patches.WeaponCoreReload.Ready;
                 for(int i=0;i<actions.Length;i++)
-                    keys.Add(new SurfaceKey(actions[i].Label=="Hotkey keyboard" ? "Hotkeys":actions[i].Label,.02f+i%4*.245f,.16f+i/4*.22f,.23f,.20f) {
-                        Action=actions[i],Icons=new[] {actions[i].Icon},Enabled=actions[i].Enabled,Active=Active(actions[i],status) });
+                {
+                    float x=.02f+i%4*.245f,y=.16f+i/4*.22f;
+                    var tile=cycleAmmo && actions[i]==GameActions.Quick[3] ? new[] {GameActions.CycleAmmoAction,actions[i]} : new[] {actions[i]};
+                    float width=(.23f-(tile.Length-1)*.01f)/tile.Length;
+                    for(int j=0;j<tile.Length;j++)
+                        keys.Add(new SurfaceKey(tile[j].Label=="Hotkey keyboard" ? "Hotkeys":tile[j]==GameActions.CycleAmmoAction ? "Ammo":tile[j].Label,x+j*(width+.01f),y,width,.20f) {
+                            Action=tile[j],Icons=new[] {tile[j].Icon},Enabled=tile[j].Enabled,Active=Active(tile[j],status) });
+                }
                 var utilities=new[] {GameActions.BuffsAction,HudAction,GameActions.PauseAction,GameActions.DoNotDisturb,GameActions.Quick[10]};
                 var names=new[] {"Buffs","HUD","Pause","DnD","Help"};
                 for(int i=0;i<utilities.Length;i++)
@@ -110,7 +127,7 @@ namespace SpaceEngineersVR.Player
         {
             if(value==0) return true;
             if(value==1) return action==GameActions.JetpackAction || action==GameActions.HelmetAction || action==GameActions.LightsAction || action==GameActions.BroadcastAction ||
-                action==GameActions.DetachBootsAction || action==GameActions.Dampeners || action==GameActions.RelativeDampeners || action==GameActions.Quick[3] || action==GameActions.InventoryAction;
+                action==GameActions.DetachBootsAction || action==GameActions.Dampeners || action==GameActions.RelativeDampeners || action==GameActions.Quick[3] || action==GameActions.CycleAmmoAction || action==GameActions.InventoryAction;
             if(value==2) return action==GameActions.PowerAction || action==GameActions.ParkAction || action==GameActions.Dampeners || action==GameActions.RelativeDampeners ||
                 action==GameActions.TerminalAction || action==GameActions.BroadcastAction || action==GameActions.CockpitBuild || action==GameActions.ExitFeed || action==GameActions.ResetFeed || action.Label.StartsWith("Toolbar ");
             if(value==3) return GameActions.Building.Contains(action) || action==GameActions.BlueprintsAction || action==GameActions.CockpitBuild;

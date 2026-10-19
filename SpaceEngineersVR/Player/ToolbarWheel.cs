@@ -198,7 +198,12 @@ namespace SpaceEngineersVR.Player
                     groups.AddRange(ToolGroups(voxel?.Title ?? "Building",quickChoices,voxel!=null ? voxel.Materials() : new[] {new Group("Variants",BlockVariants.Choices(),true)},
                         Contextual(GameActions.WheelActions(false,false,ThirdPersonView.Active,jetpack)),aimed));
                 }
-                else groups.AddRange(new[] {aimed,new Group(symmetry ? "Symmetry setup":"Quick actions",Contextual(quickChoices))});
+                else
+                {
+                    groups.AddRange(new[] {aimed,new Group(symmetry ? "Symmetry setup":"Quick actions",Contextual(quickChoices))});
+                    var weaponCore=symmetry ? Array.Empty<ActionChoice>() : GameActions.WeaponCoreWheelActions();
+                    if(weaponCore.Length>0) groups.Add(new Group("WeaponCore",weaponCore));
+                }
                 var recent=ActionCatalog.Recent();
                 if(MySession.Static.ControlledEntity is Sandbox.Game.Entities.MyShipController)
                     recent=recent.Where(action=>action!=GameActions.SymmetryAction && action!=GameActions.SymmetrySetupAction).ToArray();

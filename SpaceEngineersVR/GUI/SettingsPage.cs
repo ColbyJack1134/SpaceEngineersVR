@@ -93,6 +93,16 @@ namespace SpaceEngineersVR.GUI
                     Toggle(.23f,"Ore and hacking",c.ShowResources,v=>c.ShowResources=v);
                     Controls.Add(new MyGuiControlButton(new Vector2(-.18f,.34f),text:new StringBuilder("Ranges"),onButtonClick:b=>MyGuiSandbox.AddScreen(new SettingsPage("Signal ranges"))));
                     break;
+                case "Weapon & shield warnings":
+                    Toggle(-.23f,"Warning pulse",c.WarningPulse,v=>c.WarningPulse=v);
+                    Label(-.12f,"Repeat pulse every");
+                    var interval=new MyGuiControlSlider(new Vector2(-.035f,-.07f),minValue:0,maxValue:Config.PluginConfig.MaxWarningPulseInterval,width:.53f,
+                        defaultValue:Config.PluginConfig.DefaultWarningPulseInterval,labelText:"{0} s",labelDecimalPlaces:1,labelSpaceWidth:.08f,showLabel:true) { Value=c.WarningPulseInterval };
+                    interval.ValueChanged+=v=>c.WarningPulseInterval=v.Value;
+                    Controls.Add(interval);
+                    Label(.06f,"0 s: pulse only when a warning starts.",.6f);
+                    Reset(()=> { c.WarningPulse=true; c.WarningPulseInterval=Config.PluginConfig.DefaultWarningPulseInterval; });
+                    break;
                 case "HUD visibility":
                     Toggle(-.23f,"Show HUD with visor open",c.HudWithVisorOpen,v=>c.HudWithVisorOpen=v);
                     Toggle(-.12f,"Ship crosshair",c.ShipCrosshair,v=>c.ShipCrosshair=v);

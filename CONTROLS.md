@@ -10,6 +10,7 @@ Read Common Controls once, then find your state.
 - [3rd Person](#view)
 - [Floating Menus](#menus)
 - [Other](#other)
+- [WeaponCore](#weaponcore)
 
 <a name="start"></a>
 ## Common Controls
@@ -94,5 +95,21 @@ Read Common Controls once, then find your state.
 - **Desktop Mirror:** Search Desktop floating or Desktop wrist to view your monitor in VR.
 
 Nearly everything in the game should be accessible through VR controls, menus or Hotkeys. Feel free to open a Github issue if you find something that is not.
+
+<a name="weaponcore"></a>
+## WeaponCore
+
+Shown in game while the WeaponCore mod is loaded.
+
+![WeaponCore](SpaceEngineersVR/Assets/Guide/weaponcore.png)
+
+
+![While Gripping a Joystick](SpaceEngineersVR/Assets/Guide/weaponcore-joystick.png)
+
+
+![Combat Tab](SpaceEngineersVR/Assets/Guide/weaponcore-combat.png)
+
+
+![Hand Weapons](SpaceEngineersVR/Assets/Guide/weaponcore-hand.png)
 
 Controller art: [WebXR Input Profiles](https://github.com/immersive-web/webxr-input-profiles/tree/main/packages/assets/profiles/meta-quest-touch-plus), [MIT license](SpaceEngineersVR/Assets/Guide/NOTICE.txt).
