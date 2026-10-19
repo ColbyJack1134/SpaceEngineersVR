@@ -53,8 +53,9 @@ namespace SpaceEngineersVR.Player
         internal static bool TryCentre(long source,out Vector3D origin,out Vector3D direction) =>
             TryRay(source,new Vector2(.5f,.5f),out origin,out direction);
 
-        // The reverse of TryRay for a sphere: its centre on the image (uv) and half extents (uv), at least a small square;
-        // false when the centre is behind the camera or off the image.
+        // The reverse of TryRay for a sphere: its box on the image as centre and half extents (uv), at least a small square and
+        // clipped to the image, so a target partly in view still gets one; false when the centre is behind the camera or the box
+        // misses the image. Drawn on the render thread, the snapshot is the camera of the image on show.
         internal static bool TryProject(long source,Vector3D centre,double radius,out Vector4 rect)
         {
             rect=Vector4.Zero;
@@ -63,9 +64,10 @@ namespace SpaceEngineersVR.Player
             var view=Vector3D.TransformNormal(centre-snapshot.Position,MatrixD.Transpose(snapshot.Rotation));
             if(view.Z>-.1) return false;
             double depth=-view.Z,ndcX=view.X/depth/snapshot.TanX,ndcY=view.Y/depth/snapshot.TanY;
-            if(Math.Abs(ndcX)>1 || Math.Abs(ndcY)>1) return false;
-            double angle=Math.Max(radius/depth,.03*snapshot.TanX);
-            rect=new Vector4((float)((ndcX+1)/2),(float)((1-ndcY)/2),(float)Math.Min(.5,angle/snapshot.TanX/2),(float)Math.Min(.5,angle/snapshot.TanY/2));
+            double angle=Math.Max(radius/depth,.03*snapshot.TanX),halfX=angle/snapshot.TanX,halfY=angle/snapshot.TanY;
+            double left=Math.Max(-1,ndcX-halfX),right=Math.Min(1,ndcX+halfX),bottom=Math.Max(-1,ndcY-halfY),top=Math.Min(1,ndcY+halfY);
+            if(left>=right || bottom>=top) return false;
+            rect=new Vector4((float)((left+right)/4+.5),(float)(.5-(top+bottom)/4),(float)((right-left)/4),(float)((top-bottom)/4));
             return true;
         }
     }

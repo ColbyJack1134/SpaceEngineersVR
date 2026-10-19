@@ -27,8 +27,8 @@ namespace SpaceEngineersVR.Player
             public int Ammo=-1,Capacity;
             public long Source;
             public Vector3D? RayStart,RayEnd;
-            // The WeaponCore target a grip release would lock, on the image: centre and half extents in uv.
-            public Vector4? Pointed;
+            // The world sphere of the WeaponCore target a grip release would lock; projected onto the image when it is drawn.
+            public BoundingSphereD? Pointed;
             public bool LeftHand;
             public uint Character=uint.MaxValue;
             public string[] FirstPersonMaterials;
@@ -264,11 +264,9 @@ namespace SpaceEngineersVR.Player
             long feed=(source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0;
             // WeaponCore's own HUD on the image does not follow the VR pointer, so the target an aimed release would lock is marked.
             var pointed=TargetLock.Preview;
-            Vector4? pointedRect=null;
-            if(pointed!=null && !pointed.Closed && FeedCamera.TryProject(feed,pointed.PositionComp.WorldVolume.Center,pointed.PositionComp.WorldVolume.Radius,out var rect))
-                pointedRect=rect;
+            BoundingSphereD? pointedSphere=pointed!=null && !pointed.Closed ? pointed.PositionComp.WorldVolume : (BoundingSphereD?)null;
             Current=new View { Pose=(MatrixD)window.Pose,Width=window.Width,Height=window.Height,Hover=hover<0 ? window.Drag!=0 ? window.Drag:lastHover : hover,
-                SignalMode=ReadSignalMode(),Ammo=ammo,Capacity=capacity,Pointed=pointedRect,
+                SignalMode=ReadSignalMode(),Ammo=ammo,Capacity=capacity,Pointed=pointedSphere,
                 RayStart=rayStart,RayEnd=rayEnd,LeftHand=left,Source=feed,
                 Character=character?.Render.GetRenderObjectID() ?? uint.MaxValue,FirstPersonMaterials=FirstPersonMaterials(character?.Definition) };
         }

@@ -67,9 +67,17 @@ namespace SpaceEngineersVR.Player
         private static void AddPointed(List<NativeSprite> sprites,RemoteView.View remote,MatrixD view,MatrixD projection)
         {
             if(!remote.Pointed.HasValue) return;
-            var p=remote.Pointed.Value;
-            float cx=-remote.Width/2+p.X*remote.Width,cy=remote.Height/2-p.Y*remote.Height,hx=p.Z*remote.Width,hy=p.W*remote.Height;
-            float arm=Math.Min(hx,hy)*.45f,w=BracketWidth;
+            var sphere=remote.Pointed.Value;
+            if(!FeedCamera.TryProject(remote.Source,sphere.Center,sphere.Radius,out var p)) return;
+            float w=BracketWidth;
+            // Inset by half a bar so the brackets stay on the image at its edges.
+            float left=Math.Max(-remote.Width/2+p.X*remote.Width-p.Z*remote.Width,-remote.Width/2+w/2),
+                right=Math.Min(-remote.Width/2+p.X*remote.Width+p.Z*remote.Width,remote.Width/2-w/2),
+                bottom=Math.Max(remote.Height/2-p.Y*remote.Height-p.W*remote.Height,-remote.Height/2+w/2),
+                top=Math.Min(remote.Height/2-p.Y*remote.Height+p.W*remote.Height,remote.Height/2-w/2);
+            if(left>=right || bottom>=top) return;
+            float cx=(left+right)/2,cy=(bottom+top)/2,hx=(right-left)/2,hy=(top-bottom)/2;
+            float arm=Math.Min(hx,hy)*.45f;
             for(int corner=0;corner<4;corner++)
             {
                 float sx=corner%2==0 ? -1:1,sy=corner<2 ? 1:-1,x=cx+sx*hx,y=cy+sy*hy;
