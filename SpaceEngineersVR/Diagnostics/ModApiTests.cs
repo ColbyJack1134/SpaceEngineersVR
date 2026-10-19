@@ -56,7 +56,7 @@ namespace SpaceEngineersVR.Diagnostics
             log("PASS mod API handshake in both load orders, Use delivered once per mod after a resend, unload");
         }
 
-        private static string Resource(string name)
+        internal static string Resource(string name)
         {
             using(var stream=Assembly.GetEntryAssembly().GetManifestResourceStream(name))
             {
@@ -66,8 +66,8 @@ namespace SpaceEngineersVR.Diagnostics
         }
 
         private static bool initialized;
-        // The same references and whitelist the game uses for Workshop mods (MySpaceGameDefaultIlCompiler, MySpaceGameDefaultIlChecker).
-        private static Assembly Compile(params string[] sources)
+        // The same references and whitelists the game uses for Workshop mods and programmable blocks (MySpaceGameDefaultIlCompiler, MySpaceGameDefaultIlChecker).
+        internal static IVRageScripting Scripting()
         {
             var scripting=MyVRage.Platform.Scripting;
             if(!initialized)
@@ -77,12 +77,22 @@ namespace SpaceEngineersVR.Diagnostics
                     "SpaceEngineers.ObjectBuilders","SpaceEngineers.Game","System.Collections.Immutable","ProtoBuf.Net.Core"}.Select(name => Path.Combine(bin,name+".dll")).ToList();
                 references.Add(Assembly.Load("netstandard").Location);
                 references.AddRange(AppDomain.CurrentDomain.GetAssemblies().Where(a => a.GetName().Name=="System.Runtime" || a.GetName().Name=="System.Collections").Select(a => a.Location));
-                scripting.Initialize(Thread.CurrentThread,references,new[] {typeof(MyTuple),typeof(Vector2)},new[] {"STABLE"},null,false);
+                // The game's implicit programmable block namespaces come from these types.
+                var namespaces=new[] {typeof(MyTuple),typeof(Vector2),typeof(VRage.Game.Game),typeof(Sandbox.ModAPI.Interfaces.ITerminalAction),
+                    typeof(Sandbox.ModAPI.Ingame.IMyGridTerminalSystem),typeof(Sandbox.Game.EntityComponents.MyModelComponent),typeof(VRage.Game.Components.IMyComponentAggregate),
+                    typeof(VRage.Collections.ListReader<>),typeof(VRage.Game.ObjectBuilders.Definitions.MyObjectBuilder_FactionDefinition),typeof(VRage.Game.ModAPI.Ingame.IMyCubeBlock),
+                    typeof(VRage.Game.ModAPI.Ingame.Utilities.MyIni),Assembly.LoadFrom(Path.Combine(bin,"System.Collections.Immutable.dll")).GetType("System.Collections.Immutable.ImmutableArray",true),typeof(SpaceEngineers.Game.ModAPI.Ingame.IMyAirVent),
+                    typeof(VRage.Game.GUI.TextPanel.MySprite)};
+                scripting.Initialize(Thread.CurrentThread,references,namespaces,new[] {"STABLE"},null,false);
                 new SpaceEngineers.Game.MySpaceGameDefaultIlChecker().InitIlChecker();
                 initialized=true;
             }
+            return scripting;
+        }
+        private static Assembly Compile(params string[] sources)
+        {
             var scripts=sources.Select((code,i) => new Script("Source"+i+".cs",code)).ToArray();
-            var assembly=scripting.CompileAsync(MyApiTarget.Mod,"SEVR.ModApiClientTest",scripts,out var messages,"SEVR mod API client").Result;
+            var assembly=Scripting().CompileAsync(MyApiTarget.Mod,"SEVR.ModApiClientTest",scripts,out var messages,"SEVR mod API client").Result;
             var errors=messages.Where(m => m.IsError).ToArray();
             if(errors.Length>0 || assembly==null) throw new Exception("Mod compiler errors: "+string.Join(" | ",errors.Select(m => m.Text)));
             return assembly;

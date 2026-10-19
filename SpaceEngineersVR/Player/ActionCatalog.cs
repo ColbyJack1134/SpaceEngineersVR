@@ -77,6 +77,7 @@ namespace SpaceEngineersVR.Player
             if(SymmetrySetupControls.Active) foreach(var action in SymmetrySetupControls.Actions().Skip(1).Take(5)) yield return action;
             // Native suicide asks for confirmation and honors campaign respawn rules.
             yield return new ActionChoice("Respawn",()=>NativeActions.Pulse(Sandbox.Game.MyControlsSpace.SUICIDE),searchTerms:"suicide kill die stuck");
+            if(PbFeed.ArmsAction.Enabled) yield return PbFeed.ArmsAction;
             if(native==null) native=NativeEntries();
             foreach(var action in native) yield return action;
             var ids=new HashSet<MyStringId>();

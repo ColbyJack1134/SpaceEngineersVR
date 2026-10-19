@@ -41,8 +41,9 @@ namespace SpaceEngineersVR.Plugin
         private static object failedSession,failedCharacter,failedControl;
         private static bool fallbackSawDialog;
         private static readonly Integration touchScreens=new Integration("TouchScreenAPI",Player.TouchScreenBridge.Reset,Player.TouchScreenBridge.RefreshRegistrations,Player.TouchScreenBridge.Update,Player.TouchScreenBridge.Draw),
-            arthurLcd=new Integration("Arthur's LCD",Player.ArthurLcdBridge.Reset,Player.ArthurLcdBridge.RefreshRegistrations,Player.ArthurLcdBridge.Update,Player.ArthurLcdBridge.Draw);
-        internal static readonly Integration[] Integrations={touchScreens,arthurLcd,
+            arthurLcd=new Integration("Arthur's LCD",Player.ArthurLcdBridge.Reset,Player.ArthurLcdBridge.RefreshRegistrations,Player.ArthurLcdBridge.Update,Player.ArthurLcdBridge.Draw),
+            pbFeed=new Integration("Programmable block VR data",PbFeed.Reset,PbFeed.Refresh,PbFeed.Update);
+        internal static readonly Integration[] Integrations={touchScreens,arthurLcd,pbFeed,
             new Integration("Mod HUD",Patches.ModHud.Reset,Patches.ModHud.RefreshRegistrations),
             new Integration("Voxel tool mods",Patches.DigiTools.Reset,Patches.DigiTools.RefreshRegistrations),
             new Integration("Mod API",ModApi.Reset,ModApi.Refresh)};
@@ -392,6 +393,7 @@ namespace SpaceEngineersVR.Plugin
             Player.BootsHaptics.Update();
             if(Player.SeatFit.Eligible(Player.SeatFit.Seat))
                 Player.TrackedArms.Update(Player.SeatFit.Seat.Pilot);
+            pbFeed.Update();
             if (Player.Controls.Static.Options.HasPressed) OpenConfigDialog();
             Player.MenuPointer.Update();
 

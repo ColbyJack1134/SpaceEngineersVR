@@ -74,6 +74,8 @@ namespace SpaceEngineersVR.Config
         public bool DoNotDisturb { get => doNotDisturb; set => SetValue(ref doNotDisturb,value); }
         private bool developerTools;
         public bool DeveloperTools { get => developerTools; set => SetValue(ref developerTools,value); }
+        private bool programmableBlockData=true;
+        public bool ProgrammableBlockData { get => programmableBlockData; set => SetValue(ref programmableBlockData,value); }
         private bool stableShadows=true,distantFlares=true,mirrorDesktop=true;
         public bool StableShadows { get => stableShadows; set => SetValue(ref stableShadows,value); }
         public bool DistantFlares { get => distantFlares; set => SetValue(ref distantFlares,value); }

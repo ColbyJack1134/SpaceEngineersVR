@@ -13,6 +13,7 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="../../ModApi/SevrApi.cs" LogicalName="SevrApi.cs" />
+    <EmbeddedResource Include="../../IngameScripts/SevrVrData.cs" LogicalName="SevrVrData.cs" Condition="Exists('../../IngameScripts/SevrVrData.cs')" />
     <EmbeddedResource Include="../../MOD-API.md" LogicalName="MOD-API.md" />
   </ItemGroup>
 </Project>
