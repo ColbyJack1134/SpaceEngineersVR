@@ -330,7 +330,9 @@ namespace SpaceEngineersVR.Player
             target.Clear(Color.FromArgb(255,12,20,28));
             if(s==null) return;
             float logicalHeight=width>0 && height>0 ? 640*height/width:337;
-            target.DrawAt(0,2,target.Width/640f,(target.Height-4)/logicalHeight,()=> {
+            // Keeps edge rows clear of the rounded corners and bezel.
+            const float inset=.92f;
+            target.DrawAt(target.Width*(1-inset)/2,target.Height*(1-inset)/2,inset*target.Width/640f,inset*target.Height/logicalHeight,()=> {
                 var g=target.Graphics;
                 if(s.Takeover) { PaintTakeover(target,s,logicalHeight); return; }
                 StateIcon(target,"PlayerHelmetOn",s.Helmet,40,3);

@@ -11,6 +11,7 @@ namespace SpaceEngineersVR.Player
     {
         internal static uint Actor { get; private set; }=uint.MaxValue;
         private static float fade;
+        private static uint unlit=uint.MaxValue;
         internal static bool Fading => fade>0;
         internal static float Amount(Vector3 point,Vector3 pelvis,Vector3 chest)
         {
@@ -27,6 +28,11 @@ namespace SpaceEngineersVR.Player
         {
             var character=MySession.Static?.LocalCharacter;
             NativeHandLayer.Actor=character?.Render.GetRenderObjectID() ?? uint.MaxValue;
+            // The wrist screen covers the suit's display, whose glow blooms around its edges.
+            if(Main.VrActive && NativeHandLayer.Actor!=uint.MaxValue && NativeHandLayer.Actor!=unlit)
+            {
+                MyRenderProxy.UpdateModelProperties(NativeHandLayer.Actor,"LeftGlove",0,0,null,0); unlit=NativeHandLayer.Actor;
+            }
             if(!Main.VrActive || character==null || character.IsDead || ThirdPersonView.Active)
             { Reset(); return; }
             var seat=character.Parent as MyCockpit;

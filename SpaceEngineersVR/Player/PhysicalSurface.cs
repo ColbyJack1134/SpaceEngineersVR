@@ -113,6 +113,30 @@ namespace SpaceEngineersVR.Player
         internal static Vector3 Point(SurfaceView surface,Vector3D world)
         { return (Vector3)Vector3D.Transform(world,MatrixD.Invert(surface.Pose)); }
         internal static Vector2 UV(SurfaceView s,Vector3 local) => new Vector2(local.X/s.Width+0.5f,0.5f-local.Y/s.Height);
+        // Corner radius of the suit's built-in wrist display.
+        private const float WristCorner=.004f;
+        // Walls extend into the forearm so no gap shows at the edge; scene depth hides the buried part.
+        private const float WristDepth=.006f;
+        private static void WristWalls(ShaderResourceView texture,SurfaceView s,MatrixD view,MatrixD projection)
+        {
+            MatrixD transform=s.Pose*view*projection;
+            Func<Vector2,double,Vector4> clip=(p,z)=>(Vector4)Vector4D.Transform(new Vector4D(p.X,p.Y,z,1),transform);
+            float r=Math.Min(WristCorner,Math.Min(s.Width,s.Height)/2);
+            var corners=new[] {new Vector2(s.Width/2-r,s.Height/2-r),new Vector2(-s.Width/2+r,s.Height/2-r),new Vector2(-s.Width/2+r,-s.Height/2+r),new Vector2(s.Width/2-r,-s.Height/2+r)};
+            var outline=new List<Vector2>();
+            for(int i=0;i<4;i++)
+                for(int step=0;step<=4;step++)
+                {
+                    double angle=(i+step/4.0)*Math.PI/2;
+                    outline.Add(corners[i]+new Vector2((float)Math.Cos(angle),(float)Math.Sin(angle))*r);
+                }
+            for(int i=0;i<outline.Count;i++)
+            {
+                Vector2 a=outline[i],b=outline[(i+1)%outline.Count];
+                sprites.Add(new NativeSprite(null,default(VRageMath.RectangleF),Vector4.One) { Projected=true,Texture=texture,UV=new Vector4(.01f,.01f,.001f,.001f),
+                    TopLeft=clip(a,0),TopRight=clip(b,0),BottomLeft=clip(a,-WristDepth),BottomRight=clip(b,-WristDepth) });
+            }
+        }
         internal static float KeyHeight(SurfaceView s) => s.Style==SurfaceStyle.ModelControl ? 0 : s.Style==SurfaceStyle.WristStatus ? .001f : .006f;
         internal static void Paint(OverlayCanvas target,SurfaceView s)
         {
@@ -509,9 +533,11 @@ namespace SpaceEngineersVR.Player
                     }
                     continue;
                 }
-                float thickness=s.Style==SurfaceStyle.WristStatus ? .002f : .008f;
-                if(!s.SignalWindow) sprites.Add(Quad(c.Texture,s.Pose,full,new Vector4(.01f,.01f,.001f,.001f),Vector4.One,view,projection,-thickness));
-                for(int edge=0;edge<4 && !s.SignalWindow;edge++)
+                bool wrist=s.Style==SurfaceStyle.WristStatus;
+                if(wrist) WristWalls(c.Texture,s,view,projection);
+                const float thickness=.008f;
+                if(!s.SignalWindow && !wrist) sprites.Add(Quad(c.Texture,s.Pose,full,new Vector4(.01f,.01f,.001f,.001f),Vector4.One,view,projection,-thickness));
+                for(int edge=0;edge<4 && !s.SignalWindow && !wrist;edge++)
                 {
                     MatrixD side=MatrixD.CreateRotationY(edge<2 ? (edge==0 ? Math.PI/2 : -Math.PI/2) : 0);
                     if(edge>=2) side=MatrixD.CreateRotationX(edge==2 ? Math.PI/2 : -Math.PI/2);
@@ -520,14 +546,16 @@ namespace SpaceEngineersVR.Player
                     sprites.Add(Quad(c.Texture,side*s.Pose,new VRageMath.RectangleF(-w/2,h/2,w,h),new Vector4(.01f,.01f,.001f,.001f),Vector4.One,view,projection));
                 }
                 if(Vector3D.Dot(s.Pose.Backward,MatrixD.Invert(view).Translation-s.Pose.Translation)<=0) continue;
-                sprites.Add(Quad(c.Texture,s.Pose,full,new Vector4(0,0,1,1),Vector4.One,view,projection));
+                var face=Quad(c.Texture,s.Pose,full,new Vector4(0,0,1,1),Vector4.One,view,projection);
+                if(wrist) { face.Rounded=new Vector2(WristCorner/s.Width,WristCorner/s.Height); face.Sharpen=true; }
+                sprites.Add(face);
                 if(s.SignalWindow) WristSignals.AddSprites(sprites,target.Device,s,view,projection);
                 if(s.Desktop && DesktopCapture.View!=null)
                 {
                     sprites.Add(DesktopCapture.Picture(DesktopCapture.View,s.Pose,s.Width,s.Height,view,projection,target.Description.Format,.0008f));
                     if(DesktopCapture.Badge(target.Device,s.Pose,.045f,view,projection,.0016f,DesktopCapture.BadgeAlpha(DateTime.UtcNow),out var badge)) sprites.Add(badge);
                 }
-                foreach(var k in s.Keys)
+                if(!wrist) foreach(var k in s.Keys)
                 {
                     if(k.Knob.HasValue) {WristKnob.Add(sprites,c.Texture,s,k.Knob.Value,view,projection); continue;}
                     if(k.Invisible || k.Caption) continue;
