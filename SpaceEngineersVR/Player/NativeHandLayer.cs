@@ -8,7 +8,7 @@ using SpaceEngineersVR.Wrappers;
 
 namespace SpaceEngineersVR.Player
 {
-    // Reuse the native glove draw, including its skinning and material alpha, for UI occlusion.
+    // Reuse the native glove and sleeve draws, including their skinning and material alpha, for UI occlusion.
     [HarmonyPatch]
     internal static class NativeHandLayer
     {
@@ -55,10 +55,12 @@ namespace SpaceEngineersVR.Player
             {
                 if(observerOnly || parent.Owner.ID!=Actor) return;
                 string material=CockpitRender.Member(CockpitRender.Member(CockpitRender.Member(proxy,"Material"),"Info"),"Name").ToString();
-                if(material!="LeftGlove" && material!="RightGlove") return;
-                left=material=="LeftGlove";
+                // Suit model sleeve materials: they occlude windows but do not mark a glove as drawn.
+                if(material=="LeftGlove") leftDrawn=true;
+                else if(material=="RightGlove") rightDrawn=true;
+                else if(material!="Arms" && material!="RightArm") return;
             }
-            if(left) leftDrawn=true; else rightDrawn=true;
+            else if(left) leftDrawn=true; else rightDrawn=true;
             var context=(DeviceContext)CockpitRender.Member(CockpitRender.Member(__instance,"RC"),"DeviceContext");
             var buffer=CockpitRender.Member(__instance,"GBuffer");
             var depth=(DepthStencilView)CockpitRender.Member(CockpitRender.Member(CockpitRender.Member(buffer,"DepthStencil"),"Dsv"),"Dsv");
