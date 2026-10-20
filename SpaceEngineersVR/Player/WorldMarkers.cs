@@ -334,7 +334,7 @@ namespace SpaceEngineersVR.Player
         public static void Draw(Texture2D target, MatrixD view, MatrixD projection)
         {
             var current=renderSnapshot;
-            if (failed || Main.MenuOpen || InputRouter.RadialOpen || !Main.WorldAvailable) return;
+            if (failed || Main.MenuOpen || !Main.WorldAvailable) return;
             try
             {
                 NativeSprites.Fade(target,HelmetHud.HudAlpha);

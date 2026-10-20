@@ -75,16 +75,22 @@ namespace SpaceEngineersVR.Player
             wristOwner=null;
             ReleaseInput();
         }
+        private static bool Shown => InputRouter.Gameplay || InputRouter.Mode==InputMode.Menu || InputRouter.Mode==InputMode.Radial;
         public static void Update()
         {
             FlightSettings.Check();
-            if(failed || !Player.Headset.pose.isTracked || !Player.HandR.pose.isTracked || !Player.HandL.pose.isTracked ||
-                (!InputRouter.Gameplay && InputRouter.Mode!=InputMode.Menu))
+            if(failed || !Player.Headset.pose.isTracked || !Player.HandR.pose.isTracked || !Player.HandL.pose.isTracked || !Shown)
             { current=new SurfaceView[0]; wristTouch.Reset(); seatRayPress.Block(); seatRayTargeted=false; CockpitTouch.Reset(); wrist=wristMenu=seat=null; Pointing=RayTargeted=wristHoverFeedback=false; return; }
             var now=DateTime.UtcNow;
             float dt=(float)Math.Min(.05,Math.Max(0,(now-lastUpdate).TotalSeconds)); lastUpdate=now;
             fold=MathHelper.Clamp(fold+(expanded ? 1 : -1)*dt*4,0,1);
             Publish();
+            // The wheel owns the right hand; panels stay visible without input.
+            if(InputRouter.Mode==InputMode.Radial)
+            {
+                wristTouch.Reset(); seatRayPress.Block(); seatRayTargeted=false; Pointing=RayTargeted=wristHoverFeedback=false;
+                wristHover=wristPressed=seatHover=seatPressed=-1; return;
+            }
             var c=Controls.Static;
             bool trigger=c.Primary.HasPressed;
             Matrix aim=Player.HandR.AimTracking;
@@ -248,7 +254,7 @@ namespace SpaceEngineersVR.Player
         {
             if(!Main.WorldAvailable)
             { wrist=wristMenu=seat=null; current=new SurfaceView[0]; return; }
-            if(failed || (!InputRouter.Gameplay && InputRouter.Mode!=InputMode.Menu) || !Player.HandL.pose.isTracked || !Player.Headset.pose.isTracked)
+            if(failed || !Shown || !Player.HandL.pose.isTracked || !Player.Headset.pose.isTracked)
             { current=new SurfaceView[0]; return; }
             var output=new List<SurfaceView>();
             var owner=MySession.Static?.ControlledEntity;
@@ -405,7 +411,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Draw(Texture2D target,MatrixD view,MatrixD projection,SurfaceView[] frame=null,bool tracking=false,MatrixD? trackingToWorld=null)
         {
-            if(failed || (!InputRouter.Gameplay && InputRouter.Mode!=InputMode.Menu) || !Player.HandL.renderPose.isTracked || !Player.HandR.renderPose.isTracked) return;
+            if(failed || !Shown || !Player.HandL.renderPose.isTracked || !Player.HandR.renderPose.isTracked) return;
             try
             {
                 var surfaces=(frame ?? current).Where(s=>!s.WindowPose.HasValue && s.TrackingSpace==tracking).ToArray();
