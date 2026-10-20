@@ -158,7 +158,7 @@ namespace SpaceEngineersVR.Player
             if(action!=ToolbarGesture.Action.OpenWheel && (DesktopWindow.CloseIfPointed() || SpatialUi.CollapseIfOpen())) return;
             if(action==ToolbarGesture.Action.FirstPerson) { if(!PlacementControls.TryCancelRotation()) ThirdPersonView.Toggle(); InputRouter.Update(); return; }
             if(action==ToolbarGesture.Action.AssignSwitch) { CockpitActions.Configure(gesture.Switch); InputRouter.Update(); return; }
-            if(action==ToolbarGesture.Action.Unequip) { GameActions.Unequip(); InputRouter.Update(); return; }
+            if(action==ToolbarGesture.Action.Unequip) { if(!PlacementControls.TryCancelRotation()) GameActions.Unequip(); InputRouter.Update(); return; }
             Open(false,controls.Unequip);
         }
         private static bool Confirming(DateTime now) =>
