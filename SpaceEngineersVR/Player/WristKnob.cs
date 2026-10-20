@@ -20,12 +20,14 @@ namespace SpaceEngineersVR.Player
             private Matrix previous,grab;
             private readonly Vector3 axis;
             private readonly float travel,direction;
-            public Turn(Vector3? axis=null,float travel=Travel,float direction=-1)
-            { this.axis=Vector3.Normalize(axis ?? Vector3.Backward); this.travel=travel; this.direction=direction; }
-            private float initial;
+            private readonly bool holdClosed;
+            // holdClosed: turning back past the closed stop must be undone before the value opens again.
+            public Turn(Vector3? axis=null,float travel=Travel,float direction=-1,bool holdClosed=false)
+            { this.axis=Vector3.Normalize(axis ?? Vector3.Backward); this.travel=travel; this.direction=direction; this.holdClosed=holdClosed; }
+            private float initial,position;
             public float Value {get; private set;}
             public Matrix Wrist {get; private set;}
-            public void Begin(Matrix local,float value) {previous=grab=local; initial=Value=value; Wrist=local;}
+            public void Begin(Matrix local,float value) {previous=grab=local; initial=Value=position=value; Wrist=local;}
             public void Move(Matrix local)
             {
                 if(!local.IsValid()) return;
@@ -37,7 +39,8 @@ namespace SpaceEngineersVR.Player
                 if(angle>MathHelper.Pi) angle-=MathHelper.TwoPi;
                 if(angle < -MathHelper.Pi) angle+=MathHelper.TwoPi;
                 previous=local;
-                Value=MathHelper.Clamp(Value+direction*angle/travel,0,1);
+                position=MathHelper.Clamp(position+direction*angle/travel,holdClosed ? float.MinValue:0,1);
+                Value=Math.Max(position,0);
                 Wrist=grab*Matrix.CreateFromAxisAngle(axis,(Value-initial)*travel/direction);
             }
         }

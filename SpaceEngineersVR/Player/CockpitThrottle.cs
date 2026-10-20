@@ -20,7 +20,7 @@ namespace SpaceEngineersVR.Player
             previous=local*correction;
             if(!wasHeld)
             {
-                turn=new WristKnob.Turn(shaft,travel,1); turn.Begin(previous,0);
+                turn=new WristKnob.Turn(shaft,travel,1,holdClosed:true); turn.Begin(previous,0);
             }
             else turn.Move(previous);
             wasHeld=true; wasCommon=commonActive;

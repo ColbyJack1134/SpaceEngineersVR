@@ -287,6 +287,8 @@ namespace SpaceEngineersVR.Diagnostics
                 Near(throttle.Update(true,false,wrist(2.3f),Matrix.Identity,wheel.RightShaft,wheel.ThrottleRange),1,"relative throttle full stop");
                 Near(throttle.Update(true,false,wrist(2.1f),Matrix.Identity,wheel.RightShaft,wheel.ThrottleRange),.8f,"excess stop travel permits immediate reversal");
                 Near(throttle.Update(true,false,wrist(-.4f),Matrix.Identity,wheel.RightShaft,wheel.ThrottleRange),0,"opposite throttle stop");
+                Near(throttle.Update(true,false,wrist(1.1f),Matrix.Identity,wheel.RightShaft,wheel.ThrottleRange),0,"returning from past the closed stop stays closed");
+                Near(throttle.Update(true,false,wrist(1.6f),Matrix.Identity,wheel.RightShaft,wheel.ThrottleRange),.3f,"closed stop keeps the zero moved by the open stop");
                 throttle.Update(false,false,neutral,Matrix.Identity,wheel.RightShaft,wheel.ThrottleRange);
                 Near(throttle.Update(true,false,wrist(.4f),Matrix.Identity,wheel.RightShaft,wheel.ThrottleRange),0,"new wrist grab captures closed gas");
                 foreach(float gas in new[] {0,.4f})
