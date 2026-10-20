@@ -16,6 +16,8 @@ namespace SpaceEngineersVR.GUI
         private string calibrationResult;
         private MyGuiControlLabel status;
         private MyGuiControlButton next;
+        private MyGuiControlLabel resolution;
+        private const int Steps=3;
         internal static void Offer()
         {
             if(offered || Common.Config.SetupCompleted || Common.Config.BodyCalibrated || !Main.VrActive || !Player.Player.Headset.pose.isTracked ||
@@ -23,7 +25,7 @@ namespace SpaceEngineersVR.GUI
             offered=true;MyGuiSandbox.AddScreen(new FirstRunSetup());
         }
         internal FirstRunSetup(int step=0) : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.90f,.86f))
-        {this.step=System.Math.Min(step,1);height=Common.Config.PlayerHeight*100;m_closeOnEsc=true;CloseButtonEnabled=true;}
+        {this.step=System.Math.Min(step,Steps-1);height=Common.Config.PlayerHeight*100;m_closeOnEsc=true;CloseButtonEnabled=true;}
         public override string GetFriendlyName()=>"SEVR first-time setup";
         public override void LoadContent(){base.LoadContent();RecreateControls(true);}
         public override bool Update(bool hasFocus)
@@ -32,6 +34,7 @@ namespace SpaceEngineersVR.GUI
             if(status!=null && measuring)status.Text=Player.Player.CalibrationStatus;
             if(measuring && !Player.Player.IsCalibrating){calibrationResult=Player.Player.CalibrationStatus;measuring=false;RecreateControls(false);}
             if(next!=null)next.Enabled=!measuring;
+            if(resolution!=null)resolution.Text=PerformanceOptions.Detail();
             return result;
         }
         public override bool CloseScreen(bool isUnloading=false)
@@ -41,7 +44,7 @@ namespace SpaceEngineersVR.GUI
         }
         public override void RecreateControls(bool constructor)
         {
-            base.RecreateControls(constructor);status=null;AddCaption("VR setup "+(step+1)+" / 2");
+            base.RecreateControls(constructor);status=resolution=null;AddCaption("VR setup "+(step+1)+" / "+Steps);
             var c=Common.Config;
             if(step==0)
             {
@@ -69,7 +72,7 @@ namespace SpaceEngineersVR.GUI
                     BodyFit.SetSeated(true);BodyFit.CaptureSeat();RecreateControls(false);
                 }).Enabled=tracked && !measuring;
             }
-            else
+            else if(step==1)
             {
                 MenuLayout.Icon(this,0,-.235f,NativeSprites.Hud("HelpScreen"),.08f);
                 MenuLayout.Label(this,-.31f,-.16f,"Learn the controls",.85f);
@@ -77,12 +80,19 @@ namespace SpaceEngineersVR.GUI
                 MenuLayout.Label(this,-.31f,.045f,"Hands not lined up with your controllers?",.85f);
                 MenuLayout.Button(this,0,.12f,.58f,"Align hands",()=>MyGuiSandbox.AddScreen(new HandAlignment())).Enabled=Main.VrActive;
             }
+            else
+            {
+                MenuLayout.Icon(this,0,-.235f,NativeSprites.Hud("Speedometer"),.08f);
+                MenuLayout.Label(this,-.31f,-.165f,"Performance",.85f);
+                resolution=PerformanceOptions.Add(this,-.115f);
+                PerformanceOptions.Tips(this,.19f,.024f);
+            }
             MenuLayout.Button(this,-.23f,.325f,.22f,step==0 ? "Skip":"Back",()=> {
                 if(step==0){c.SetupCompleted=true;CloseScreen();}else {if(measuring)Player.Player.CancelCalibration();measuring=false;step--;RecreateControls(false);}
             });
-            next=MenuLayout.Button(this,.23f,.325f,.26f,step==1 ? "Finish":"Next",()=> {
+            next=MenuLayout.Button(this,.23f,.325f,.26f,step==Steps-1 ? "Finish":"Next",()=> {
                 if(step==0 && manual)BodyFit.SetHeight(height/100);
-                if(step==1){c.SetupCompleted=true;CloseScreen();return;}
+                if(step==Steps-1){c.SetupCompleted=true;CloseScreen();return;}
                 step++;RecreateControls(false);
             });
             next.Enabled=!measuring;

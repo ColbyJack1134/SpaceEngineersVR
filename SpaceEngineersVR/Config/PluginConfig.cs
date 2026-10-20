@@ -84,6 +84,10 @@ namespace SpaceEngineersVR.Config
         public bool HiddenAreaMask { get => hiddenAreaMask; set => SetValue(ref hiddenAreaMask,value); }
         private float eyeRenderScale=1;
         public float EyeRenderScale { get => eyeRenderScale; set => SetValue(ref eyeRenderScale,Bound(value,.5f,1.5f,1)); }
+        private bool dynamicResolution;
+        public bool DynamicResolution { get => dynamicResolution; set => SetValue(ref dynamicResolution,value); }
+        private float targetFrameRate=60;
+        public float TargetFrameRate { get => targetFrameRate; set => SetValue(ref targetFrameRate,(float)Math.Round(Bound(value,30,144,60))); }
         private float remoteFeedScale=5f/6;
         public float RemoteFeedScale { get => remoteFeedScale; set => SetValue(ref remoteFeedScale,Bound(value,.5f,1.5f,5f/6)); }
         private float particleDensity=.5f;

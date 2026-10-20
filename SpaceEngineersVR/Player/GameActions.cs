@@ -268,6 +268,7 @@ namespace SpaceEngineersVR.Player
             Inspect,ResetFeed,ExitFeed,PlayPosture,
             new ActionChoice("Turrets and cameras",()=>MyGuiSandbox.AddScreen(new GUI.SettingsPage("Turrets and cameras")),true),
             new ActionChoice("Body and seated play",()=>MyGuiSandbox.AddScreen(new GUI.BodyOptions()),true),
+            new ActionChoice("Performance",()=>MyGuiSandbox.AddScreen(new GUI.PerformanceOptions()),true),
             new ActionChoice("Chat",WristChat.Open),
             new ActionChoice("Hotkey keyboard",MenuKeyboard.OpenHotkeys),
             SnapHeldGrid

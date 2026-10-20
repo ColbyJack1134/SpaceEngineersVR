@@ -23,6 +23,7 @@ namespace SpaceEngineersVR.Player
         private static readonly Font title=new Font("Segoe UI",26,FontStyle.Bold,GraphicsUnit.Pixel);
         private static readonly Font text=new Font("Segoe UI",20,FontStyle.Regular,GraphicsUnit.Pixel);
         private static readonly Font small=new Font("Segoe UI",17,FontStyle.Regular,GraphicsUnit.Pixel);
+        internal const int Width=640,Height=690;
         private static readonly string[] names={"World touch","Nearby query","HUD state","HUD paint","Visor","Cockpit","Cockpit touch","Switch update","Arms","Geometry setup","Actor setup","Switch action"};
         internal static void Toggle() => Enabled=!Enabled;
         internal static void Hide() => canvas?.Hide();
@@ -35,9 +36,9 @@ namespace SpaceEngineersVR.Player
         {
             target.Clear(Color.Transparent);
             var g=target.Graphics;
-            using(var background=new SolidBrush(Color.FromArgb(225,12,20,27))) g.FillRectangle(background,0,205,640,130);
-            g.DrawString("Developer",title,Brushes.LightCyan,20,216);
-            g.DrawString(status,text,Brushes.LightCyan,new System.Drawing.RectangleF(22,260,596,64));
+            using(var background=new SolidBrush(Color.FromArgb(225,12,20,27))) g.FillRectangle(background,0,280,640,130);
+            g.DrawString("Developer",title,Brushes.LightCyan,20,291);
+            g.DrawString(status,text,Brushes.LightCyan,new System.Drawing.RectangleF(22,335,596,64));
         }
         internal static void Paint(OverlayCanvas target,RenderPerformance.View current,FeatureTiming.Measurement[] features,long now,string status=null)
         {
@@ -48,20 +49,26 @@ namespace SpaceEngineersVR.Player
             string gpu=current==null ? "GPU app --   SteamVR total --" : $"GPU app {Value(current.AppGpuMs)} ms   SteamVR total {Value(current.TotalGpuMs)} ms";
             g.DrawString(gpu,text,Brushes.LightCyan,20,82);
             g.DrawString(current==null ? "Repeat presents --   Dropped --" : $"Repeat presents/frame {Value(current.Repeated)}   Dropped {current.Dropped}",small,Brushes.LightSteelBlue,22,114);
-            g.DrawString("Plugin scopes (elapsed ms/call)",small,Brushes.LightCyan,22,154);
-            g.DrawString("Mean         p95         Peak",small,Brushes.LightCyan,341,154);
+            g.DrawString(current==null ? "Render thread --   Pose wait --" : $"Render thread {Value(current.RenderMs)} ms   Pose wait {Value(current.PoseWaitMs)} ms",text,Brushes.LightCyan,20,146);
+            g.DrawString(current==null ? "Game thread --   Workers --   Sim --" : $"Game thread {Value(current.GameMs)} ms   Workers {Value(current.WorkerMs)} ms   Sim {Speed(current.SimSpeed)}",small,Brushes.LightSteelBlue,22,178);
+            g.DrawString(current==null || double.IsNaN(current.VideoMemoryGb) ? "Video memory --" : $"Video memory {current.VideoMemoryGb:F1} / {current.VideoBudgetGb:F1} GB",small,Brushes.LightSteelBlue,22,203);
+            g.DrawString(current?.Resolution ?? "Eyes --",small,Brushes.LightSteelBlue,22,228);
+            g.DrawString("Limited by "+(current?.Limit ?? "--"),text,Brushes.LightCyan,20,256);
+            g.DrawString("Plugin scopes (elapsed ms/call)",small,Brushes.LightCyan,22,304);
+            g.DrawString("Mean         p95         Peak",small,Brushes.LightCyan,341,304);
             for(int i=0;i<names.Length;i++)
             {
-                var value=features[i]; int y=183+i*25;
+                var value=features[i]; int y=333+i*25;
                 var brush=value!=null && now-value.Time<15*Stopwatch.Frequency ? Brushes.LightCyan : Brushes.SlateGray;
                 g.DrawString(names[i],small,brush,22,y);
                 g.DrawString(value==null ? "--" : value.Mean.ToString("F3"),small,brush,341,y);
                 g.DrawString(value==null ? "--" : value.P95.ToString("F3"),small,brush,428,y);
                 g.DrawString(value==null ? "--" : value.Peak.ToString("F3"),small,brush,515,y);
             }
-            g.DrawString(status ?? "Up to 600 calls · scopes overlap · gray = stale/unavailable",small,Brushes.LightSteelBlue,22,497);
+            g.DrawString(status ?? "Up to 600 calls · scopes overlap · gray = stale/unavailable",small,Brushes.LightSteelBlue,22,647);
         }
         private static string Value(double value) => double.IsNaN(value) ? "--" : value.ToString("F1");
+        private static string Speed(double value) => double.IsNaN(value) ? "--" : value.ToString("F2");
         internal static void Draw()
         {
             if(!Main.WorldAvailable) notice=null;
@@ -75,7 +82,7 @@ namespace SpaceEngineersVR.Player
             {
                 if(canvas==null)
                 {
-                    canvas=new OverlayCanvas("Developer performance",640,540,.58f);
+                    canvas=new OverlayCanvas("Developer performance",Width,Height,.58f);
                     canvas.Position(Matrix.CreateTranslation(.40f,.22f,-1.2f),true);
                 }
                 if(Enabled)

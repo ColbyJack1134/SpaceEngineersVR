@@ -343,13 +343,16 @@ namespace SpaceEngineersVR.Diagnostics
 
                 }
                 VoxelToolRenders.Run(device,output,log);
-                using(var performance=new OverlayCanvas("Performance preview",640,540,1,false,device))
+                using(var performance=new OverlayCanvas("Performance preview",PerformanceHud.Width,PerformanceHud.Height,1,false,device))
                 {
                     long now=System.Diagnostics.Stopwatch.GetTimestamp();
                     var timings=new FeatureTiming.Measurement[Enum.GetValues(typeof(FeatureTiming.Area)).Length];
                     timings[(int)FeatureTiming.Area.HudPaint]=new FeatureTiming.Measurement {Mean=.341,P95=1.879,Peak=4.1,Time=now};
                     timings[(int)FeatureTiming.Area.CockpitGeometry]=new FeatureTiming.Measurement {Mean=430.523,P95=430.523,Peak=430.523,Time=now-20*System.Diagnostics.Stopwatch.Frequency};
-                    var current=new RenderPerformance.View {Fps=59.9,FrameMs=16.7,AppGpuMs=13.2,TotalGpuMs=16.7,Repeated=.5,Dropped=2,RefreshHz=72};
+                    var current=new RenderPerformance.View {Fps=54.1,FrameMs=18.5,AppGpuMs=14.5,TotalGpuMs=15.4,Repeated=.5,Dropped=2,RefreshHz=90,
+                        RenderMs=7.9,PoseWaitMs=10.6,GameMs=11.3,WorkerMs=21.4,SimSpeed=1,VideoMemoryGb=6.3,VideoBudgetGb=7.5,
+                        Resolution="Eyes 2182x2182 of 2424x2424; Dynamic 90% · target 60 FPS"};
+                    if(current.Limit!="GPU") throw new Exception("Performance limit misclassified a GPU-bound frame");
                     Render(performance,()=>PerformanceHud.Paint(performance,current,timings,now));
                     Save(performance.Texture,Path.Combine(output,"performance-preview.png"));
                     Render(performance,()=>PerformanceHud.Paint(performance,null,timings,now));

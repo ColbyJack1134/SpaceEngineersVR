@@ -62,7 +62,7 @@ namespace SpaceEngineersVR.Player
             double depth=-Vector3D.Transform(position,MatrixD.Invert(eye)).Z;
             if(depth<=.05) return false;
             double slope=StereoRenderState.PhysicalEye ? StereoRenderState.PixelSlopeX : 1/projection.M11;
-            board.Scale=2*depth*width*slope/viewportWidth;
+            board.Scale=2*depth*width*slope/(viewportWidth*EyeResolution.PixelScale(viewportWidth));
             return true;
         }
 

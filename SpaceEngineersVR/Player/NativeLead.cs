@@ -66,7 +66,8 @@ namespace SpaceEngineersVR.Player
             output.Add(marker);
             if(MarkerBillboard.TryCreatePixels(value.Target,value.CircleSize.X,view,projection,target.Description.Width,out var ring,up,faceViewer))
             {
-                AddLine(output,ring,board,value.CircleSize.X,value.Color,target.Description.Width,target.Description.Height,view,projection);
+                float pixels=EyeResolution.PixelScale(target.Description.Width);
+                AddLine(output,ring,board,value.CircleSize.X,value.Color,(int)Math.Round(target.Description.Width*pixels),(int)Math.Round(target.Description.Height*pixels),view,projection);
                 if(!value.InRange)
                 {
                     if(warning==null) { warning=new OverlayCanvas("Native lead range",512,64,1,false,target.Device,true); warningTexture=new ShaderResourceView(target.Device,warning.Texture); }

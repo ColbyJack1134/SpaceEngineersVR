@@ -49,7 +49,7 @@ namespace SpaceEngineersVR.Patches
         internal static float HeadRadius(double distance,float thickness,double pixel) => Math.Max(thickness,(float)(distance*pixel*HeadPixels/2));
         private static double Pixel()
         {
-            int width=EyeResolution.Current.X;
+            int width=EyeResolution.HudWidth(EyeResolution.Current.X);
             double slope=StereoRenderState.PixelSlopeX;
             return width>0 && slope>0 ? 2*slope/width:FallbackPixel;
         }

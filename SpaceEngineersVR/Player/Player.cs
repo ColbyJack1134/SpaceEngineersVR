@@ -95,7 +95,7 @@ namespace SpaceEngineersVR.Player
 
             long waitStart=FeatureTiming.Start();
             OpenVR.Compositor.WaitGetPoses(RenderPoses, RenderPosesFuture);
-            FeatureTiming.End(FeatureTiming.Area.WaitPoses,waitStart);
+            RenderPerformance.PoseWait=FeatureTiming.End(FeatureTiming.Area.WaitPoses,waitStart);
 
             {
                 bool lockTaken = false;

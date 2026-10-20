@@ -95,12 +95,13 @@ namespace SpaceEngineersVR.GUI
                     Link(.265f,"HUD visibility & crosshair",()=>new SettingsPage("HUD visibility"));
                     break;
                 case 4:
-                    MenuLayout.Slider(this,-.17f,"Headset resolution",c.EyeRenderScale*100,50,150,5,"%",v=>c.EyeRenderScale=v/100);
+                    MenuLayout.Slider(this,-.17f,"Headset resolution",c.EyeRenderScale*100,50,150,5,"%",v=>c.EyeRenderScale=v/100,enabled:!c.DynamicResolution);
                     MenuLayout.Slider(this,-.055f,"Camera feed resolution",c.RemoteFeedScale*100,50,150,5,"%",v=>c.RemoteFeedScale=v/100);
                     MenuLayout.Slider(this,.06f,"Particle density",c.ParticleDensity*100,15,100,5,"%",v=>c.ParticleDensity=v/100);
                     MenuLayout.Label(this,-.14f,.135f,"100% restores original continuous particles",.60f);
                     Toggle(.19f,"Desktop mirror",c.MirrorDesktop,v=>c.MirrorDesktop=v);
-                    MenuLayout.Button(this,.135f,.27f,.55f,"Reset resolution",()=> {c.EyeRenderScale=1;c.RemoteFeedScale=5f/6;RecreateControls(false);});
+                    MenuLayout.Button(this,-.0075f,.27f,.265f,"Performance",()=>MyGuiSandbox.AddScreen(new PerformanceOptions()));
+                    MenuLayout.Button(this,.2775f,.27f,.265f,"Reset resolution",()=> {c.EyeRenderScale=1;c.RemoteFeedScale=5f/6;RecreateControls(false);});
                     break;
             }
             MenuLayout.Button(this,.315f,.355f,.20f,"Close",()=>CloseScreen());

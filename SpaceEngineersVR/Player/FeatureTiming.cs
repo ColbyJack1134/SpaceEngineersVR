@@ -32,7 +32,7 @@ namespace SpaceEngineersVR.Player
         }
         internal static Measurement Latest(Area area) => Volatile.Read(ref samples[(int)area].Current);
         internal static long Start() => Stopwatch.GetTimestamp();
-        internal static void End(Area area,long start)
+        internal static double End(Area area,long start)
         {
             var sample=samples[(int)area];
             long now=Stopwatch.GetTimestamp();
@@ -49,13 +49,14 @@ namespace SpaceEngineersVR.Player
             bool log=Common.Plugin!=null && Common.Config?.DeveloperTools==true;
             if(log && area>=Area.CockpitGeometry && area<=Area.CockpitAction)
                 Logger.Info($"VR operation {area}: {elapsed:F3} ms");
-            if(sample.Count<sample.Values.Length) return;
+            if(sample.Count<sample.Values.Length) return elapsed;
             if(log)
             {
                 var current=Latest(area);
                 Logger.Info($"VR feature {area}: mean {current.Mean:F3} ms; p95 {current.P95:F3}; peak {current.Peak:F3}; samples {sample.Count}");
             }
             sample.Count=0; sample.Sum=0;
+            return elapsed;
         }
     }
 }

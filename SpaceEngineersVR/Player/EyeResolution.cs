@@ -15,7 +15,9 @@ namespace SpaceEngineersVR.Player
     {
         public static Vector2I Recommended { get; private set; }
         public static Vector2I Current { get; private set; }
-        private static Vector2I pending;
+        // The eye size at the configured scale; HUD pixel sizes follow it so dynamic resolution does not resize them.
+        public static Vector2I Hud { get; private set; }
+        private static Vector2I pending,pendingHud;
         private static DateTime queried,changed;
         public static void Recommend(uint width,uint height) => Recommended=new Vector2I((int)width,(int)height);
         internal static Vector2I Size(Vector2I recommended,float scale)
@@ -35,11 +37,18 @@ namespace SpaceEngineersVR.Player
                 if(width>0 && height>0) Recommend(width,height);
                 queried=now;
             }
-            var requested=Size(Recommended,Common.Config.EyeRenderScale);
-            if(requested!=pending) { pending=requested; changed=now; }
-            if(Current.X==0 || (now-changed).TotalSeconds>=.5) Current=pending;
+            var requested=Size(Recommended,BaseScale*DynamicResolution.Scale);
+            var hud=Size(Recommended,BaseScale);
+            if(requested!=pending || hud!=pendingHud) { pending=requested; pendingHud=hud; changed=now; }
+            if(Current.X==0 || (now-changed).TotalSeconds>=.5) { Current=pending; Hud=pendingHud; }
             return Current;
         }
+
+        // Dynamic resolution works down from SteamVR's size; the Headset resolution setting applies only while it is off.
+        internal static float BaseScale => Common.Config.DynamicResolution ? 1:Common.Config.EyeRenderScale;
+        internal static int HudWidth(int fallback) => Hud.X>0 ? Hud.X:fallback;
+        // Converts a pixel size measured on this eye target into HUD pixels while drawing an eye.
+        internal static float PixelScale(int targetWidth) => StereoRenderState.PhysicalEye && Hud.X>0 && targetWidth>0 ? (float)Hud.X/targetWidth:1;
 
         // Each scene size keeps its depth, lighting tiles and AO resources together.
         internal sealed class Scene : IDisposable
@@ -88,13 +97,14 @@ namespace SpaceEngineersVR.Player
                     var current=retained[slot];
                     if(current==null || !ReferenceEquals(current.Parent,previous[0]) || current.Size!=size || current.Antialiasing!=settings.User.AntialiasingMode)
                     {
+                        var timer=System.Diagnostics.Stopwatch.StartNew();
                         Release(slot);
                         foreach(var field in fields) if(!field.FieldType.IsValueType) field.SetValue(null,null);
                         try { MyRender11.CreateScreenResources(); }
                         catch { remove.Invoke(null,null); throw; }
                         retained[slot]=new Resources {Values=Capture(),Parent=previous[0],Size=size,Antialiasing=settings.User.AntialiasingMode};
                         Allocations++;
-                        Logger.Info("VR scene resources: "+size.X+"x"+size.Y+"; desktop "+resolution.X+"x"+resolution.Y);
+                        Logger.Info("VR scene resources: "+size.X+"x"+size.Y+" in "+timer.Elapsed.TotalMilliseconds.ToString("F1")+" ms; desktop "+resolution.X+"x"+resolution.Y);
                     }
                     else Restore(current.Values);
                     viewport.SetValue(null,size);
