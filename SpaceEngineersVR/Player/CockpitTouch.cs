@@ -358,10 +358,10 @@ namespace SpaceEngineersVR.Player
             blend=MathHelper.Clamp((float)(DateTime.UtcNow-h.Grabbed).TotalSeconds/.09f,0,1);
             return true;
         }
-        internal static MatrixD LabelPose(MatrixD head,Vector3D tip,float width)
+        internal static MatrixD LabelPose(MatrixD head,Vector3D tip,float width,int side=1)
         {
             var pose=head.GetOrientation();
-            pose.Translation=tip+head.Right*(width/2+.018)+head.Up*-.035;
+            pose.Translation=tip+head.Right*side*(width/2+.018)+head.Up*-.035;
             return pose;
         }
         public static IEnumerable<SurfaceView> Labels()

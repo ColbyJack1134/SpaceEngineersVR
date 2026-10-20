@@ -142,6 +142,7 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Start(Harmony harmony)
         {
             RemoteHud.Install(harmony);
+            NativeBlockInfo.Install(harmony);
             if(LeadIndicatorTests.Enabled) LeadIndicatorTests.Install(harmony);
             harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),LeadIndicatorTests.Enabled ||
                 Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions" || Environment.GetEnvironmentVariable("SEVR_BUILD_PREVIEW_PROBE")=="1" ?

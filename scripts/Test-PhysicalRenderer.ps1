@@ -1,4 +1,4 @@
-param([string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype'),[switch]$CockpitsOnly,[string]$Cockpit,[switch]$InterfaceOnly,[switch]$CameraHudOnly,[switch]$NativeSignals,[switch]$NativeLead,[switch]$MenusOnly,[switch]$SetupOnly,[switch]$ActionsOnly)
+param([string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype'),[switch]$CockpitsOnly,[string]$Cockpit,[switch]$InterfaceOnly,[switch]$CameraHudOnly,[switch]$NativeSignals,[switch]$NativeLead,[switch]$NativeBlockInfo,[switch]$MenusOnly,[switch]$SetupOnly,[switch]$ActionsOnly)
 $ErrorActionPreference = 'Stop'
 if (Get-Process Legacy,SpaceEngineers -ErrorAction SilentlyContinue) {
     throw 'A game is already running. Physical renderer test did not launch or stop anything.'
@@ -10,14 +10,16 @@ $previousInterface = $env:SEVR_PHYSICAL_INTERFACE_ONLY
 $previousCamera = $env:SEVR_PHYSICAL_CAMERA_HUD_ONLY
 $previousSignals = $env:SEVR_NATIVE_SIGNALS
 $previousLead = $env:SEVR_NATIVE_LEAD
+$previousBlockInfo = $env:SEVR_NATIVE_BLOCK_INFO
 $previousMenus = $env:SEVR_PHYSICAL_MENUS_ONLY
 try {
     $env:SEVR_PHYSICAL_COCKPITS_ONLY = if ($CockpitsOnly -or $Cockpit) { '1' } else { $null }
     $env:SEVR_PHYSICAL_COCKPIT = $Cockpit
     $env:SEVR_PHYSICAL_INTERFACE_ONLY = if ($InterfaceOnly) { '1' } else { $null }
     $env:SEVR_PHYSICAL_CAMERA_HUD_ONLY = if ($CameraHudOnly) { '1' } else { $null }
-    $env:SEVR_NATIVE_SIGNALS = if ($NativeSignals -or $NativeLead) { '1' } else { $null }
+    $env:SEVR_NATIVE_SIGNALS = if ($NativeSignals -or $NativeLead -or $NativeBlockInfo) { '1' } else { $null }
     $env:SEVR_NATIVE_LEAD = if ($NativeLead) { '1' } else { $null }
+    $env:SEVR_NATIVE_BLOCK_INFO = if ($NativeBlockInfo) { '1' } else { $null }
     $env:SEVR_PHYSICAL_MENUS_ONLY = if ($ActionsOnly) { 'actions' } elseif ($SetupOnly) { 'setup' } elseif ($MenusOnly) { '1' } else { $null }
     $process = & (Join-Path $PSScriptRoot 'Launch.ps1') -PhysicalRenderTest -PassThru -PrototypeRoot $PrototypeRoot
 } finally {
@@ -27,6 +29,7 @@ try {
     $env:SEVR_PHYSICAL_CAMERA_HUD_ONLY = $previousCamera
     $env:SEVR_NATIVE_SIGNALS = $previousSignals
     $env:SEVR_NATIVE_LEAD = $previousLead
+    $env:SEVR_NATIVE_BLOCK_INFO = $previousBlockInfo
     $env:SEVR_PHYSICAL_MENUS_ONLY = $previousMenus
 }
 $passed = $false

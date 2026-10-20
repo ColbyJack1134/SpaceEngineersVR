@@ -21,6 +21,8 @@ namespace SpaceEngineersVR.Player
         [ThreadStatic] private static int markerDrawing;
         // Drops desktop sprites from native HUD passes run only for their state.
         [ThreadStatic] internal static int Discarding;
+        // Sends every native sprite on this thread to a named offscreen queue.
+        [ThreadStatic] internal static string Redirect;
         [ThreadStatic] private static int markerMode;
         private static readonly FieldInfo signalMode=AccessTools.Field(typeof(Sandbox.Game.GUI.HudViewers.MyHudMarkerRender),"<SignalDisplayMode>k__BackingField");
         internal static Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode GlobalSignalMode => (Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode)signalMode.GetValue(null);
@@ -89,6 +91,7 @@ namespace SpaceEngineersVR.Player
         private static void End(bool __state) { if(__state) capturing--; }
         private static bool Route(ref string targetTexture)
         {
+            if(Redirect!=null) { targetTexture=Redirect; return true; }
             // Capture only the selected native controls and camera marker renderer.
             if(Discarding>0 || markerDrawing>0 && markerMode==3) return false;
             if(capturing>0) targetTexture=queue;
@@ -106,7 +109,7 @@ namespace SpaceEngineersVR.Player
             // Screenshots may draw sprites again after the same message frame was consumed.
             collectedFrame=frame;
             if(remote==null || source!=remote.Source) Release();
-            object sprites=manager.GetValue(null),messages=acquire.Invoke(sprites,new object[] {queue});
+            object messages=AcquireSprites(queue);
             if(messages==null) return;
             try
             {
@@ -124,9 +127,11 @@ namespace SpaceEngineersVR.Player
                 else Release();
                 source=remote.Source;
             }
-            finally { dispose.Invoke(sprites,new[] {messages}); }
+            finally { DisposeSprites(messages); }
         }
         internal static void Store(Texture2D rendered) => hud.Store(rendered);
+        internal static object AcquireSprites(string name) => acquire.Invoke(manager.GetValue(null),new object[] {name});
+        internal static void DisposeSprites(object messages) => dispose.Invoke(manager.GetValue(null),new[] {messages});
         public static void Composite(Texture2D target,RemoteView.View view)
         {
             if(hud.View==null || source==0 || source!=view?.Source) return;

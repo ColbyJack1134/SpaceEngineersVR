@@ -36,7 +36,6 @@ namespace SpaceEngineersVR.Player
     {
         public string Id,Title,Text,Action,Argument;
         public EssentialHud.View Status;
-        public BlockInspection.Data Block;
         public bool SignalWindow,SeatSettings,FlightPage,Desktop;
         public WristSignals.View Signals;
         public WristHud.View HudSettings;
@@ -66,7 +65,7 @@ namespace SpaceEngineersVR.Player
         public float[] Levels;
         public int Handle;
         public string ContentKey => Desktop+"|"+FlightPage+"|"+SeatSettings+"|"+SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+(SignalWindow && Signals?.Candidates.Length==0)+"|"+(SignalWindow ? Plugin.Common.Config?.WaypointMode:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+HoverAlt+"|"+PressedAlt+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Horizontal+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
-            "|"+Selection+"|"+HudSettings?.Key+"|"+ShieldsView?.Key+"|"+ChatView?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob+":"+k.Slider))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
+            "|"+Selection+"|"+(Style==SurfaceStyle.BlockInfo ? NativeBlockInfo.Revision:0)+"|"+HudSettings?.Key+"|"+ShieldsView?.Key+"|"+ChatView?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob+":"+k.Slider))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
         public int KeyAt(Vector2 uv)
         {
@@ -96,7 +95,10 @@ namespace SpaceEngineersVR.Player
     internal static class PhysicalSurface
     {
         internal static readonly Vector4 LeftLaser=new Vector4(1,.706f,.235f,1);
-        internal static Vector2I TextureSize(SurfaceStyle style) => style==SurfaceStyle.Ammo ? new Vector2I(512,192) : style==SurfaceStyle.Label ? new Vector2I(1536,236) : style==SurfaceStyle.BlockInfo ? new Vector2I(2048,1280) : new Vector2I(1024,640);
+        // Matching the card aspect keeps mip selection sharp.
+        internal static Vector2I TextureSize(SurfaceView s) => s.Style==SurfaceStyle.BlockInfo ?
+            new Vector2I(NativeBlockInfo.TextureWidth,(int)Math.Ceiling(NativeBlockInfo.TextureWidth*s.Height/s.Width)):TextureSize(s.Style);
+        internal static Vector2I TextureSize(SurfaceStyle style) => style==SurfaceStyle.Ammo ? new Vector2I(512,192) : style==SurfaceStyle.Label ? new Vector2I(1536,236) : new Vector2I(1024,640);
         private sealed class Cache { public OverlayCanvas Canvas; public ShaderResourceView Texture; public string Content; public int Revision; public EssentialHud.View Status; }
         private static readonly Dictionary<string,Cache> cache=new Dictionary<string,Cache>();
         private static readonly Font title=new Font("Segoe UI",32,FontStyle.Bold,GraphicsUnit.Pixel),text=new Font("Segoe UI",27,FontStyle.Regular,GraphicsUnit.Pixel),smallText=new Font("Segoe UI",21,FontStyle.Regular,GraphicsUnit.Pixel);
@@ -447,16 +449,23 @@ namespace SpaceEngineersVR.Player
             sprites.Clear();
             foreach(var s in surfaces.OrderBy(s=>s.Style==SurfaceStyle.Pointer ? 2 : s.Style==SurfaceStyle.Label ? 1 : 0).ThenBy(s=>Vector3D.Transform(s.Pose.Translation,view).Z))
             {
-                if(!cache.TryGetValue(s.Id,out var c))
+                var size=TextureSize(s);
+                if(cache.TryGetValue(s.Id,out var c) && (c.Canvas.Width!=size.X || c.Canvas.Height!=size.Y))
                 {
-                    var size=TextureSize(s.Style);
+                    c.Texture.Dispose(); c.Canvas.Dispose(); cache.Remove(s.Id); c=null;
+                }
+                if(c==null)
+                {
                     var canvas=new OverlayCanvas(s.Id,size.X,size.Y,1,false,target.Device,mipMaps:true);
                     cache[s.Id]=c=new Cache { Canvas=canvas,Texture=new ShaderResourceView(target.Device,canvas.Texture) };
                 }
                 string content=s.ContentKey;
                 if(c.Content!=content || c.Revision!=NativeSprites.Revision || (s.Style==SurfaceStyle.WristStatus && !ReferenceEquals(c.Status,s.Status)))
                 {
-                    Paint(c.Canvas,s); c.Canvas.Upload(); target.Device.ImmediateContext.GenerateMips(c.Texture);
+                    Paint(c.Canvas,s);
+                    // Block info is GPU only; the empty bitmap upload cost several ms.
+                    if(s.Style!=SurfaceStyle.BlockInfo) c.Canvas.Upload();
+                    target.Device.ImmediateContext.GenerateMips(c.Texture);
                     c.Content=content; c.Revision=NativeSprites.Revision; c.Status=s.Status;
                 }
                 var full=new VRageMath.RectangleF(-s.Width/2,s.Height/2,s.Width,s.Height);

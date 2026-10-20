@@ -15,6 +15,8 @@ namespace SpaceEngineersVR.Patches
         public static void Install(Harmony harmony)
         {
             Player.RemoteHud.Install(harmony);
+            try { Player.NativeBlockInfo.Install(harmony); }
+            catch(Exception ex) { Logger.Warning(ex,"Native block info unavailable; grip block inspection disabled"); }
             Type type = AccessTools.TypeByName("VRageRender.MyRender11");
             harmony.Patch(AccessTools.Method(type,"SetupCameraMatrices"), new HarmonyMethod(typeof(FrameInjections),nameof(CameraFrame)));
             harmony.Patch(AccessTools.Method(type,"DrawScene"), new HarmonyMethod(typeof(FrameInjections),nameof(BeforeScene)));

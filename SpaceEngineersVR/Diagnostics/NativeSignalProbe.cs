@@ -40,6 +40,7 @@ namespace SpaceEngineersVR.Diagnostics
                 {
                     MyGuiManager.DrawSpriteBatch("Textures\\GUI\\Blank.dds",new Vector2(.5f),new Vector2(2),Scenario.EndsWith("bright") ? new Color(225,225,215):new Color(7,12,20),VRage.Utils.MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER);
                     if(Scenario=="settings") return true;
+                    if(Scenario.StartsWith("block-")) { BlockInfoFixtures.DrawNative(this,Scenario.Substring(6)); return true; }
                     var camera=new MyCamera(1f,new MyViewport(0,0,1920,1080));
                     camera.SetViewMatrix(MatrixD.Identity,false); property.SetValue(null,camera,null);
                     if(markers==null) markers=new MyHudMarkerRender(this);
@@ -119,13 +120,15 @@ namespace SpaceEngineersVR.Diagnostics
         private static DateTime next;
         private static int step;
         private static Exception Error;
-        private static readonly string[] scenarios=Environment.GetEnvironmentVariable("SEVR_NATIVE_HUD_REVIEW")=="1" ? new[] {"group-icons-dark","group-reveal-dark","group-icons-peripheral-dark","group-peripheral-reveal-dark","settings"}:LeadIndicatorTests.Enabled ? new[] {"lead-horizontal-dark","lead-diagonal-dark","lead-left-dark","lead-range-dark","lead-horizontal-bright","lead-overlap-dark"}:new[] {"sparse-dark","sparse-bright","icons-dark","group-dark","group-reveal-dark","group-full-dark","long-dark","edges-dark","rings-dark","rings-bright"};
+        private static readonly string[] scenarios=Environment.GetEnvironmentVariable("SEVR_NATIVE_BLOCK_INFO")=="1" ? BlockInfoFixtures.Scenarios.Select(s=>"block-"+s).ToArray():
+            Environment.GetEnvironmentVariable("SEVR_NATIVE_HUD_REVIEW")=="1" ? new[] {"group-icons-dark","group-reveal-dark","group-icons-peripheral-dark","group-peripheral-reveal-dark","settings"}:LeadIndicatorTests.Enabled ? new[] {"lead-horizontal-dark","lead-diagonal-dark","lead-left-dark","lead-range-dark","lead-horizontal-bright","lead-overlap-dark"}:new[] {"sparse-dark","sparse-bright","icons-dark","group-dark","group-reveal-dark","group-full-dark","long-dark","edges-dark","rings-dark","rings-bright"};
         internal static void Update()
         {
             if(Error!=null) throw new InvalidOperationException("Native signal reference failed",Error);
             if(DateTime.UtcNow<next) return;
             string output=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"SEVRPrototype","Reports","native-signals");
             if(LeadIndicatorTests.Enabled) output=LeadIndicatorTests.Output;
+            if(scenarios[0].StartsWith("block-")) output=BlockInfoFixtures.Output;
             Directory.CreateDirectory(output);
             if(screen==null)
             {

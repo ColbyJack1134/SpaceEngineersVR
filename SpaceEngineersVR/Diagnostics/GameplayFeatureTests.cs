@@ -5,9 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
-using Sandbox.Game.Gui;
 using SpaceEngineersVR.Player;
-using VRage.Game;
 using VRageMath;
 
 namespace SpaceEngineersVR.Diagnostics
@@ -150,11 +148,6 @@ namespace SpaceEngineersVR.Diagnostics
             log("PASS installed skeleton body fit: five sizes, standing/seat pivots, exact hand targets and rigid left cuff/tablet");
             System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(LadderClimb).TypeHandle);
             log("PASS installed ladder members: offset, constraint, end checks and ladder switching");
-            var id=new MyDefinitionId(typeof(MyObjectBuilder_Component),"SteelPlate");
-            var rows=new[] {
-                new MyHudBlockInfo.ComponentInfo {DefinitionId=id,ComponentName="Steel Plate",TotalCount=10,MountedCount=3,StockpileCount=2,AvailableAmount=4},
-                new MyHudBlockInfo.ComponentInfo {DefinitionId=id,ComponentName="Steel Plate",TotalCount=5,MountedCount=1,StockpileCount=1,AvailableAmount=4} };
-            string info=BlockInspection.Describe(.5f,.3f,false,25,rows);
             var armor=(Sandbox.Game.Entities.Cube.MySlimBlock)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.Cube.MySlimBlock));
             var door=(Sandbox.Game.Entities.Cube.MySlimBlock)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.Cube.MySlimBlock));
             foreach(var hit in new[] {door,armor,door,armor})
@@ -162,10 +155,6 @@ namespace SpaceEngineersVR.Diagnostics
                     throw new Exception("Inspection failed to follow the native geometry hit, including non-interactable armor");
             if(BlockInspection.BlockForHit(null,null)!=null)
                 throw new Exception("Inspection retained the previous block after pointing into empty space");
-            if(!info.Contains("7/15  need 8  have 4") || !info.Contains("Damaged") || info.Split('\n').Length!=3)
-                throw new Exception("Component stack grouping, stockpile or damage lost: "+info);
-            if(BlockInspection.Describe(.5f,.5f,false,25,rows).Contains("Damaged") || !BlockInspection.Describe(0,0,true,25,rows).StartsWith("Component cost"))
-                throw new Exception("Unfinished construction reported as damage");
             RemoteView.Axes(new Vector2(1,1),new Vector2(1,1),10,out var aim,out float zoom);
             Near(aim.X,-10,"Turret pitch"); Near(aim.Y,10,"Turret yaw"); Near(zoom,-1,"Turret zoom");
             RemoteView.Axes(Vector2.Zero,Vector2.UnitX,10,out aim,out zoom);
