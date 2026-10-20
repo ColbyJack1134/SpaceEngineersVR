@@ -30,7 +30,7 @@ namespace SpaceEngineersVR.Player
         internal static bool ProtectsRight { get; private set; }
         internal static bool ProtectsFire { get; private set; }
         internal static bool ViewGestureHeld { get; private set; }
-        private static bool leftConsumed,rightConsumed;
+        private static bool leftConsumed,rightConsumed,leftWorking,rightWorking,leftWasDown,rightWasDown,wasNearLeft,wasNearRight;
         // After cycling profiles the cycling hand is still at the helmet; hold off the proximity reveal so the new profile is visible.
         internal const double RevealPause=1.5;
         private static DateTime revealPauseUntil;
@@ -81,11 +81,16 @@ namespace SpaceEngineersVR.Player
             if(otherRange!=config.OtherSignalRange) MyHudMarkerRender.EnemyAntennaRange=otherRange=config.OtherSignalRange;
             var c=Controls.Static;
             float leftPressure=c.LeftTriggerPressure.RawPosition.X;
-            if(leftPressure<=.025f) leftConsumed=false;
-            if(c.PointerPressure.RawPosition.X<=.025f && !c.Primary.RawPressed) rightConsumed=false;
+            bool rightDown=c.PointerPressure.RawPosition.X>.025f || c.Primary.RawPressed,leftDown=leftPressure>.025f;
+            if(!leftDown) leftConsumed=false;
+            if(!rightDown) rightConsumed=false;
             // Rifles and block tools fire or place with the trigger, so the HUD gesture must not catch a hand working near the face.
             bool triggerTool=character?.CurrentWeapon is Sandbox.Game.Weapons.MyAutomaticRifleGun || PlacementControls.OwnsTools;
-            bool rightGun=triggerTool && !Handedness.Swapped,leftGun=triggerTool && Handedness.Swapped;
+            // A trigger pressed away from the face keeps working at the helmet until release.
+            if(!rightDown) rightWorking=false; else if(!rightWasDown && !wasNearRight) rightWorking=true;
+            if(!leftDown) leftWorking=false; else if(!leftWasDown && !wasNearLeft) leftWorking=true;
+            rightWasDown=rightDown; leftWasDown=leftDown;
+            bool rightGun=triggerTool && !Handedness.Swapped || rightWorking,leftGun=triggerTool && Handedness.Swapped || leftWorking;
             if(rightGun) rightConsumed=false;
             if(leftGun) leftConsumed=false;
             bool active=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && !SpectatorView.Manipulating && Player.Headset.pose.isTracked;
@@ -98,6 +103,7 @@ namespace SpaceEngineersVR.Player
             if(leftZone.Entered && !WeaponHandling.Holding(Player.HandL) && !CockpitControls.Held(Player.HandL)) Player.HandL.Vibrate(0,.015f,80,.12f);
             bool nearLeft=guard && Player.HandL.pose.isTracked && NearHead(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix);
             bool nearRight=guard && Player.HandR.pose.isTracked && (rightGesture.Inside || NearHead(Player.HandR.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix));
+            wasNearLeft=nearLeft; wasNearRight=nearRight;
             Reveal=active && Markers && (Mode==2 || (nearLeft && !leftGun || nearRight && !rightGun) && DateTime.UtcNow>=revealPauseUntil);
             bool visorPressed=visorGesture.Update(active && Player.HandR.pose.isTracked && c.Secondary.Active,
                 rightGesture.Inside,c.Secondary.RawPressed,CameraRig.Detached,
@@ -120,8 +126,8 @@ namespace SpaceEngineersVR.Player
                 leftConsumed=true;
                 Player.HandL.Vibrate(0,.035f,120,.25f);
             }
-            if(!leftGun && nearLeft && leftPressure>.025f) leftConsumed=true;
-            if(!rightGun && nearRight && (c.PointerPressure.RawPosition.X>.025f || c.Primary.RawPressed)) rightConsumed=true;
+            if(!leftGun && nearLeft && leftDown) leftConsumed=true;
+            if(!rightGun && nearRight && rightDown) rightConsumed=true;
             ProtectsRight=!rightGun && (nearRight || rightConsumed);
             ProtectsFire=Handedness.Swapped ? !leftGun && (nearLeft || leftConsumed) : ProtectsRight;
             if(nearLeft) { c.LeftGripPressure.BlockUntilRelease(); c.BlockGripRoles(Player.HandL); }
