@@ -38,7 +38,7 @@ namespace SpaceEngineersVR.Diagnostics
             arm.State.FixedStep=step;
             return arm;
         }
-        private static float Length(ArmSkeleton.Arm arm,bool upper) => upper
+        internal static float Length(ArmSkeleton.Arm arm,bool upper) => upper
             ? Vector3.Distance(arm.Upper.Bone.AbsoluteTransform.Translation,arm.Lower.Bone.AbsoluteTransform.Translation)
             : Vector3.Distance(arm.Lower.Bone.AbsoluteTransform.Translation,arm.Palm.Bone.AbsoluteTransform.Translation);
         // The elbow hinge as a forearm bone carries it, so the palm's roll past that bone is the roll left at that joint.
@@ -187,6 +187,7 @@ namespace SpaceEngineersVR.Diagnostics
             var display=bones.Single(b=>b.Name=="SE_RigLForearm2"); var palm=arm.Palm.Bone;
             Matrix expected=display.GetAbsoluteRigTransform()*Matrix.Invert(palm.GetAbsoluteRigTransform());
             float upper=Length(arm,true),lower=Length(arm,false);
+            Vector3 collar=arm.Collar.Bone.AbsoluteTransform.Translation;
             foreach(float screen in new[] {0f,.5f,1f})
                 for(int i=0;i<40;i++)
                 {
@@ -199,29 +200,49 @@ namespace SpaceEngineersVR.Diagnostics
                     if(Vector3.Distance(arm.Upper.Bone.AbsoluteTransform.Translation,target.Translation)<upper+lower-.02f)
                     {
                         if(screen<=0) Near(Length(arm,true),upper,"Screen solve stretched the upper arm",.0005f);
-                        if(screen<=0 || screen>=1) Near(Length(arm,false),lower,"Screen solve stretched the forearm",.0005f);
+                        if(screen<=0) Near(Length(arm,false),lower,"Screen solve stretched the forearm",.0005f);
+                        else if(Math.Abs(Length(arm,false)/lower-1)>.26f) throw new Exception("Screen solve changed the forearm by "+Length(arm,false)/lower);
                     }
-                    // Screen closed: the glove rides the forearm axis with the hand's full roll. Screen in use: the glove
-                    // is fixed to the hand and, when the straight-sleeve elbow is within the upper arm's range, the sleeve runs into it.
+                    // The glove rides the forearm axis with the hand's full roll. Screen in use with the forearm on the hand's line:
+                    // the glove keeps the hand's orientation.
                     Vector3 axis=Vector3.Normalize(palm.AbsoluteTransform.Translation-arm.Lower.Bone.AbsoluteTransform.Translation);
                     float left=ArmSolve.Roll(axis,Carried(arm,display),desired,arm.Rig);
                     if(Math.Abs(left)>1.5f) throw new Exception("Roll left between the glove and the hand: "+left);
                     var relation=(display.GetAbsoluteRigTransform()*Matrix.Invert(arm.Lower.Bone.GetAbsoluteRigTransform())).GetOrientation();
                     Vector3 gloveAxis=Vector3.TransformNormal(arm.Rig.LowerAxis,Matrix.Invert(relation)*display.AbsoluteTransform.GetOrientation());
-                    if(screen<=0) Near(Vector3.Dot(Vector3.Normalize(gloveAxis),axis),1,"Glove left the forearm axis",.001f);
+                    Near(Vector3.Dot(Vector3.Normalize(gloveAxis),axis),1,"Glove left the forearm axis",.001f);
+                    Vector3 elbow=arm.Lower.Bone.AbsoluteTransform.Translation,onLine=display.AbsoluteTransform.Translation-elbow;
+                    Near((onLine-axis*Vector3.Dot(onLine,axis)).Length(),0,"Glove left the line from elbow to hand",.001f);
                     if(screen>=1)
                     {
                         Matrix relative=display.AbsoluteTransform*Matrix.Invert(palm.AbsoluteTransform);
-                        Near(Vector3.Distance(relative.Translation,expected.Translation),0,"Tablet slides relative to the hand",.0005f);
-                        Near(Vector3.Distance(relative.Up,expected.Up)+Vector3.Distance(relative.Right,expected.Right),0,"Tablet turns relative to the hand",.0005f);
-                        Vector3 straight=palm.AbsoluteTransform.Translation-Vector3.TransformNormal(arm.Rig.PalmLong,palm.AbsoluteTransform)*lower;
-                        float needed=Vector3.Distance(straight,arm.Upper.Bone.AbsoluteTransform.Translation);
-                        float fold=MathHelper.ToDegrees((float)Math.Acos(MathHelper.Clamp(Vector3.Dot(axis,Vector3.TransformNormal(arm.Rig.PalmLong,palm.AbsoluteTransform)),-1,1)));
-                        if(needed>=upper && needed<=upper*ArmSolve.ScreenStretch && fold>1) throw new Exception("Sleeve does not run into the fixed glove: "+fold+" degrees");
-                        if(Length(arm,true)/upper>ArmSolve.ScreenStretch+.001f) throw new Exception("Welded upper arm stretch over the limit");
+                        Vector3 glove=Vector3.Normalize(Vector3.TransformNormal(arm.Rig.PalmLong,palm.AbsoluteTransform));
+                        if(Vector3.Dot(axis,glove)>.9998f)
+                            Near(Vector3.Distance(relative.Up,expected.Up)+Vector3.Distance(relative.Right,expected.Right),0,"Tablet turns relative to the hand",.02f);
+                        float needed=Vector3.Distance(palm.AbsoluteTransform.Translation-glove*lower,arm.Upper.Bone.AbsoluteTransform.Translation);
+                        float fold=MathHelper.ToDegrees((float)Math.Acos(MathHelper.Clamp(Vector3.Dot(axis,glove),-1,1)));
+                        if(needed>=upper && fold>1) throw new Exception("Forearm leaves the glove line: "+fold+" degrees");
+                        if(needed>=upper) Near(Length(arm,true)/upper,Length(arm,false)/lower,"Screen solve stretched the upper arm alone",.002f);
                     }
                     arm.Restore(true);
+                    Near(Vector3.Distance(arm.Collar.Bone.AbsoluteTransform.Translation,collar),0,"Screen shoulder shift left on the collarbone");
                 }
+            // Screen in use with the hand anywhere around the body at any rotation: the stretch stays within the free limit and the sleeve folds at most 40 degrees at the cuff.
+            var random=new Random(7);
+            for(int i=0;i<400;i++)
+            {
+                var target=Matrix.CreateFromYawPitchRoll((float)random.NextDouble()*6.3f,(float)random.NextDouble()*6.3f,(float)random.NextDouble()*6.3f);
+                var direction=Vector3.Normalize(new Vector3((float)random.NextDouble()*2-1,(float)random.NextDouble()*2-1,(float)random.NextDouble()*-1.5f+.3f));
+                target.Translation=arm.Upper.Bone.AbsoluteTransform.Translation+direction*(upper+lower)*(.25f+(float)random.NextDouble()*1.1f);
+                if(!ArmSkeleton.Apply(arm,target,new ArmSolve.Options(true,true,1),1,ArmSkeleton.Fingers.Native,0)) throw new Exception("Reaching screen solve failed");
+                if(arm.Collar.Bone.AbsoluteTransform.Translation.X-collar.X>1e-4f) throw new Exception("Screen shoulder shift moved the left collarbone toward the chest");
+                if(Length(arm,true)>upper*ArmSolve.MaxStretch+.001f || Length(arm,false)>lower*ArmSolve.MaxStretch+.001f)
+                    throw new Exception("Reaching screen arm stretched past the free limit: "+Length(arm,true)/upper+"/"+Length(arm,false)/lower);
+                Vector3 elbow=arm.Lower.Bone.AbsoluteTransform.Translation,cuff=display.AbsoluteTransform.Translation,hand=palm.AbsoluteTransform.Translation;
+                float fold=MathHelper.ToDegrees((float)Math.Acos(MathHelper.Clamp(Vector3.Dot(Vector3.Normalize(cuff-elbow),Vector3.Normalize(hand-cuff)),-1,1)));
+                if(fold>40) throw new Exception("Screen arm folds the sleeve: "+fold+" degrees");
+                arm.Restore(true);
+            }
             // Adaptive arms off: fixed lengths even with the screen in use.
             for(int i=0;i<20;i++)
             {
@@ -236,7 +257,7 @@ namespace SpaceEngineersVR.Diagnostics
             Near(TrackedArms.ScreenAttention(facing,head),1,"Screen facing the eye in view does not raise the weight");
             Near(TrackedArms.ScreenAttention(MatrixD.CreateWorld(facing.Translation,-facing.Forward,Vector3D.Up),head),0,"Screen turned away keeps the weight");
             Near(TrackedArms.ScreenAttention(facing,MatrixD.CreateWorld(head.Translation,Vector3D.Right,Vector3D.Up)),0,"Screen outside the view keeps the weight");
-            log("PASS wrist screen: 120 installed-bone poses: screen closed, the glove rides the forearm with the hand's full roll and a free wrist; screen in use, the glove is fixed to the hand with the sleeve running into it (upper arm up to "+ArmSolve.ScreenStretch+"x); continuous in between; attention weights only a facing screen in view");
+            log("PASS wrist screen: 120 installed-bone poses and 400 random reaches: the glove rides the forearm with the hand's full roll; screen in use, the forearm runs along the glove line at real arm lengths; continuous in between; the collarbone never moves toward the chest; attention weights only a facing screen in view");
         }
         private static void Placement(Action<string> log)
         {

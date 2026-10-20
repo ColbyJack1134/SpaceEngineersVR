@@ -7,8 +7,12 @@ namespace SpaceEngineersVR.Player
     // Two-link arm solve, model space, row vectors, character forward -Z; hand roll goes into the forearm, the wrist keeps pitch and side.
     internal static class ArmSolve
     {
-        // FixedStep, when set, replaces the wall-clock step.
-        internal sealed class State { public float Correction; public long Time; public float FixedStep { get; set; } }
+        // FixedStep, when set, replaces the wall-clock step. Seconds is the step of the latest Correct call.
+        internal sealed class State
+        {
+            public float Correction,Seconds; public long Time; public Vector3 Elbow; public bool HasElbow;
+            public float FixedStep { get; set; }
+        }
         internal struct Options
         {
             public bool Travel,Stretch;
@@ -26,8 +30,10 @@ namespace SpaceEngineersVR.Player
         internal const float MaxStretch=1.35f,ShoulderTravel=.12f;
         internal const float PitchLimit=70,RadialLimit=20,UlnarLimit=35,RollLimit=85;
         internal const float CorrectionRange=70,CorrectionStep=10;
-        // Upper arm stretch allowed to reach the straight-sleeve elbow while the wrist screen is in use.
-        internal const float ScreenStretch=1.6f;
+        // While the wrist screen is in use the collarbone slides, then turns, toward the elbow that puts the forearm on the hand's line.
+        internal const float ScreenShift=.15f,ScreenShrug=30,ScreenFreeFrom=1,ScreenFreeTo=1.1f;
+        // Easing of the screen-mode elbow, seconds; the hand itself is never delayed.
+        internal const float ScreenElbowEase=.08f;
         // Elbow bone, then each twist bone from the elbow toward the palm. The glove bones carry the hand's roll in full.
         internal static readonly float[] TwistShares={ .4f,1,1 };
 
@@ -58,12 +64,15 @@ namespace SpaceEngineersVR.Player
             lower.Translation=lower.BindTransform.Translation*(bodyScale-1); palm.Translation=Vector3.Zero; palm.Rotation=Quaternion.Identity;
             foreach(var bone in chain) { bone.Rotation=Quaternion.Identity; bone.Translation=Vector3.Zero; }
             upper.ComputeAbsoluteTransform(true,true);
-            Vector3 shoulder=upper.AbsoluteTransform.Translation;
-            float upperLength=Vector3.Distance(shoulder,lower.AbsoluteTransform.Translation);
+            float upperLength=Vector3.Distance(upper.AbsoluteTransform.Translation,lower.AbsoluteTransform.Translation);
             float lowerLength=Vector3.Distance(lower.AbsoluteTransform.Translation,palm.AbsoluteTransform.Translation);
             if(upperLength<.02f || lowerLength<.02f) return false;
             Matrix palmPose=palmOffset*target.GetOrientation();
             Vector3 wrist=target.Translation;
+            float screen=MathHelper.Clamp(options.Screen,0,1);
+            Vector3 gloveAxis=Vector3.Normalize(Vector3.TransformNormal(rig.PalmLong,palmPose));
+            if(screen>0 && upper.Parent!=null) ScreenShoulder(upper.Parent,upper,wrist-gloveAxis*lowerLength,upperLength,screen,rig.Side);
+            Vector3 shoulder=upper.AbsoluteTransform.Translation;
             Vector3 delta=wrist-shoulder;
             float distance=delta.Length();
             if(float.IsNaN(distance) || distance<1e-4f || distance>2.5f) return false;
@@ -74,9 +83,10 @@ namespace SpaceEngineersVR.Player
                 float travel=Math.Min(ShoulderTravel,Math.Max(0,distance+.01f-reach)*.6f);
                 shoulder+=axis*travel; distance-=travel;
             }
+            float stretch=1;
             if(options.Stretch)
             {
-                float stretch=MathHelper.Clamp((distance+.01f)/reach,1,MaxStretch);
+                stretch=MathHelper.Clamp((distance+.01f)/reach,1,MaxStretch);
                 upperLength*=stretch; lowerLength*=stretch; reach*=stretch;
             }
             float span=MathHelper.Clamp(distance,Math.Abs(upperLength-lowerLength)+.005f,reach-.005f);
@@ -87,43 +97,61 @@ namespace SpaceEngineersVR.Player
             float correction=Correct(hint,axis,shoulder,solvedWrist,along,height,palmPose,rig,options.Screen,state);
             Vector3 bend=Turn(hint,axis,correction);
             Vector3 elbow=shoulder+axis*along+bend*height;
-            // Screen in use: the glove is fixed to the hand and the elbow moves toward the straight-sleeve point, upper arm up to ScreenStretch.
-            float screen=MathHelper.Clamp(options.Screen,0,1);
+            Vector3 end=solvedWrist,hand=options.Stretch ? wrist : solvedWrist;
+            // Screen in use: the elbow goes on the line back from the glove, so the forearm carries the screen square to the hand.
             if(screen>0)
             {
-                Vector3 gloveAxis=Vector3.Normalize(Vector3.TransformNormal(rig.PalmLong,palmPose));
-                Vector3 ideal=solvedWrist-gloveAxis*lowerLength;
-                Vector3 toIdeal=ideal-shoulder;
-                float needed=toIdeal.Length();
-                float arm=MathHelper.Clamp(needed,upperLength,upperLength*(options.Stretch ? ScreenStretch : 1));
-                if(Math.Abs(needed-arm)>1e-4f)
+                Vector3 toWrist=wrist-shoulder;
+                Vector3 toIdeal=toWrist-gloveAxis*lowerLength;
+                Vector3 screenElbow,screenWrist;
+                if(toIdeal.Length()<=upperLength)
                 {
-                    float reachable=MathHelper.Clamp(span,Math.Abs(arm-lowerLength)+.005f,arm+lowerLength-.005f);
-                    float armAlong=(arm*arm-lowerLength*lowerLength+reachable*reachable)/(2*reachable);
-                    float armHeight=(float)Math.Sqrt(Math.Max(0,arm*arm-armAlong*armAlong));
-                    Vector3 toward=toIdeal-axis*Vector3.Dot(toIdeal,axis);
-                    toward=toward.LengthSquared()<1e-6f ? hint : Vector3.Normalize(toward);
-                    ideal=shoulder+axis*armAlong+toward*armHeight;
+                    // Distance back along the glove line that puts the elbow at the upper arm's length, nearest the forearm's own.
+                    float g=Vector3.Dot(toWrist,gloveAxis),root=g*g-toWrist.LengthSquared()+upperLength*upperLength,back=-1;
+                    if(root>=0)
+                    {
+                        float r=(float)Math.Sqrt(root),near=Math.Abs(g+r-lowerLength)<Math.Abs(g-r-lowerLength) ? g+r : g-r;
+                        if(near>lowerLength*.75f && near<lowerLength*1.25f) back=near;
+                    }
+                    if(back>0) screenElbow=wrist-gloveAxis*back;
+                    else
+                    {
+                        Vector3 toward=toIdeal-axis*Vector3.Dot(toIdeal,axis);
+                        screenElbow=shoulder+axis*along+(toward.LengthSquared()<1e-6f ? bend : Vector3.Normalize(toward))*height;
+                    }
+                    screenWrist=hand;
                 }
-                elbow=Vector3.Lerp(elbow,ideal,screen);
-                // Keep the forearm length; fall back to the arm circle if that shortens or overstretches the upper arm.
-                elbow=solvedWrist-Vector3.Normalize(solvedWrist-elbow)*lowerLength;
-                Vector3 fromShoulder=elbow-shoulder;
-                float longest=upperLength*(options.Stretch ? ScreenStretch : 1);
-                if(fromShoulder.LengthSquared()<upperLength*upperLength || fromShoulder.LengthSquared()>longest*longest)
+                else if(!options.Stretch)
                 {
-                    float limit=fromShoulder.LengthSquared()<upperLength*upperLength ? upperLength : longest;
-                    float reachable=MathHelper.Clamp(span,Math.Abs(limit-lowerLength)+.005f,limit+lowerLength-.005f);
-                    float limitAlong=(limit*limit-lowerLength*lowerLength+reachable*reachable)/(2*reachable);
-                    float limitHeight=(float)Math.Sqrt(Math.Max(0,limit*limit-limitAlong*limitAlong));
-                    Vector3 toward=fromShoulder-axis*Vector3.Dot(fromShoulder,axis);
-                    toward=toward.LengthSquared()<1e-6f ? hint : Vector3.Normalize(toward);
-                    elbow=shoulder+axis*limitAlong+toward*limitHeight;
+                    // Without stretch the hand and screen stop short.
+                    screenElbow=shoulder+Vector3.Normalize(toIdeal)*upperLength;
+                    screenWrist=screenElbow+gloveAxis*lowerLength;
                 }
-                bend=(elbow-shoulder)-axis*Vector3.Dot(elbow-shoulder,axis);
-                bend=bend.LengthSquared()<1e-4f ? hint : Vector3.Normalize(bend);
+                else
+                {
+                    // A forearm far off the shoulder-to-hand line would need a huge stretch; toward ScreenFreeTo the elbow returns to the free solve.
+                    float even=EvenStretch(toWrist,gloveAxis,upperLength,lowerLength);
+                    float free=even>0 ? MathHelper.Clamp((even*stretch-ScreenFreeFrom)/(ScreenFreeTo-ScreenFreeFrom),0,1) : 1;
+                    screenElbow=free>=1 ? elbow : shoulder+Vector3.Normalize(toWrist-gloveAxis*lowerLength*even)*upperLength*even;
+                    if(free>0 && free<1) screenElbow=Vector3.Lerp(screenElbow,elbow,free);
+                    screenWrist=hand;
+                }
+                elbow=Vector3.Lerp(elbow,screenElbow,screen);
+                end=Vector3.Lerp(end,screenWrist,screen); hand=Vector3.Lerp(hand,screenWrist,screen);
+                Vector3 toEnd=end-shoulder;
+                if(toEnd.LengthSquared()>1e-8f) axis=Vector3.Normalize(toEnd);
+                Vector3 bent=(elbow-shoulder)-axis*Vector3.Dot(elbow-shoulder,axis);
+                if(bent.LengthSquared()>1e-6f) bend=Vector3.Normalize(bent);
             }
-            Vector3 forearm=Vector3.Normalize(solvedWrist-elbow);
+            if(state!=null && screen>0)
+            {
+                // Small pose and head changes move the screen-mode elbow between solutions; easing it keeps the arm and screen steady.
+                Vector3 offset=elbow-shoulder;
+                if(state.HasElbow) offset=Vector3.Lerp(state.Elbow,offset,1-(float)Math.Exp(-state.Seconds/(ScreenElbowEase*screen)));
+                state.Elbow=offset; state.HasElbow=true; elbow=shoulder+offset;
+            }
+            else if(state!=null) state.HasElbow=false;
+            Vector3 forearm=Vector3.Normalize(end-elbow);
             Vector3 hinge=Hinge(bend,axis,rig.Side);
             Matrix upperPose=Frame(rig.UpperAxis,rig.UpperHinge,elbow-shoulder,hinge); upperPose.Translation=shoulder;
             upper.SetCompleteTransformFromAbsoluteMatrix(ref upperPose,false); upper.ComputeAbsoluteTransform(true,true);
@@ -132,25 +160,16 @@ namespace SpaceEngineersVR.Player
             Matrix lowerRig=lower.GetAbsoluteRigTransform();
             Matrix lowerPose=neutral*Matrix.CreateFromAxisAngle(forearm,roll*TwistShares[0]); lowerPose.Translation=elbow;
             lower.SetCompleteTransformFromAbsoluteMatrix(ref lowerPose,false); lower.ComputeAbsoluteTransform(true,true);
-            palmPose.Translation=options.Stretch ? wrist : solvedWrist;
-            Matrix lowerRigInverse=Matrix.Invert(lowerRig),palmRigInverse=Matrix.Invert(palm.GetAbsoluteRigTransform());
+            palmPose.Translation=hand;
+            Matrix lowerRigInverse=Matrix.Invert(lowerRig);
+            // The forearm is one piece: a changed length is spread evenly over its twist bones instead of opening a gap at the glove.
+            float spread=Vector3.Distance(end,elbow)/Math.Max(1e-4f,Vector3.Distance(palm.GetAbsoluteRigTransform().Translation,lowerRig.Translation));
             for(int i=0;i<chain.Length;i++)
             {
                 float share=i+1<TwistShares.Length ? TwistShares[i+1] : 1;
                 Matrix chainRig=chain[i].GetAbsoluteRigTransform();
                 Matrix pose=(chainRig*lowerRigInverse).GetOrientation()*neutral*Matrix.CreateFromAxisAngle(forearm,roll*share);
-                pose.Translation=chain[i].AbsoluteTransform.Translation;
-                if(screen>0)
-                {
-                    Matrix fixedToHand=chainRig*palmRigInverse*palmPose;
-                    if(screen>=1) pose=fixedToHand;
-                    else
-                    {
-                        Vector3 position=Vector3.Lerp(pose.Translation,fixedToHand.Translation,screen);
-                        pose=Matrix.CreateFromQuaternion(Quaternion.Slerp(Quaternion.CreateFromRotationMatrix(pose),Quaternion.CreateFromRotationMatrix(fixedToHand),screen));
-                        pose.Translation=position;
-                    }
-                }
+                pose.Translation=elbow+forearm*Vector3.Distance(chainRig.Translation,lowerRig.Translation)*spread;
                 chain[i].SetCompleteTransformFromAbsoluteMatrix(ref pose,false); chain[i].ComputeAbsoluteTransform(true,true);
             }
             palm.SetCompleteTransformFromAbsoluteMatrix(ref palmPose,false); palm.ComputeAbsoluteTransform(true,true);
@@ -174,6 +193,45 @@ namespace SpaceEngineersVR.Player
             }
             return Vector3.Normalize(hint);
         }
+        // Smallest stretch s>1 with |reach-glove*lower*s|=upper*s; 0 when the forearm points too far back for an even stretch.
+        private static float EvenStretch(Vector3 reach,Vector3 glove,float upper,float lower)
+        {
+            float a=lower*lower-upper*upper,b=-2*lower*Vector3.Dot(reach,glove),c=reach.LengthSquared();
+            if(Math.Abs(a)<1e-6f) return b<0 ? Math.Max(1,-c/b) : 0;
+            float d=b*b-4*a*c;
+            if(d<0) return 0;
+            float r=(float)Math.Sqrt(d),s1=(-b-r)/(2*a),s2=(-b+r)/(2*a);
+            float low=Math.Min(s1,s2),high=Math.Max(s1,s2);
+            return low>=1 ? low : high>=1 ? high : 0;
+        }
+        private static void ScreenShoulder(MyCharacterBone collar,MyCharacterBone upper,Vector3 elbow,float upperLength,float screen,float side)
+        {
+            Vector3 need=elbow-upper.AbsoluteTransform.Translation;
+            float over=need.Length()-upperLength;
+            if(over<=0) return;
+            Matrix pose=collar.AbsoluteTransform;
+            Vector3 from=upper.AbsoluteTransform.Translation-pose.Translation;
+            Vector3 shift=need/need.Length()*Math.Min(ScreenShift,over)*screen;
+            // Never toward the middle of the chest: an arm reaching inward would pull the shoulder across the body.
+            if(shift.X*side<0) shift.X=0;
+            pose.Translation+=shift;
+            Vector3 root=pose.Translation,to=elbow-root;
+            Vector3 turnAxis=Vector3.Cross(from,to);
+            float angle=0;
+            if(turnAxis.LengthSquared()>1e-10f)
+            {
+                turnAxis.Normalize();
+                // Smallest turn that brings the elbow within reach; the distance falls monotonically up to the full angle.
+                bool reaches(float turn) => Vector3.Distance(root+Vector3.TransformNormal(from,Matrix.CreateFromAxisAngle(turnAxis,turn)),elbow)<=upperLength;
+                float low=0,high=Math.Min(MathHelper.ToRadians(ScreenShrug),(float)Math.Acos(MathHelper.Clamp(Vector3.Dot(Vector3.Normalize(from),Vector3.Normalize(to)),-1,1)));
+                if(reaches(high))
+                    for(int i=0;i<12;i++) { float mid=(low+high)/2; if(reaches(mid)) high=mid; else low=mid; }
+                angle=high*screen;
+            }
+            Matrix turned=angle>0 ? pose.GetOrientation()*Matrix.CreateFromAxisAngle(turnAxis,angle) : pose.GetOrientation();
+            turned.Translation=root;
+            collar.SetCompleteTransformFromAbsoluteMatrix(ref turned,false); collar.ComputeAbsoluteTransform(true,true);
+        }
         internal static Vector3 Turn(Vector3 hint,Vector3 axis,float degrees) =>
             Math.Abs(degrees)<1e-4f ? hint : Vector3.Normalize(Vector3.TransformNormal(hint,Matrix.CreateFromAxisAngle(axis,MathHelper.ToRadians(degrees))));
         // The bend plane normal points laterally for the right arm and medially for the left; the hinge is kept medial.
@@ -194,7 +252,7 @@ namespace SpaceEngineersVR.Player
             if(state==null) return best;
             long now=System.Diagnostics.Stopwatch.GetTimestamp();
             float seconds=state.FixedStep>0 ? state.FixedStep : state.Time==0 ? 1 : (float)Math.Min(.1,(now-state.Time)/(double)System.Diagnostics.Stopwatch.Frequency);
-            state.Time=now;
+            state.Time=now; state.Seconds=seconds;
             // A used wrist screen needs a steady forearm, so the elbow settles slowly while the screen is in use.
             float smoothing=MathHelper.Lerp(.08f,.5f,MathHelper.Clamp(screen,0,1));
             float step=(best-state.Correction)*(1-(float)Math.Exp(-seconds/smoothing));

@@ -112,7 +112,11 @@ namespace SpaceEngineersVR.Player
             foreach(var twist in arm.Twists) twist.Save();
             foreach(var finger in arm.Fingers) finger.Save();
             arm.Applied=true;
-            if(!ArmSolve.Apply(arm.Upper.Bone,arm.Lower.Bone,arm.Chain,arm.Palm.Bone,arm.Rig,target,arm.PalmOffset,options,scale,arm.State))
+            bool collar=options.Screen>0 && arm.Collar!=null;
+            if(collar) arm.Collar.SaveOnce();
+            bool solved=ArmSolve.Apply(arm.Upper.Bone,arm.Lower.Bone,arm.Chain,arm.Palm.Bone,arm.Rig,target,arm.PalmOffset,options,scale,arm.State);
+            if(collar) Remember(arm.Collar);
+            if(!solved)
             { arm.Restore(true); return false; }
             if(fingers!=Fingers.Native)
                 foreach(var finger in arm.Fingers)

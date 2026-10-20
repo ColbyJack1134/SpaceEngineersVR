@@ -128,17 +128,20 @@ namespace SpaceEngineersVR.Player
             ArmSkeleton.Remember(collar);
         }
         private static float screenWeight=1;
+        private static bool screenOn=true;
         private static long screenTime;
-        // Left wrist screen weight: 1 while the screen can be used, 0 while the left hand holds something.
+        // Left wrist screen weight: eases to 1 while the screen is looked at or used, to 0 when looked away or while the left hand holds something.
+        // Attention between the two thresholds keeps the current state, so a glance at the edge does not rock the arm.
         private static float ScreenWeight(Arm arm,Matrix target,MyCharacter character)
         {
             long now=System.Diagnostics.Stopwatch.GetTimestamp();
             float seconds=screenTime==0 ? 1 : (float)Math.Min(.1,(now-screenTime)/(double)System.Diagnostics.Stopwatch.Frequency);
             screenTime=now;
-            if(CockpitControls.Held(Player.HandL) || WeaponHandling.Holding(Player.HandL) || LadderClimb.Holding(Player.HandL)) return screenWeight=0;
-            float goal=SpatialUi.WristInUse ? 1 : ScreenAttention(arm,target,character);
-            screenWeight=goal>screenWeight ? Math.Min(goal,screenWeight+seconds/.15f) : Math.Max(goal,screenWeight-seconds/.5f);
-            return screenWeight;
+            if(CockpitControls.Held(Player.HandL) || WeaponHandling.Holding(Player.HandL) || LadderClimb.Holding(Player.HandL)) { screenOn=false; return screenWeight=0; }
+            float attention=SpatialUi.WristInUse ? 1 : ScreenAttention(arm,target,character);
+            if(attention>=.9f) screenOn=true; else if(attention<=.1f) screenOn=false;
+            screenWeight=screenOn ? Math.Min(1,screenWeight+seconds/.3f) : Math.Max(0,screenWeight-seconds/.4f);
+            return MathHelper.SmoothStep(0,1,screenWeight);
         }
         internal static float ScreenAttention(Arm arm,Matrix target,MyCharacter character)
         {
@@ -146,9 +149,12 @@ namespace SpaceEngineersVR.Player
             if(cuff==null || !Player.Headset.pose.isTracked) return 1;
             Matrix palm=arm.PalmOffset*target.GetOrientation(); palm.Translation=target.Translation;
             MatrixD screen=(MatrixD)(WristScreenLocal*cuff.GetAbsoluteRigTransform()*Matrix.Invert(arm.Palm.Bone.GetAbsoluteRigTransform())*palm)*character.WorldMatrix;
-            return ScreenAttention(screen,SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix));
+            var head=SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix);
+            var toHand=Vector3D.Transform(target.Translation,character.WorldMatrix)-head.Translation;
+            var up=character.WorldMatrix.Up;
+            return ScreenAttention(screen,head)*WatchReach((float)(toHand-up*Vector3D.Dot(toHand,up)).Length());
         }
-        // Screen face (Backward) toward the eye within 55 degrees, and the screen within 30 degrees of view; released by 80 and 45.
+        // 1 with the screen face (Backward) toward the eye within 55 degrees and the screen within 30 degrees of view; 0 past 80 and 45.
         internal static float ScreenAttention(MatrixD screen,MatrixD head)
         {
             var toHead=head.Translation-screen.Translation;
@@ -157,6 +163,8 @@ namespace SpaceEngineersVR.Player
             float facing=(float)Vector3D.Dot(screen.Backward,toHead),gaze=(float)Vector3D.Dot(head.Forward,-toHead);
             return Ramp(facing,.174f,.574f)*Ramp(gaze,.707f,.866f);
         }
+        // Watch-check pose only: the hand within 40 cm of the eyes, horizontally.
+        internal static float WatchReach(float horizontal) => 1-Ramp(horizontal,.40f,.46f);
         private static float Ramp(float value,float from,float to) => MathHelper.SmoothStep(0,1,MathHelper.Clamp((value-from)/(to-from),0,1));
         internal static Multiplayer.PlayerPose CapturePose(uint sequence)
         {

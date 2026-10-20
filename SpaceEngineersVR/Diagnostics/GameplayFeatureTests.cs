@@ -127,10 +127,17 @@ namespace SpaceEngineersVR.Diagnostics
                     Near(Vector3.Distance(palm.AbsoluteTransform.Up,(arm.PalmOffset*target).Up),0,"Fitted palm orientation");
                     if(side<0)
                     {
-                        // Screen in use: the cuff and its tablet stay fixed to the hand under the body scale.
+                        // Screen in use: the cuff and its tablet ride the forearm with the hand's orientation under the body scale.
                         var actual=cuff.AbsoluteTransform*Matrix.Invert(palm.AbsoluteTransform);
-                        Near(Vector3.Distance(expected.Translation,actual.Translation),0,"Fitted tablet slides",.0005f);
-                        Near(Vector3.Distance(expected.Up,actual.Up),0,"Fitted tablet twists",.0005f);
+                        Vector3 elbow=arm.Lower.Bone.AbsoluteTransform.Translation,line=Vector3.Normalize(palm.AbsoluteTransform.Translation-elbow),along=cuff.AbsoluteTransform.Translation-elbow;
+                        Near((along-line*Vector3.Dot(along,line)).Length(),0,"Fitted tablet left the forearm",.001f);
+                        Near(Vector3.Distance(expected.Up,actual.Up),0,"Fitted tablet twists",.02f);
+                        float upper=ArmTests.Length(arm,true),lower=ArmTests.Length(arm,false);
+                        arm.Restore(true);
+                        if(!ArmSkeleton.Apply(arm,target,new ArmSolve.Options(true,true,0),scale,ArmSkeleton.Fingers.Native,0)) throw new Exception("Fitted arm failed");
+                        Near(upper,ArmTests.Length(arm,true),"Fitted screen arm stretched the upper arm",.001f);
+                        // A hand close to the body slides the elbow along the glove line, changing the forearm by at most a quarter.
+                        if(Math.Abs(lower/ArmTests.Length(arm,false)-1)>.26f) throw new Exception("Fitted screen arm forearm off by "+lower/ArmTests.Length(arm,false));
                     }
                 }
                 if(output!=null && !seated)
@@ -145,7 +152,7 @@ namespace SpaceEngineersVR.Diagnostics
                         new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(stream,export);
                 }
             }
-            log("PASS installed skeleton body fit: five sizes, standing/seat pivots, exact hand targets and rigid left cuff/tablet");
+            log("PASS installed skeleton body fit: five sizes, standing/seat pivots, exact hand targets, left cuff/tablet on the forearm line and no screen stretch");
             System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(LadderClimb).TypeHandle);
             log("PASS installed ladder members: offset, constraint, end checks and ladder switching");
             var armor=(Sandbox.Game.Entities.Cube.MySlimBlock)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.Cube.MySlimBlock));
