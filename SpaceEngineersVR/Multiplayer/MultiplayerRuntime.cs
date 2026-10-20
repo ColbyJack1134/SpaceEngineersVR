@@ -190,7 +190,10 @@ namespace SpaceEngineersVR.Multiplayer
             }
             if(message.Channel==RelayChannel)
             {
-                if(ReadRelay(message.Data,message.Server,out ulong origin,out var relayed)) Accept(origin,relayed,now,out _);
+                if(!ReadRelay(message.Data,message.Server,out ulong origin,out var relayed) || origin==network.MyId) return;
+                // Other clients' hellos arrive with the server's id, so a relay registers its origin.
+                if(!peers.ContainsKey(origin) && players.Any(p=>p.SteamUserId==origin)) peers.Add(origin,new Peer {Seen=now});
+                Accept(origin,relayed,now,out _);
                 return;
             }
             var player=players.FirstOrDefault(p=>p.SteamUserId==message.Sender);
