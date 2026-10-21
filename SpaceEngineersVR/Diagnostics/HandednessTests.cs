@@ -27,12 +27,11 @@ namespace SpaceEngineersVR.Diagnostics
         }
         internal static void Run(Action<string> log)
         {
-            var items=XDocument.Load(Path.Combine(VRage.FileSystem.MyFileSystem.ContentPath,"Data","HandItems.sbc")).Descendants("HandItem")
-                .Where(x=>x.Element("PhysicalItemId")!=null).ToDictionary(x=>(string)x.Element("PhysicalItemId").Attribute("Subtype"));
+            var items=WeaponTests.HandItems();
             // The installed astronaut's bind pose mirrors the palm across local Z; also cover a general reflection.
             var reflections=new[] { Matrix.CreateScale(1,1,-1),
                 Matrix.CreateFromYawPitchRoll(.4f,-.3f,.2f)*Matrix.CreateScale(-1,1,1)*Matrix.Invert(Matrix.CreateFromYawPitchRoll(-.7f,.1f,.5f)) };
-            foreach(var right in WeaponProfile.All)
+            foreach(var right in WeaponTests.Installed(items))
             {
                 var item=items[right.Item]; var left=right.Mirror;
                 MatrixD nativeRight=WeaponTests.Palm(item,"Right"),nativeLeft=WeaponTests.Palm(item,"Left");

@@ -227,7 +227,7 @@ namespace SpaceEngineersVR.Player
         private static bool Empty(MyCharacter character,Controller hand) => character.CurrentWeapon==null || WeaponHandling.Profile!=null && !WeaponHandling.Holding(hand);
         internal static ArmSkeleton.Fingers FingerMode(MyCharacter character,Controller hand)
         {
-            if(hand==Handedness.ActionHand && WeaponHandling.Profile?.Tool==true && !Main.MenuOpen)
+            if(hand==Handedness.ActionHand && WeaponHandling.Profile is WeaponProfile tool && tool.Tool && !tool.OneHanded && !Main.MenuOpen)
                 return WeaponHandling.Supported || WeaponHandling.ToolContactActive ? ArmSkeleton.Fingers.Stick:ArmSkeleton.Fingers.Point;
             if(hand==Handedness.SupportHand && WeaponHandling.Reloading && !WeaponHandling.Supported) return ArmSkeleton.Fingers.Native;
             if(WeaponHandling.Profile!=null && !RequiresPointing(hand) && (hand==Handedness.ActionHand || WeaponHandling.Supported)) return ArmSkeleton.Fingers.Stick;

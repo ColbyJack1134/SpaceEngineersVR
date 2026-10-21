@@ -20,9 +20,23 @@ namespace SpaceEngineersVR.Diagnostics
     public static class WeaponTests
     {
         private static void Require(bool ok,string reason) { if(!ok) throw new Exception(reason); }
+        // Includes the installed Paint Gun.
+        internal static Dictionary<string,XElement> HandItems()
+        {
+            var items=XDocument.Load(Path.Combine(VRage.FileSystem.MyFileSystem.ContentPath,"Data","HandItems.sbc")).Descendants("HandItem")
+                .Where(x=>x.Element("PhysicalItemId")!=null).ToDictionary(x=>(string)x.Element("PhysicalItemId").Attribute("Subtype"));
+            string paintGun=Path.Combine(PaintGunTests.Data,"Tool.sbc");
+            if(File.Exists(paintGun))
+                foreach(var item in XDocument.Load(paintGun).Descendants("HandItem").Where(x=>x.Element("PhysicalItemId")!=null))
+                    items[(string)item.Element("PhysicalItemId").Attribute("Subtype")]=item;
+            return items;
+        }
+        internal static IEnumerable<WeaponProfile> Installed(Dictionary<string,XElement> items) => WeaponProfile.All.Where(p=>items.ContainsKey(p.Item));
+        // A missing hand reads as identity.
         internal static Matrix Palm(XElement item,string side)
         {
             var q=item.Element(side+"HandOrientation"); var p=item.Element(side+"HandPosition");
+            if(q==null || p==null) return Matrix.Identity;
             var matrix=Matrix.CreateFromQuaternion(Quaternion.Normalize(new Quaternion((float)q.Element("X"),(float)q.Element("Y"),(float)q.Element("Z"),(float)q.Element("W"))));
             matrix.Translation=new Vector3((float)p.Element("X"),(float)p.Element("Y"),(float)p.Element("Z")); return matrix;
         }
@@ -54,8 +68,8 @@ namespace SpaceEngineersVR.Diagnostics
                 Math.Abs(HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(3,0,0),Vector3D.Forward,5)-4)<1e-9 &&
                 Math.Abs(HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(0,0,4),Vector3D.Forward,5)-9)<1e-9 &&
                 HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(0,0,-6),Vector3D.Forward,5)==0,"Reach from the head differs from the sphere exit");
-            var items=XDocument.Load(Path.Combine(VRage.FileSystem.MyFileSystem.ContentPath,"Data","HandItems.sbc")).Descendants("HandItem").Where(x=>x.Element("PhysicalItemId")!=null).ToDictionary(x=>(string)x.Element("PhysicalItemId").Attribute("Subtype"));
-            foreach(var p in WeaponProfile.All)
+            var items=HandItems();
+            foreach(var p in Installed(items))
             {
                 Require(WeaponProfile.Find(p.Item,p.Model)==p && WeaponProfile.Find(p.Item,"modded.mwm")==null,"Model matching bypassed");
                 var hand=p.Palm(Palm(items[p.Item],"Right"),false);
@@ -69,11 +83,12 @@ namespace SpaceEngineersVR.Diagnostics
                     var moved=world; moved.Translation+=new Vector3D(.7,-.3,.4);
                     var live=WeaponPose.Current(p,moved,moved,null,Quaternion.Identity,0);
                     Require(Vector3D.Distance(live.Translation,moved.Translation)<1e-6,"Updated tracking or anchor did not move held item immediately");
+                    var work=HeldItemPose.Working(world,p);
+                    Require(Vector3D.Distance(work.Translation,Vector3D.Transform(p.Muzzle,world))<1e-6 && Vector3D.Dot(work.Forward,Vector3D.TransformNormal(p.Direction,world))>.99999,"Working end transform diverged");
+                    if(p.OneHanded) continue;
                     var supporting=MatrixD.CreateTranslation(p.Support)*moved;
                     var braced=WeaponPose.Current(p,moved,moved,supporting,Quaternion.Identity,0);
                     Require(Vector3D.Distance(Vector3D.Transform(p.Primary,braced),Vector3D.Transform(p.Primary,moved))<1e-5,"Current support pose moved the tracked primary palm");
-                    var work=HeldItemPose.Working(world,p);
-                    Require(Vector3D.Distance(work.Translation,Vector3D.Transform(p.Muzzle,world))<1e-6 && Vector3D.Dot(work.Forward,Vector3D.TransformNormal(p.Direction,world))>.99999,"Working end transform diverged");
                     var one=(Matrix)world.GetOrientation(); var primary=Vector3.Transform(p.Primary,one);
                     Require(WeaponPose.TrySupport(p,one,primary,Vector3.Transform(p.Support,one),out var two) && Vector3.Distance(Vector3.Transform(p.Primary,two),primary)<.00001f,"Support moved the firing palm");
                     Require(!WeaponPose.TrySupport(p,one,primary,primary,out _) && !WeaponPose.TrySupport(p,one,primary,primary+Vector3.One,out _),"Impossible support accepted");
@@ -82,6 +97,7 @@ namespace SpaceEngineersVR.Diagnostics
                     Require(WeaponPose.TrySupport(p,one,primary,primary,out retained,true) && retained.IsValid(),"Coincident held controllers invalidated grip");
                 }
                 var contact=p.SupportContact(Palm(items[p.Item],"Left"));
+                if(p.OneHanded) { Require(p.Grab(contact,contact)==0 && p.Grab(p.Primary,contact)==0 && !p.ReloadAt(p.Primary),"One-handed item acquired a support or reload grip: "+p.Item); continue; }
                 Require(p.Grab(contact,contact)==1,"Support contact does not acquire support: "+p.Item);
                 var geometry=ItemGrabVisual.Geometry(p.Model,contact);
                 Require(geometry.Indices.Count>0 && geometry.Sections.Count>0,"No highlight geometry at support: "+p.Item);
@@ -163,7 +179,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Math.Abs(HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(3,0,0),Vector3D.Forward,5)-4)<1e-9 &&
                 Math.Abs(HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(0,0,4),Vector3D.Forward,5)-9)<1e-9 &&
                 HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(0,0,-6),Vector3D.Forward,5)==0,"Reach from the head differs from the sphere exit");
-            var items=XDocument.Load(Path.Combine(VRage.FileSystem.MyFileSystem.ContentPath,"Data","HandItems.sbc")).Descendants("HandItem").Where(x=>x.Element("PhysicalItemId")!=null).ToDictionary(x=>(string)x.Element("PhysicalItemId").Attribute("Subtype"));
+            var items=HandItems();
             foreach(var item in new[] {"SemiAutoPistolItem","WelderItem","HandDrillItem"}) foreach(bool rigid in new[] {true,false})
             {
                 var profile=WeaponProfile.All.Single(p=>p.Item==item); var bones=ArmTests.InstalledBones();
@@ -175,8 +191,9 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(Vector3.Distance(arm.Palm.Bone.AbsoluteTransform.Translation,palm.Translation)<.001f,"Articulated support left its anchor");
                 WritePose(bones,Matrix.Invert(model),Path.Combine(output,item+"-support-"+(rigid ? "rigid":"flex")+".json"));
             }
-            foreach(var profile in WeaponProfile.All) foreach(bool left in new[] {false,true}) foreach(float pressure in profile.Tool && !left ? new[] {-1f,0f,1f}:new[] {0f,1f})
+            foreach(var profile in Installed(items)) foreach(bool left in new[] {false,true}) foreach(float pressure in profile.Tool && !left ? new[] {-1f,0f,1f}:new[] {0f,1f})
             {
+                if(left && profile.OneHanded) continue;
                 var bones=ArmTests.InstalledBones(); string side=left ? "L":"R";
                 if(profile.Kind==ItemKind.Pistol && !left) Animate(bones,"pistol_pose_fp_forward",0);
                 var palm=bones.Single(b=>b.Name=="SE_Rig"+side+"Palm");
@@ -186,7 +203,7 @@ namespace SpaceEngineersVR.Diagnostics
                 palm.ComputeAbsoluteTransform(true,true);
                 WritePose(bones,Matrix.Identity,Path.Combine(output,profile.Item+"-"+side+"-"+pressure+".json"));
             }
-            foreach(var profile in WeaponProfile.All)
+            foreach(var profile in Installed(items).Where(p=>!p.OneHanded))
             {
                 var contact=profile.SupportContact(Palm(items[profile.Item],"Left"));
                 var data=ItemGrabVisual.Geometry(profile.Model,contact);

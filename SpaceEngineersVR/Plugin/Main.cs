@@ -44,8 +44,9 @@ namespace SpaceEngineersVR.Plugin
             arthurLcd=new Integration("Arthur's LCD",Player.ArthurLcdBridge.Reset,Player.ArthurLcdBridge.RefreshRegistrations,Player.ArthurLcdBridge.Update,Player.ArthurLcdBridge.Draw),
             weaponCore=new Integration("WeaponCore",Player.WeaponCoreIntegration.Reset,Player.WeaponCoreIntegration.Refresh,Player.WeaponCoreIntegration.Update),
             shields=new Integration("Defense Shields",Player.ShieldsIntegration.Reset,Player.ShieldsIntegration.Refresh,Player.ShieldsIntegration.Update),
-            pbFeed=new Integration("Programmable block VR data",PbFeed.Reset,PbFeed.Refresh,PbFeed.Update);
-        internal static readonly Integration[] Integrations={touchScreens,arthurLcd,weaponCore,shields,pbFeed,
+            pbFeed=new Integration("Programmable block VR data",PbFeed.Reset,PbFeed.Refresh,PbFeed.Update),
+            paintGun=new Integration("Paint Gun",Patches.PaintGunPatches.Reset,Patches.PaintGunPatches.RefreshRegistrations,Player.PaintGun.Update);
+        internal static readonly Integration[] Integrations={touchScreens,arthurLcd,weaponCore,shields,pbFeed,paintGun,
             new Integration("Mod HUD",Patches.ModHud.Reset,Patches.ModHud.RefreshRegistrations),
             new Integration("Voxel tool mods",Patches.DigiTools.Reset,Patches.DigiTools.RefreshRegistrations),
             new Integration("Mod API",ModApi.Reset,ModApi.Refresh)};
@@ -391,6 +392,7 @@ namespace SpaceEngineersVR.Plugin
             Player.CameraRig.Publish();
             Player.ViewGuard.Update();
             Player.WeaponHandling.Update();
+            paintGun.Update();
             if(Player.WeaponHandling.ToolEquipped) Patches.MotionToolPatch.Refresh(MySession.Static.LocalCharacter);
             Player.NativeActions.Update();
             Player.BodyProximity.Update();

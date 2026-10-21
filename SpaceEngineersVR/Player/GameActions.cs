@@ -28,9 +28,12 @@ namespace SpaceEngineersVR.Player
         private readonly Func<bool> enabled;
         public readonly string SearchTerms;
         public bool Enabled => enabled?.Invoke() ?? true;
-        public string Icon => icon ?? NativeSprites.Hud(IconName());
+        private readonly Func<string> iconProvider,subIcon;
+        public string Icon => icon ?? iconProvider?.Invoke() ?? NativeSprites.Hud(IconName());
+        public string SubIcon => subIcon?.Invoke();
         public ActionChoice(string label, Action run, bool opensMenu = false,string icon=null,Func<bool> enabled=null,string searchTerms=null) { HistoryKey=label; SearchTerms=searchTerms; this.label=label; Run=run; OpensMenu=opensMenu; this.icon=icon; this.enabled=enabled; }
-        public ActionChoice(Func<string> label,Action run,Func<bool> enabled=null,string historyKey=null) { HistoryKey=historyKey; labelProvider=label; Run=run; this.enabled=enabled; }
+        public ActionChoice(Func<string> label,Action run,Func<bool> enabled=null,string historyKey=null,bool opensMenu=false,Func<string> icon=null,Func<string> subIcon=null)
+        { HistoryKey=historyKey; labelProvider=label; Run=run; this.enabled=enabled; OpensMenu=opensMenu; iconProvider=icon; this.subIcon=subIcon; }
         private string IconName()
         {
             if (Label.StartsWith("Yaw") || Label.StartsWith("Pitch") || Label.StartsWith("Roll") || Label.StartsWith("Camera:")) return "BlockRotate";

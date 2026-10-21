@@ -176,6 +176,7 @@ namespace SpaceEngineersVR.Player.Components
             if(wasShooting) controlled?.EndShoot(MyShootActionEnum.PrimaryAction);
             if(secondaryShooting) controlled?.EndShoot(MyShootActionEnum.SecondaryAction);
             wasShooting=wasSecondary=secondaryShooting=false;
+            PaintGun.Firing=PaintGun.Deep=false;
             stickSecondary.Block();
             secondaryTap.Update(false,false,true,System.DateTime.UtcNow);
         }
@@ -363,14 +364,18 @@ namespace SpaceEngineersVR.Player.Components
             if(controlledEntity is Sandbox.Game.Entities.Character.MyCharacter character && character.CurrentWeapon==null)
                 secondaryPressed=false;
 
-            if(WeaponHandling.ToolEquipped)
+            bool paintGun=PaintGun.Equipped;
+            if(WeaponHandling.ToolEquipped || paintGun)
             {
                 bool trigger=controls.Fire.IsPressed && !HelmetHud.ProtectsFire && !uiOwnsAction && !PlacementControls.OwnsTools && !TriggerArm.AnyArmed;
-                primaryPressed=trigger && !WeaponHandling.ToolModifier;
-                secondaryPressed=trigger && WeaponHandling.ToolModifier;
+                // The Paint Gun reads the grip as deep paint, never ironsight.
+                primaryPressed=trigger && (paintGun || !WeaponHandling.ToolModifier);
+                secondaryPressed=trigger && !paintGun && WeaponHandling.ToolModifier;
             }
             // The shoot calls bypass the control blacklist, so a blocked fire control must not start the vanilla weapon.
             if(NativeActions.Blocked(Sandbox.Game.MyControlsSpace.PRIMARY_TOOL_ACTION)) primaryPressed=false;
+            PaintGun.Firing=paintGun && primaryPressed;
+            PaintGun.Deep=paintGun && WeaponHandling.GripModifier;
             bool secondaryShoot=secondaryPressed && !turret && !NativeActions.Blocked(Sandbox.Game.MyControlsSpace.SECONDARY_TOOL_ACTION);
             // Release the previous action before starting the other half of a tool chord.
             if(!primaryPressed && wasShooting) { controlledEntity?.EndShoot(MyShootActionEnum.PrimaryAction); DoubleTap(MyShootActionEnum.PrimaryAction,false,false); }

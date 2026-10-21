@@ -20,10 +20,9 @@ namespace SpaceEngineersVR.Diagnostics
             // Controller frames of the left and right Touch render models are mirror images across their local X.
             Matrix controllerMirror=Matrix.CreateScale(-1,1,1),worldMirror=Matrix.CreateScale(-1,1,1);
             Directory.CreateDirectory(output); UiTests.Initialize(game,Path.Combine(output,"data"));
-            var items=XDocument.Load(Path.Combine(VRage.FileSystem.MyFileSystem.ContentPath,"Data","HandItems.sbc")).Descendants("HandItem")
-                .Where(x=>x.Element("PhysicalItemId")!=null).ToDictionary(x=>(string)x.Element("PhysicalItemId").Attribute("Subtype"));
+            var items=WeaponTests.HandItems();
             int written=0;
-            foreach(string id in Items)
+            foreach(string id in Items.Concat(items.ContainsKey("PhysicalPaintGun") ? new[] {"PhysicalPaintGun"}:new string[0]))
             {
                 var right=WeaponProfile.All.First(p=>p.Item==id);
                 Matrix nativeRight=WeaponTests.Palm(items[id],"Right"),nativeLeft=WeaponTests.Palm(items[id],"Left");
@@ -33,6 +32,7 @@ namespace SpaceEngineersVR.Diagnostics
                 rightModel.Translation+=new Vector3(.2f,1.22f,-.38f)-rightPalm.Translation;
                 foreach(bool left in new[] {false,true}) foreach(bool two in new[] {false,true})
                 {
+                    if(two && right.OneHanded) continue;
                     var bones=ArmTests.InstalledBones();
                     Func<string,MyCharacterBone> find=name=>bones.FirstOrDefault(b=>b.Name==name);
                     var leftArm=ArmSkeleton.Find(find,"SE_RigLUpperarm","SE_RigLForearm1","SE_RigLPalm",-1);
@@ -54,7 +54,7 @@ namespace SpaceEngineersVR.Diagnostics
                         ArmSkeleton.Apply(supporting,Matrix.Invert(supporting.PalmOffset)*supportPalm,ArmSolve.Options.Local,1,ArmSkeleton.Fingers.Stick,0,null,profile,true);
                     }
                     bones[0].ComputeAbsoluteTransform(true,true);
-                    string model3d=profile.Model.Substring("Models/Weapons/".Length).Replace(".mwm","");
+                    string model3d=Path.GetFileNameWithoutExtension(profile.Model);
                     var json=new StringBuilder("{\"item\":\""+model3d+"\",\"model\":"+Values(model)+",\"roots\":[\""+(left ? "SE_RigLUpperarm":"SE_RigRUpperarm")+"\""+
                         (two ? ",\""+(left ? "SE_RigRUpperarm":"SE_RigLUpperarm")+"\"":"")+"],\"absolute\":{");
                     json.Append(string.Join(",",bones.Select(b=>"\""+b.Name+"\":"+Values(b.AbsoluteTransform))));

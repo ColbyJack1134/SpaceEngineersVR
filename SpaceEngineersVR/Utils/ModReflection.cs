@@ -7,8 +7,7 @@ using SpaceEngineersVR.Plugin;
 
 namespace SpaceEngineersVR.Util
 {
-    // Name-based access to optional mods' runtime objects. A missing member or failed read returns null and is logged once,
-    // so a mod update that renames something shows in the log instead of silently disabling a feature.
+    // Missing or failing mod members return null and are logged once.
     internal static class ModReflection
     {
         private static readonly HashSet<(Type,string)> reported=new HashSet<(Type,string)>();
@@ -28,6 +27,23 @@ namespace SpaceEngineersVR.Util
             }
             catch(Exception ex) { Report(type,name,ex); }
             return null;
+        }
+
+        internal static bool Set(object obj,string name,object value)
+        {
+            if(obj==null) return false;
+            var type=obj.GetType();
+            try
+            {
+                switch(CockpitRender.Find(type,name))
+                {
+                    case FieldInfo field: field.SetValue(obj,value); return true;
+                    case PropertyInfo property when property.CanWrite: property.SetValue(obj,value); return true;
+                }
+                Report(type,name,null);
+            }
+            catch(Exception ex) { Report(type,name,ex); }
+            return false;
         }
 
         internal static object Path(object obj,params string[] names)
@@ -53,8 +69,21 @@ namespace SpaceEngineersVR.Util
             catch(Exception ex) { Report(type,name,ex); return false; }
         }
 
-        // Mods are recompiled into a new assembly on every world load and the old assemblies stay loaded, so a lookup by
-        // name alone can return a previous world's dead copy. Returns the newest copy whose static instance is set.
+        // Like Call, but returns the result.
+        internal static object Invoke(object obj,string name,Type[] parameters,params object[] arguments)
+        {
+            if(obj==null) return null;
+            var type=obj.GetType();
+            try
+            {
+                var method=AccessTools.Method(type,name,parameters);
+                if(method==null) { Report(type,name,null); return null; }
+                return method.Invoke(obj,arguments);
+            }
+            catch(Exception ex) { Report(type,name,ex); return null; }
+        }
+
+        // Old worlds' mod assemblies stay loaded; only the newest copy has its instance set.
         internal static Type LiveType(string fullName,string instance)
         {
             foreach(var assembly in Util.NewestAssemblies())

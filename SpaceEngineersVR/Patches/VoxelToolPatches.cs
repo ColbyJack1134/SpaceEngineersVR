@@ -35,7 +35,7 @@ namespace SpaceEngineersVR.Patches
     [HarmonyPatch(typeof(MyCharacter),nameof(MyCharacter.GetHeadMatrix))]
     internal static class VoxelAimHeadPatch
     {
-        private static void Postfix(ref MatrixD __result) { if(VoxelAim.TryPose(out var pose)) __result=pose; }
+        private static void Postfix(ref MatrixD __result) { if(VoxelAim.TryPose(out var pose) || PaintGun.TryAim(out pose)) __result=pose; }
     }
 
     [HarmonyPatch(typeof(MySessionComponentVoxelHand),nameof(MySessionComponentVoxelHand.UpdateBeforeSimulation))]

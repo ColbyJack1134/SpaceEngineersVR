@@ -41,6 +41,13 @@ namespace SpaceEngineersVR.Diagnostics
         public static void Export(string gameBin,string model,string output)
         {
             string content=Path.GetFullPath(Path.Combine(gameBin,"..","Content"));
+            // A mod model's folder above Models stands in for Content.
+            if(Path.IsPathRooted(model))
+            {
+                string full=Path.GetFullPath(model);
+                int models=full.LastIndexOf(Path.DirectorySeparatorChar+"Models"+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase);
+                if(models>0) { content=full.Substring(0,models); model=full.Substring(models+1); }
+            }
             string path=Path.GetFullPath(Path.Combine(content,model.Replace('\\',Path.DirectorySeparatorChar).Replace('/',Path.DirectorySeparatorChar)));
             if(!path.StartsWith(content+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase) || !File.Exists(path))
                 throw new FileNotFoundException("Choose an installed model under Content",model);

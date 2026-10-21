@@ -3,7 +3,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
-    internal enum ItemKind { Rifle, Pistol, Launcher, Welder, Grinder, Drill }
+    internal enum ItemKind { Rifle, Pistol, Launcher, Welder, Grinder, Drill, Sprayer }
     internal sealed class WeaponProfile
     {
         internal readonly string Item,Model;
@@ -26,10 +26,12 @@ namespace SpaceEngineersVR.Player
         private WeaponProfile mirror;
         internal WeaponProfile Mirror => Mirrored ? this : mirror ?? (mirror=new WeaponProfile(this));
         internal bool Tool => Kind>=ItemKind.Welder;
+        // The Paint Gun's hand item has no left hand.
+        internal bool OneHanded => Kind==ItemKind.Sprayer;
         internal bool Brace => Kind==ItemKind.Pistol || Kind==ItemKind.Welder;
         internal Vector3 Direction => Kind==ItemKind.Welder ? new Vector3(0,.46947156f,-.88294759f):Vector3.Forward;
         private WeaponProfile(string item,string model,ItemKind kind,Vector3 primary,Vector3 support,Vector3 muzzle,Vector3 right,Vector3 left,Vector3 magazine,float gripAxis=0,float supportAxis=0,bool flipUp=false,float flipPitch=0,Vector3? sight=null,Vector3? sightDirection=null,bool reticle=false)
-        { Item=item; Reticle=reticle; Model="Models/Weapons/"+model+".mwm"; Kind=kind; Primary=primary; Support=support; Muzzle=muzzle; RightShift=right; LeftShift=left; Magazine=magazine; GripAxis=gripAxis; SupportAxis=supportAxis; FlipUp=flipUp; FlipPitch=flipPitch; Sight=sight; if(sightDirection.HasValue) SightDirection=Vector3.Normalize(sightDirection.Value); }
+        { Item=item; Reticle=reticle; Model=model.Contains("/") ? model:"Models/Weapons/"+model+".mwm"; Kind=kind; Primary=primary; Support=support; Muzzle=muzzle; RightShift=right; LeftShift=left; Magazine=magazine; GripAxis=gripAxis; SupportAxis=supportAxis; FlipUp=flipUp; FlipPitch=flipPitch; Sight=sight; if(sightDirection.HasValue) SightDirection=Vector3.Normalize(sightDirection.Value); }
         private WeaponProfile(WeaponProfile right)
         {
             Item=right.Item; Model=right.Model; Kind=right.Kind; RightShift=right.RightShift; LeftShift=right.LeftShift; Muzzle=right.Muzzle; Magazine=right.Magazine; Sight=right.Sight; SightDirection=right.SightDirection; Reticle=right.Reticle;
@@ -81,6 +83,7 @@ namespace SpaceEngineersVR.Player
             new WeaponProfile("HandDrill2Item", "HandDrillMk2", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true),
             new WeaponProfile("HandDrill3Item", "HandDrillMk3", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true),
             new WeaponProfile("HandDrill4Item", "HandDrillMk4", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true),
+            new WeaponProfile("PhysicalPaintGun", "Models/PaintGun.mwm", ItemKind.Sprayer, new Vector3(0.01273548f,-0.06245840f,0.1f), new Vector3(0f,0f,0f), new Vector3(0f,0.06527089f,-0.14947738f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f)),
         };
         internal static WeaponProfile Rifle => All[0];
         internal static WeaponProfile Launcher => All[8];
@@ -107,6 +110,7 @@ namespace SpaceEngineersVR.Player
         internal const float HoverHysteresis=1.2f;
         internal int Grab(Vector3 point,Vector3 supportPoint,int current=0)
         {
+            if(OneHanded) return 0;
             bool magazine=ReloadAt(point,current==2 ? HoverHysteresis:1);
             float supportDistance=Vector3.Distance(point,supportPoint),magazineDistance=Vector3.Distance(point,Magazine);
             if(magazine && (Kind==ItemKind.Pistol || magazineDistance<supportDistance)) return 2;

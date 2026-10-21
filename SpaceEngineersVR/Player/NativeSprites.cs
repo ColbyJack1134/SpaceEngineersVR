@@ -68,6 +68,10 @@ namespace SpaceEngineersVR.Player
         internal static bool Pending => icons.Values.Any(i=>i.Loading!=null);
         internal static int Loaded => icons.Values.Count(i=>i.View!=null);
         public static string Hud(string name) => @"Textures\GUI\Icons\HUD 2017\" + name + ".png";
+        // Drawn by OverlayCanvas.Icon, not loaded as textures.
+        internal const string SwatchPrefix="swatch:",DimPrefix="dim:";
+        internal static string Swatch(System.Drawing.Color color) => SwatchPrefix+color.ToArgb().ToString("X8");
+        internal static string Dim(string path) => DimPrefix+path;
         private const string Shader = @"
 cbuffer Params : register(b0) { float4 TopLeft; float4 TopRight; float4 BottomLeft; float4 BottomRight; float4 Tint; float4 UV; float4 DepthTest; float4 Clip0; float4 Clip1; float4 Clip2; float4 Clip3; };
 Texture2D Icon : register(t0); Texture2D SceneDepth : register(t1); Texture2D HandDepth : register(t2); Texture2D WorldDepth : register(t3); SamplerState Linear : register(s0);

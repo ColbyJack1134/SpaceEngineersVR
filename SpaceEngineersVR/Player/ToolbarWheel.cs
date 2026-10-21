@@ -200,6 +200,8 @@ namespace SpaceEngineersVR.Player
                 }
                 else
                 {
+                    var paint=symmetry ? Array.Empty<ActionChoice>() : PaintGun.Actions();
+                    if(paint.Length>0) groups.Add(new Group("Paint gun",paint));
                     groups.AddRange(new[] {aimed,new Group(symmetry ? "Symmetry setup":"Quick actions",Contextual(quickChoices))});
                     var weaponCore=symmetry ? Array.Empty<ActionChoice>() : GameActions.WeaponCoreWheelActions();
                     if(weaponCore.Length>0) groups.Add(new Group("WeaponCore",weaponCore));
@@ -276,6 +278,7 @@ namespace SpaceEngineersVR.Player
                     labels[i] = index < choices.Length ? choices[index]?.Label ?? "" : "";
                     enabled[i] = index < choices.Length && choices[index]?.Enabled==true;
                     icons[i] = index < choices.Length && choices[index]!=null ? new[] { choices[index].Icon } : new string[0];
+                    subIcons[i] = index < choices.Length ? choices[index]?.SubIcon : null;
                 }
             }
             var next = new View { Pose = pose, Labels = labels, Enabled = enabled, Selected = selection, Icons = icons, SubIcons = subIcons, ItemText = itemText,

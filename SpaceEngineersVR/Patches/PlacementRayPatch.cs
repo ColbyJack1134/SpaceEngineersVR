@@ -18,14 +18,14 @@ namespace SpaceEngineersVR.Patches
         [HarmonyPatch("get_RayStart")]
         private static void Start(ref Vector3D __result)
         {
-            if (PlacementControls.TryBuilderPose(out MatrixD pose))
+            if (PaintGun.TryAim(out MatrixD pose) || PlacementControls.TryBuilderPose(out pose))
                 __result = pose.Translation;
         }
         [HarmonyPostfix]
         [HarmonyPatch("get_RayDirection")]
         private static void Direction(ref Vector3D __result)
         {
-            if (PlacementControls.TryBuilderPose(out MatrixD pose))
+            if (PaintGun.TryAim(out MatrixD pose) || PlacementControls.TryBuilderPose(out pose))
                 __result = Vector3D.Normalize(pose.Forward);
         }
     }

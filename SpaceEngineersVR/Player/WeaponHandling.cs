@@ -31,7 +31,8 @@ namespace SpaceEngineersVR.Player
         internal static WeaponProfile Profile => valid ? profile:null;
         internal static bool ToolEquipped => InputRouter.TrackedItems && MySession.Static?.ControlledEntity==MySession.Static?.LocalCharacter &&
             (MySession.Static?.LocalCharacter?.CurrentWeapon is MyEngineerToolBase || MySession.Static?.LocalCharacter?.CurrentWeapon is MyHandDrill);
-        internal static bool ToolModifier => ToolEquipped && Controls.Static.ActionGripPressure.CanPress && Controls.Static.ActionGripPressure.RawPosition.X>.5f;
+        internal static bool GripModifier => Controls.Static.ActionGripPressure.CanPress && Controls.Static.ActionGripPressure.RawPosition.X>.5f;
+        internal static bool ToolModifier => ToolEquipped && GripModifier;
 
         internal static bool HideUseRay => MySession.Static?.LocalCharacter?.CurrentWeapon is MyAutomaticRifleGun && !(VoxelTools.Current is DigiTool) || ToolEquipped && (Supported || ToolContactActive);
         internal static bool ToolContactActive => weapon is MyEngineerToolBase tool && Multiplayer.ToolContact.Near(tool);

@@ -33,6 +33,8 @@ namespace SpaceEngineersVR.Player
                 if(wheelJumpHeld) frame.Queue(MyControlsSpace.WHEEL_JUMP);
                 if(DriveInput.Braking) frame.Queue(MyControlsSpace.JUMP);
                 if(SprintAllowed && Controls.Static.Sprint.IsPressed) frame.Queue(MyControlsSpace.SPRINT);
+                // The Paint Gun polls the fire control.
+                if(PaintGun.Firing && PaintGun.Equipped) frame.Queue(MyControlsSpace.PRIMARY_TOOL_ACTION);
                 PlacementControls.Queue(frame, PlacementControls.Mode, Controls.Static.Fire.IsPressed,
                     Controls.Static.ActionGripClick.IsPressed, GameActions.AlternateTrigger);
             }

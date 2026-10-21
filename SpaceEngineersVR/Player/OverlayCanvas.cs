@@ -28,7 +28,19 @@ namespace SpaceEngineersVR.Player
         public void Clear(System.Drawing.Color color) { Graphics.Clear(color); icons.Clear(); }
         internal void Sprite(NativeSprite sprite) => icons.Add(sprite);
         public void Icon(string path, float x, float y, float size, bool enabled = true)
-        { icons.Add(new NativeSprite(path,new VRageMath.RectangleF(x,y,size,size),enabled ? Vector4.One : new Vector4(0.4f,0.4f,0.4f,0.8f))); }
+        {
+            if(path.StartsWith(NativeSprites.DimPrefix,StringComparison.Ordinal)) { path=path.Substring(NativeSprites.DimPrefix.Length); enabled=false; }
+            if(path.StartsWith(NativeSprites.SwatchPrefix,StringComparison.Ordinal)) { Swatch(path,x,y,size,enabled); return; }
+            icons.Add(new NativeSprite(path,new VRageMath.RectangleF(x,y,size,size),enabled ? Vector4.One : new Vector4(0.4f,0.4f,0.4f,0.8f)));
+        }
+        private void Swatch(string path,float x,float y,float size,bool enabled)
+        {
+            var color=System.Drawing.Color.FromArgb(int.Parse(path.Substring(NativeSprites.SwatchPrefix.Length),System.Globalization.NumberStyles.HexNumber));
+            if(!enabled) color=System.Drawing.Color.FromArgb(204,(int)(color.R*.4f),(int)(color.G*.4f),(int)(color.B*.4f));
+            float inset=size*.2f,side=size-2*inset;
+            using(var fill=new SolidBrush(color)) Graphics.FillRectangle(fill,x+inset,y+inset,side,side);
+            using(var edge=new Pen(System.Drawing.Color.FromArgb(enabled ? 220:110,255,255,255),Math.Max(1,size/40))) Graphics.DrawRectangle(edge,x+inset,y+inset,side,side);
+        }
         public void Icon(string path,float x,float y,float size,System.Drawing.Color tint)
         { icons.Add(new NativeSprite(path,new VRageMath.RectangleF(x,y,size,size),new Vector4(tint.R/255f,tint.G/255f,tint.B/255f,tint.A/255f))); }
         public void Icon(string path,float x,float y,float width,float height,Vector4 uv,System.Drawing.Color tint)
