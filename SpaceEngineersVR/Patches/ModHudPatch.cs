@@ -183,6 +183,6 @@ namespace SpaceEngineersVR.Patches
     [HarmonyPatch(typeof(MyRenderProxy),nameof(MyRenderProxy.AddBillboard))]
     internal static class ModHudBillboardPatch
     {
-        private static bool Prefix(MyBillboard billboard) => BuildOrientationHud.Capturing!=null || ModHud.Place(billboard);
+        private static bool Prefix(MyBillboard billboard) => BuildOrientationHud.Capturing!=null || (ModHud.Place(billboard) && PaintGunPatches.Keep(billboard));
     }
 }

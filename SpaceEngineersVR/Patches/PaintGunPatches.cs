@@ -10,6 +10,8 @@ using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Plugin;
 using SpaceEngineersVR.Util;
 using Sandbox.Game.Entities.Character.Components;
+using VRageMath;
+using VRageRender;
 
 namespace SpaceEngineersVR.Patches
 {
@@ -38,6 +40,7 @@ namespace SpaceEngineersVR.Patches
                 (Find("Features.Palette.PaletteHUD","DrawPaletteHUD"),nameof(Hidden),null,null),
                 (Find("Features.ColorPickerGUIWarning","DrawText"),nameof(Hidden),null,null),
                 (Find("Features.Tool.SelectionGUI","SetGUIVisible",typeof(bool)),nameof(HidePanel),null,null),
+                (Find("Features.Tool.SelectionGUI","DrawSelectionLines",typeof(MatrixD).MakeByRefType(),typeof(BoundingBoxD).MakeByRefType(),typeof(Color),typeof(float)),nameof(BeginOutline),null,nameof(EndOutline)),
                 (Find("Features.Notifications","Show",typeof(int),typeof(string),typeof(string),typeof(int)),nameof(Notice),null,null)};
             var material=Mod("Features.Palette.PaintMaterial");
             var config=Mod("Systems.GameConfig");
@@ -62,7 +65,7 @@ namespace SpaceEngineersVR.Patches
         private static void Rollback(int start)
         {
             foreach(var method in patched.Skip(start).ToArray())
-                foreach(string name in new[] {nameof(BeginAim),nameof(EndAim),nameof(KeyboardReads),nameof(Hidden),nameof(HidePanel),nameof(Notice)})
+                foreach(string name in new[] {nameof(BeginAim),nameof(EndAim),nameof(KeyboardReads),nameof(Hidden),nameof(HidePanel),nameof(Notice),nameof(BeginOutline),nameof(EndOutline)})
                     owner.Unpatch(method,AccessTools.Method(typeof(PaintGunPatches),name));
             patched.RemoveRange(start,patched.Count-start);
         }
@@ -97,6 +100,23 @@ namespace SpaceEngineersVR.Patches
         }
         private static bool Hidden() => !Main.VrActive;
         private static void HidePanel(ref bool set) { if(Main.VrActive) set=false; }
+        // The mod repeats each outline at 1% size and distance from the camera to show it through walls; in VR that copy floats at the face.
+        [ThreadStatic] private static double seeThrough;
+        [ThreadStatic] private static Vector3D camera;
+        private static void BeginOutline(ref MatrixD worldMatrix,ref BoundingBoxD localBB,out double __state)
+        {
+            __state=seeThrough;
+            var main=MySector.MainCamera;
+            if(!Main.VrActive || main==null) return;
+            camera=main.Position;
+            seeThrough=SeeThroughReach(Vector3D.Transform(localBB.Center,worldMatrix),localBB.HalfExtents.Length(),camera);
+        }
+        private static Exception EndOutline(Exception __exception,double __state) { seeThrough=__state; return __exception; }
+        // The copy lies within 1% of (distance + radius); the outline itself only that close with the camera inside the box.
+        internal static double SeeThroughReach(Vector3D center,double radius,Vector3D camera) => .02*(Vector3D.Distance(center,camera)+radius);
+        internal static bool SeeThroughCopy(Vector3D point,Vector3D camera,double reach) => Vector3D.DistanceSquared(point,camera)<reach*reach;
+        internal static bool Keep(MyBillboard billboard) => seeThrough<=0 || !(SeeThroughCopy(billboard.Position0,camera,seeThrough) && SeeThroughCopy(billboard.Position1,camera,seeThrough) &&
+            SeeThroughCopy(billboard.Position2,camera,seeThrough) && (billboard is MyTriangleBillboard || SeeThroughCopy(billboard.Position3,camera,seeThrough)));
         // Only errors; the other notices name keyboard keys.
         private static bool Notice(string text,string font) => !Main.VrActive || text==null || font=="Red";
     }

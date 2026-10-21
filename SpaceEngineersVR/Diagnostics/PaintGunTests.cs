@@ -44,6 +44,7 @@ namespace SpaceEngineersVR.Diagnostics
         {
             internal bool Visible=true;
             [MethodImpl(MethodImplOptions.NoInlining)] internal void SetGUIVisible(bool set) { Visible=set; }
+            [MethodImpl(MethodImplOptions.NoInlining)] private void DrawSelectionLines(ref MatrixD worldMatrix,ref BoundingBoxD localBB,Color color,float lineWidth) { }
         }
         private sealed class PaletteHUD
         {
@@ -91,9 +92,10 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(property?.PropertyType==typeof(bool) && property.GetGetMethod(true)?.IsStatic==true && property.GetSetMethod(true)!=null,"Native palette switch changed: "+name);
             }
             Fixture();
+            SeeThrough();
             InstalledMod(log);
             log("PASS paint gun: adapter patches attach to the mod layout, VR hides its palette, picker note and status panel, keeps red notices only, " +
-                "reads grip as deep paint only inside the tool update, keeps the trigger off the gamepad axis, scopes the gun aim and detaches on reset; native palette switches and ray cache present");
+                "reads grip as deep paint only inside the tool update, drops the see-through outline copy and keeps the outline, keeps the trigger off the gamepad axis, scopes the gun aim and detaches on reset; native palette switches and ray cache present");
         }
 
         private static void Fixture()
@@ -137,6 +139,27 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(hud.Drawn,"Paint gun patches remained after reset");
             }
             finally { PaintGunPatches.Reset(); new Harmony("SpaceEngineersVR.PaintGunTests").UnpatchAll("SpaceEngineersVR.PaintGunTests"); PaintGun.Deep=false; failed.SetValue(null,previous); }
+        }
+
+        // Every corner of the mod's 1% copy falls inside the reach and every outline corner outside it.
+        private static void SeeThrough()
+        {
+            var camera=new Vector3D(10,-20,30);
+            var forward=Vector3D.Normalize(new Vector3D(.3,-.2,-1));
+            foreach(double half in new[] {.28,1.35,6.35})
+                foreach(double distance in new[] {.6,1.5,3,5,8,12})
+                {
+                    if(distance<half*Math.Sqrt(3)+.2) continue;
+                    var center=camera+forward*distance;
+                    var rotation=MatrixD.CreateFromYawPitchRoll(.4,.2,.1);
+                    double reach=PaintGunPatches.SeeThroughReach(center,half*Math.Sqrt(3),camera);
+                    foreach(var sign in new[] {-1,1}.SelectMany(x=>new[] {-1,1}.SelectMany(y=>new[] {-1,1}.Select(z=>new Vector3D(x,y,z)))))
+                    {
+                        var corner=Vector3D.Transform(sign*half,rotation);
+                        Require(!PaintGunPatches.SeeThroughCopy(center+corner,camera,reach),"Paint gun outline corner dropped at "+distance+" m, half size "+half);
+                        Require(PaintGunPatches.SeeThroughCopy(camera+(center-camera)*.01+corner*.01,camera,reach),"Paint gun see-through copy kept at "+distance+" m, half size "+half);
+                    }
+                }
         }
 
         public static void Export(string game,string output,Action<string> log)
@@ -198,7 +221,9 @@ namespace SpaceEngineersVR.Diagnostics
             Contains(scripts+@"Systems\GameConfig.cs",@"namespace Digi\.PaintGun\.Systems",@"public bool UsingGamepad;",@"protected override void UpdateInput\(bool anyKeyOrMouse, bool inMenu, bool paused\)",@"UsingGamepad = newUsingGamepad;");
             Contains(scripts+@"Features\Palette\PaletteHUD.cs",@"namespace Digi\.PaintGun\.Features\.Palette",@"void DrawPaletteHUD\(\)");
             Contains(scripts+@"Features\ColorPickerGUIWarning.cs",@"namespace Digi\.PaintGun\.Features\b",@"void DrawText\(\)");
-            Contains(scripts+@"Features\Tool\SelectionGUI.cs",@"void SetGUIVisible\(bool set\)");
+            Contains(scripts+@"Features\Tool\SelectionGUI.cs",@"void SetGUIVisible\(bool set\)",
+                @"void DrawSelectionLines\(ref MatrixD worldMatrix, ref BoundingBoxD localBB, Color color, float lineWidth\)",
+                @"const float DepthRatio = 0\.01f;",@"center = camMatrix\.Translation \+ \(\(center - camMatrix\.Translation\) \* DepthRatio\);");
             Contains(scripts+@"Features\Notifications.cs",@"namespace Digi\.PaintGun\.Features\b",@"public void Show\(int line, string text, string font = MyFontEnum\.Debug, int aliveTime");
             Contains(scripts+@"Features\Palette\Palette.cs",@"public PlayerInfo LocalInfo",@"public bool ReplaceMode\b",@"public bool ReplaceShipWide\b",@"public bool ColorPickMode\b",
                 @"public SkinInfo GetSkinInfo\(MyStringHash skinSubtypeId\)",@"public void GrabPaletteFromPaint\(PaintMaterial pickedMaterial, bool changeApply = false\)");
