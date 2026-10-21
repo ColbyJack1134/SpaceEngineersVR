@@ -9,6 +9,7 @@ using Sandbox.Graphics.GUI;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
 using SharpDX.Mathematics.Interop;
+using SpaceEngineersVR.Plugin;
 using SpaceEngineersVR.Wrappers;
 using VRage.Utils;
 using VRageMath;
@@ -34,8 +35,11 @@ namespace SpaceEngineersVR.Player
         internal static ShaderResourceView View => copy.View;
         internal static int Revision => revision;
         internal static string Captured { get; private set; }
+#if SEVR_DIAGNOSTICS
         internal static Action<Texture2D> Saved;
-        internal static bool Available { get; private set; }
+#endif
+        private static volatile bool available;
+        internal static bool Available { get => available; private set => available=value; }
         private sealed class Request { public Vector2 Area; public string Target; }
         internal static void Install(Harmony harmony)
         {
@@ -44,6 +48,8 @@ namespace SpaceEngineersVR.Player
             offscreen=renderer.GetMethods(BindingFlags.Static|BindingFlags.Public).Single(m=>m.Name=="DrawSpritesOffscreen" && m.GetParameters().Length==6);
             style=AccessTools.Method(typeof(MyGuiScreenHudSpace),"GetDefaultStyle") ?? throw new MissingMethodException("MyGuiScreenHudSpace.GetDefaultStyle");
             lossShown=AccessTools.Field(typeof(MyHudBlockInfo),"m_componentLossNotificationAdded") ?? throw new MissingFieldException("MyHudBlockInfo.m_componentLossNotificationAdded");
+            // The style comes from an uninitialized screen; fail at install rather than in the HUD draw.
+            Style();
             harmony.Patch(AccessTools.Method(typeof(MyGuiScreenHudSpace),"Draw"),new HarmonyMethod(typeof(NativeBlockInfo),nameof(Draw)));
             var main=renderer.GetMethods(BindingFlags.Static|BindingFlags.NonPublic).Single(m=>m.Name=="RenderMainSprites" && m.GetParameters().Length==5);
             harmony.Patch(main,new HarmonyMethod(typeof(NativeBlockInfo),nameof(Collect)));
@@ -56,9 +62,20 @@ namespace SpaceEngineersVR.Player
         // Title-only context help plus MyGuiControlBlockInfo.RecalculateSize, in 1080p GUI pixels.
         internal static Vector2 Pixels(int components) =>
             new Vector2(.225f*1440,(components>0 ? .1f+.006f+.12f+.037f*(components-2):.1f)*1080);
+        private static void Disable(Exception ex)
+        {
+            if(!Available) return;
+            Available=false; shown=null; pending=false; awaiting=false;
+            Logger.Warning(ex,"Native block info failed; grip block inspection disabled");
+        }
         internal static void Draw()
         {
             if(!pending || shown==null) return;
+            try { DrawCapture(); }
+            catch(Exception ex) { Disable(ex); }
+        }
+        private static void DrawCapture()
+        {
             // One capture in flight keeps sprites and request paired; the timeout covers a dropped frame.
             if(awaiting && DateTime.UtcNow<drawn.AddMilliseconds(500)) return;
             pending=false;
@@ -105,12 +122,15 @@ namespace SpaceEngineersVR.Player
                     var texture=borrowed.GetResource();
                     copy.Store(texture);
                     Captured=request.Target;
+#if SEVR_DIAGNOSTICS
                     Saved?.Invoke(texture);
+#endif
                     revision++;
                     awaiting=false;
                 }
                 finally { borrowed.Release(); }
             }
+            catch(Exception ex) { Disable(ex); }
             finally { RemoteHud.DisposeSprites(messages); }
         }
     }

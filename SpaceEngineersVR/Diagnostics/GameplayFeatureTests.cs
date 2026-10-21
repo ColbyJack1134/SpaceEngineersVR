@@ -162,6 +162,16 @@ namespace SpaceEngineersVR.Diagnostics
                     throw new Exception("Inspection failed to follow the native geometry hit, including non-interactable armor");
             if(BlockInspection.BlockForHit(null,null)!=null)
                 throw new Exception("Inspection retained the previous block after pointing into empty space");
+            var available=HarmonyLib.AccessTools.Property(typeof(NativeBlockInfo),nameof(NativeBlockInfo.Available));
+            available.SetValue(null,true);
+            try
+            {
+                // Not installed, so the capture throws inside the HUD draw prefix.
+                NativeBlockInfo.Show((Sandbox.Game.Gui.MyHudBlockInfo)FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Gui.MyHudBlockInfo)),"failure");
+                NativeBlockInfo.Draw();
+                if(NativeBlockInfo.Available) throw new Exception("A failed block info capture left grip inspection enabled");
+            }
+            finally { available.SetValue(null,false); NativeBlockInfo.Hide(); }
             RemoteView.Axes(new Vector2(1,1),new Vector2(1,1),10,out var aim,out float zoom);
             Near(aim.X,-10,"Turret pitch"); Near(aim.Y,10,"Turret yaw"); Near(zoom,-1,"Turret zoom");
             RemoteView.Axes(Vector2.Zero,Vector2.UnitX,10,out aim,out zoom);
