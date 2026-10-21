@@ -2,9 +2,9 @@
 
 [Trailer](https://youtu.be/UGdSjBTu-30) • [Raw Gameplay](https://www.youtube.com/watch?v=4BAt21If5LI)
 
-## Space Engineers VR Plugin (SE1)
+## Space Engineers VR Plugin
 
-The complete VR experience for Space Engineers. 
+The complete, native-feeling VR experience for Space Engineers.
 
 Features:
 - Every base game and DLC cockpit is interactive, including in-game flight sticks. Inspired by [VTOL VR](https://store.steampowered.com/app/667970/VTOL_VR/)
