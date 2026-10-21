@@ -62,6 +62,7 @@ Supported:
   - Grip plus trigger on a grid to hold it. With trigger held, rotate with the sticks, B to throw. Release trigger only to use the sticks to move around like normal.
 - [WeaponCore](https://steamcommunity.com/workshop/filedetails/?id=3154371364) and [Defense Shields](https://steamcommunity.com/workshop/filedetails/?id=3154379105)
   - [Controls guide](CONTROLS.md) and guide in game with mod enabled show the relevant controls.
+- [Paint Gun](https://steamcommunity.com/sharedfiles/filedetails/?id=500818376)
 
 Planned (at some point):
 - BuildVision
