@@ -137,7 +137,7 @@ namespace SpaceEngineersVR.Player
             long now=System.Diagnostics.Stopwatch.GetTimestamp();
             float seconds=screenTime==0 ? 1 : (float)Math.Min(.1,(now-screenTime)/(double)System.Diagnostics.Stopwatch.Frequency);
             screenTime=now;
-            if(CockpitControls.Held(Player.HandL) || WeaponHandling.Holding(Player.HandL) || LadderClimb.Holding(Player.HandL)) { screenOn=false; return screenWeight=0; }
+            if(CockpitControls.OnStick(Player.HandL) || WeaponHandling.Holding(Player.HandL) || LadderClimb.Holding(Player.HandL)) { screenOn=false; return screenWeight=0; }
             float attention=SpatialUi.WristInUse ? 1 : ScreenAttention(arm,target,character);
             if(attention>=.9f) screenOn=true; else if(attention<=.1f) screenOn=false;
             screenWeight=screenOn ? Math.Min(1,screenWeight+seconds/.3f) : Math.Max(0,screenWeight-seconds/.4f);
@@ -222,7 +222,7 @@ namespace SpaceEngineersVR.Player
             TouchScreenBridge.PoseFor(hand) || ArthurLcdBridge.PoseFor(hand) || FloatingWindows.PointingFor(hand) || HandInteraction.PointingFor(hand) ||
             (hand==Player.HandL ? CockpitTouch.LeftPointing:CockpitTouch.RightPointing || SpatialUi.Pointing) || hand==Handedness.ActionHand && BlockInspection.Current!=null;
         private static bool FreeFingers(MyCharacter character,Controller hand) => !ThirdPersonView.Active && Empty(character,hand) &&
-            !CockpitControls.Held(hand) && !RequiresPointing(hand);
+            !CockpitControls.OnStick(hand) && !RequiresPointing(hand);
         // A hand that is not on the tracked item behaves as an empty hand.
         private static bool Empty(MyCharacter character,Controller hand) => character.CurrentWeapon==null || WeaponHandling.Profile!=null && !WeaponHandling.Holding(hand);
         internal static ArmSkeleton.Fingers FingerMode(MyCharacter character,Controller hand)
@@ -231,7 +231,7 @@ namespace SpaceEngineersVR.Player
                 return WeaponHandling.Supported || WeaponHandling.ToolContactActive ? ArmSkeleton.Fingers.Stick:ArmSkeleton.Fingers.Point;
             if(hand==Handedness.SupportHand && WeaponHandling.Reloading && !WeaponHandling.Supported) return ArmSkeleton.Fingers.Native;
             if(WeaponHandling.Profile!=null && !RequiresPointing(hand) && (hand==Handedness.ActionHand || WeaponHandling.Supported)) return ArmSkeleton.Fingers.Stick;
-            if(CockpitControls.Held(hand) || CockpitTouch.HoldingBar(hand) || LadderClimb.Holding(hand)) return ArmSkeleton.Fingers.Stick;
+            if(CockpitControls.OnStick(hand) || CockpitTouch.HoldingBar(hand) || LadderClimb.Holding(hand)) return ArmSkeleton.Fingers.Stick;
             if(Empty(character,hand) || RequiresPointing(hand))
                 return CockpitTouch.Pinching(hand) || hand==Player.HandR && SpatialUi.PinchingKnob ? ArmSkeleton.Fingers.Pinch:ArmSkeleton.Fingers.Point;
             return ArmSkeleton.Fingers.Native;

@@ -52,6 +52,22 @@ namespace SpaceEngineersVR.Diagnostics
                 Near(CockpitStickMath.Rotation(neutral,current,deadzone,true),expected,"Tilted yaw must follow projected heading");
             }
             log("PASS stick axes: grabbed shaft lean, compound tilt/twist isolation, translation mapping and projected yaw.");
+            foreach(var move in new[] {new Vector3(.4f,0,0),new Vector3(0,.4f,0),new Vector3(0,0,-.4f)})
+                Near(CockpitStickMath.Translation(Matrix.Identity,CockpitStickMath.Visual(Vector3.Zero,HotasHands.LeftAngles(move)),0,true),move,"HOTAS left stick lean does not command its axes");
+            foreach(var turn in new[] {new Vector3(.4f,0,0),new Vector3(0,.4f,0),new Vector3(0,0,.4f)})
+                Near(CockpitStickMath.Rotation(Matrix.Identity,CockpitStickMath.Visual(Vector3.Zero,HotasHands.RightAngles(turn)),0,true),turn,"HOTAS right stick lean does not command its axes");
+            {
+                var hand=new HotasHands.Hand(); var start=new DateTime(2026,1,1); var rest=Matrix.CreateTranslation(.2f,-.3f,-.4f);
+                hand.Update(true,false,rest,start);
+                if(hand.Update(true,true,rest,start.AddSeconds(.2)) || !hand.Update(true,true,rest,start.AddSeconds(.6)))
+                    throw new Exception("HOTAS hand must attach only after the controller rests with HOTAS input");
+                if(!hand.Update(true,false,rest*Matrix.CreateTranslation(.02f,0,0),start.AddSeconds(1)) || hand.Update(true,false,rest*Matrix.CreateTranslation(.08f,0,0),start.AddSeconds(1.1)))
+                    throw new Exception("HOTAS hand must stay through small jitter and release when the controller moves");
+                if(hand.Update(true,true,rest*Matrix.CreateTranslation(.08f,0,0),start.AddSeconds(1.3)) || hand.Update(false,true,rest,start.AddSeconds(5)))
+                    throw new Exception("HOTAS hand reattached before resting again or without HOTAS support");
+            }
+            if(HotasHands.TryRead(out _,out _)) throw new Exception("HOTAS hands read input without Analog Grid Control");
+            log("PASS HOTAS hands: inert without Analog Grid Control; stick lean inverts the HOTAS axes, attach after rest with input, release on controller movement.");
             Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationY(-1.1f),deadzone,true),Vector3.Up,"Twist not clamped");
             Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateRotationX(0.01f),deadzone,true),Vector3.Zero,"Translation deadzone");
             Near(CockpitStickMath.Translation(neutral,neutral*Matrix.CreateTranslation(0.1f,-0.2f,0.15f),deadzone,true),Vector3.Zero,"Arm displacement drives thrust");

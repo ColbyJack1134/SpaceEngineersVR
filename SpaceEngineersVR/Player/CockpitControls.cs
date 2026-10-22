@@ -18,6 +18,7 @@ namespace SpaceEngineersVR.Player
         private static MyCockpit seat;
         private static CockpitRig Rig => seat==null ? null : CockpitRig.Find(seat.BlockDefinition.Id.SubtypeName);
         private static readonly GripCapture left=new GripCapture(),right=new GripCapture();
+        private static readonly HotasHands.Hand leftHotas=new HotasHands.Hand(),rightHotas=new HotasHands.Hand();
         private static readonly CockpitSteering steering=new CockpitSteering();
         private static readonly CockpitBarTilt barTilt=new CockpitBarTilt();
         private static float throttlePosition;
@@ -55,7 +56,9 @@ namespace SpaceEngineersVR.Player
         internal static bool NeedsControllerRotation => Rig!=null && !IsSteering && Rig.Right==null;
         internal static bool OwnsRightThumb => seat!=null && !IsSteering && !Adjusting && right.Held;
         public static bool Held(Controller hand) => hand==Player.HandL ? left.Held : right.Held;
-        internal static float[] HeldCurl(Controller hand) => IsSteering || !Held(hand) ? null : (hand==Player.HandL ? Rig?.Left:Rig?.Right)?.Curl;
+        // Held, or resting on the stick while a HOTAS drives it; only the pose follows, input stays with the controller.
+        internal static bool OnStick(Controller hand) => Held(hand) || (hand==Player.HandL ? leftHotas:rightHotas).Active;
+        internal static float[] HeldCurl(Controller hand) => IsSteering || !OnStick(hand) ? null : (hand==Player.HandL ? Rig?.Left:Rig?.Right)?.Curl;
         internal static bool AnyHeld => left.Held || right.Held;
         // Only modeled joysticks gate the action trigger; wheels and handlebars are not a stick to hold.
         internal static bool SticksAvailable => Grabbable && Rig?.HasSticks==true;
@@ -96,7 +99,7 @@ namespace SpaceEngineersVR.Player
             }
             if (left.Consumed) BlockGrip(true);
             if (right.Consumed) BlockGrip(false);
-            left.Release(); right.Release();
+            left.Release(); right.Release(); leftHotas.Reset(); rightHotas.Reset();
             leftHover.Sample(false,0,0); rightHover.Sample(false,0,0);
             translation=rotation=Vector3.Zero; steering.Reset(); throttlePosition=0; throttle.Reset(); yoke.Reset(); yokeRoll=0; throttleCommand=ThrottleVisual=0;
             barTilt.Reset(); barCommand=Vector2.Zero;
@@ -185,7 +188,7 @@ namespace SpaceEngineersVR.Player
         public static MatrixD WristWorld(Controller hand)
         {
             Matrix local=CockpitHandPose.GripWrist(HandLocal(hand));
-            if (Held(hand))
+            if (OnStick(hand))
             {
                 bool isLeft=hand==Player.HandL;
                 Matrix attached=TrackedArms.WristForPalm(hand,StickPalm(isLeft));
@@ -262,6 +265,11 @@ namespace SpaceEngineersVR.Player
             float sensitivity=tuning.Rotation;
             var now=DateTime.UtcNow;
             float dt=(float)Math.Min(.05,Math.Max(0,(now-lastInput).TotalSeconds)); lastInput=now;
+            Vector3 hotasMove=Vector3.Zero,hotasTurn=Vector3.Zero;
+            bool hotas=available && !IsSteering && !Adjusting && HotasHands.TryRead(out hotasMove,out hotasTurn);
+            bool leftOn=leftHotas.Active,rightOn=rightHotas.Active;
+            if(leftHotas.Update(hotas && Rig.Left!=null && !left.Held && !CockpitTouch.Owns(Player.HandL),hotasMove!=Vector3.Zero,l,now) && !leftOn) grabLeft=now;
+            if(rightHotas.Update(hotas && Rig.Right!=null && !right.Held && !CockpitTouch.OwnsRight,hotasTurn!=Vector3.Zero,r,now) && !rightOn) grabRight=now;
             if (Adjusting)
             {
                 if (left.Held) placement.Move(true,leftStartOffset,WeaponPose.Palm(leftNeutral),lp);
@@ -322,8 +330,10 @@ namespace SpaceEngineersVR.Player
                 rotation=rightFilter.Update(right.Held && !Adjusting,rotation,dt,tuning.Smoothing);
                 feedbackTranslation=CockpitStickMath.Response(translation,InputRouter.Mode==InputMode.Turret ? 1:tuning.TranslationCurve);
                 feedbackRotation=CockpitStickMath.Response(rotation,tuning.RotationCurve);
-                leftAngles=left.Held && !Adjusting ? CockpitStickMath.SmoothVisual(leftAngles,CockpitStickMath.HandVisual(leftNeutral,l,twist,tuning.Translation,Rig.Left.Frame),dt):CockpitStickMath.ReturnVisual(leftAngles,dt);
-                rightAngles=right.Held && !Adjusting ? CockpitStickMath.SmoothVisual(rightAngles,CockpitStickMath.HandVisual(rightNeutral,r,twist,sensitivity,Rig.Right.Frame),dt):CockpitStickMath.ReturnVisual(rightAngles,dt);
+                leftAngles=left.Held && !Adjusting ? CockpitStickMath.SmoothVisual(leftAngles,CockpitStickMath.HandVisual(leftNeutral,l,twist,tuning.Translation,Rig.Left.Frame),dt):
+                    leftHotas.Active ? CockpitStickMath.SmoothVisual(leftAngles,HotasHands.LeftAngles(hotasMove),dt):CockpitStickMath.ReturnVisual(leftAngles,dt);
+                rightAngles=right.Held && !Adjusting ? CockpitStickMath.SmoothVisual(rightAngles,CockpitStickMath.HandVisual(rightNeutral,r,twist,sensitivity,Rig.Right.Frame),dt):
+                    rightHotas.Active ? CockpitStickMath.SmoothVisual(rightAngles,HotasHands.RightAngles(hotasTurn),dt):CockpitStickMath.ReturnVisual(rightAngles,dt);
             }
             SetVisuals();
             int barEvent=barDetent.Sample(barTilt.Active || YokeMode && yoke.Active,new Vector3(feedbackTranslation.X,0,feedbackTranslation.Z),now);
@@ -361,7 +371,7 @@ namespace SpaceEngineersVR.Player
         public static void RefreshVisuals()
         {
             if (seat==null || !Eligible(seat)) return;
-            CockpitRender.Update(seat,leftVisual,rightVisual,left.Held,right.Held,placement.Left,placement.Right);
+            CockpitRender.Update(seat,leftVisual,rightVisual,OnStick(Player.HandL),OnStick(Player.HandR),placement.Left,placement.Right);
         }
         public static void ApplyTurret(float speed,ref Vector2 aim,ref float zoom)
         {
