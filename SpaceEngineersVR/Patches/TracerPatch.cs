@@ -47,8 +47,12 @@ namespace SpaceEngineersVR.Patches
         internal static float Fade(double distance) => (float)MathHelper.Lerp(1,FarBrightness,MathHelper.Clamp((distance-FadeStart)/(FadeEnd-FadeStart),0,1));
         // A point of light stays a few headset pixels wide at any range, like a real tracer.
         internal static float HeadRadius(double distance,float thickness,double pixel) => Math.Max(thickness,(float)(distance*pixel*HeadPixels/2));
+        // While a camera or turret feed is the game camera, size the dot for that image, so a zoomed feed keeps it a few pixels wide.
+        internal static double FeedPixel(float verticalFov,int height) => 2*Math.Tan(verticalFov/2)/height;
         private static double Pixel()
         {
+            var camera=MySector.MainCamera;
+            if(RemoteView.Current!=null && camera!=null) return FeedPixel(camera.FovWithZoom,RemoteFeed.Resolution.Y);
             int width=EyeResolution.HudWidth(EyeResolution.Current.X);
             double slope=StereoRenderState.PixelSlopeX;
             return width>0 && slope>0 ? 2*slope/width:FallbackPixel;
