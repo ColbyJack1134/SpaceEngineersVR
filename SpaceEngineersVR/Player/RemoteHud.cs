@@ -76,13 +76,17 @@ namespace SpaceEngineersVR.Player
             if(markerDrawing>0) __result=(Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode)markerMode;
             else if(collecting>0) __result=Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode.FullDisplay;
         }
+        private static readonly Rectangle drawMark=new Rectangle(0,0,1,1);
         private static void HudFrame()
         {
             if(!Main.VrActive || Main.MenuOpen || RemoteView.Current==null) return;
-            // An explicit empty HUD draw must clear old sprites; a camera-only batch must not.
-            MyRenderProxy.SpriteScissorPush(new Rectangle(0,0,1,1),queue);
+            // Marks a message frame that ran the full HUD draw; an empty one still clears old sprites.
+            MyRenderProxy.SpriteScissorPush(drawMark,queue);
             MyRenderProxy.SpriteScissorPop(queue);
         }
+        // Some message frames carry only part of the HUD (no camera overlay, vignette or text), many per second when controlling a
+        // turret on foot; those keep the last full image instead of replacing it.
+        private static bool FullDraw(System.Collections.IEnumerable list) => list.Cast<object>().Any(m=>m is MyRenderMessageSpriteScissorPush push && push.ScreenRectangle==drawMark);
         private static void Begin(out bool __state)
         {
             __state=Fixture!=null || Main.VrActive && !Main.MenuOpen && RemoteView.Current!=null;
@@ -114,9 +118,11 @@ namespace SpaceEngineersVR.Player
             try
             {
                 if(remote==null) return;
-                SpriteCount=Convert.ToInt32(CockpitRender.Member(CockpitRender.Member(messages,"Messages"),"Count"));
+                var list=CockpitRender.Member(messages,"Messages");
+                if(Fixture==null && !FullDraw((System.Collections.IEnumerable)list)) return;
+                SpriteCount=Convert.ToInt32(CockpitRender.Member(list,"Count"));
                 if(Fixture!=null)
-                    FixtureSprites=string.Join(",",((System.Collections.IEnumerable)CockpitRender.Member(messages,"Messages")).Cast<object>().Select(m=>m.GetType().Name+":"+(AccessTools.Field(m.GetType(),"Texture")?.GetValue(m) ?? "")));
+                    FixtureSprites=string.Join(",",((System.Collections.IEnumerable)list).Cast<object>().Select(m=>m.GetType().Name+":"+(AccessTools.Field(m.GetType(),"Texture")?.GetValue(m) ?? "")));
                 var rendered=draw.Invoke(null,new object[] {messages,queue,(int)size.X,(int)size.Y,Format.R8G8B8A8_UNorm_SRgb,new RawColor4(0,0,0,0),null});
                 if(rendered!=null)
                 {
