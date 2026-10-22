@@ -44,6 +44,15 @@ namespace SpaceEngineersVR.Player
         internal static View Capture()
         {
             var session=MySession.Static;
+            // Head-aimed turret in the window: the vanilla crosshair where the barrel points; the face screen carries its own.
+            if(TurretHeadAim.TryBarrel(out var turret,out var point,out var up))
+            {
+                if(HelmetHud.NativeSuppressed) return null;
+                // The turret view hides the native crosshair; its look still applies.
+                var aimed=Read(MyHud.Crosshair,MatrixD.CreateWorld(point,Vector3D.Normalize(point-turret.PositionComp.GetPosition()),up),point,false);
+                if(aimed!=null) aimed.Owner=turret.EntityId;
+                return aimed;
+            }
             if(!(session?.ControlledEntity is MyShipController ship) || ship.Closed || ship.MarkedForClose ||
                 RemoteView.Current!=null || HelmetHud.NativeSuppressed ||
                 session.CameraController is MySpectatorCameraController) return null;
@@ -78,12 +87,12 @@ namespace SpaceEngineersVR.Player
             var local=new Vector2((float)Vector3D.Dot(ship.Right,up),(float)Vector3D.Dot(ship.Up,up));
             value.HorizonRoll=local.LengthSquared()>1e-5f ? (float)System.Math.Atan2(local.Y,local.X):0;
         }
-        internal static View Read(MyHudCrosshair crosshair,MatrixD controller)
+        internal static View Read(MyHudCrosshair crosshair,MatrixD controller,Vector3D? position=null,bool visibleOnly=true)
         {
             if(crosshair==null || !controller.IsValid()) return null;
             foreach(object value in (IEnumerable)sprites.GetValue(crosshair))
-                if((MyStringId)id.GetValue(value)==MyStringId.GetOrCompute("Default") && (bool)visible.GetValue(value))
-                    return new View {Position=Aim(controller),Up=controller.Up,Icon=(MyHudTexturesEnum)icon.GetValue(value),
+                if((MyStringId)id.GetValue(value)==MyStringId.GetOrCompute("Default") && (!visibleOnly || (bool)visible.GetValue(value)))
+                    return new View {Position=position ?? Aim(controller),Up=controller.Up,Icon=(MyHudTexturesEnum)icon.GetValue(value),
                         Color=((Color)color.GetValue(value)).ToVector4(),HalfSize=(Vector2)size.GetValue(value),
                         NativeWidth=NativeWidth((Vector2)size.GetValue(value),Sandbox.Graphics.MyGuiManager.GetSafeFullscreenRectangle().Width)};
             return null;

@@ -45,6 +45,7 @@ internal static class Program
             if(args.Length==3 && args[1]=="--planner-preview") { UiTests.BuildPlanner(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--signals-test") { UiTests.Signals(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--tablet-test") { UiTests.Tablet(game,args[2],Console.WriteLine); return 0; }
+            if(args.Length==3 && args[1]=="--face-feed") { FaceFeedGallery.Render(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==4 && args[1]=="--alignment-preview") { AlignmentPreview.Export(game,args[2],args[3],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--targeting-preview") { TargetingPreview.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--control-seat-preview") { ControlSeatPreview.Export(game,args[2],Console.WriteLine); return 0; }

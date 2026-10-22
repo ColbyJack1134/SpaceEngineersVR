@@ -35,13 +35,25 @@ namespace SpaceEngineersVR.Player
         }
 
         internal static void Reset() { latest=null; }
+        private static Snapshot Fresh(long source)
+        {
+            var snapshot=latest;
+            return snapshot==null || snapshot.Source!=source || (DateTime.UtcNow-snapshot.Time).TotalSeconds>MaxAgeSeconds ? null:snapshot;
+        }
+        internal static bool TryCamera(long source,out Vector3D position,out MatrixD rotation)
+        {
+            var snapshot=Fresh(source);
+            position=snapshot?.Position ?? Vector3D.Zero;
+            rotation=snapshot?.Rotation ?? MatrixD.Identity;
+            return snapshot!=null;
+        }
 
         // uv: (0,0) top-left, (1,1) bottom-right of the feed image.
         internal static bool TryRay(long source,Vector2 uv,out Vector3D origin,out Vector3D direction)
         {
             origin=direction=Vector3D.Zero;
-            var snapshot=latest;
-            if(snapshot==null || snapshot.Source!=source || (DateTime.UtcNow-snapshot.Time).TotalSeconds>MaxAgeSeconds) return false;
+            var snapshot=Fresh(source);
+            if(snapshot==null) return false;
             double ndcX=uv.X*2-1,ndcY=1-uv.Y*2;
             var view=new Vector3D(ndcX*snapshot.TanX,ndcY*snapshot.TanY,-1);
             direction=Vector3D.Normalize(Vector3D.TransformNormal(view,snapshot.Rotation));
@@ -57,8 +69,8 @@ namespace SpaceEngineersVR.Player
         internal static bool TryProject(long source,Vector3D centre,double radius,out Vector4 rect)
         {
             rect=Vector4.Zero;
-            var snapshot=latest;
-            if(snapshot==null || snapshot.Source!=source || (DateTime.UtcNow-snapshot.Time).TotalSeconds>MaxAgeSeconds) return false;
+            var snapshot=Fresh(source);
+            if(snapshot==null) return false;
             var view=Vector3D.TransformNormal(centre-snapshot.Position,MatrixD.Transpose(snapshot.Rotation));
             if(view.Z>-.1) return false;
             double depth=-view.Z,ndcX=view.X/depth/snapshot.TanX,ndcY=view.Y/depth/snapshot.TanY;

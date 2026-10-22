@@ -38,7 +38,7 @@ namespace SpaceEngineersVR.Player
                 using(var isolated=new RemoteScene(view))
                 {
                     MyRender11.DrawGameScene(feed,out ambient);
-                    if(WeaponCoreBridge.ApiReady) FeedCamera.Capture(view.Source);
+                    FeedCamera.Capture(view.Source);
                 }
                 var rendered=(Texture2D)feed.GetResource();
                 RemoteHud.Composite(rendered,view);
@@ -59,8 +59,16 @@ namespace SpaceEngineersVR.Player
             image.Dispose(); source=0; skip=false; FeedShadows.Release();
             WindowFrame.Reset("Remote"); RemoteExposure.Reset();
         }
-        internal static void Paint(OverlayCanvas canvas,RemoteView.View view) => WindowFrame.Paint(canvas,
-            new WindowFrame.Snapshot {Width=view.Width,Height=view.Height,Hover=view.Hover,Zoom=true,SignalMode=view.SignalMode});
+        internal static void Paint(OverlayCanvas canvas,RemoteView.View view) => WindowFrame.Paint(canvas,Frame(view));
+        private static WindowFrame.Snapshot Frame(RemoteView.View view) => new WindowFrame.Snapshot {Pose=(Matrix)view.Pose,Width=view.Width,Height=view.Height,
+            Hover=view.Hover,Zoom=true,SignalMode=view.SignalMode,Aim=view.AimMode};
+        internal const float FaceOpacity=.55f,FaceDistance=50,FaceHeightDegrees=22.5f,NearestFace=3,FarthestFace=3000;
+        internal static void FaceLayout(MatrixD head,MatrixD orientation,float distance,out MatrixD pose,out float width,out float height)
+        {
+            height=2*distance*(float)Math.Tan(MathHelper.ToRadians(FaceHeightDegrees)/2); width=height*16/9;
+            pose=MatrixD.CreateTranslation(0,0,-distance)*orientation.GetOrientation();
+            pose.Translation+=head.Translation;
+        }
         // WeaponCore's HUD on the feed does not follow the VR pointer, so the target a grip release would lock is bracketed.
         private const float BracketWidth=.004f;
         private static readonly Vector4 pointedColor=new Vector4(1,0,0,1);
@@ -86,18 +94,46 @@ namespace SpaceEngineersVR.Player
             bar.Path=@"Textures\GUI\Blank.dds";
             return bar;
         }
-        public static void Draw(Texture2D target,RemoteView.View remote,MatrixD view,MatrixD projection)
+        public static void Draw(Texture2D target,RemoteView.View remote,MatrixD view,MatrixD projection,MatrixD head)
         {
             if(remote==null || image.View==null || source!=remote.Source) return;
-            DrawPanel(target,image.View,remote,view,projection,NativeHandLayer.Depth);
+            // On the face, the window keeps only its frame so its buttons stay where they were.
+            if(remote.Face)
+            {
+                var orientation=head; float distance=FaceDistance;
+                if(FeedCamera.TryCamera(remote.Source,out var position,out var camera))
+                {
+                    var tracking=camera.GetOrientation()*remote.WorldToTracking.GetOrientation();
+                    var forward=tracking.Forward;
+                    // Centred on the camera's ray at the turret's range, so the picture lines up with the world for targets near it.
+                    if(remote.FaceDepth>0)
+                    {
+                        var centre=Vector3D.Transform(position+camera.Forward*remote.FaceDepth,remote.WorldToTracking)-head.Translation;
+                        if(centre.LengthSquared()>1) { distance=(float)MathHelper.Clamp(centre.Length(),NearestFace,FarthestFace); forward=centre; }
+                    }
+                    var built=MatrixD.CreateWorld(Vector3D.Zero,Vector3D.Normalize(forward),Vector3D.Normalize(tracking.Up));
+                    if(built.IsValid()) orientation=built;
+                }
+                DrawFace(target,image.View,head,orientation,distance,view,projection,NativeHandLayer.Depth);
+            }
+            DrawPanel(target,remote.Face ? null:image.View,remote,view,projection,NativeHandLayer.Depth);
+        }
+        internal static void DrawFace(Texture2D target,ShaderResourceView image,MatrixD head,MatrixD orientation,float distance,MatrixD view,MatrixD projection,ShaderResourceView hands=null)
+        {
+            FaceLayout(head,orientation,distance,out var pose,out float width,out float height);
+            var picture=PhysicalSurface.Quad(image,pose,new VRageMath.RectangleF(-width/2,height/2,width,height),new Vector4(0,0,1,1),
+                new Vector4(1,1,1,FaceOpacity),view,projection);
+            NativeSprites.Draw(target,new[] {picture},handDepth:hands);
         }
         internal static void DrawPanel(Texture2D target,ShaderResourceView image,RemoteView.View remote,MatrixD view,MatrixD projection,ShaderResourceView hands=null)
         {
-            var picture=PhysicalSurface.Quad(image,remote.Pose,new VRageMath.RectangleF(-remote.Width/2,remote.Height/2,remote.Width,remote.Height),new Vector4(0,0,1,1),Vector4.One,view,projection);
-            var sprites=new List<NativeSprite> {picture};
-            AddPointed(sprites,remote,view,projection);
-            NativeSprites.Draw(target,sprites,handDepth:hands);
-            WindowFrame.Draw(target,"Remote",new WindowFrame.Snapshot {Pose=(Matrix)remote.Pose,Width=remote.Width,Height=remote.Height,Hover=remote.Hover,Zoom=true,SignalMode=remote.SignalMode},view,projection,hands);
+            if(image!=null)
+            {
+                var sprites=new List<NativeSprite> {PhysicalSurface.Quad(image,remote.Pose,new VRageMath.RectangleF(-remote.Width/2,remote.Height/2,remote.Width,remote.Height),new Vector4(0,0,1,1),Vector4.One,view,projection)};
+                AddPointed(sprites,remote,view,projection);
+                NativeSprites.Draw(target,sprites,handDepth:hands);
+            }
+            WindowFrame.Draw(target,"Remote",Frame(remote),view,projection,hands);
             if(remote.RayStart.HasValue && remote.RayEnd.HasValue)
             {
                 var delta=remote.RayEnd.Value-remote.RayStart.Value;

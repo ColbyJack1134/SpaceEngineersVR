@@ -642,7 +642,7 @@ namespace SpaceEngineersVR.Diagnostics
                         object extra=null;
                         try { Wrappers.MyRender11.DrawGameScene(target,out extra); }
                         finally { if(extra!=null) new Wrappers.BorrowedRtvTexture(extra).Release(); }
-                        RemoteFeed.Draw(physicalTarget,remote,camera.ViewMatrix,Wrappers.MyRender11.Environment_Matrices.Projection);
+                        RemoteFeed.Draw(physicalTarget,remote,camera.ViewMatrix,Wrappers.MyRender11.Environment_Matrices.Projection,MatrixD.Invert(camera.ViewMatrix));
                         UiTests.Save(physicalTarget,Path.Combine(output,"remote-feed-native.png"));
                         RemoteFeed.Reset();
                         if(FeedShadows.Instance!=null) throw new InvalidOperationException("Feed shadow cascades survived the feed reset");

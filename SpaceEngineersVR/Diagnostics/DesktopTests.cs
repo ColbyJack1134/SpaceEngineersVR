@@ -49,6 +49,12 @@ namespace SpaceEngineersVR.Diagnostics
 
             Require(WindowFrame.Control(new Vector3(WindowFrame.SignalsX(width),WindowFrame.SignalsY(height),0),width,height,bar,true,false,false,true)==WindowFrame.SignalsHover,"Camera marker button hit");
             Require(WindowFrame.Control(new Vector3(WindowFrame.SignalsX(width),WindowFrame.SignalsY(height),0),width,height,bar,true,false,false)==0,"Hidden camera marker button still hit");
+            foreach(float size in new[] {MenuWindow.MinWidth,MenuWindow.MaxWidth})
+            {
+                var aim=new Vector3(WindowFrame.AimX(size),WindowFrame.SignalsY(height),0);
+                Require(WindowFrame.Control(aim,size,height,bar,true,false,false,true,true)==WindowFrame.AimHover,"Turret aim button not hit at width "+size);
+                Require(WindowFrame.Control(aim,size,height,bar,true,false,false,true)==0,"Hidden turret aim button still hit");
+            }
 
             foreach(float size in new[] {MenuWindow.MinWidth,1.2f,MenuWindow.MaxWidth})
             {

@@ -32,6 +32,10 @@ namespace SpaceEngineersVR.Player
             public bool LeftHand;
             public uint Character=uint.MaxValue;
             public string[] FirstPersonMaterials;
+            public bool Face;
+            public MatrixD WorldToTracking=MatrixD.Identity;
+            public float FaceDepth;
+            public int AimMode=-1;
         }
         private static readonly MenuWindow window=new MenuWindow { BarOffset=.035f,TopMargin=.08f };
         private static readonly WindowInteraction interaction=new WindowInteraction(window);
@@ -108,7 +112,7 @@ namespace SpaceEngineersVR.Player
         {
             CancelCameraSwitch();
             if(placementDirty) Save();
-            owner=source=null; seat=null; Current=null; SeatedRig=null; OwnsInput=false;
+            owner=source=null; seat=null; Current=null; aimMode=0; SeatedRig=null; OwnsInput=false;
             interaction.Reset(true); recenter=false; rayStart=rayEnd=null; lastHover=0; epoch++;
         }
         public static void Recenter() { recenter=true; }
@@ -186,6 +190,7 @@ namespace SpaceEngineersVR.Player
             }
             var feed=Feed(session.ControlledEntity,session.CameraController);
             if(!ReferenceEquals(source,feed)) { ReleaseInput(); source=feed; }
+            aimMode=Clamp(Feed()?.AimMode ?? 0,2);
             Refresh();
         }
         private static bool AvailableCamera(MyCameraBlock camera) => Usable(camera) && MyGridCameraSystem.CameraIsInRangeAndPlayerHasAccessLocal(camera);
@@ -215,8 +220,8 @@ namespace SpaceEngineersVR.Player
             if(recenter) { Place(); Save(); }
             var now=DateTime.UtcNow; float seconds=(float)Math.Min(.05,Math.Max(0,(now-last).TotalSeconds)); last=now;
             var controls=Controls.Static;
-            if(!Turret && InputRouter.Gameplay && !Main.MenuOpen && CockpitControls.OwnsRightThumb)
-                Zoom(-controls.ThrustRotate.Position.Y*seconds*.6f);
+            if((!Turret || TurretHeadAim.Active) && InputRouter.Gameplay && !Main.MenuOpen && CockpitControls.OwnsRightThumb)
+                Zoom(-controls.ThrustRotate.Position.Y*seconds*ZoomSpeed);
             if(InputRouter.Gameplay && !Main.MenuOpen) left=interaction.PickHand(Hand,Free,Aim)==Player.HandL;
             var hand=Hand;
             bool available=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && Free(hand);
@@ -225,16 +230,16 @@ namespace SpaceEngineersVR.Player
             var Reachable=WindowInteraction.Reachable(window,aim,PhysicalTrackingToWorld);
             int ExtraHit(Vector3 point,bool near)
             {
-                int control=WindowFrame.Control(point,window.Width,window.Height,window.BarOffset,true,false,false,true);
+                int control=WindowFrame.Control(point,window.Width,window.Height,window.BarOffset,true,false,false,true,TurretHeadAim.Available);
                 if(control!=0) return control;
-                return near && Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2 ? 1:0;
+                return near && !TurretHeadAim.Face && Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2 ? 1:0;
             }
             interaction.Update(hand,(Matrix)aim,seconds,ExtraHit,Reachable);
             int hover=interaction.Hover;
             if(interaction.Hit && hover==0 && !interaction.Active)
             {
                 var point=interaction.Point;
-                if(Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2) ImageUV=window.UV(point);
+                if(!TurretHeadAim.Face && Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2) ImageUV=window.UV(point);
             }
             OwnsInput=interaction.Active || interaction.Released;
             if(interaction.Changed) placementDirty=true;
@@ -244,6 +249,7 @@ namespace SpaceEngineersVR.Player
             {
                 interaction.Grab(hand,PhysicalTrackingToWorld);
                 if(interaction.HeldAction==WindowFrame.SignalsHover) CycleSignals();
+                if(interaction.HeldAction==WindowFrame.AimHover) CycleAim();
                 if(interaction.HeldAction==3 || interaction.HeldAction==4) Zoom(interaction.HeldAction==3 ? .12f:-.12f);
             }
             else if(interaction.Active && (hover==3 || hover==4) && interaction.HeldAction==hover) Zoom((hover==3 ? 1:-1)*seconds*.6f);
@@ -254,17 +260,29 @@ namespace SpaceEngineersVR.Player
         }
         internal static int NextSignalMode(int mode) => (mode+1)%4;
         internal static float ZoomX(float width,bool plus) => WindowFrame.ZoomX(width,plus);
-        private static int ReadSignalMode()
+        // Marker and turret aim modes are kept per feed block and world.
+        private static long FeedId => (source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0;
+        private static MenuWindowSetting Feed()
         {
-            long id=(source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0;
-            return Math.Max(0,Math.Min(3,Common.Config?.MenuWindows?.FirstOrDefault(s=>s.Screen=="CameraSignals" && s.World==world && s.Cockpit==id)?.SignalMode ?? 0));
+            long id=FeedId;
+            return Common.Config?.MenuWindows?.FirstOrDefault(s=>s.Screen=="CameraSignals" && s.World==world && s.Cockpit==id);
         }
-        private static void CycleSignals()
+        private static void StoreFeed(Action<MenuWindowSetting> change)
         {
-            long id=(source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0;
-            var saved=new MenuWindowSetting {Screen="CameraSignals",World=world,Cockpit=id,SignalMode=NextSignalMode(ReadSignalMode())};
+            long id=FeedId; var old=Feed();
+            var saved=new MenuWindowSetting {Screen="CameraSignals",World=world,Cockpit=id,SignalMode=old?.SignalMode ?? 0,AimMode=old?.AimMode ?? 0};
+            change(saved);
             Common.Config.MenuWindows=Common.Config.MenuWindows.Where(s=>s.Screen!=saved.Screen || s.World!=world || s.Cockpit!=id).Concat(new[] {saved}).ToArray();
+            aimMode=Clamp(saved.AimMode,2);
         }
+        private static int Clamp(int mode,int max) => Math.Max(0,Math.Min(max,mode));
+        private static int ReadSignalMode() => Clamp(Feed()?.SignalMode ?? 0,3);
+        private static int aimMode;
+        internal static int AimMode => Active ? aimMode : 0;
+        internal static void CycleAim() => StoreFeed(s=>s.AimMode=(Clamp(s.AimMode,2)+1)%3);
+        internal static void CycleSignals() => StoreFeed(s=>s.SignalMode=NextSignalMode(Clamp(s.SignalMode,3)));
+        private static readonly string[] signalNames={"default","full","no names","off"};
+        internal static string SignalsLabel => "Screen signals: "+signalNames[ReadSignalMode()];
         private static void Publish(int hover=-1)
         {
             if(!Active || source==null) { Current=null; return; }
@@ -273,9 +291,11 @@ namespace SpaceEngineersVR.Player
             long feed=(source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0;
             var pointed=TargetLock.Preview;
             BoundingSphereD? pointedSphere=pointed!=null && !pointed.Closed ? pointed.PositionComp.WorldVolume : (BoundingSphereD?)null;
+            bool face=TurretHeadAim.Face;
             Current=new View { Pose=(MatrixD)window.Pose,Width=window.Width,Height=window.Height,Hover=hover<0 ? window.Drag!=0 ? window.Drag:lastHover : hover,
                 SignalMode=ReadSignalMode(),Ammo=ammo,Capacity=capacity,Pointed=pointedSphere,
-                RayStart=rayStart,RayEnd=rayEnd,LeftHand=left,Source=feed,
+                RayStart=rayStart,RayEnd=rayEnd,LeftHand=left,Source=feed,Face=face,WorldToTracking=face ? MatrixD.Invert(PhysicalTrackingToWorld):MatrixD.Identity,FaceDepth=face && MySession.Static.ControlledEntity is MyLargeTurretBase faced ? TurretHeadAim.FaceDepth(faced):0,
+                AimMode=TurretHeadAim.Available ? TurretHeadAim.Mode : -1,
                 Character=character?.Render.GetRenderObjectID() ?? uint.MaxValue,FirstPersonMaterials=FirstPersonMaterials(character?.Definition) };
         }
         private static Sandbox.Definitions.MyCharacterDefinition materialsDefinition;
@@ -294,13 +314,26 @@ namespace SpaceEngineersVR.Player
         {
             var controls=Controls.Static;
             Axes(controls.ThrustRotate.Position,controls.ThrustLRFB.Position,speed,out var aim,out float zoom);
+            if(controls.ThrustRoll.IsPressed) { zoom-=VrMath.Deadzone(controls.ThrustRotate.Position.Y); aim.X=0; }
             CockpitControls.ApplyTurret(speed,ref aim,ref zoom);
             aim*=Common.Config.TurretAimSensitivity;
             if(OwnsInput || CockpitControls.Adjusting) { aim=Vector2.Zero; zoom=0; }
             var turret=MySession.Static.ControlledEntity; var move=Vector3.Zero; float roll=0;
-            KeyboardMouseInput.Add(turret,ref move,ref aim,ref roll);
+            if(TurretHeadAim.Active && turret is MyLargeTurretBase large) { aim=TurretHeadAim.Indicator(large); TurretHeadAim.LimitZoom(large); }
+            else KeyboardMouseInput.Add(turret,ref move,ref aim,ref roll);
             turret.MoveAndRotate(Vector3.Zero,aim,0);
-            Zoom(zoom/60*.6f);
+            Zoom(zoom*ZoomSpeed/60);
+        }
+        // Radians of field of view per second at full stick; stick zoom runs once per simulation update.
+        private const float ZoomSpeed=.6f;
+        internal static float StickZoom(float stick) => -VrMath.Deadzone(stick)*ZoomSpeed/60;
+        // Two native calls: the first turns the turret, the second (rotate-ship form) passes the flight input to the ship, as vanilla does with Alt held.
+        internal static void ControlHeadTurret(Vector3 move,Vector2 rotate,float roll)
+        {
+            if(!(MySession.Static.ControlledEntity is MyLargeTurretBase turret)) return;
+            TurretHeadAim.LimitZoom(turret);
+            turret.MoveAndRotate(Vector3.Zero,TurretHeadAim.Indicator(turret),0,false,false);
+            turret.MoveAndRotate(move,rotate,roll,false,true);
         }
         public static void Zoom(float delta)
         {

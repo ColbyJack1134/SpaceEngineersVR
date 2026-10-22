@@ -179,7 +179,12 @@ namespace SpaceEngineersVR.Player
             return new[] {Building[17],PlacementAction,Building[8],PaletteAction,SymmetryAction,SymmetrySetupAction,BuildShapeAction,Building[9],Building[10]};
         }
         internal static ActionChoice[] CockpitBuildActions() => new[] { PauseAction,TerminalAction,CockpitBuild,ConfigureToolbarAction,PaletteAction,Building[17],Building[8],PlacementAction,BuildShapeAction };
-        internal static ActionChoice[] RemoteWheelChoices() => new[] { PauseAction,TerminalAction,ExitFeed,ResetFeed,ConfigureToolbarAction,PreviousCamera,NextCamera,Inspect };
+        public static readonly ActionChoice FeedSignals=new ActionChoice(()=>RemoteView.SignalsLabel,RemoteView.CycleSignals,enabled:()=>RemoteView.Current!=null,historyKey:"Screen signals");
+        // One step of the screen frame's zoom buttons.
+        public static readonly ActionChoice ZoomIn=new ActionChoice("Zoom in",()=>RemoteView.Zoom(-.12f),enabled:()=>RemoteView.Current!=null);
+        public static readonly ActionChoice ZoomOut=new ActionChoice("Zoom out",()=>RemoteView.Zoom(.12f),enabled:()=>RemoteView.Current!=null);
+        public static readonly ActionChoice TurretAimAction=new ActionChoice(()=>TurretHeadAim.Label,()=> { RemoteView.CycleAim(); RemoteView.ReleaseInput(); },enabled:()=>TurretHeadAim.Available,historyKey:"Turret aim");
+        internal static ActionChoice[] RemoteWheelChoices() => new[] { PauseAction,TerminalAction,ExitFeed,TurretAimAction,FeedSignals,ZoomIn,ZoomOut,PreviousCamera,NextCamera,ResetFeed,ConfigureToolbarAction,Inspect };
         internal static ActionChoice[] RemoteWheelActions() => RemoteWheelChoices().Where(choice=>choice.Enabled).ToArray();
         internal static ActionChoice[] ClipboardActions(bool grid=true) => grid ?
             new[] { PauseAction,TerminalAction,AlignGravity,Building[21],Building[20],Building[6],Building[7],BlueprintsAction } :

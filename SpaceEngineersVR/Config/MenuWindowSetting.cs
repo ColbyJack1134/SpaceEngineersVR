@@ -6,6 +6,7 @@ namespace SpaceEngineersVR.Config
         public string World { get; set; }
         public long Cockpit { get; set; }
         public int SignalMode { get; set; }
+        public int AimMode { get; set; }
         public float Width { get; set; }
         public float Height { get; set; }
         public float X { get; set; }

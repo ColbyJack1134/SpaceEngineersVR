@@ -169,8 +169,8 @@ namespace SpaceEngineersVR.Diagnostics
                     GameActions.ConfigureToolbarAction,GameActions.Inspect}),"Turret wheel without a feed is not pause, terminal, exit, toolbar and block info");
                 Set(Sandbox.Game.World.MySession.Static,"m_cameraController",camera);
                 currentView.SetValue(null,new RemoteView.View());
-                Require(GameActions.RemoteWheelActions().SequenceEqual(new[] {GameActions.PauseAction,GameActions.TerminalAction,GameActions.ExitFeed,GameActions.ResetFeed,
-                    GameActions.ConfigureToolbarAction,GameActions.PreviousCamera,GameActions.NextCamera,GameActions.Inspect}),"Camera feed lost its screen reset or camera cycling");
+                Require(GameActions.RemoteWheelActions().SequenceEqual(new[] {GameActions.PauseAction,GameActions.TerminalAction,GameActions.ExitFeed,GameActions.FeedSignals,GameActions.ZoomIn,GameActions.ZoomOut,
+                    GameActions.PreviousCamera,GameActions.NextCamera,GameActions.ResetFeed,GameActions.ConfigureToolbarAction,GameActions.Inspect}),"Camera feed lost its screen reset or camera cycling");
             }
             finally { Sandbox.Game.World.MySession.Static=previousSession; currentView.SetValue(null,previousView); }
             var terminalShow=AccessTools.Method(typeof(Sandbox.Game.Gui.MyGuiScreenTerminal),nameof(Sandbox.Game.Gui.MyGuiScreenTerminal.Show));

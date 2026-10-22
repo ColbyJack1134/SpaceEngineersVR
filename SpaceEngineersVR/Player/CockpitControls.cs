@@ -372,7 +372,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void ApplyFlight(float speed,ref Vector3 move,ref Vector2 rotate,ref float roll)
         {
-            if (seat==null || !Eligible(seat) || !CockpitRender.Ready || InputRouter.Mode!=InputMode.Piloting) return;
+            if (seat==null || !Eligible(seat) || !CockpitRender.Ready || InputRouter.Mode!=InputMode.Piloting && !(InputRouter.Mode==InputMode.Turret && TurretHeadAim.Active)) return;
             if (Adjusting) { move=Vector3.Zero; rotate=Vector2.Zero; roll=0; return; }
             if(IsSteering)
             {

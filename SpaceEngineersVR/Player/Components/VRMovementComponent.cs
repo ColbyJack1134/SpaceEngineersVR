@@ -70,7 +70,13 @@ namespace SpaceEngineersVR.Player.Components
                 if(!RemoteView.Active || RemoteView.CharacterAnchor) BodyLocomotion.Update(Character);
 
                 if(keyboardOnly) ApplyMoveAndRotation(Vector3.Zero,Vector2.Zero,0);
-                else if(RemoteView.Turret) { RemoteView.ControlTurret(RotationSpeed); hadControllerMovement=true; }
+                else if(RemoteView.Turret)
+                {
+                    // Head-aimed, the sticks fly the ship as they do while viewing a camera.
+                    if(TurretHeadAim.Active && RemoteView.Previous is MyShipController home) ControlShip(home);
+                    else RemoteView.ControlTurret(RotationSpeed);
+                    hadControllerMovement=true;
+                }
                 else if(FloatingWindows.OwnsInput) ApplyMoveAndRotation(Vector3.Zero,Vector2.Zero,0);
                 else if(PlacementControls.Adjusting) ApplyMoveAndRotation(Vector3.Zero,Vector2.Zero,0);
                 else if (MySession.Static.ControlledEntity is MyShipController)
@@ -182,10 +188,10 @@ namespace SpaceEngineersVR.Player.Components
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void ControlShip()
+        void ControlShip(MyShipController home=null)
         {
             var controls = Controls.Static;
-            var ship=(MyShipController)MySession.Static.ControlledEntity;
+            var ship=home ?? (MyShipController)MySession.Static.ControlledEntity;
             if(NativeActions.WheelJumpAllowed)
             {
                 jumpOwner=ship;
@@ -218,7 +224,7 @@ namespace SpaceEngineersVR.Player.Components
 
             CockpitControls.ApplyFlight(RotationSpeed,ref move,ref rotate,ref roll);
             // With nothing selected the trigger is the throttle, except on WeaponCore grids, where it fires without a selection.
-            bool gas=!ThirdPersonView.Manipulating && PrimaryPressed && SeatTuning.RightTrigger==RightTrigger.Forward && TargetLock.ShooterGrid()==null;
+            bool gas=home==null && !ThirdPersonView.Manipulating && PrimaryPressed && SeatTuning.RightTrigger==RightTrigger.Forward && TargetLock.ShooterGrid()==null;
             if(CockpitControls.VehicleFlight)
             {
                 if(gas && ship.Toolbar?.SelectedItem==null)
@@ -226,7 +232,8 @@ namespace SpaceEngineersVR.Player.Components
             }
             else move=DriveInput.Update(ship,move,gas ? MathHelper.Clamp(controls.FirePressure.Position.X,0,1):0,
                 ThirdPersonView.Manipulating || CockpitControls.Adjusting ? 0:CockpitControls.Throttle);
-            ApplyMoveAndRotation(move, rotate, roll);
+            if(home!=null) RemoteView.ControlHeadTurret(Vector3.Clamp(move,-Vector3.One,Vector3.One),rotate,roll);
+            else ApplyMoveAndRotation(move, rotate, roll);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -288,6 +295,8 @@ namespace SpaceEngineersVR.Player.Components
             ApplyMoveAndRotation(move, rotate, roll);
         }
 
+        private static bool RollModifier(bool ship) => Controls.Static.ThrustRoll.IsPressed && !(ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandR)) && !TouchScreenBridge.OwnsInput &&
+            !ArthurLcdBridge.Owns(Handedness.ActionHand) && !(WeaponHandling.ToolModifier && Controls.Static.Fire.IsPressed) && !(ship && ShipChord);
         private void ReadFlightInput(bool ship, out Vector3 move, out Vector2 rotate, out float roll)
         {
             var controls = Controls.Static;
@@ -296,7 +305,10 @@ namespace SpaceEngineersVR.Player.Components
             move = FlightAxes.Translation(controls.ThrustLRUD.Position, controls.ThrustLRFB.Position,
                 up, WeaponHandling.ConsumesSupportGrip || ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) ? 0 : ThirdPersonView.Descent(controls.ThrustDown.Position.X), controls.ThrustForward.Position.X, back);
             float rollSensitivity = ship ? Common.Config.ShipRollSensitivity : Common.Config.JetpackRoll;
-            FlightAxes.Rotation(controls.ThrustRotate.Position, controls.ThrustRoll.IsPressed && !(ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandR)) && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Handedness.ActionHand) && !(WeaponHandling.ToolModifier && controls.Fire.IsPressed) && !(ship && ShipChord), ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
+            bool rollModifier=RollModifier(ship);
+            FlightAxes.Rotation(controls.ThrustRotate.Position, rollModifier, ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
+            // On a camera or turret screen, the roll grip turns the stick's pitch into zoom.
+            if(ship && rollModifier && RemoteView.Current!=null && !CockpitControls.OwnsRightThumb) { RemoteView.Zoom(RemoteView.StickZoom(controls.ThrustRotate.Position.Y)); rotate.X=0; }
             if(!ship) rotate.Y=turnInput.Read(rotate.Y/RotationSpeed,Common.Config.SnapTurn,RotationSpeed*Common.Config.TurnSensitivity,
                 Common.Config.SnapTurnAngle,Character.RotationSpeed,System.DateTime.UtcNow);
         }
@@ -317,7 +329,7 @@ namespace SpaceEngineersVR.Player.Components
             hadControllerMovement = moving;
         }
 
-        private static FlightTuning SeatTuning => FlightSettings.For(MySession.Static?.ControlledEntity as MyCockpit);
+        private static FlightTuning SeatTuning => FlightSettings.For(MySession.Static?.ControlledEntity as MyCockpit ?? RemoteView.HomeSeat);
         private static bool PrimaryPressed => !HelmetHud.ProtectsFire && !FloatingWindows.OwnsInput && Controls.Static.Fire.IsPressed &&
             !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Handedness.ActionHand) &&
             FlightAxes.StickTriggerAllowed(MySession.Static?.ControlledEntity is MyShipController,Common.Config.PhysicalShipControlsOnly,
