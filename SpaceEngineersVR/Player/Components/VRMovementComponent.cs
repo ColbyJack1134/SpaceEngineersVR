@@ -322,7 +322,8 @@ namespace SpaceEngineersVR.Player.Components
             move = Vector3.Clamp(move, -Vector3.One, Vector3.One);
 
             bool moving = move != Vector3.Zero || rotate != Vector2.Zero || roll != 0f;
-            if (moving)
+            // Ships get zero updates too, as natively; HOTAS plugins add to the last indicators.
+            if (moving || controlled is MyShipController)
                 controlled?.MoveAndRotate(move, rotate, roll);
             else if (hadControllerMovement)
                 controlled?.MoveAndRotateStopped();
