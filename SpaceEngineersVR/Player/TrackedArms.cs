@@ -25,7 +25,7 @@ namespace SpaceEngineersVR.Player
             if (owner != null) Restore(owner);
             if(owner!=null && !owner.Closed) owner.AnimationController.UpdateTransformations();
             BodyFit.Reset(); BodyPlacement.Reset();
-            owner=null; buffers.Clear(); idleCollars.Clear(); left=right=null; disabled=reportedPose=false;
+            owner=null; buffers.Clear(); idleCollars.Clear(); unarmedSince=double.MaxValue; left=right=null; disabled=reportedPose=false;
         }
         public static void Restore(MyCharacter character)
         {
@@ -82,6 +82,8 @@ namespace SpaceEngineersVR.Player
                 if(seated && TryLean(character,out var lean,out float twist)) SpineLean.Apply(pair.Spine,lean,twist);
                 if(Common.Config.TrackedArms && Handedness.Swapped && character.CurrentWeapon!=null && !character.IsSitting && left!=null && right!=null)
                     ArmSkeleton.MirrorCollars(left,right);
+                if(character.CurrentWeapon!=null) unarmedSince=double.MaxValue;
+                else if(unarmedSince==double.MaxValue) unarmedSince=Multiplayer.MultiplayerRuntime.Now;
                 if(Common.Config.TrackedArms) { IdleCollar(character,left,Player.HandL); IdleCollar(character,right,Player.HandR); }
                 // The native ladder pose places the body against the ladder; seats place it through the seat fit.
                 if(!seated && !character.IsOnLadder && pair.Head!=null && TryHead(character,out var headset))
@@ -114,14 +116,23 @@ namespace SpaceEngineersVR.Player
             if(posed) Diagnostics.ArmPoseCapture.Record(character,hand,arm.Upper.Bone,arm.Lower.Bone,arm.Palm.Bone);
             return posed;
         }
-        private static readonly Dictionary<Arm,(Quaternion rotation,Vector3 translation)> idleCollars=new Dictionary<Arm,(Quaternion,Vector3)>();
+        // Keyed by side: the alternating bone buffers must share one sample or the collar flips every frame.
+        private static readonly Dictionary<bool,(Quaternion rotation,Vector3 translation)> idleCollars=new Dictionary<bool,(Quaternion,Vector3)>();
+        private static double unarmedSince=double.MaxValue;
+        // The unequip blend still shows the two-handed collar, so only a settled unarmed pose is sampled.
+        private const double IdleSettle=.5;
         // The weapon animations pose both collarbones for a two-handed hold; a hand that is not on the item keeps its no-tool collar.
         private static void IdleCollar(MyCharacter character,Arm arm,Controller hand)
         {
             if(arm?.Collar==null) return;
             var collar=arm.Collar;
-            if(character.CurrentWeapon==null) { idleCollars[arm]=(collar.Bone.Rotation,collar.Bone.Translation); return; }
-            if(WeaponHandling.Profile==null || WeaponHandling.Holding(hand) || !idleCollars.TryGetValue(arm,out var idle)) return;
+            bool side=hand==Player.HandL;
+            if(character.CurrentWeapon==null)
+            {
+                if(Multiplayer.MultiplayerRuntime.Now-unarmedSince>=IdleSettle) idleCollars[side]=(collar.Bone.Rotation,collar.Bone.Translation);
+                return;
+            }
+            if(WeaponHandling.Profile==null || WeaponHandling.Holding(hand) || !idleCollars.TryGetValue(side,out var idle)) return;
             collar.SaveOnce();
             collar.Bone.Rotation=idle.rotation; collar.Bone.Translation=idle.translation;
             collar.Bone.ComputeAbsoluteTransform(true,true);
