@@ -18,6 +18,7 @@ namespace SpaceEngineersVR.Patches
         private static void Prefix(Sandbox.Game.Components.MyRenderComponentSkinnedEntity __instance)
         {
             var character=__instance.Container.Entity as MyCharacter;
+            LeftHandedModels.Sync(character);
             if(!MotionToolPatch.Eligible(character) || !(character.CurrentWeapon is MyEntity item) ||
                 !WeaponHandling.TryPose(character,out var pose,out _)) return;
             // Publish the item and final arm bones together before native skinning is queued.

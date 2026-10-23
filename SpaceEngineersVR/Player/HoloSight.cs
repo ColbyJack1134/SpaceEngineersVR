@@ -93,6 +93,18 @@ namespace SpaceEngineersVR.Player
             if(reticles.Count>0) Logger.Info("Holographic sights: {0} weapon models without painted reticles",reticles.Count);
         }
 
+        // A copy with its sight reflected across X=axis. Right is rebuilt from the mirrored forward, so the reticle image keeps its orientation
+        // and the window and rims swap their left and right edges.
+        internal static void Mirror(string source,string copy,float axis)
+        {
+            if(!reticles.TryGetValue(source,out var r)) return;
+            var forward=new Vector3(-r.Forward.X,r.Forward.Y,r.Forward.Z);
+            var right=Vector3.Normalize(Vector3.Cross(forward,Vector3.Up));
+            Vector4 Swap(Vector4 edges) => new Vector4(-edges.Y,-edges.X,edges.Z,edges.W);
+            reticles[copy]=new Reticle { Texture=r.Texture,Center=new Vector3(2*axis-r.Center.X,r.Center.Y,r.Center.Z),Forward=forward,Right=right,Up=Vector3.Cross(right,forward),
+                Tangents=new RectangleF(-(r.Tangents.X+r.Tangents.Width),r.Tangents.Y,r.Tangents.Width,r.Tangents.Height),Clip=r.Clip,Window=Swap(r.Window),
+                Rims=r.Rims.Select(rim=>new Rim(Swap(rim.Edges),rim.Depth)).ToArray() };
+        }
         internal static string[] Items => sights.Select(s=>s.Item).ToArray();
         internal static int Triangles(string item) => sights.Single(s=>s.Item==item).Count;
         internal static Reticle Build(string item,string source,string copy,string folder) =>
@@ -153,7 +165,7 @@ namespace SpaceEngineersVR.Player
             for(int i=0;i<count*3;i++) System.Buffer.BlockCopy(repeated,0,result,at+i*4,4);
             return result;
         }
-        private static int Find(byte[] data,byte[] pattern,int start)
+        internal static int Find(byte[] data,byte[] pattern,int start)
         {
             for(int i=start;i<=data.Length-pattern.Length;i++)
             {
@@ -163,7 +175,7 @@ namespace SpaceEngineersVR.Player
             }
             return -1;
         }
-        private static void Write(string file,byte[] data)
+        internal static void Write(string file,byte[] data)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(file));
             if(!File.Exists(file) || !Enumerable.SequenceEqual(File.ReadAllBytes(file),data)) File.WriteAllBytes(file,data);

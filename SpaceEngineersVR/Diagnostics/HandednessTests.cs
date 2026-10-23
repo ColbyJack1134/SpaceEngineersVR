@@ -31,44 +31,51 @@ namespace SpaceEngineersVR.Diagnostics
             // The installed astronaut's bind pose mirrors the palm across local Z; also cover a general reflection.
             var reflections=new[] { Matrix.CreateScale(1,1,-1),
                 Matrix.CreateFromYawPitchRoll(.4f,-.3f,.2f)*Matrix.CreateScale(-1,1,1)*Matrix.Invert(Matrix.CreateFromYawPitchRoll(-.7f,.1f,.5f)) };
-            foreach(var right in WeaponTests.Installed(items))
+            var hook=WeaponProfile.SideSwapped;
+            // Both the upside-down hold and, for tools with moved side parts, the left/right mirror.
+            foreach(bool side in new[] {false,true})
             {
-                var item=items[right.Item]; var left=right.Mirror;
-                MatrixD nativeRight=WeaponTests.Palm(item,"Right"),nativeLeft=WeaponTests.Palm(item,"Left");
-                Require(left.Mirrored && left.Mirror==left && right.Mirror==left && !right.Mirrored,"Mirrored profile identity broken for "+right.Item);
-                Require(Near(right.Hold(nativeRight,nativeLeft,false,Matrix.Identity),right.Palm(nativeRight,false),0) &&
-                    Near(right.Hold(nativeRight,nativeLeft,true,Matrix.Identity),right.Palm(nativeLeft,true),0),"Right-handed hold changed for "+right.Item);
-                foreach(var palm in reflections)
-                    for(int i=0;i<12;i++)
-                    {
-                        var rightPalm=Pose(i); var leftPalm=MatrixD.Invert(palm)*rightPalm*Mirror;
-                        MatrixD grip=WeaponProfile.Reflect(right.GripAxis,right.FlipUp),brace=WeaponProfile.Reflect(right.SupportAxis,right.FlipUp);
-                        bool held=WeaponPose.TryHandItem(right.Hold(nativeRight,nativeLeft,false,Matrix.Identity),rightPalm,out var rightModel);
-                        Require(WeaponPose.TryHandItem(left.Hold(nativeRight,nativeLeft,false,palm),leftPalm,out var leftModel) && held,"Hold rejected for "+right.Item);
-                        Require(Near(leftModel,MatrixD.Invert(left.Tilt)*grip*rightModel*Mirror) && Math.Abs(leftModel.Determinant()-1)<1e-4,"Left hold is not the mirrored right hold for "+right.Item);
-                        var supportLeft=Pose(i+20); var supportRight=(MatrixD)palm*supportLeft*Mirror;
-                        held=WeaponPose.TryHandItem(right.Hold(nativeRight,nativeLeft,true,Matrix.Identity),supportLeft,out var rightSupported);
-                        held&=WeaponPose.TryHandItem(left.Hold(nativeRight,nativeLeft,true,palm),supportRight,out var leftSupported);
-                        Require(held && Near(leftSupported,brace*rightSupported*Mirror),"Right support is not the mirrored left support for "+right.Item);
-                        var grab=Vector3D.Transform(left.GrabOffset(palm),left.Hold(nativeRight,nativeLeft,true,palm));
-                        Require(Vector3D.Distance(grab,left.SupportContact(nativeLeft))<1e-4,"Mirrored grab offset misses the support contact for "+right.Item);
-                    }
-                var support=right.SupportContact(nativeLeft);
-                for(int i=0;i<40;i++)
+                WeaponProfile.SideSwapped=p=>side;
+                foreach(var right in WeaponTests.Installed(items))
                 {
-                    var point=new Vector3((i%5-2)*.05f,(i/5%4-2)*.04f,(i/20-1)*.12f)+right.Magazine*(i%3==0 ? 1:0);
-                    var flipped=WeaponProfile.Flip(point,right.SupportAxis,right.FlipUp);
-                    Require(left.Grab(flipped,left.SupportContact(nativeLeft))==right.Grab(point,support) && left.ReloadAt(flipped)==right.ReloadAt(point),"Mirrored grab or reload target differs for "+right.Item);
+                    var item=items[right.Item]; var left=right.Mirror;
+                    MatrixD nativeRight=WeaponTests.Palm(item,"Right"),nativeLeft=WeaponTests.Palm(item,"Left");
+                    Require(left.Mirrored && left.Mirror==left && right.Mirror==left && !right.Mirrored,"Mirrored profile identity broken for "+right.Item);
+                    Require(Near(right.Hold(nativeRight,nativeLeft,false,Matrix.Identity),right.Palm(nativeRight,false),0) &&
+                        Near(right.Hold(nativeRight,nativeLeft,true,Matrix.Identity),right.Palm(nativeLeft,true),0),"Right-handed hold changed for "+right.Item);
+                    foreach(var palm in reflections)
+                        for(int i=0;i<12;i++)
+                        {
+                            var rightPalm=Pose(i); var leftPalm=MatrixD.Invert(palm)*rightPalm*Mirror;
+                            MatrixD grip=WeaponProfile.Reflect(left.GripAxis,left.FlipUp),brace=WeaponProfile.Reflect(left.SupportAxis,left.FlipUp);
+                            bool held=WeaponPose.TryHandItem(right.Hold(nativeRight,nativeLeft,false,Matrix.Identity),rightPalm,out var rightModel);
+                            Require(WeaponPose.TryHandItem(left.Hold(nativeRight,nativeLeft,false,palm),leftPalm,out var leftModel) && held,"Hold rejected for "+right.Item);
+                            Require(Near(leftModel,MatrixD.Invert(left.Tilt)*grip*rightModel*Mirror) && Math.Abs(leftModel.Determinant()-1)<1e-4,"Left hold is not the mirrored right hold for "+right.Item);
+                            var supportLeft=Pose(i+20); var supportRight=(MatrixD)palm*supportLeft*Mirror;
+                            held=WeaponPose.TryHandItem(right.Hold(nativeRight,nativeLeft,true,Matrix.Identity),supportLeft,out var rightSupported);
+                            held&=WeaponPose.TryHandItem(left.Hold(nativeRight,nativeLeft,true,palm),supportRight,out var leftSupported);
+                            Require(held && Near(leftSupported,brace*rightSupported*Mirror),"Right support is not the mirrored left support for "+right.Item);
+                            var grab=Vector3D.Transform(left.GrabOffset(palm),left.Hold(nativeRight,nativeLeft,true,palm));
+                            Require(Vector3D.Distance(grab,left.SupportContact(nativeLeft))<1e-4,"Mirrored grab offset misses the support contact for "+right.Item);
+                        }
+                    var support=right.SupportContact(nativeLeft);
+                    for(int i=0;i<40;i++)
+                    {
+                        var point=new Vector3((i%5-2)*.05f,(i/5%4-2)*.04f,(i/20-1)*.12f)+right.Magazine*(i%3==0 ? 1:0);
+                        var flipped=WeaponProfile.Flip(point,left.SupportAxis,left.FlipUp);
+                        Require(left.Grab(flipped,left.SupportContact(nativeLeft))==right.Grab(point,support) && left.ReloadAt(flipped)==right.ReloadAt(point),"Mirrored grab or reload target differs for "+right.Item);
+                    }
+                    Require(left.Muzzle==right.Muzzle && left.Magazine==right.Magazine,"Mirrored profile moved a mesh point for "+right.Item);
+                    if(left.GripAxis!=left.SupportAxis || left.FlipUp) continue;
+                    var one=(Matrix)Pose(3); var primary=Vector3.Transform(right.Primary,one);
+                    var reach=Vector3.Transform(right.Support,one)+new Vector3(.01f,-.02f,.015f);
+                    var oneLeft=(Matrix)(WeaponProfile.Reflect(left.GripAxis)*(MatrixD)one*Mirror);
+                    bool supported=WeaponPose.TrySupport(right,one,primary,reach,out var twoRight,true);
+                    supported&=WeaponPose.TrySupport(left,oneLeft,Vector3.Transform(left.Primary,oneLeft),new Vector3(-reach.X,reach.Y,reach.Z),out var twoLeft,true);
+                    Require(supported && Near(twoLeft,WeaponProfile.Reflect(left.GripAxis)*(MatrixD)twoRight*Mirror),"Two-hand support is not mirror symmetric for "+right.Item);
                 }
-                Require(left.Muzzle==right.Muzzle && left.Magazine==right.Magazine,"Mirrored profile moved a mesh point for "+right.Item);
-                if(right.GripAxis!=right.SupportAxis || right.FlipUp) continue;
-                var one=(Matrix)Pose(3); var primary=Vector3.Transform(right.Primary,one);
-                var reach=Vector3.Transform(right.Support,one)+new Vector3(.01f,-.02f,.015f);
-                var oneLeft=(Matrix)(WeaponProfile.Reflect(right.GripAxis)*(MatrixD)one*Mirror);
-                bool supported=WeaponPose.TrySupport(right,one,primary,reach,out var twoRight,true);
-                supported&=WeaponPose.TrySupport(left,oneLeft,Vector3.Transform(left.Primary,oneLeft),new Vector3(-reach.X,reach.Y,reach.Z),out var twoLeft,true);
-                Require(supported && Near(twoLeft,WeaponProfile.Reflect(right.GripAxis)*(MatrixD)twoRight*Mirror),"Two-hand support is not mirror symmetric for "+right.Item);
             }
+            WeaponProfile.SideSwapped=hook;
             var rifle=WeaponProfile.All[0]; var aim=Pose(5); var recoil=new Vector2(6,-3);
             Require(Near(HeldItemPose.Kick(WeaponProfile.Reflect(0)*aim*Mirror,rifle.Mirror,recoil),WeaponProfile.Reflect(0)*HeldItemPose.Kick(aim,rifle,recoil)*Mirror),
                 "Left-handed recoil is not the mirrored right-handed kick");

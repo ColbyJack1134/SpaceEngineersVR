@@ -100,7 +100,9 @@ namespace SpaceEngineersVR.Player
             try
             {
                 weapon.Subparts.TryGetValue("magazine",out var mag);
-                if(support==null && hover==1) support=Create(profile.Item+"_support",profile.Model,supportPoint,weapon.WorldMatrix);
+                // The held model and side decide which support handle there is to highlight (a left-handed copy moves it).
+                string model=weapon.Model?.AssetName ?? profile.Model;
+                if(support==null && hover==1) support=Create(profile.Item+(profile.Mirrored ? "_support_left_":"_support_")+StringComparer.OrdinalIgnoreCase.GetHashCode(model).ToString("x8"),model,supportPoint,weapon.WorldMatrix);
                 if(magazine==null && hover==2 && mag!=null) magazine=Create(profile.Item+"_magazine",mag.Model.AssetName,null,mag.WorldMatrix);
                 Update(support,weapon.Render.GetRenderObjectID(),hover==1 && !held,1);
                 Update(magazine,mag?.Render.GetRenderObjectID() ?? uint.MaxValue,hover==2 && !held,1);

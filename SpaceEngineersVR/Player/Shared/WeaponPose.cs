@@ -21,21 +21,33 @@ namespace SpaceEngineersVR.Player
         // Downward pitch about the handle axis for a flipped hold, so the item does not point up out of the fist.
         internal readonly float FlipPitch;
         internal readonly MatrixD Tilt=MatrixD.Identity;
+        // Plane through the tool's centre (item X) that left-handed copies reflect their side handle or sights across; SideCut picks the parts left of it.
+        internal readonly float? SideAxis;
+        internal readonly float SideCut;
+        // Set by the plugin when a left-handed copy with the side parts moved exists, so the hold mirrors left/right and stays upright.
+        internal static Func<WeaponProfile,bool> SideSwapped { get; set; }
         internal readonly bool Mirrored;
         private readonly WeaponProfile source;
-        private WeaponProfile mirror;
-        internal WeaponProfile Mirror => Mirrored ? this : mirror ?? (mirror=new WeaponProfile(this));
+        private WeaponProfile mirror,sideMirror;
+        internal WeaponProfile Mirror => Mirrored ? this : SideAxis.HasValue && SideSwapped?.Invoke(this)==true ? sideMirror ?? (sideMirror=new WeaponProfile(this,true)):mirror ?? (mirror=new WeaponProfile(this,false));
         internal bool Tool => Kind>=ItemKind.Welder;
         // The Paint Gun's hand item has no left hand; a support hand on the welder adds nothing.
         internal bool OneHanded => Kind==ItemKind.Sprayer || Kind==ItemKind.Welder;
         internal bool Brace => Kind==ItemKind.Pistol;
         internal Vector3 Direction => Kind==ItemKind.Welder ? new Vector3(0,.46947156f,-.88294759f):Vector3.Forward;
-        private WeaponProfile(string item,string model,ItemKind kind,Vector3 primary,Vector3 support,Vector3 muzzle,Vector3 right,Vector3 left,Vector3 magazine,float gripAxis=0,float supportAxis=0,bool flipUp=false,float flipPitch=0,Vector3? sight=null,Vector3? sightDirection=null,bool reticle=false)
-        { Item=item; Reticle=reticle; Model=model.Contains("/") ? model:"Models/Weapons/"+model+".mwm"; Kind=kind; Primary=primary; Support=support; Muzzle=muzzle; RightShift=right; LeftShift=left; Magazine=magazine; GripAxis=gripAxis; SupportAxis=supportAxis; FlipUp=flipUp; FlipPitch=flipPitch; Sight=sight; if(sightDirection.HasValue) SightDirection=Vector3.Normalize(sightDirection.Value); }
-        private WeaponProfile(WeaponProfile right)
+        private WeaponProfile(string item,string model,ItemKind kind,Vector3 primary,Vector3 support,Vector3 muzzle,Vector3 right,Vector3 left,Vector3 magazine,float gripAxis=0,float supportAxis=0,bool flipUp=false,float flipPitch=0,Vector3? sight=null,Vector3? sightDirection=null,bool reticle=false,float? sideAxis=null,float sideCut=0)
+        { Item=item; Reticle=reticle; Model=model.Contains("/") ? model:"Models/Weapons/"+model+".mwm"; Kind=kind; Primary=primary; Support=support; Muzzle=muzzle; RightShift=right; LeftShift=left; Magazine=magazine; GripAxis=gripAxis; SupportAxis=supportAxis; FlipUp=flipUp; FlipPitch=flipPitch; SideAxis=sideAxis; SideCut=sideCut; Sight=sight; if(sightDirection.HasValue) SightDirection=Vector3.Normalize(sightDirection.Value); }
+        private WeaponProfile(WeaponProfile right,bool side)
         {
             Item=right.Item; Model=right.Model; Kind=right.Kind; RightShift=right.RightShift; LeftShift=right.LeftShift; Muzzle=right.Muzzle; Magazine=right.Magazine; Sight=right.Sight; SightDirection=right.SightDirection; Reticle=right.Reticle;
+            SideAxis=right.SideAxis; SideCut=right.SideCut;
             GripAxis=right.GripAxis; SupportAxis=right.SupportAxis; FlipUp=right.FlipUp; FlipPitch=right.FlipPitch;
+            if(side)
+            {
+                GripAxis=SupportAxis=right.SideAxis.Value; FlipUp=false; FlipPitch=0;
+                if(Sight.HasValue) Sight=Flip(Sight.Value,GripAxis);
+                SightDirection=new Vector3(-SightDirection.X,SightDirection.Y,SightDirection.Z);
+            }
             Primary=Flip(right.Primary,GripAxis,FlipUp); Support=Flip(right.Support,SupportAxis,FlipUp);
             if(FlipUp && FlipPitch!=0)
             {
@@ -69,20 +81,20 @@ namespace SpaceEngineersVR.Player
             new WeaponProfile("FullAutoPistolItem", "Pistol_FullAuto_Warfare", ItemKind.Pistol, new Vector3(0.01643658f,-0.01656988f,0.18354118f), new Vector3(-0.09566162f,-0.07444992f,0.13949154f), new Vector3(0f,0.06741901f,-0.17239273f), new Vector3(0f,0f,0f), new Vector3(-0.008f,0.028f,0.008f), new Vector3(0f,-0.16958985f,0.08965235f), sight:new Vector3(0,.0881f,.083f)),
             new WeaponProfile("ElitePistolItem", "Pistol_Elite_Warfare", ItemKind.Pistol, new Vector3(0.01643658f,-0.01656988f,0.18354118f), new Vector3(-0.09566162f,-0.07444992f,0.13949154f), new Vector3(0f,0.06741901f,-0.17239273f), new Vector3(0f,0f,0f), new Vector3(-0.008f,0.028f,0.008f), new Vector3(0f,-0.09287956f,0.0760093f), sight:new Vector3(0,.0981f,.04f), reticle:true),
             new WeaponProfile("FlareGunItem", "Pistol_FlareGun", ItemKind.Pistol, new Vector3(0.01643658f,-0.01656988f,0.18354118f), new Vector3(-0.09566162f,-0.07444992f,0.13949154f), new Vector3(0f,0.06341899f,-0.10469195f), new Vector3(0f,0f,0f), new Vector3(-0.008f,0.028f,0.008f), new Vector3(0f,-0.09649658f,0.08415222f), sight:new Vector3(0,.0931f,.0553f), sightDirection:new Vector3(0,.0041f,-.1386f)),
-            new WeaponProfile("BasicHandHeldLauncherItem", "RocketLauncher_Regular", ItemKind.Launcher, new Vector3(0.02676702f,-0.03522223f,0.18000007f), new Vector3(-0.08030498f,-0.04085726f,-0.1366592f), new Vector3(0.00000014f,0.16771293f,-0.41278997f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), new Vector3(-0.00001526f,-0.03022767f,-0.20481059f), sight:new Vector3(-.1635f,.1681f,-.068f), reticle:true),
-            new WeaponProfile("AdvancedHandHeldLauncherItem", "RocketLauncher_Precision", ItemKind.Launcher, new Vector3(0.02676702f,-0.03522223f,0.18000007f), new Vector3(-0.08030498f,-0.04085726f,-0.1366592f), new Vector3(-0.00000004f,0.16770662f,-0.41881937f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), new Vector3(-0.00001526f,-0.0294178f,-0.20481059f), sight:new Vector3(-.163f,.1682f,-.1217f), reticle:true),
+            new WeaponProfile("BasicHandHeldLauncherItem", "RocketLauncher_Regular", ItemKind.Launcher, new Vector3(0.02676702f,-0.03522223f,0.18000007f), new Vector3(-0.08030498f,-0.04085726f,-0.1366592f), new Vector3(0.00000014f,0.16771293f,-0.41278997f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), new Vector3(-0.00001526f,-0.03022767f,-0.20481059f), sight:new Vector3(-.1635f,.1681f,-.068f), reticle:true, sideAxis:0, sideCut:-.06f),
+            new WeaponProfile("AdvancedHandHeldLauncherItem", "RocketLauncher_Precision", ItemKind.Launcher, new Vector3(0.02676702f,-0.03522223f,0.18000007f), new Vector3(-0.08030498f,-0.04085726f,-0.1366592f), new Vector3(-0.00000004f,0.16770662f,-0.41881937f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), new Vector3(-0.00001526f,-0.0294178f,-0.20481059f), sight:new Vector3(-.163f,.1682f,-.1217f), reticle:true, sideAxis:0, sideCut:-.06f),
             new WeaponProfile("WelderItem", "Welder", ItemKind.Welder, new Vector3(0.02191496f,-0.0974584f,0.12053466f), new Vector3(-0.08084223f,-0.12751487f,0.04795811f), new Vector3(0f,0.190192f,-0.069031f), new Vector3(0f,-0.035f,0f), new Vector3(-0.00053778f,-0.01331996f,0.11589689f), new Vector3(0f,0f,0f)),
             new WeaponProfile("Welder2Item", "WelderMk2", ItemKind.Welder, new Vector3(0.02191496f,-0.0974584f,0.12053466f), new Vector3(-0.08084223f,-0.12751487f,0.04795811f), new Vector3(0f,0.190192f,-0.069031f), new Vector3(0f,-0.035f,0f), new Vector3(-0.00053778f,-0.01331996f,0.11589689f), new Vector3(0f,0f,0f)),
             new WeaponProfile("Welder3Item", "WelderMk3", ItemKind.Welder, new Vector3(0.02191496f,-0.0974584f,0.12053466f), new Vector3(-0.08084223f,-0.12751487f,0.04795811f), new Vector3(0f,0.190192f,-0.069031f), new Vector3(0f,-0.035f,0f), new Vector3(-0.00053778f,-0.01331996f,0.11589689f), new Vector3(0f,0f,0f)),
             new WeaponProfile("Welder4Item", "WelderMk4", ItemKind.Welder, new Vector3(0.02191496f,-0.09276381f,0.12053466f), new Vector3(-0.08084223f,-0.12282028f,0.04795811f), new Vector3(0f,0.190192f,-0.069031f), new Vector3(0f,-0.035f,0f), new Vector3(-0.00053778f,-0.00862538f,0.11589689f), new Vector3(0f,0f,0f)),
-            new WeaponProfile("AngleGrinderItem", "AngleGrinder", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.258f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.09f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .0725f, .065f, true, 20),
-            new WeaponProfile("AngleGrinder2Item", "AngleGrinderMk2", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.258f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.09f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .0725f, .065f, true, 20),
-            new WeaponProfile("AngleGrinder3Item", "AngleGrinderMk3", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.258f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.09f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .0725f, .065f, true, 20),
-            new WeaponProfile("AngleGrinder4Item", "AngleGrinderMk4", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.258f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.09f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .0725f, .065f, true, 20),
-            new WeaponProfile("HandDrillItem", "HandDrill", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true),
-            new WeaponProfile("HandDrill2Item", "HandDrillMk2", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true),
-            new WeaponProfile("HandDrill3Item", "HandDrillMk3", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true),
-            new WeaponProfile("HandDrill4Item", "HandDrillMk4", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true),
+            new WeaponProfile("AngleGrinderItem", "AngleGrinder", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.258f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.09f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .0725f, .065f, true, 20, sideAxis:.0597f, sideCut:0),
+            new WeaponProfile("AngleGrinder2Item", "AngleGrinderMk2", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.258f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.09f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .0725f, .065f, true, 20, sideAxis:.0597f, sideCut:0),
+            new WeaponProfile("AngleGrinder3Item", "AngleGrinderMk3", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.258f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.09f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .0725f, .065f, true, 20, sideAxis:.0597f, sideCut:0),
+            new WeaponProfile("AngleGrinder4Item", "AngleGrinderMk4", ItemKind.Grinder, new Vector3(0.10005532f,0.17532301f,0.258f), new Vector3(-0.10284656f,0.15638113f,-0.08030498f), new Vector3(0.05974f,-0.024f,-0.25f), new Vector3(-0.015f,0f,0.09f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .0725f, .065f, true, 20, sideAxis:.0597f, sideCut:0),
+            new WeaponProfile("HandDrillItem", "HandDrill", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true, sideAxis:0, sideCut:-.005f),
+            new WeaponProfile("HandDrill2Item", "HandDrillMk2", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true, sideAxis:0, sideCut:-.005f),
+            new WeaponProfile("HandDrill3Item", "HandDrillMk3", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true, sideAxis:0, sideCut:-.005f),
+            new WeaponProfile("HandDrill4Item", "HandDrillMk4", ItemKind.Drill, new Vector3(0.0328728f,0.01404145f,0.35064566f), new Vector3(-0.2301122f,-0.00000072f,-0.07670468f), new Vector3(0f,0f,-0.73f), new Vector3(0f,0.025f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), .012f, 0, true, sideAxis:0, sideCut:-.005f),
             new WeaponProfile("PhysicalPaintGun", "Models/PaintGun.mwm", ItemKind.Sprayer, new Vector3(0.01273548f,-0.06245840f,0.1f), new Vector3(0f,0f,0f), new Vector3(0f,0.06527089f,-0.14947738f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f), new Vector3(0f,0f,0f)),
         };
         internal static WeaponProfile Rifle => All[0];

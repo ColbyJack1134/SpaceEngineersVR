@@ -121,6 +121,7 @@ namespace SpaceEngineersVR.Diagnostics
             Require(TouchScreenBridge.PlaneFor(Vector3.Zero,Vector3.Zero,Vector3.One,MatrixD.Identity)==null,"Degenerate LCD accepted");
             WeaponTests.Run(log);
             HandednessTests.Run(log);
+            LeftHandedModelTests.Run(log);
             var seatKeys=SeatPanel.Keys(true,true);
             var seatView=new SurfaceView { Keys=seatKeys };
             Require(seatKeys.Length==14,"Seat ship controls or adjustment controls missing");

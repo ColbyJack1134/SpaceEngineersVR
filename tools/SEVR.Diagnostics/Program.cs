@@ -30,6 +30,7 @@ internal static class Program
             if(args.Length==2 && args[1]=="--keyboard-test") { KeyboardInputTests.Run(Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--pb-compile") { RegressionTests.InitializeRenderer(game); PbFeedTests.CompileFile(args[2],Console.WriteLine); return 0; }
             if(args.Length==4 && args[1]=="--stick-preview") { StickPreview.Export(game,args[2],args[3]); return 0; }
+            if(args.Length==3 && args[1]=="--left-handed-models") { UiTests.Initialize(game,Path.Combine(args[2],"data")); LeftHandedModelTests.Run(Console.WriteLine,args[2]); return 0; }
             if(args.Length==4 && args[1]=="--export-model") { ModelInspection.Export(game,args[2],args[3]); return 0; }
             if(args.Length==3 && args[1]=="--companion-test") { MultiplayerTests.Companion(args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--patch-test")

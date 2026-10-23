@@ -14,6 +14,8 @@ namespace SpaceEngineersVR.Patches
         {
             try { HoloSight.Prepare(); }
             catch(Exception ex) { Logger.Warning(ex,"Holographic sights unavailable"); }
+            // Built from the sight copies, so a left-handed launcher keeps the collimated reticle.
+            LeftHandedModels.Prepare();
         }
     }
 }
