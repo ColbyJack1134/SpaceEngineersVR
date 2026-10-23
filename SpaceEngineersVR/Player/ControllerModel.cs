@@ -58,7 +58,13 @@ namespace SpaceEngineersVR.Player
         }
         private static Part Read(IntPtr ptr,Matrix transform)
         {
+#if LINUX
+            // OpenVR packs RenderModel_t to 4 bytes on Linux.
+            var model=new RenderModel_t();
+            Marshal.PtrToStructure<RenderModel_t_Packed>(ptr).Unpack(ref model);
+#else
             var model=Marshal.PtrToStructure<RenderModel_t>(ptr);
+#endif
             var data=new float[model.unVertexCount*8];
             Marshal.Copy(model.rVertexData,data,0,data.Length);
             var vertices=new Vertex[model.unVertexCount];

@@ -12,6 +12,27 @@ namespace SpaceEngineersVR.Player
     {
         [StructLayout(LayoutKind.Sequential)] private struct Point { public int X,Y; }
         [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left,Top,Right,Bottom; }
+#if LINUX
+        // Same calls as user32 below, served by the game's input state; client coordinates stand in for screen ones.
+        private static IntPtr GetForegroundWindow() => (IntPtr)1;
+        private static uint GetWindowThreadProcessId(IntPtr window,out uint process) { process=ProcessId; return 1; }
+        private static bool GetClientRect(IntPtr window,out Rect rect)
+        {
+            var area=LinuxInput.Area;
+            rect=new Rect { Right=(int)area.X,Bottom=(int)area.Y };
+            return area.X>0 && area.Y>0;
+        }
+        private static bool ClientToScreen(IntPtr window,ref Point point) => true;
+        private static bool SetCursorPos(int x,int y) { LinuxInput.Move(x,y); return true; }
+        private static bool GetCursorPos(out Point point)
+        {
+            var cursor=LinuxInput.Cursor;
+            point=new Point { X=(int)cursor.X,Y=(int)cursor.Y };
+            return true;
+        }
+        private static void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra) => LinuxInput.Mouse(flags,unchecked((int)data));
+        private static void keybd_event(byte key,byte scan,uint flags,UIntPtr extra) => LinuxInput.Key(key,(flags&2)==0);
+#else
         [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window,out uint process);
         [DllImport("user32.dll")] private static extern bool GetClientRect(IntPtr window,out Rect rect);
@@ -19,8 +40,9 @@ namespace SpaceEngineersVR.Player
         [DllImport("user32.dll")] private static extern bool SetCursorPos(int x,int y);
         [DllImport("user32.dll")] private static extern bool GetCursorPos(out Point point);
         [DllImport("user32.dll")] private static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
-        private static readonly uint ProcessId=(uint)Process.GetCurrentProcess().Id;
         [DllImport("user32.dll")] private static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
+#endif
+        private static readonly uint ProcessId=(uint)Process.GetCurrentProcess().Id;
         private static bool held, secondaryHeld,shiftHeld,controlHeld;
         private static bool checkTextFocus;
         private static readonly PointerHand pointer=new PointerHand();

@@ -6,6 +6,7 @@ using HarmonyLib;
 using VRageMath;
 using VRageRender.Import;
 using VRageRender.Messages;
+using SpaceEngineersVR.Util;
 
 namespace SpaceEngineersVR.Player
 {
@@ -299,7 +300,7 @@ namespace SpaceEngineersVR.Player
         private CockpitGeometry Load(string content)
         {
             var importer=new MyModelImporter();
-            using(var reader=new BinaryReader(File.OpenRead(Path.Combine(content,geometryModel.Replace('/',Path.DirectorySeparatorChar)))))
+            using(var reader=new BinaryReader(File.OpenRead(NativePath.Of(Path.Combine(content,geometryModel.Replace('/',Path.DirectorySeparatorChar))))))
                 AccessTools.Method(typeof(MyModelImporter),"LoadTagData").Invoke(importer,new object[] {reader,new[] {"Vertices","TexCoords0","MeshParts","Normals","Tangents"}});
             var tags=importer.GetTagData();
             var actors=Enumerable.Range(0,ActorCount).Select(_=>new MyModelData()).ToArray();

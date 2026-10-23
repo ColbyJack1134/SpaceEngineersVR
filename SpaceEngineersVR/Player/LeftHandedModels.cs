@@ -13,6 +13,7 @@ using VRage.Import;
 using VRageMath;
 using VRageMath.PackedVector;
 using VRageRender.Import;
+using SpaceEngineersVR.Util;
 
 namespace SpaceEngineersVR.Player
 {
@@ -55,25 +56,26 @@ namespace SpaceEngineersVR.Player
 
         internal static void Build(string source,string copy,float axis,float cut)
         {
+            source=NativePath.Of(source);
             HoloSight.Write(copy,Patch(File.ReadAllBytes(source),source,axis,cut));
             var tags=HoloSight.Tags(source,"Dummies","LODs");
             // Subparts load from the parent model's folder.
             foreach(var dummy in ((Dictionary<string,MyModelDummy>)tags["Dummies"]).Where(d=>d.Key.Contains("subpart_")))
             {
                 if(!(dummy.Value.CustomData?.TryGetValue("file",out var file)==true && file is string name)) continue;
-                string from=Path.Combine(Path.GetDirectoryName(source),name+".mwm"),to=Path.Combine(Path.GetDirectoryName(copy),name+".mwm");
+                string from=NativePath.Of(Path.Combine(Path.GetDirectoryName(source),name+".mwm")),to=Path.Combine(Path.GetDirectoryName(copy),name+".mwm");
                 if(File.Exists(from)) HoloSight.Write(to,File.ReadAllBytes(from));
             }
             // LODs resolve against the folder above Models first, so patched copies there replace the installed ones.
             if(tags.TryGetValue("LODs",out var value) && value is MyLODDescriptor[] lods)
                 foreach(var lod in lods.Where(l=>l.Model!=null))
                 {
-                    string from=lod.GetModelAbsoluteFilePath(source);
+                    string from=NativePath.Of(lod.GetModelAbsoluteFilePath(source));
                     string relative=lod.Model.EndsWith(".mwm",StringComparison.OrdinalIgnoreCase) ? lod.Model:lod.Model+".mwm";
                     string root=copy.Substring(0,copy.ToLowerInvariant().IndexOf("models",StringComparison.Ordinal));
                     if(from==null || !File.Exists(from)) continue;
                     // A LOD that cannot be patched keeps resolving to the installed one.
-                    try { HoloSight.Write(Path.Combine(root,relative),Patch(File.ReadAllBytes(from),from,axis,cut)); }
+                    try { HoloSight.Write(Path.Combine(root,relative.Replace('\\',Path.DirectorySeparatorChar)),Patch(File.ReadAllBytes(from),from,axis,cut)); }
                     catch(Exception ex) { Logger.Warning(ex,"Left-handed LOD unavailable: {0}",lod.Model); }
                 }
         }

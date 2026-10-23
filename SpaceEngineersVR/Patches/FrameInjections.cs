@@ -103,7 +103,7 @@ namespace SpaceEngineersVR.Patches
             Player.GpuTiming.EndFrame();
             Player.RenderPerformance.Sample(Main.VrActive && drewStereo && Main.WorldAvailable && !Main.MenuOpen);
             Player.StereoRenderState.End();
-            if (Main.VrPresent) OpenVR.Compositor.PostPresentHandoff();
+            if (Main.VrPresent) Player.VrSubmit.PostPresentHandoff();
             posesAcquired = drewStereo = false;
         }
     }

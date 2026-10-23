@@ -13,6 +13,7 @@ using Valve.VR;
 using VRage.FileSystem;
 using Buffer = SharpDX.Direct3D11.Buffer;
 using Device = SharpDX.Direct3D11.Device;
+using SpaceEngineersVR.Util;
 
 namespace SpaceEngineersVR.Player
 {
@@ -104,7 +105,7 @@ float4 PS() : SV_Target { return Depth.y; }";
         internal static ComputeShader[] CompileHistograms(Device target,string shaders)
         {
             string path=Path.Combine(shaders,"Postprocess","EyeAdaptation","UpdateHistogram.hlsl");
-            string source=PatchHistogram(File.ReadAllText(path)) ?? throw new InvalidDataException("Unrecognized eye adaptation histogram shader");
+            string source=PatchHistogram(File.ReadAllText(NativePath.Of(path))) ?? throw new InvalidDataException("Unrecognized eye adaptation histogram shader");
             var result=new ComputeShader[2];
             using(var includes=new Includes(shaders,Path.GetDirectoryName(path)))
                 for(int i=0;i<2;i++)
@@ -333,7 +334,8 @@ float4 PS() : SV_Target { return Depth.y; }";
             public Stream Open(IncludeType type,string fileName,Stream parentStream)
             {
                 string path=Path.Combine(parentStream is FileStream parent ? Path.GetDirectoryName(parent.Name) : local,fileName);
-                return File.OpenRead(type==IncludeType.Local && File.Exists(path) ? path : Path.Combine(root,fileName));
+                path=NativePath.Of(path);
+                return File.OpenRead(type==IncludeType.Local && File.Exists(path) ? path : NativePath.Of(Path.Combine(root,fileName)));
             }
             public void Close(Stream stream) => stream.Dispose();
         }

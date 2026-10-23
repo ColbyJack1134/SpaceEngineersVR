@@ -1,3 +1,4 @@
+#if !LINUX
 using System;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -23,3 +24,4 @@ namespace SpaceEngineersVR.Patches
         }
     }
 }
+#endif

@@ -9,6 +9,7 @@ using VRageMath.PackedVector;
 using VRageRender.Import;
 using VRageRender.Messages;
 using VRage.Import;
+using SpaceEngineersVR.Util;
 
 namespace SpaceEngineersVR.Player
 {
@@ -25,7 +26,7 @@ namespace SpaceEngineersVR.Player
         private static Dictionary<string,object> Tags(string file)
         {
             var importer=new MyModelImporter();
-            using(var reader=new BinaryReader(File.OpenRead(file)))
+            using(var reader=new BinaryReader(File.OpenRead(NativePath.Of(file))))
                 AccessTools.Method(typeof(MyModelImporter),"LoadTagData").Invoke(importer,new object[] { reader,new[] { "Vertices","TexCoords0","MeshParts","Bones","BlendIndices","BlendWeights","Normals","Tangents","GeometryDataAsset" } });
             return importer.GetTagData();
         }

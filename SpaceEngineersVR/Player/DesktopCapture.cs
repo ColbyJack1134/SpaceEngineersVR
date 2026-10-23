@@ -22,8 +22,14 @@ namespace SpaceEngineersVR.Player
             public int Number;
             public IntPtr Handle;
         }
+#if LINUX
+        // DXVK has no desktop duplication and there is no Win32 media key; the mirror stays empty.
+        private static IntPtr MonitorFromWindow(IntPtr window,uint flags) => IntPtr.Zero;
+        private static void keybd_event(byte key,byte scan,uint flags,UIntPtr extra) { }
+#else
         [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr window,uint flags);
         [DllImport("user32.dll")] private static extern void keybd_event(byte key,byte scan,uint flags,UIntPtr extra);
+#endif
         private const byte MediaPlayPause=0xB3;
         private static volatile Monitor[] monitors=new Monitor[0];
         private static volatile Monitor active;
@@ -75,6 +81,9 @@ namespace SpaceEngineersVR.Player
         }
         internal static void Update(Device device)
         {
+#if LINUX
+            Release();
+#else
             var now=DateTime.UtcNow;
             if(now.Ticks-System.Threading.Interlocked.Read(ref requested)>TimeSpan.TicksPerSecond || recovery.Failed) { Release(); return; }
             try
@@ -88,6 +97,7 @@ namespace SpaceEngineersVR.Player
                 recovery.Succeeded();
             }
             catch(Exception ex) { Release(); recovery.Fail(ex,"Desktop mirror paused"); }
+#endif
         }
         private static IntPtr GameMonitor()
         {

@@ -102,8 +102,7 @@ namespace SpaceEngineersVR.Player
             finally { bitmap.UnlockBits(data); }
             NativeSprites.Draw(texture,icons);
             if (handle == 0) return;
-            var input = new Texture_t { eColorSpace = EColorSpace.Gamma, eType = ETextureType.DirectX, handle = texture.NativePointer };
-            Check(OpenVR.Overlay.SetOverlayTexture(handle, ref input));
+            Check(VrSubmit.Overlay(handle, texture.NativePointer, EColorSpace.Gamma));
             Check(OpenVR.Overlay.ShowOverlay(handle));
             visible = true;
         }

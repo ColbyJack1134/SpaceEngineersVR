@@ -1,6 +1,5 @@
 using SpaceEngineersVR.Config;
 using System;
-using System.Drawing;
 using System.IO;
 
 namespace SpaceEngineersVR.Plugin
@@ -26,10 +25,6 @@ namespace SpaceEngineersVR.Plugin
             get; private set;
         }
 
-        public static Icon Icon
-        {
-            get; private set;
-        }
         public static string IconPngPath
         {
             get; private set;
@@ -58,7 +53,6 @@ namespace SpaceEngineersVR.Plugin
             if (!Directory.Exists(folder))
                 throw new DirectoryNotFoundException("Asset folder not found");
             AssetFolder = folder;
-            Icon = new Icon(Path.Combine(folder, "icon.ico"));
             IconPngPath = Path.Combine(folder, "logo.png");
             IconIcoPath = Path.Combine(folder, "icon.ico");
             ActionJsonPath = Path.Combine(folder, "Controls", "actions.json");

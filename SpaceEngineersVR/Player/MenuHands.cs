@@ -476,9 +476,8 @@ float4 PS(P p):SV_TARGET {
                     if(!Main.MenuFallback)
                         SpatialUi.Draw(eyes[eye],view,VrMath.Projection(l,r,t,b,.03),tracking:true);
                     FloatingKeyboard.Draw(eyes[eye],which);
-                    var texture=new Texture_t { eColorSpace=EColorSpace.Gamma,eType=ETextureType.DirectX,handle=eyes[eye].NativePointer };
                     var bounds=new VRTextureBounds_t { uMax=1,vMax=1 };
-                    var result=OpenVR.Compositor.Submit(which,ref texture,ref bounds,EVRSubmitFlags.Submit_Default);
+                    var result=VrSubmit.Eye(which,eyes[eye].NativePointer,EColorSpace.Gamma,ref bounds);
                     if(result!=EVRCompositorError.None && result!=EVRCompositorError.DoNotHaveFocus) throw new InvalidOperationException("Menu hands submit: "+result);
                 }
                 return true;

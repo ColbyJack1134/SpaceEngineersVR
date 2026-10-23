@@ -59,8 +59,6 @@ namespace SpaceEngineersVR.Player.Components
             !(screen is MyGuiScreenGamePlay) && !(screen is MyGuiScreenHudSpace));
         public static bool IsAnyDialogOpen() => TopScreen != null;
         public static void RequestRecenter() { anchorPending = true; FloatingMenu.RecenterView(); }
-        private static Texture_t Texture(Texture2D value) => new Texture_t {
-            eColorSpace=EColorSpace.Auto,eType=ETextureType.DirectX,handle=value.NativePointer };
         public static void Draw()
         {
             if ((Main.MenuOpen && !MenuKeyboard.Standalone) || Main.ShowDesktopPanel)
@@ -92,8 +90,7 @@ namespace SpaceEngineersVR.Player.Components
                     desktopView=new ShaderResourceView(MyRender11.DeviceInstance,desktopCopy);
                 }
                 MyRender11.DeviceInstance.ImmediateContext.CopyResource(source,desktopCopy);
-                var texture=Texture(desktopCopy);
-                Check(OpenVR.Overlay.SetOverlayTexture(overlayHandle,ref texture));
+                Check(VrSubmit.Overlay(overlayHandle,desktopCopy.NativePointer,EColorSpace.Auto));
                 // A compositor overlay always covers submitted stereo geometry.
                 Check(MenuHands.Available && (Main.MenuOpen || !Main.WorldAvailable) ? OpenVR.Overlay.HideOverlay(overlayHandle) : OpenVR.Overlay.ShowOverlay(overlayHandle));
                 if (!reportedMenu) { Logger.Info("NATIVE MENU ready: tracking-space panel, " + desc.Width + "x" + desc.Height + ", world stereo=" + Main.WorldAvailable); reportedMenu=true; }
@@ -127,10 +124,10 @@ namespace SpaceEngineersVR.Player.Components
                 using (var target=new RenderTargetView(MyRender11.DeviceInstance,blackTexture))
                     MyRender11.DeviceInstance.ImmediateContext.ClearRenderTargetView(target,new RawColor4(0,0,0,1));
             }
-            var texture=Texture(blackTexture); var bounds=FullBounds;
+            var bounds=FullBounds;
             foreach (EVREye eye in new[] { EVREye.Eye_Left,EVREye.Eye_Right })
             {
-                var error=OpenVR.Compositor.Submit(eye,ref texture,ref bounds,EVRSubmitFlags.Submit_Default);
+                var error=VrSubmit.Eye(eye,blackTexture.NativePointer,EColorSpace.Auto,ref bounds);
                 if (error != EVRCompositorError.None && error != EVRCompositorError.DoNotHaveFocus)
                     throw new InvalidOperationException("Menu background: "+error);
             }

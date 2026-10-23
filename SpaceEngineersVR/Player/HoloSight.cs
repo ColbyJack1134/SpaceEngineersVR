@@ -20,6 +20,7 @@ using Brush = System.Drawing.SolidBrush;
 using DrawingColor = System.Drawing.Color;
 using Graphics = System.Drawing.Graphics;
 using PointF = System.Drawing.PointF;
+using SpaceEngineersVR.Util;
 
 namespace SpaceEngineersVR.Player
 {
@@ -111,6 +112,7 @@ namespace SpaceEngineersVR.Player
             Build(sights.Single(s=>s.Item==item),WeaponProfile.All.First(p=>p.Item==item),source,copy,folder);
         private static Reticle Build(Sight sight,WeaponProfile profile,string source,string copy,string folder)
         {
+            source=NativePath.Of(source);
             var tags=Tags(source,"Vertices","MeshParts","Dummies");
             var positions=(HalfVector4[])tags["Vertices"];
             var indices=((List<MyMeshPartInfo>)tags["MeshParts"])[0].m_indices.ToArray();
@@ -133,7 +135,7 @@ namespace SpaceEngineersVR.Player
             foreach(var dummy in ((Dictionary<string,MyModelDummy>)tags["Dummies"]).Where(d=>d.Key.Contains("subpart_")))
             {
                 if(!(dummy.Value.CustomData?.TryGetValue("file",out var file)==true && file is string name)) continue;
-                string from=Path.Combine(Path.GetDirectoryName(source),name+".mwm"),to=Path.Combine(Path.GetDirectoryName(copy),name+".mwm");
+                string from=NativePath.Of(Path.Combine(Path.GetDirectoryName(source),name+".mwm")),to=Path.Combine(Path.GetDirectoryName(copy),name+".mwm");
                 if(File.Exists(from)) Write(to,File.ReadAllBytes(from));
             }
             return reticle;
@@ -142,7 +144,7 @@ namespace SpaceEngineersVR.Player
         internal static Dictionary<string,object> Tags(string file,params string[] names)
         {
             var importer=new MyModelImporter();
-            using(var reader=new BinaryReader(File.OpenRead(file)))
+            using(var reader=new BinaryReader(File.OpenRead(NativePath.Of(file))))
                 AccessTools.Method(typeof(MyModelImporter),"LoadTagData").Invoke(importer,new object[] {reader,names});
             return importer.GetTagData();
         }

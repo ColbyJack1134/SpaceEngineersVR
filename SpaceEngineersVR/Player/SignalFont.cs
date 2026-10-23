@@ -5,6 +5,7 @@ using System.Linq;
 using System.Xml.Linq;
 using VRage.FileSystem;
 using VRageMath;
+using SpaceEngineersVR.Util;
 
 namespace SpaceEngineersVR.Player
 {
@@ -24,7 +25,7 @@ namespace SpaceEngineersVR.Player
         private static void Definitions()
         {
             if(paths.Count>0) return;
-            foreach(var font in XDocument.Load(Path.Combine(Content,@"Data\Fonts.sbc")).Root.Element("Fonts").Elements())
+            foreach(var font in XDocument.Load(NativePath.Of(Path.Combine(Content,@"Data\Fonts.sbc"))).Root.Element("Fonts").Elements())
             {
                 string name=(string)font.Element("Id").Element("SubtypeId");
                 paths[name]=(string)font.Element("Resources").Element("Resource").Attribute("Path");
@@ -37,7 +38,7 @@ namespace SpaceEngineersVR.Player
             if(faces.TryGetValue(path,out var face)) return face;
             face=new Face();
             string folder=Path.GetDirectoryName(path)+"\\";
-            using(var stream=File.OpenRead(Path.Combine(Content,path)))
+            using(var stream=File.OpenRead(NativePath.Of(Path.Combine(Content,path))))
             {
                 var root=XDocument.Load(stream).Root;
                 var ns=root.Name.Namespace;

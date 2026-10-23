@@ -167,8 +167,7 @@ namespace SpaceEngineersVR.Player
             TargetFeedback.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),GridSelection.Active || TargetLock.Aiming ? RenderFrameBridge.Selection:null,view,projection,PhysicalSurface.SceneDepth());
             if(rig?.ThirdPerson!=true) HoloSight.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),RenderFrameBridge.Holo,view,projection,PhysicalSurface.SceneDepth());
             GpuTiming.End(uiArea);
-            var input = new Texture_t { eColorSpace=EColorSpace.Auto, eType=ETextureType.DirectX, handle=target.GetResource().NativePointer };
-            var error = OpenVR.Compositor.Submit(eye,ref input,ref bounds,EVRSubmitFlags.Submit_Default);
+            var error = VrSubmit.Eye(eye,target.GetResource().NativePointer,EColorSpace.Auto,ref bounds);
             StereoRenderState.Record("eye",timing.Elapsed.TotalMilliseconds,world.Translation.X,world.Translation.Y,world.Translation.Z,projection.M11,projection.M22,projection.M31,projection.M32);
             if (error != EVRCompositorError.None && error != EVRCompositorError.DoNotHaveFocus)
                 throw new InvalidOperationException("OpenVR eye submission failed: " + error);
