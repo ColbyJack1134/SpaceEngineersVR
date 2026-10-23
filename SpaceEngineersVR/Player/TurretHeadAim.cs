@@ -27,10 +27,13 @@ namespace SpaceEngineersVR.Player
         internal static bool Available => Main.VrActive && MySession.Static?.ControlledEntity is MyLargeTurretBase;
         internal static int Mode => Available ? RemoteView.AimMode : 0;
         internal static bool Active => Mode>0;
-        internal static bool Face => Mode==2;
+        // The face picture is the barrel's view, which only lines up with the world from the seat's own eye.
+        internal static bool Face => Mode==2 && !ThirdPersonView.Active;
         internal static string Label => Mode==2 ? "Turret aim: head + screen" : Mode==1 ? "Turret aim: head" : "Turret aim: normal";
 
-        private static MatrixD Head => (MatrixD)Player.Headset.pose.deviceToAbsolute.matrix*RemoteView.PhysicalTrackingToWorld;
+        // Third person renders from its own anchor, so the ray comes from that eye.
+        internal static MatrixD Head => ThirdPersonView.Active ? CameraRig.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix) :
+            (MatrixD)Player.Headset.pose.deviceToAbsolute.matrix*RemoteView.PhysicalTrackingToWorld;
         private static Vector3D Up(bool seat) => seat && RemoteView.HomeSeat!=null ? RemoteView.HomeSeat.WorldMatrix.Up : Head.Up;
         internal static Vector2 Indicator(MyLargeTurretBase turret)
         {
