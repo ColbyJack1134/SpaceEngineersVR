@@ -2,6 +2,7 @@ using Sandbox.Game.Entities;
 using Sandbox.Game.EntityComponents;
 using Sandbox.Game.World;
 using Sandbox.ModAPI;
+using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
@@ -16,6 +17,14 @@ namespace SpaceEngineersVR.Player
             if(TargetLock.OnLockPress(ahead)) return;
             if(!CanLock(controlled)) return;
             MySession.Static?.LocalCharacter?.Components.Get<MyTargetFocusComponent>()?.OnLockRequest();
+        }
+        // Vanilla takes the lock cone from the barrel in a turret, which lags the head ray while it turns.
+        internal static bool TryAim(out MatrixD aim)
+        {
+            aim=MatrixD.Identity;
+            if(!Player.Headset.pose.isTracked || !TurretHeadAim.Active) return false;
+            aim=TurretHeadAim.Head;
+            return aim.IsValid();
         }
     }
 }

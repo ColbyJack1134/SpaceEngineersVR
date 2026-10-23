@@ -68,6 +68,10 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(!input.Active,"Tracking/context interruption retained selection");
             }
             log("PASS selection menu-release, one-pull, UI capture/rearm, B and interruption gates");
+            var focus=typeof(Sandbox.Game.EntityComponents.MyTargetFocusComponent);
+            Require(AccessTools.Method(focus,"UpdateAimVector")!=null && AccessTools.Field(focus,"m_aimMatrix")?.FieldType==typeof(MatrixD),
+                "Native lock aim matrix contract changed");
+            log("PASS native target focus aim members present for the VR lock aim");
             var history=new ActionHistory(new[] {"old","old",null,""});
             for(int i=0;i<30;i++) history.Record("item"+i);
             history.Record("item25");
