@@ -77,6 +77,8 @@ namespace SpaceEngineersVR.Player
                 message.ReplacedModel=null; MyRenderProxy.AddRuntimeModel(name,message);
                 uint actor=MyRenderProxy.CreateRenderEntity(name,name,MatrixD.Identity,MyMeshDrawTechnique.MESH,
                     RenderFlags.Visible|RenderFlags.ForceOldPipeline,(CullingOptions)0,Color.White,color);
+                // Unlit like the body's glove; the suit display would bloom around the wrist screen.
+                if(h==0) MyRenderProxy.UpdateModelProperties(actor,"LeftGlove",0,0,null,0);
                 var ids=new uint[h+1]; Array.Copy(state.Actors,ids,h); ids[h]=actor; Volatile.Write(ref state.Actors,ids);
             }
         }
