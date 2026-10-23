@@ -180,7 +180,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Math.Abs(HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(0,0,4),Vector3D.Forward,5)-9)<1e-9 &&
                 HeldItemPose.ReachAlong(Vector3D.Zero,new Vector3D(0,0,-6),Vector3D.Forward,5)==0,"Reach from the head differs from the sphere exit");
             var items=HandItems();
-            foreach(var item in new[] {"SemiAutoPistolItem","WelderItem","HandDrillItem"}) foreach(bool rigid in new[] {true,false})
+            foreach(var item in new[] {"SemiAutoPistolItem","HandDrillItem"}) foreach(bool rigid in new[] {true,false})
             {
                 var profile=WeaponProfile.All.Single(p=>p.Item==item); var bones=ArmTests.InstalledBones();
                 var arm=ArmSkeleton.Find(name=>bones.FirstOrDefault(b=>b.Name==name),"SE_RigLUpperarm","SE_RigLForearm1","SE_RigLPalm",-1);

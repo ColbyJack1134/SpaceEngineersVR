@@ -26,9 +26,9 @@ namespace SpaceEngineersVR.Player
         private WeaponProfile mirror;
         internal WeaponProfile Mirror => Mirrored ? this : mirror ?? (mirror=new WeaponProfile(this));
         internal bool Tool => Kind>=ItemKind.Welder;
-        // The Paint Gun's hand item has no left hand.
-        internal bool OneHanded => Kind==ItemKind.Sprayer;
-        internal bool Brace => Kind==ItemKind.Pistol || Kind==ItemKind.Welder;
+        // The Paint Gun's hand item has no left hand; a support hand on the welder adds nothing.
+        internal bool OneHanded => Kind==ItemKind.Sprayer || Kind==ItemKind.Welder;
+        internal bool Brace => Kind==ItemKind.Pistol;
         internal Vector3 Direction => Kind==ItemKind.Welder ? new Vector3(0,.46947156f,-.88294759f):Vector3.Forward;
         private WeaponProfile(string item,string model,ItemKind kind,Vector3 primary,Vector3 support,Vector3 muzzle,Vector3 right,Vector3 left,Vector3 magazine,float gripAxis=0,float supportAxis=0,bool flipUp=false,float flipPitch=0,Vector3? sight=null,Vector3? sightDirection=null,bool reticle=false)
         { Item=item; Reticle=reticle; Model=model.Contains("/") ? model:"Models/Weapons/"+model+".mwm"; Kind=kind; Primary=primary; Support=support; Muzzle=muzzle; RightShift=right; LeftShift=left; Magazine=magazine; GripAxis=gripAxis; SupportAxis=supportAxis; FlipUp=flipUp; FlipPitch=flipPitch; Sight=sight; if(sightDirection.HasValue) SightDirection=Vector3.Normalize(sightDirection.Value); }
@@ -95,8 +95,6 @@ namespace SpaceEngineersVR.Player
                 var position=native.Translation;
                 native=native.GetOrientation()*MatrixD.CreateRotationX(MathHelper.ToRadians(8)); native.Translation=position;
             }
-            if(left && Kind==ItemKind.Welder)
-                native=MatrixD.CreateWorld(native.Translation,new Vector3D(-.54319996,.54061740,-.64236197),new Vector3D(-.05577585,-.78662933,-.61492549));
             return native;
         }
         internal static WeaponProfile Find(string item,string model)
