@@ -46,9 +46,8 @@ namespace SpaceEngineersVR.Player
         private static Vector3D bootsUp,bootsSpin,bootsTarget;
         private static long bootsTime;
         private static object activeDefinition;
-        private static bool restoreBag, restoreHead;
+        private static bool restoreBag;
         private static readonly System.Reflection.FieldInfo bagField=AccessTools.Field(typeof(MyCharacter),"m_enableBag");
-        private static readonly System.Reflection.FieldInfo headField=AccessTools.Field(typeof(MyCharacter),"m_headRenderingEnabled");
         private static readonly Action<MyCharacter> refreshDepth=AccessTools.MethodDelegate<Action<MyCharacter>>(AccessTools.Method(typeof(MyCharacter),"UpdateNearFlag"));
         internal static bool Detached => ThirdPersonView.Active || SpectatorView.Active;
         public static Frame Current => SpectatorView.Current ?? ThirdPersonView.Current ?? RemoteView.SeatedRig ?? Volatile.Read(ref frame);
@@ -56,7 +55,8 @@ namespace SpaceEngineersVR.Player
         {
             epoch++;
             var previous=owner;
-            if(previous!=null && !previous.Closed) { previous.EnableBag(restoreBag); previous.EnableHead(restoreHead); }
+            // Only first person hides the head, and vanilla hides it again when it takes the camera.
+            if(previous!=null && !previous.Closed) { previous.EnableBag(restoreBag); previous.EnableHead(true); }
             owner=null; activeDefinition=null; Volatile.Write(ref frame,null); crouchDrop=0; crouchTime=0;
             onLadder=false; ResetBoots();
             if(previous!=null && !previous.Closed && MySession.Static!=null) refreshDepth(previous);
@@ -92,7 +92,6 @@ namespace SpaceEngineersVR.Player
             {
                 Reset();
                 restoreBag=(bool)(bagField?.GetValue(character) ?? true);
-                restoreHead=(bool)(headField?.GetValue(character) ?? true);
                 MatrixD head=character.GetHeadMatrix(true,true,forceHeadBone:true);
                 // Avoid animation/vanilla camera roll. Retain the character's up frame (including flight).
                 anchor=VrMath.Level(head,body.Up);
