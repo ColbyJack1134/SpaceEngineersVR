@@ -74,7 +74,7 @@ namespace SpaceEngineersVR.Diagnostics
             string shaders=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(VRageRender.MyRenderProxy).Assembly.Location),"..","Content","Shaders"));
             using(var device=new Device(DriverType.Warp))
             {
-                try { StereoParticles.Ensure(device,shaders); StereoSmokeTests.Run(device,shaders,log); StereoFoliageTests.Run(device,shaders,log); }
+                try { StereoParticles.Ensure(device,shaders); StereoSmokeTests.Run(device,shaders,log); StereoFoliageTests.Run(device,shaders,log); StereoShieldTests.Run(device,shaders,log); }
                 finally { StereoParticles.Dispose(); }
             }
             log("PASS stereo scenes: asymmetric AO reconstruction, finite shifted sun-scale flare placement under head rotation, shared marker geometry/size with eye parallax at large coordinates and third-person scale, installed particle vertex shaders");
