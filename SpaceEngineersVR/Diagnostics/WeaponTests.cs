@@ -147,7 +147,7 @@ namespace SpaceEngineersVR.Diagnostics
             Require(WeaponAmmo.Inspecting(MatrixD.Identity,head,WeaponAmmo.Label(WeaponProfile.Rifle.Mirror,MatrixD.Identity,18,20).Pose),"Left-handed side inspection label hidden");
             log("PASS held items: 22 installed attachment matches, 440 large-coordinate working-frame/support cases, impossible support rejection, pistol underside reload and release ownership, ammo visibility.");
         }
-        internal static void Animate(MyCharacterBone[] bones,string name,double fraction)
+        internal static void Animate(MyCharacterBone[] bones,string name,double fraction,Func<string,bool> only=null)
         {
             var importer=new MyModelImporter();
             using(var reader=new BinaryReader(File.OpenRead(Path.Combine(VRage.FileSystem.MyFileSystem.ContentPath,"Models/Characters/Animations/"+name+".mwm"))))
@@ -155,7 +155,7 @@ namespace SpaceEngineersVR.Diagnostics
             var clip=((ModelAnimations)importer.GetTagData()["Animations"]).Clips[0];
             foreach(var track in clip.Bones)
             {
-                var bone=bones.FirstOrDefault(value=>value.Name==track.Name); if(bone==null || track.Keyframes.Length==0) continue;
+                var bone=bones.FirstOrDefault(value=>value.Name==track.Name); if(bone==null || track.Keyframes.Length==0 || only!=null && !only(bone.Name)) continue;
                 double time=clip.Duration*fraction;
                 var a=track.Keyframes.LastOrDefault(k=>k.Time<=time); var b=track.Keyframes.FirstOrDefault(k=>k.Time>=time);
                 float amount=b.Time<=a.Time ? 0:(float)((time-a.Time)/(b.Time-a.Time));
