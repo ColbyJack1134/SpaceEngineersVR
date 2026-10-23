@@ -307,6 +307,8 @@ namespace SpaceEngineersVR.Player.Components
             if (Crouch.Update(controls.WalkRotate.Active ? controls.WalkRotate.Position : Vector2.Zero,onFoot && controls.WalkRotate.Active,physical,
                 HeadDrop,BodyFit.CrouchDepth(Character),Character.IsCrouching,System.DateTime.UtcNow))
                 Character.Crouch();
+            else if (Crouch.Jump)
+                ((VRage.Game.ModAPI.Interfaces.IMyControllableEntity)Character).Jump(Vector3.Up);
 
             if (controls.JumpOrClimbUp.IsPressed)
                 move.Y = 1f;

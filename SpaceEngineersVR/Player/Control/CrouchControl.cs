@@ -3,7 +3,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Player.Control
 {
-    // Right stick down crouches and up stands, plus automatic crouch from real head height. All heights are metres below standing eye height.
+    // Right stick down crouches, up stands and then jumps, plus automatic crouch from real head height. All heights are metres below standing eye height.
     internal sealed class CrouchControl
     {
         public const float StickPress=.7f,StickRelease=.3f,CrouchAt=.7f,StandAt=.4f;
@@ -11,10 +11,12 @@ namespace SpaceEngineersVR.Player.Control
         private bool stickArmed,automatic,suppressed;
         private DateTime pendingUntil;
         public bool Automatic => automatic;
+        public bool Jump { get; private set; }
 
-        // Returns true when the native crouch toggle should run. Down only crouches; up only stands.
+        // Returns true when the native crouch toggle should run; Jump is set instead when an up push has nothing to stand from.
         public bool Update(Vector2 stick,bool stickAllowed,bool physicalAllowed,float headDrop,float depth,bool crouching,DateTime now)
         {
+            Jump=false;
             if(Math.Abs(stick.Y)<StickRelease) stickArmed=stickAllowed;
             bool settled=now>=pendingUntil;
             if(settled && !crouching) automatic=false;
@@ -27,6 +29,10 @@ namespace SpaceEngineersVR.Player.Control
                 // Standing up by stick while physically low must not immediately re-crouch.
                 if(crouching) suppressed=physicalAllowed && headDrop>depth*StandAt;
                 automatic=false;
+            }
+            else if(stickAllowed && stickArmed && vertical && stick.Y>0)
+            {
+                stickArmed=false; Jump=true;
             }
             else if(physicalAllowed && settled && depth>0)
             {
@@ -42,6 +48,6 @@ namespace SpaceEngineersVR.Player.Control
         public static float ViewDrop(bool crouching,bool automatic,float headDrop,float depth) =>
             crouching && !automatic ? Math.Max(0,depth-Math.Max(0,headDrop)) : 0;
 
-        public void Reset() { stickArmed=false; automatic=false; suppressed=false; pendingUntil=DateTime.MinValue; }
+        public void Reset() { stickArmed=false; automatic=false; suppressed=false; Jump=false; pendingUntil=DateTime.MinValue; }
     }
 }

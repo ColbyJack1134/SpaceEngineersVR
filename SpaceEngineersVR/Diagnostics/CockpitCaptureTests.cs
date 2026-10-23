@@ -189,9 +189,12 @@ namespace SpaceEngineersVR.Diagnostics
             Require(!crouch.Update(new Vector2(.95f,-.8f),true,false,0,depth,true,t.AddSeconds(1)),"Diagonal turn toggled crouch");
             Require(!crouch.Update(stickDown,true,false,0,depth,true,t.AddSeconds(1)),"Stick down stood the character up");
             crouch.Update(Vector2.Zero,true,false,0,depth,true,t.AddSeconds(1));
-            Require(crouch.Update(stickUp,true,false,0,depth,true,t.AddSeconds(1)) && !crouch.Automatic,"Stick up did not stand");
+            Require(crouch.Update(stickUp,true,false,0,depth,true,t.AddSeconds(1)) && !crouch.Automatic && !crouch.Jump,"Stick up did not stand, or jumped while crouched");
             crouch.Update(Vector2.Zero,true,false,0,depth,false,t.AddSeconds(1));
-            Require(!crouch.Update(stickUp,true,false,0,depth,false,t.AddSeconds(1)),"Stick up crouched a standing character");
+            Require(!crouch.Update(stickUp,true,false,0,depth,false,t.AddSeconds(1)) && crouch.Jump,"Stick up crouched a standing character or did not jump");
+            Require(!crouch.Update(stickUp,true,false,0,depth,false,t.AddSeconds(1)) && !crouch.Jump,"Stick up jumped again without being released");
+            crouch.Update(Vector2.Zero,true,false,0,depth,false,t.AddSeconds(1));
+            Require(!crouch.Update(new Vector2(.95f,.8f),true,false,0,depth,false,t.AddSeconds(1)) && !crouch.Jump,"Diagonal turn jumped");
             crouch.Reset(); crouch.Update(Vector2.Zero,true,true,0,depth,false,t);
             Require(!crouch.Update(Vector2.Zero,true,true,.3f,depth,false,t) && crouch.Update(Vector2.Zero,true,true,.4f,depth,false,t) && crouch.Automatic,"Real crouch did not crouch the character");
             Require(!crouch.Update(Vector2.Zero,true,true,.1f,depth,true,t.AddSeconds(.2)),"Auto crouch flickered before settling");
