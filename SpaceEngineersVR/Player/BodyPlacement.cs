@@ -15,9 +15,10 @@ namespace SpaceEngineersVR.Player
         private static MyCharacterBone[] owner;
         // X and Z applied to the collarbones, Y the head drop taken up by the spine.
         internal static Vector3 LastShift { get; private set; }
+        internal static Vector3 HeadJoint(Matrix headset) => headset.Translation+Vector3.Normalize(headset.Backward)*EyeAhead;
         internal static Vector3 Shift(Matrix headset,Vector3 head)
         {
-            Vector3 shift=headset.Translation+Vector3.Normalize(headset.Backward)*EyeAhead-head;
+            Vector3 shift=HeadJoint(headset)-head;
             shift.Y=MathHelper.Clamp(Math.Min(0,shift.Y+DropDeadband),-MaxDrop,0);
             return shift;
         }

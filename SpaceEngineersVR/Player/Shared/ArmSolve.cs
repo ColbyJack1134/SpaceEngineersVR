@@ -89,14 +89,9 @@ namespace SpaceEngineersVR.Player
                 stretch=MathHelper.Clamp((distance+.01f)/reach,1,MaxStretch);
                 upperLength*=stretch; lowerLength*=stretch; reach*=stretch;
             }
-            float span=MathHelper.Clamp(distance,Math.Abs(upperLength-lowerLength)+.005f,reach-.005f);
-            Vector3 solvedWrist=shoulder+axis*span;
-            Vector3 hint=Hint(shoulder,wrist,reach,rig.Side,axis);
-            float along=(upperLength*upperLength-lowerLength*lowerLength+span*span)/(2*span);
-            float height=(float)Math.Sqrt(Math.Max(0,upperLength*upperLength-along*along));
-            float correction=Correct(hint,axis,shoulder,solvedWrist,along,height,palmPose,rig,options.Screen,state);
-            Vector3 bend=Turn(hint,axis,correction);
-            Vector3 elbow=shoulder+axis*along+bend*height;
+            var solved=Elbow(shoulder,wrist,axis,distance,upperLength,lowerLength,reach,palmPose,rig,options.Screen,state);
+            Vector3 solvedWrist=solved.End,bend=solved.Bend,elbow=solved.Elbow;
+            float along=solved.Along,height=solved.Height;
             Vector3 end=solvedWrist,hand=options.Stretch ? wrist : solvedWrist;
             // Screen in use: the elbow goes on the line back from the glove, so the forearm carries the screen square to the hand.
             if(screen>0)
@@ -176,6 +171,19 @@ namespace SpaceEngineersVR.Player
             return upper.AbsoluteTransform.IsValid() && lower.AbsoluteTransform.IsValid() && palm.AbsoluteTransform.IsValid();
         }
 
+        internal struct Reach { public Vector3 Elbow,Bend,End; public float Along,Height; }
+        // End: the wrist clamped to the arm's reach along the shoulder-wrist axis. distance: shoulder to wrist.
+        internal static Reach Elbow(Vector3 shoulder,Vector3 wrist,Vector3 axis,float distance,float upperLength,float lowerLength,float reach,Matrix palmPose,Rig rig,float screen,State state)
+        {
+            float span=MathHelper.Clamp(distance,Math.Abs(upperLength-lowerLength)+.005f,reach-.005f);
+            var result=new Reach { End=shoulder+axis*span };
+            Vector3 hint=Hint(shoulder,wrist,reach,rig.Side,axis);
+            result.Along=(upperLength*upperLength-lowerLength*lowerLength+span*span)/(2*span);
+            result.Height=(float)Math.Sqrt(Math.Max(0,upperLength*upperLength-result.Along*result.Along));
+            result.Bend=Turn(hint,axis,Correct(hint,axis,shoulder,result.End,result.Along,result.Height,palmPose,rig,screen,state));
+            result.Elbow=shoulder+axis*result.Along+result.Bend*result.Height;
+            return result;
+        }
         // Elbow direction from the hand position: down in front, out when the hand rises or crosses, back when reaching ahead, up behind.
         internal static Vector3 Hint(Vector3 shoulder,Vector3 wrist,float reach,float side,Vector3 axis)
         {

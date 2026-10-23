@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Blocks;
+using Sandbox.Game.Entities.Character;
 using Sandbox.Game.Gui;
 using Sandbox.Game.Screens.Terminal.Controls;
 using Sandbox.Game.Multiplayer;
@@ -53,6 +54,7 @@ namespace SpaceEngineersVR.Plugin
             foreach(var pb in targets) Stop(pb);
             targets.Clear(); previous.Clear(); sent.Clear(); armed.Clear();
             scanned=null; controlsSession=null; nextScan=nextSend=0; reportedFailure=false;
+            PbArms.Reset();
         }
 
         // Block terminal controls exist only after the first programmable block creates them; adding ours first would leave the native ones out.
@@ -129,6 +131,20 @@ namespace SpaceEngineersVR.Plugin
             else message.HeadPose=Matrix.Identity;
             if(Hand(Player.Player.HandL,message.LeftHand,controls.LeftTriggerPressure,controls.LeftGripPressure,controls.ThrustLRFB)) message.Flags|=PbMessage.Left;
             if(Hand(Player.Player.HandR,message.RightHand,controls.PointerPressure,controls.RightGripPressure,controls.ThrustRotate)) message.Flags|=PbMessage.Right;
+            var character=MySession.Static.LocalCharacter;
+            if(Joints(character,Player.Player.HandL,message.LeftArm,-1)) message.Flags|=PbMessage.LeftJoints;
+            if(Joints(character,Player.Player.HandR,message.RightArm,1)) message.Flags|=PbMessage.RightJoints;
+        }
+        private static bool Joints(MyCharacter character,Controller hand,PbMessage.Joints joints,float side)
+        {
+            if((message.Flags&PbMessage.Head)!=0 && hand.pose.isTracked)
+            {
+                var wrist=Local(CockpitHandPose.GripWrist(hand.GripTracking));
+                joints.Wrist=wrist.Translation;
+                if(PbArms.TrySolve(character,message.HeadPose,wrist,side,out joints.Shoulder,out joints.Elbow)) return true;
+            }
+            joints.Shoulder=joints.Elbow=joints.Wrist=Vector3.Zero;
+            return false;
         }
         private static bool Hand(Controller hand,PbMessage.Hand data,Analog trigger,Analog grip,Analog stick)
         {
