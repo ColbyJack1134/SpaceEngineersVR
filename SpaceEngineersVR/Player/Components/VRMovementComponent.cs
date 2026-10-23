@@ -32,6 +32,10 @@ namespace SpaceEngineersVR.Player.Components
         internal static float HeadDrop => -Player.Headset.deviceToPlayer.Translation.Y;
         private MyShipController jumpOwner;
         private System.DateTime nextInputTrace;
+        private static float traceGas,traceMoveZ;
+        private static bool traceFromTurret;
+        private static int zeroMoveTicks;
+        private static System.DateTime nextStuckThrustReport;
 
         public float RotationSpeed = 10;
 
@@ -149,6 +153,7 @@ namespace SpaceEngineersVR.Player.Components
                 "; flightActive="+c.ThrustRotate.Active+"; clipboard="+PlacementControls.ClipboardActive+"; adjust="+PlacementControls.Adjusting+
                 "; screen="+(TouchScreenBridge.OwnsInput || ArthurLcdBridge.OwnsInput)+"; arthur="+ArthurLcdBridge.Status+"; feed="+RemoteView.OwnsInput+"; viewGrab="+ThirdPersonView.Manipulating+
                 "; physicalOnly="+Common.Config.PhysicalShipControlsOnly+"; ship="+ship?.EntityId+"; control="+ship?.EnableShipControl+
+                "; triggerThrottle="+traceGas.ToString("F2")+"; moveZ="+traceMoveZ.ToString("F2")+"; fromTurret="+traceFromTurret+
                 "; sticks="+CockpitControls.Status);
         }
 
@@ -225,15 +230,43 @@ namespace SpaceEngineersVR.Player.Components
             CockpitControls.ApplyFlight(RotationSpeed,ref move,ref rotate,ref roll);
             // With nothing selected the trigger is the throttle, except on WeaponCore grids, where it fires without a selection.
             bool gas=home==null && !ThirdPersonView.Manipulating && PrimaryPressed && SeatTuning.RightTrigger==RightTrigger.Forward && TargetLock.ShooterGrid()==null;
+            float throttle=gas ? MathHelper.Clamp(controls.FirePressure.Position.X,0,1):0;
             if(CockpitControls.VehicleFlight)
             {
                 if(gas && ship.Toolbar?.SelectedItem==null)
-                    move.Z=-System.Math.Max(-move.Z,MathHelper.Clamp(controls.FirePressure.Position.X,0,1));
+                    move.Z=-System.Math.Max(-move.Z,throttle);
             }
-            else move=DriveInput.Update(ship,move,gas ? MathHelper.Clamp(controls.FirePressure.Position.X,0,1):0,
-                ThirdPersonView.Manipulating || CockpitControls.Adjusting ? 0:CockpitControls.Throttle);
+            else move=DriveInput.Update(ship,move,throttle,ThirdPersonView.Manipulating || CockpitControls.Adjusting ? 0:CockpitControls.Throttle);
+            traceGas=throttle; traceMoveZ=move.Z; traceFromTurret=home!=null;
             if(home!=null) RemoteView.ControlHeadTurret(Vector3.Clamp(move,-Vector3.One,Vector3.One),rotate,roll);
-            else ApplyMoveAndRotation(move, rotate, roll);
+            else
+            {
+                // From a turret the engine resets the ship's thrust every update itself.
+                ClearStuckThrust(ship,move);
+                ApplyMoveAndRotation(move, rotate, roll);
+            }
+        }
+
+        // The engine clears thrust only with move, rotation and roll all zero, so a held rotation stick can keep an old command alive.
+        private static void ClearStuckThrust(MyShipController ship,Vector3 move)
+        {
+            var thrust=ship.CubeGrid.Components.Get<Sandbox.Game.GameSystems.MyEntityThrustComponent>();
+            var control=thrust?.ControlThrust ?? Vector3.Zero;
+            if(control.LengthSquared()<.01f || thrust.AutopilotEnabled) { zeroMoveTicks=0; return; }
+            var controller=ship.CubeGrid.GridSystems.ControlSystem?.GetShipController();
+            // Another registered controller or a non-zero native indicator (analog input plugins) is still driving.
+            if(move.LengthSquared()>1e-6f || ((Sandbox.ModAPI.Ingame.IMyShipController)ship).MoveIndicator!=Vector3.Zero ||
+                controller!=null && controller.ControllableEntity!=ship) { zeroMoveTicks=0; return; }
+            if(++zeroMoveTicks<30) return;
+            var now=System.DateTime.UtcNow;
+            if(now>=nextStuckThrustReport)
+            {
+                nextStuckThrustReport=now.AddSeconds(10);
+                Logger.Info("STUCK THRUST cleared: no movement commanded for "+zeroMoveTicks+" ticks while the ship held "+control+
+                    "; speed="+(ship.CubeGrid.Physics?.LinearVelocity.Length() ?? 0).ToString("F1")+"; server="+Sandbox.Game.Multiplayer.Sync.IsServer+
+                    "; sticks="+CockpitControls.Status);
+            }
+            thrust.ControlThrust=Vector3.Zero;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
