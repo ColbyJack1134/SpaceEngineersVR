@@ -104,11 +104,9 @@ namespace SpaceEngineersVR.Player
         internal static MySlimBlock Target(LineD ray,out Vector3D point)
         {
             var character=MySession.Static.LocalCharacter;
-            var hit=MyEntities.GetIntersectionWithLine(ref ray,character,character?.CurrentWeapon as VRage.Game.Entity.MyEntity,ignoreChildren:false,ignoreFloatingObjects:false);
-            point=hit.HasValue ? hit.Value.IntersectionPointInWorldSpace:ray.To;
             var aim=MatrixD.CreateWorld(ray.From,ray.Direction,Vector3D.CalculatePerpendicularVector(ray.Direction));
-            if(Multiplayer.ToolContact.ConstructionRay(aim,Vector3D.Distance(ray.From,point),out var construction,out var entry)) { point=entry; return construction; }
-            return hit.HasValue ? BlockForHit(hit.Value.UserObject,hit.Value.Entity):null;
+            Multiplayer.ToolContact.CastTarget(character,character?.CurrentWeapon as VRage.Game.Entity.MyEntity,aim,ray.Length,out var block,out _,out point,out _);
+            return block;
         }
         private static readonly List<Vector3I> cells=new List<Vector3I>();
         private static MySlimBlock Projected(LineD ray)
@@ -121,12 +119,6 @@ namespace SpaceEngineersVR.Player
                 if(block!=null && grid.Projector.CanBuild(block,false)!=Sandbox.ModAPI.BuildCheckResult.AlreadyBuilt) return block;
             }
             return null;
-        }
-        internal static MySlimBlock BlockForHit(object geometry,VRage.ModAPI.IMyEntity entity)
-        {
-            if(geometry is MyCube cube) return cube.CubeBlock;
-            while(entity!=null && !(entity is MyCubeBlock)) entity=entity.Parent;
-            return (entity as MyCubeBlock)?.SlimBlock;
         }
         private static string Key(MySlimBlock block,Sandbox.Definitions.MyCubeBlockDefinition definition) =>
             definition.Id+"|"+(block==null ? "":block.CubeGrid.EntityId+":"+block.UniqueId);

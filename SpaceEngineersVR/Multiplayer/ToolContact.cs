@@ -22,8 +22,6 @@ namespace SpaceEngineersVR.Multiplayer
         private sealed class State { internal bool Near; }
         private static readonly ConditionalWeakTable<MyEngineerToolBase,State> states=new ConditionalWeakTable<MyEngineerToolBase,State>();
         private static readonly List<MyEntity> nearby=new List<MyEntity>();
-        [ThreadStatic] private static List<Vector3I> cells;
-        [ThreadStatic] private static List<MyEntity> rayGrids;
         private static readonly HashSet<MySlimBlock> blocks=new HashSet<MySlimBlock>();
         internal static readonly FieldInfo Sensor=AccessTools.Field(typeof(MyEngineerToolBase),"m_raycastComponent");
         private static readonly FieldInfo hitBlock=AccessTools.Field(typeof(MyCasterComponent),"m_hitBlock"),hitGrid=AccessTools.Field(typeof(MyCasterComponent),"m_hitCubeGrid"),
@@ -124,10 +122,6 @@ namespace SpaceEngineersVR.Multiplayer
                 (!mesh || !(hit.Entity is MyCubeGrid) && ReferenceEquals(entity,hit.Entity) || Vector3D.DistanceSquared(ray.Translation,hit.DetectionPoint)<=Vector3D.DistanceSquared(ray.Translation,point)+.0001))
             { block=hit.Entity is MyCubeGrid grid ? ResolveBlock(grid,hit.DetectionPoint):null; entity=hit.Entity; point=hit.DetectionPoint; item=hit.ItemId; }
             else if(entity is MyEnvironmentSector) entity=null;
-            // An unfinished block is a full cell to native physics and a thin scaffold to its render mesh.
-            var limit=entity==null ? reach:Math.Sqrt(Vector3D.DistanceSquared(ray.Translation,point));
-            if(ConstructionRay(ray,limit,out var construction,out var entry))
-            { block=construction; entity=block.CubeGrid; point=entry; item=0; }
         }
         internal static float ProjectionMultiplier(MyCasterComponent sensor) =>
             (float)(Vector3D.Distance(sensor.Caster.Center,sensor.Caster.FrontPoint)/MyEngineerToolBase.DEFAULT_REACH_DISTANCE);
@@ -138,46 +132,17 @@ namespace SpaceEngineersVR.Multiplayer
         }
         internal static BoundingBox BlockBounds(MySlimBlock block) => new BoundingBox(
             (block.Min-new Vector3(.5f))*block.CubeGrid.GridSize,(block.Max+new Vector3(.5f))*block.CubeGrid.GridSize);
-        internal static bool ConstructionRay(MatrixD ray,double reach,out MySlimBlock selected,out Vector3D point,MySlimBlock ignore=null)
-        {
-            selected=null; point=ray.Translation+ray.Forward*reach;
-            var sphere=new BoundingSphereD((ray.Translation+point)*.5,reach*.5+.01);
-            if(rayGrids==null) rayGrids=new List<MyEntity>();
-            if(cells==null) cells=new List<Vector3I>();
-            rayGrids.Clear(); EntitiesInSphere(ref sphere,rayGrids);
-            double best=reach;
-            foreach(var entity in rayGrids)
-            {
-                if(!(entity is MyCubeGrid grid) || grid.Closed || grid.Physics==null || !grid.Physics.Enabled) continue;
-                cells.Clear(); grid.RayCastCells(ray.Translation,ray.Translation+ray.Forward*reach,cells);
-                var inv=grid.PositionComp.WorldMatrixNormalizedInv;
-                var start=Vector3D.Transform(ray.Translation,inv); var direction=Vector3D.TransformNormal(ray.Forward,inv);
-                var localRay=new Ray((Vector3)start,(Vector3)direction);
-                foreach(var cell in cells)
-                {
-                    var block=grid.GetCubeBlock(cell);
-                    if(block==null || ReferenceEquals(block,ignore) || block.CalculateCurrentModelID()<0) continue;
-                    var distance=localRay.Intersects(BlockBounds(block));
-                    if(!distance.HasValue || !Better(block,distance.Value,selected,best)) continue;
-                    best=distance.Value; selected=block; point=ray.Translation+ray.Forward*best;
-                }
-            }
-            return selected!=null;
-        }
         internal static bool Accessible(MyCharacter owner,MyEntity tool,Vector3D grip,Vector3D point,MySlimBlock selected)
         {
             var approach=point-grip;
             if(approach.LengthSquared()<=.005*.005) return true;
             var ray=MatrixD.CreateWorld(grip,Vector3D.Normalize(approach),Vector3D.CalculatePerpendicularVector(approach));
             double reach=approach.Length();
-            // Check every collider before contact; a selected construction box can hide another wall.
             PhysicsHits(new LineD(grip,point-ray.Forward*.005));
             foreach(var hit in physicsHits)
                 if(PhysicsHit(owner,tool,hit,out var physical) &&
                     !(physical.Entity is MyCubeGrid grid && ReferenceEquals(ResolveBlock(grid,physical.DetectionPoint),selected))) return false;
-            // Construction eligibility does not establish clearance through physical walls.
-            if(Cast(owner,tool,ray,reach-.005,out var meshBlock,out var meshEntity,out _) && meshEntity!=null && !ReferenceEquals(meshBlock,selected)) return false;
-            return !ConstructionRay(ray,reach-.005,out _,out _,selected);
+            return !(Cast(owner,tool,ray,reach-.005,out var meshBlock,out var meshEntity,out _) && meshEntity!=null && !ReferenceEquals(meshBlock,selected));
         }
         internal static bool FindTreeNear(MyCharacter owner,MyEntity tool,ToolVolume volume,Vector3D grip,out MyDrillSensorBase.DetectionInfo tree)
         {
@@ -220,12 +185,6 @@ namespace SpaceEngineersVR.Multiplayer
                     var bounds=BlockBounds(block);
                     if(SegmentBox.DistanceSquared(a,b,bounds,out var contact)>radius*radius) continue;
                     var target=Vector3D.Transform(contact,grid.WorldMatrix);
-                    if(block.CalculateCurrentModelID()>=0 && ConstructionOverlap(volume,grid,bounds) && Accessible(owner,tool,grip,target,block))
-                    {
-                        double score=Vector3D.DistanceSquared(target,from);
-                        if(Better(block,score,selected,best)) { best=score; selected=block; selectedHit=target; }
-                        continue;
-                    }
                     var direction=target-from;
                     if(direction.LengthSquared()<.000001) direction=volume.Frame.Forward;
                     direction.Normalize();
@@ -259,17 +218,7 @@ namespace SpaceEngineersVR.Multiplayer
             var a=block.Position; var b=selected.Position;
             return a.X!=b.X ? a.X<b.X:a.Y!=b.Y ? a.Y<b.Y:a.Z<b.Z;
         }
-        internal static bool ConstructionOverlap(ToolVolume volume,MyCubeGrid grid,BoundingBox bounds)
-        {
-            if(!volume.Disc) return true;
-            var transform=grid.WorldMatrix*MatrixD.Invert(volume.Frame);
-            var local=new BoundingBoxD(new Vector3D(double.MaxValue),new Vector3D(double.MinValue));
-            foreach(var corner in bounds.GetCorners()) local.Include(Vector3D.Transform(corner,transform));
-            if(local.Min.Y>volume.HalfHeight || local.Max.Y< -volume.HalfHeight) return false;
-            var x=MathHelper.Clamp(0,local.Min.X,local.Max.X); var z=MathHelper.Clamp(0,local.Min.Z,local.Max.Z);
-            return x*x+z*z<=volume.Radius*volume.Radius;
-        }
-        private static MySlimBlock Block(object geometry,VRage.ModAPI.IMyEntity entity)
+        internal static MySlimBlock Block(object geometry,VRage.ModAPI.IMyEntity entity)
         {
             if(geometry is MyCube cube) return cube.CubeBlock;
             while(entity!=null && !(entity is MyCubeBlock)) entity=entity.Parent;

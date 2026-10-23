@@ -158,9 +158,9 @@ namespace SpaceEngineersVR.Diagnostics
             var armor=(Sandbox.Game.Entities.Cube.MySlimBlock)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.Cube.MySlimBlock));
             var door=(Sandbox.Game.Entities.Cube.MySlimBlock)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Entities.Cube.MySlimBlock));
             foreach(var hit in new[] {door,armor,door,armor})
-                if(BlockInspection.BlockForHit(new Sandbox.Game.Entities.MyCube {CubeBlock=hit},null)!=hit)
+                if(Multiplayer.ToolContact.Block(new Sandbox.Game.Entities.MyCube {CubeBlock=hit},null)!=hit)
                     throw new Exception("Inspection failed to follow the native geometry hit, including non-interactable armor");
-            if(BlockInspection.BlockForHit(null,null)!=null)
+            if(Multiplayer.ToolContact.Block(null,null)!=null)
                 throw new Exception("Inspection retained the previous block after pointing into empty space");
             var available=HarmonyLib.AccessTools.Property(typeof(NativeBlockInfo),nameof(NativeBlockInfo.Available));
             available.SetValue(null,true);

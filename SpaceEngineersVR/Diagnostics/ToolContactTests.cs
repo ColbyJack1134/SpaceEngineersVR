@@ -49,10 +49,8 @@ namespace SpaceEngineersVR.Diagnostics
 
         private static MyCubeGrid constructionGrid;
         private static MyGridPhysics constructionPhysics;
-        private static float buildRatio;
         private static bool Pruning(List<MyEntity> result) { result.Add(constructionGrid); return false; }
         // The engine inlines the BuildLevelRatio getter into this method, so the stage is stubbed one level up.
-        private static bool ModelStage(ref int __result) { __result=buildRatio<=.8f ? 0:-1; return false; }
         private static bool Pose(ref MatrixD model,ref WeaponProfile profile,ref bool __result)
         { model=MatrixD.Identity; profile=WeaponProfile.All.First(p=>p.Kind==ItemKind.Welder); __result=true; return false; }
         private static bool EmptyPruning() => false;
@@ -209,12 +207,9 @@ namespace SpaceEngineersVR.Diagnostics
                 AccessTools.Field(typeof(MyDrillSensorBase),"m_center").SetValue(caster.Caster,casterOrigin);
                 AccessTools.Field(typeof(MyDrillSensorBase),"m_frontPoint").SetValue(caster.Caster,casterOrigin+new Vector3D(0,0,-1.3));
                 Require(Math.Abs(ToolContact.ProjectionMultiplier(caster)-.65)<1e-6,"Projected blocks ignored the clamped tool reach");
-                var grid=new MyCubeGrid(); var disc=new ToolVolume {Frame=MatrixD.Identity,Disc=true,Radius=.108,HalfHeight=.018};
-                Require(ToolContact.ConstructionOverlap(disc,grid,new BoundingBox(new Vector3(.05f,-.01f,-.05f),new Vector3(.07f,.01f,.05f))),"Grinder construction contact missed a cell through a mesh gap");
-                Require(!ToolContact.ConstructionOverlap(disc,grid,new BoundingBox(new Vector3(-.05f,.04f,-.05f),new Vector3(.05f,.06f,.05f))),"Grinder construction contact included housing-side clearance");
             }
             finally { HeldItemPose.LocalSupported=previous; harmony.UnpatchAll(harmony.Id); }
-            log("PASS supported tools: exclusive tip-axis aim, unchanged one-hand ray, total reach budget at rotated billion-metre origins, projection reach from the caster ray, grinder construction contact");
+            log("PASS supported tools: exclusive tip-axis aim, unchanged one-hand ray, total reach budget at rotated billion-metre origins, projection reach from the caster ray");
         }
         private static void Size(MyCubeGrid grid,float size)
         {
@@ -241,41 +236,18 @@ namespace SpaceEngineersVR.Diagnostics
             Size(constructionGrid,.5f);
             AccessTools.Field(typeof(MyCubeGrid),"m_min").SetValue(constructionGrid,Vector3I.Zero);
             AccessTools.Field(typeof(MyCubeGrid),"m_max").SetValue(constructionGrid,Vector3I.Zero);
-            var block=AddBlock(constructionGrid,Vector3I.Zero);
-            block.BlockDefinition.BuildProgressModels=new[] {new MyCubeBlockDefinition.BuildProgressModel {BuildRatioUpperBound=.8f,Visible=true}};
+            AddBlock(constructionGrid,Vector3I.Zero);
             harmony.Patch(AccessTools.Method(typeof(ToolContact),nameof(ToolContact.EntitiesInSphere)),prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(Pruning)));
             AccessTools.Field(typeof(MyEntity),"m_physics").SetValue(constructionGrid,constructionPhysics);
-            harmony.Patch(AccessTools.Method(typeof(MySlimBlock),nameof(MySlimBlock.CalculateCurrentModelID)),prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(ModelStage)));
             harmony.Patch(AccessTools.Method(typeof(HeldItemPose),nameof(HeldItemPose.TryGet)),prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(Pose)));
             var intersection=typeof(MyEntities).GetMethods().Single(m=>m.Name==nameof(MyEntities.GetIntersectionWithLine) && m.GetParameters()[0].ParameterType==typeof(LineD).MakeByRefType());
             harmony.Patch(intersection,prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(Intersection)));
             harmony.Patch(CastRayInternal,prefix:new HarmonyMethod(typeof(ToolContactTests),nameof(PhysicsRay)));
             try
             {
-                result=null; entities=new MyEntity[0]; positions=new Vector3D[0]; buildRatio=.4f;
+                result=null; entities=new MyEntity[0]; positions=new Vector3D[0];
                 var volume=new ToolVolume {Frame=MatrixD.CreateTranslation(.12,.12,.12),Radius=.038};
-                Require(ToolContact.FindNear(null,null,volume,out var found,out _) && ReferenceEquals(found,block),"Unfinished cell required a scaffold beam or collider hit");
-                buildRatio=.99f;
-                Require(!ToolContact.FindNear(null,null,volume,out _,out _),"Damaged completed model inherited unfinished full-cell contact");
-                foreach(double origin in new[] {0d,1e9})
-                {
-                    var world=MatrixD.CreateFromYawPitchRoll(.6,.3,-.2); world.Translation=new Vector3D(origin,origin+2,origin-3);
-                    AccessTools.Field(typeof(MyEntity),"m_physics").SetValue(constructionGrid,null);
-                    constructionGrid.PositionComp.SetWorldMatrix(ref world);
-                    AccessTools.Field(typeof(MyEntity),"m_physics").SetValue(constructionGrid,constructionPhysics);
-                    var ray=MatrixD.CreateWorld(Vector3D.Transform(new Vector3D(.12,.12,1),world),world.Forward,world.Up);
-                    buildRatio=.4f;
-                    bool hit=ToolContact.ConstructionRay(ray,1.2,out found,out var at);
-                    var traversed=new List<Vector3I>(); constructionGrid.RayCastCells(ray.Translation,ray.Translation+ray.Forward*1.2,traversed);
-                    Require(hit && ReferenceEquals(found,block) && Math.Abs(Vector3D.Distance(at,ray.Translation)-.75)<1e-6,
-                        "Construction reach missed an occupied cell: origin="+origin+", hit="+hit+", distance="+Vector3D.Distance(at,ray.Translation)+", cells="+string.Join(";",traversed)+", enabled="+constructionGrid.Physics.Enabled+", closed="+constructionGrid.Closed+
-                        ", block="+ReferenceEquals(constructionGrid.GetCubeBlock(Vector3I.Zero),block)+", stage="+block.CalculateCurrentModelID()+
-                        ", start="+Vector3D.Transform(ray.Translation,constructionGrid.PositionComp.WorldMatrixNormalizedInv)+
-                        ", direction="+Vector3D.TransformNormal(ray.Forward,constructionGrid.PositionComp.WorldMatrixNormalizedInv));
-                    Require(!ToolContact.ConstructionRay(ray,.7,out _,out _),"Construction fallback exceeded reach");
-                    buildRatio=.99f;
-                    Require(!ToolContact.ConstructionRay(ray,1.2,out _,out _),"Completed hollow model acquired full-cell distance targeting");
-                }
+                Require(!ToolContact.FindNear(null,null,volume,out _,out _),"Unfinished cell was touched without a collider or mesh hit");
                 foreach(float size in new[] {.5f,2.5f})
                 {
                     Size(constructionGrid,size);
@@ -283,15 +255,16 @@ namespace SpaceEngineersVR.Diagnostics
                     AccessTools.Field(typeof(MyEntity),"m_physics").SetValue(constructionGrid,null);
                     constructionGrid.PositionComp.SetWorldMatrix(ref world);
                     AccessTools.Field(typeof(MyEntity),"m_physics").SetValue(constructionGrid,constructionPhysics);
-                    var ray=MatrixD.CreateWorld(Vector3D.Transform(new Vector3D(size*.24,size*.24,size*.5+1),world),world.Forward,world.Up);
-                    result=null; entities=new MyEntity[0]; positions=new Vector3D[0]; buildRatio=.4f;
-                    ToolContact.CastTarget(null,null,ray,1.2,out var reached,out var entity,out var at,out _);
-                    Require(ReferenceEquals(reached,block) && ReferenceEquals(entity,constructionGrid) &&
-                        Math.Abs(Vector3D.Distance(at,ray.Translation)-1)<1e-6,"One-hand ray missed an unfinished cell 1 m away on grid size "+size);
+                    foreach(double depth in new[] {size*.5+1,0})
+                    {
+                        var ray=MatrixD.CreateWorld(Vector3D.Transform(new Vector3D(size*.24,size*.24,depth),world),world.Forward,world.Up);
+                        ToolContact.CastTarget(null,null,ray,1.2,out var reached,out _,out _,out _);
+                        Require(reached==null,"Ray selected an unfinished cell without a collider or mesh hit on grid size "+size+(depth==0 ? " from inside":""));
+                    }
                 }
             }
             finally { harmony.UnpatchAll(harmony.Id); constructionGrid=null; constructionPhysics=null; result=null; entities=null; positions=null; }
-            log("PASS construction targeting: native occupied-cell contact without beam hits, rotated billion-metre reach, range limit, completed-model exclusion and equal one-hand reach on both cube sizes");
+            log("PASS construction targeting: unfinished blocks are selected only through native colliders or mesh, by contact and by ray from outside or inside the cell, on both cube sizes");
         }
         private static void NativeDrillSelection(Action<string> log)
         {
