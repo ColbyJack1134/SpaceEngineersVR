@@ -66,13 +66,14 @@ namespace SpaceEngineersVR.Player
                 string from=NativePath.Of(Path.Combine(Path.GetDirectoryName(source),name+".mwm")),to=Path.Combine(Path.GetDirectoryName(copy),name+".mwm");
                 if(File.Exists(from)) HoloSight.Write(to,File.ReadAllBytes(from));
             }
-            // LODs resolve against the folder above Models first, so patched copies there replace the installed ones.
-            if(tags.TryGetValue("LODs",out var value) && value is MyLODDescriptor[] lods)
+            // LODs resolve against the folder above the first "models" in the path; skip them when that folder is outside Folder.
+            int models=copy.ToLowerInvariant().IndexOf("models",StringComparison.Ordinal);
+            if(models>Folder.Length && tags.TryGetValue("LODs",out var value) && value is MyLODDescriptor[] lods)
                 foreach(var lod in lods.Where(l=>l.Model!=null))
                 {
                     string from=NativePath.Of(lod.GetModelAbsoluteFilePath(source));
                     string relative=lod.Model.EndsWith(".mwm",StringComparison.OrdinalIgnoreCase) ? lod.Model:lod.Model+".mwm";
-                    string root=copy.Substring(0,copy.ToLowerInvariant().IndexOf("models",StringComparison.Ordinal));
+                    string root=copy.Substring(0,models);
                     if(from==null || !File.Exists(from)) continue;
                     // A LOD that cannot be patched keeps resolving to the installed one.
                     try { HoloSight.Write(Path.Combine(root,relative.Replace('\\',Path.DirectorySeparatorChar)),Patch(File.ReadAllBytes(from),from,axis,cut)); }
