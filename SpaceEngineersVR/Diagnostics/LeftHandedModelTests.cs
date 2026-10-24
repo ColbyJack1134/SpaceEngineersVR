@@ -26,7 +26,7 @@ namespace SpaceEngineersVR.Diagnostics
                 if(!File.Exists(source)) continue;
                 string copy=Path.Combine(output,profile.Model.Replace('/',Path.DirectorySeparatorChar));
                 float axis=profile.SideAxis.Value;
-                LeftHandedModels.Build(source,copy,axis,profile.SideCut);
+                LeftHandedModels.Build(source,copy,output,axis,profile.SideCut);
                 var before=HoloSight.Tags(source,"Vertices","MeshParts","BoundingBox");
                 var after=HoloSight.Tags(copy,"Vertices","MeshParts","BoundingBox","Dummies");
                 var a=((HalfVector4[])before["Vertices"]).Select(v=>VF_Packer.UnpackPosition(v)).ToArray();

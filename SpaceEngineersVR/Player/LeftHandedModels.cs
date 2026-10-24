@@ -44,7 +44,7 @@ namespace SpaceEngineersVR.Player
                     if(!definition.Model.Replace('\\','/').EndsWith(profile.Model,StringComparison.OrdinalIgnoreCase)) continue;
                     string source=Path.IsPathRooted(definition.Model) ? definition.Model:Path.Combine(MyFileSystem.ContentPath,definition.Model);
                     string copy=Path.Combine(Folder,profile.Model.Replace('/',Path.DirectorySeparatorChar));
-                    Build(source,copy,profile.SideAxis.Value,profile.SideCut);
+                    Build(source,copy,Folder,profile.SideAxis.Value,profile.SideCut);
                     copies[definition.Model]=copy;
                     HoloSight.Mirror(definition.Model,copy,profile.SideAxis.Value);
                     ready.Add(profile.Item);
@@ -54,7 +54,7 @@ namespace SpaceEngineersVR.Player
             if(ready.Count>0) Logger.Info("Left-handed models: {0} items with moved side parts",ready.Count);
         }
 
-        internal static void Build(string source,string copy,float axis,float cut)
+        internal static void Build(string source,string copy,string folder,float axis,float cut)
         {
             source=NativePath.Of(source);
             HoloSight.Write(copy,Patch(File.ReadAllBytes(source),source,axis,cut));
@@ -64,21 +64,31 @@ namespace SpaceEngineersVR.Player
             {
                 if(!(dummy.Value.CustomData?.TryGetValue("file",out var file)==true && file is string name)) continue;
                 string from=NativePath.Of(Path.Combine(Path.GetDirectoryName(source),name+".mwm")),to=Path.Combine(Path.GetDirectoryName(copy),name+".mwm");
-                if(File.Exists(from)) HoloSight.Write(to,File.ReadAllBytes(from));
+                if(File.Exists(from) && Inside(to,folder)) HoloSight.Write(to,File.ReadAllBytes(from));
             }
-            // LODs resolve against the folder above the first "models" in the path; skip them when that folder is outside Folder.
+            // LODs resolve against the folder above the first "models" in the path.
             int models=copy.ToLowerInvariant().IndexOf("models",StringComparison.Ordinal);
-            if(models>Folder.Length && tags.TryGetValue("LODs",out var value) && value is MyLODDescriptor[] lods)
+            if(models>0 && tags.TryGetValue("LODs",out var value) && value is MyLODDescriptor[] lods)
                 foreach(var lod in lods.Where(l=>l.Model!=null))
                 {
                     string from=NativePath.Of(lod.GetModelAbsoluteFilePath(source));
                     string relative=lod.Model.EndsWith(".mwm",StringComparison.OrdinalIgnoreCase) ? lod.Model:lod.Model+".mwm";
-                    string root=copy.Substring(0,models);
                     if(from==null || !File.Exists(from)) continue;
                     // A LOD that cannot be patched keeps resolving to the installed one.
-                    try { HoloSight.Write(Path.Combine(root,relative.Replace('\\',Path.DirectorySeparatorChar)),Patch(File.ReadAllBytes(from),from,axis,cut)); }
+                    try
+                    {
+                        string to=Path.Combine(copy.Substring(0,models),relative.Replace('\\',Path.DirectorySeparatorChar));
+                        if(Inside(to,folder)) HoloSight.Write(to,Patch(File.ReadAllBytes(from),from,axis,cut));
+                    }
                     catch(Exception ex) { Logger.Warning(ex,"Left-handed LOD unavailable: {0}",lod.Model); }
                 }
+        }
+
+        // Subpart and LOD names come from the model file, which a mod can supply; writes must stay in folder.
+        private static bool Inside(string path,string folder)
+        {
+            try { return Path.GetFullPath(path).StartsWith(Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase); }
+            catch(Exception) { return false; }
         }
 
         // Reflects the connected parts whose bounds centre lies at item X below cut across the plane X=axis. Every array keeps its size,
