@@ -254,8 +254,9 @@ namespace SpaceEngineersVR.Multiplayer
         }
         private static void HostRequest(IMyPlayer player,byte kind,long id,string value)
         {
-            if(!MyEntities.TryGetEntityById(id,out MyCockpit seat) || seat.Closed || ControlCount(seat)==0 ||
-                !((IMyTerminalBlock)seat).HasPlayerAccess(player.IdentityId)) return;
+            if(!MyEntities.TryGetEntityById(id,out MyCockpit seat) || seat.Closed || !((IMyTerminalBlock)seat).HasPlayerAccess(player.IdentityId)) return;
+            // Seats without cockpit controls (passenger seats) still keep flight settings.
+            if(ControlCount(seat)==0 && kind!=1 && kind!=8) return;
             try
             {
                 if(kind==6)

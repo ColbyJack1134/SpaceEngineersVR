@@ -267,7 +267,15 @@ namespace SpaceEngineersVR.Player
                 else if (primary) frame.Queue(MyControlsSpace.PRIMARY_TOOL_ACTION);
             }
         }
-        public static void Cancel() { if (ClipboardActive) NativeActions.Pulse(MyControlsSpace.COPY_PASTE_CANCEL); }
+        private static readonly System.Reflection.MethodInfo deactivate=HarmonyLib.AccessTools.Method(typeof(MyClipboardComponent),"Deactivate");
+        public static void Cancel()
+        {
+            if(!ClipboardActive) return;
+            // A refused blueprint (missing block definitions) leaves the component active with no preview to escape from.
+            if(MyClipboardComponent.Static.HandleEscapeInternal()) return;
+            if(deactivate==null) Logger.Warning("MyClipboardComponent.Deactivate not found; a refused paste stays active");
+            else deactivate.Invoke(MyClipboardComponent.Static,null);
+        }
         public static void PreviewClipboard()
         {
             if (!ClipboardActive) NativeActions.Pulse(MyControlsSpace.PASTE_OBJECT);

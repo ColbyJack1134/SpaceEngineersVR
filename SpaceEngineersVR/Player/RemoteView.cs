@@ -129,8 +129,9 @@ namespace SpaceEngineersVR.Player
             CancelCameraSwitch();
             ReleaseInput();
             var controlled=MySession.Static?.ControlledEntity;
+            // First exit leaves the camera, the next one the remote control.
             if(RemoteGrid && MySession.Static.CameraController is MyCameraBlock remoteCamera)
-                remoteCamera.CubeGrid.GridSystems.CameraSystem.ResetCamera();
+            { remoteCamera.CubeGrid.GridSystems.CameraSystem.ResetCamera(); return; }
             if(ExitControlled(controlled)) controlled.Use();
             else if(MySession.Static?.CameraController is MyCameraBlock camera) camera.CubeGrid.GridSystems.CameraSystem.ResetCamera();
         }
