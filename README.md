@@ -7,13 +7,13 @@
 The complete, native-feeling VR experience for Space Engineers.
 
 Features:
-- **Interactive cockpits**: every base game and DLC cockpit, with in-game flight sticks. Inspired by [VTOL VR](https://store.steampowered.com/app/667970/VTOL_VR/)
-- **Tools and weapons** with two-handed holds and functional reticles
-- **VR building** with painting, symmetry and blueprints
-- **Third-person and spectator** views with hand-controlled camera
-- **Camera, turret and remote-grid views** in picture-in-picture. Inspired by [CameraLCD](https://github.com/austinvaness/CameraLCD)
-- **HUD built for VR**, maintaining base game art
-- **Multiplayer**, including vanilla servers
+- **Interactive cockpits** - every base game and DLC cockpit, with in-game flight sticks. Inspired by [VTOL VR](https://store.steampowered.com/app/667970/VTOL_VR/)
+- **Tools and weapons** - two-handed holds and functional reticles
+- **VR building** - painting, symmetry and blueprints
+- **Third-person and spectator** - hand-controlled camera views
+- **Camera, turret and remote-grid views** - picture-in-picture. Inspired by [CameraLCD](https://github.com/austinvaness/CameraLCD)
+- **HUD built for VR** - maintaining base game art
+- **Multiplayer** - including vanilla servers
 
 Other features:
 - Third-person diorama build mode
