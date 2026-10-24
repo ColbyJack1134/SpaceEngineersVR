@@ -366,7 +366,7 @@ namespace SpaceEngineersVR.Player.Components
         }
 
         private static FlightTuning SeatTuning => FlightSettings.For(MySession.Static?.ControlledEntity as MyCockpit ?? RemoteView.HomeSeat);
-        private static bool PrimaryPressed => !HelmetHud.ProtectsFire && !FloatingWindows.OwnsInput && Controls.Static.Fire.IsPressed &&
+        private static bool PrimaryPressed => !HelmetHud.ProtectsFire && !FloatingWindows.OwnsInput && !InputRouter.RadialOpen && Controls.Static.Fire.IsPressed &&
             !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Handedness.ActionHand) &&
             FlightAxes.StickTriggerAllowed(MySession.Static?.ControlledEntity is MyShipController,Common.Config.PhysicalShipControlsOnly,
                 CockpitControls.SticksAvailable,CockpitControls.AnyHeld);
@@ -398,7 +398,7 @@ namespace SpaceEngineersVR.Player.Components
             // On WeaponCore grids grip + trigger aims a lock with a pointer and its release locks.
             bool lockChord=chord && TargetLock.ShooterGrid()!=null;
             bool gripTap=secondaryTap.Update((ship || turret) && grip.IsPressed,(ship || turret) && grip.HasReleased,!gripSecondary || uiOwnsAction || chord,System.DateTime.UtcNow);
-            bool secondaryAllowed=!HelmetHud.ProtectsFire && (!turret || ShipTargeting.CanLock(controlledEntity)) && !FloatingWindows.OwnsInput && !BlockInspection.ConsumesSecondary &&
+            bool secondaryAllowed=!HelmetHud.ProtectsFire && !InputRouter.RadialOpen && (!turret || ShipTargeting.CanLock(controlledEntity)) && !FloatingWindows.OwnsInput && !BlockInspection.ConsumesSecondary &&
                 !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(action);
             bool secondaryPressed=secondaryAllowed && (stickSecondary.Held || chord && !lockChord || (ship || turret ? gripTap && gripSecondary:grip.IsPressed && gripSecondary) || controls.Fire.IsPressed && GameActions.AlternateTrigger);
             TargetLock.Aim(lockChord && secondaryAllowed);

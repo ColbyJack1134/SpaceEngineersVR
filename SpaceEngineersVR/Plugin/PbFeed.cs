@@ -148,7 +148,9 @@ namespace SpaceEngineersVR.Plugin
         }
         private static bool Hand(Controller hand,PbMessage.Hand data,Analog trigger,Analog grip,Analog stick)
         {
-            data.Trigger=trigger.RawPosition.X; data.Grip=grip.RawPosition.X; data.Stick=stick.RawPosition;
+            // Menus own the triggers; a script fed the raw value would fire while the player turns wheel pages.
+            bool menu=Player.InputRouter.RadialOpen || Main.MenuOpen;
+            data.Trigger=menu ? 0:trigger.RawPosition.X; data.Grip=menu ? 0:grip.RawPosition.X; data.Stick=stick.RawPosition;
             Array.Copy(hand.Fingers.Curls,data.Curls,5);
             data.Pose=hand.pose.isTracked ? Local(hand.GripTracking):Matrix.Identity;
             return hand.pose.isTracked;
