@@ -61,8 +61,8 @@ namespace SpaceEngineersVR.Diagnostics
 
             // Fields are appended over versions: a longer message parses, one without joints parses with the joint flags cleared.
             if(!(bool)Call(data,"TryParse",text+" 1.5")) throw new Exception("Example script rejected an appended field");
-            string old=string.Join(" ",fields.Take(43));
-            if(!(bool)Call(data,"TryParse",old) || ((int)Get(data,"Flags")&PbMessage.LeftJoints)!=0) throw new Exception("Message without joints: "+old);
+            foreach(string old in new[] {string.Join(" ",fields.Take(43)),string.Join(" ",fields.Take(60))})
+                if(!(bool)Call(data,"TryParse",old) || ((int)Get(data,"Flags")&PbMessage.LeftJoints)!=0) throw new Exception("Message without joints: "+old);
 
             string stop=PbMessage.Format(8,new PbMessage {Controller=5,Flags=PbMessage.Stopped}.Body());
             if(!(bool)Call(data,"TryParse",stop) || (int)Get(data,"Flags")!=PbMessage.Stopped) throw new Exception("Stop message not parsed: "+stop);
@@ -123,8 +123,7 @@ namespace SpaceEngineersVR.Diagnostics
             var types=Compile(ModApiTests.Scripting(),script).GetTypes();
             var solverType=types.First(t => t.Name=="ArmSolver");
 
-            // MyMotorStator.ComputeCurrentAngle: rotor angle turns Right toward Backward about Up, the hinge measures Left about Up;
-            // both are a right-handed turn about the stator's Down, which is the script's joint axis.
+            // MyMotorStator.ComputeCurrentAngle: rotor and hinge angles are both right-handed turns about the stator's Down, the script's joint axis.
             var stator=MatrixD.CreateFromYawPitchRoll(.3,-.7,1.1);
             foreach(double angle in new[] {.4,1.2,-.9,2.5})
             {

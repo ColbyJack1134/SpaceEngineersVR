@@ -6,8 +6,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Plugin
 {
-    // Shoulder and elbow estimates for programmable block arms in the seated frame: the torso stays square to the seat under the head joint,
-    // the elbow comes from the avatar arm solve with calibrated lengths.
+    // Shoulder and elbow estimates for programmable block arms: torso square to the seat under the head joint, elbow from the avatar arm solve.
     internal static class PbArms
     {
         internal sealed class Arm
@@ -34,6 +33,7 @@ namespace SpaceEngineersVR.Plugin
             if(definition!=measured) { measured=definition; Measure(character); }
             var arm=side<0 ? left:right;
             if(arm==null) return false;
+            // The feed estimates the player's own arm, so it scales with body calibration while the seated avatar (BodyFit.ScaleFor) does not.
             float scale=BodyFit.Enabled ? BodyFit.Scale(Common.Config.PlayerHeight,definition.CharacterCollisionHeight) : 1;
             Solve(arm,head,wrist,scale,out shoulder,out elbow);
             return true;
