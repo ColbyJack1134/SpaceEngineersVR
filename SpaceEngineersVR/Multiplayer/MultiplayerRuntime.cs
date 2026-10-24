@@ -41,7 +41,7 @@ namespace SpaceEngineersVR.Multiplayer
     {
         // The server drops client-to-client SendMessageTo, so the host relays client poses on RelayChannel.
         internal const ushort PoseChannel=48983,StateChannel=48984,DampenerChannel=48985,RelayChannel=48986;
-        internal const int RelaySize=PlayerPose.Size+8;
+        internal const int RelaySize=PlayerPose.MaxSize+8;
         private const double Reach=250;
         internal static bool Enabled;
         internal static Func<uint,PlayerPose> Capture { get; set; }
@@ -88,9 +88,10 @@ namespace SpaceEngineersVR.Multiplayer
             while(incoming.TryDequeue(out _)) Interlocked.Decrement(ref queued);
             network=null; session=null; nextHello=nextPlayers=nextPose=connected=0; sequence=0; hostSupport=false;
         }
+        internal static int Limit(ushort channel) => channel==PoseChannel ? PlayerPose.MaxSize:channel==RelayChannel ? RelaySize:CockpitMemory.Limit*2+64;
         private static void Receive(ushort channel,byte[] data,ulong sender,bool fromServer)
         {
-            if(data==null || data.Length>(channel==PoseChannel ? PlayerPose.Size:channel==RelayChannel ? RelaySize:CockpitMemory.Limit*2+64)) return;
+            if(data==null || data.Length>Limit(channel)) return;
             if(Interlocked.Increment(ref queued)>256) { Interlocked.Decrement(ref queued); return; }
             incoming.Enqueue(new Message {Channel=channel,Data=data,Sender=sender,Server=fromServer});
         }

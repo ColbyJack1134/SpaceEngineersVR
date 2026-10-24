@@ -8,7 +8,7 @@ namespace SpaceEngineersVR.Multiplayer
     internal sealed class PlayerPose
     {
         // Version 1 packets (85 bytes) carry hands only; the head pose, the tool ray and the finger curls are appended in that order.
-        internal const int LegacySize=85,HeadSize=113,Size=141,CurlBytes=10,HeadTracked=4,ToolRayTracked=8,ItemSupported=16,ItemMirrored=32,LeftCurls=64,RightCurls=128;
+        internal const int LegacySize=85,HeadSize=113,Size=141,CurlBytes=10,MaxSize=Size+CurlBytes,HeadTracked=4,ToolRayTracked=8,ItemSupported=16,ItemMirrored=32,LeftCurls=64,RightCurls=128;
         internal readonly float[] LeftCurl=new float[5],RightCurl=new float[5];
         internal long Character,Seat;
         internal uint Sequence;

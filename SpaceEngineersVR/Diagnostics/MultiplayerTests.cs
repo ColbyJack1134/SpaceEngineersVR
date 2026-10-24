@@ -266,9 +266,12 @@ namespace SpaceEngineersVR.Diagnostics
         private static void Relay()
         {
             const ulong origin=76561198000000001UL;
-            var aiming=Pose(); aiming.Tracked|=PlayerPose.ToolRayTracked|PlayerPose.HeadTracked; aiming.ToolRay.Translation=new Vector3(.1f,1.1f,-.6f);
+            // The largest pose: a tool ray plus both hands' curls.
+            var aiming=Pose(); aiming.Tracked|=PlayerPose.ToolRayTracked|PlayerPose.HeadTracked|PlayerPose.LeftCurls|PlayerPose.RightCurls; aiming.ToolRay.Translation=new Vector3(.1f,1.1f,-.6f);
             var bytes=aiming.Encode(); var packet=MultiplayerRuntime.RelayPacket(origin,bytes);
-            Require(bytes.Length==PlayerPose.Size && packet.Length==MultiplayerRuntime.RelaySize && packet.Length<=1024,"Full relay packet exceeds the unreliable message limit");
+            Require(bytes.Length==PlayerPose.MaxSize && packet.Length==MultiplayerRuntime.RelaySize && packet.Length<=1024,"Full relay packet exceeds the unreliable message limit");
+            Require(bytes.Length<=MultiplayerRuntime.Limit(MultiplayerRuntime.PoseChannel) && packet.Length<=MultiplayerRuntime.Limit(MultiplayerRuntime.RelayChannel),
+                "Receive drops the largest pose packet");
             Require(MultiplayerRuntime.ReadRelay(packet,true,out ulong from,out var relayed) && from==origin && relayed.SequenceEqual(bytes) &&
                 PlayerPose.Decode(relayed)?.Character==100,"Relay round trip failed");
             Require(!MultiplayerRuntime.ReadRelay(packet,false,out _,out _),"Relay from a client accepted");
