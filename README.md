@@ -7,15 +7,20 @@
 The complete, native-feeling VR experience for Space Engineers.
 
 Features:
-- Every base game and DLC cockpit is interactive, including in-game flight sticks. Inspired by [VTOL VR](https://store.steampowered.com/app/667970/VTOL_VR/)
-- Camera, turret and remote-grid views in picture-in-picture. Inspired by [CameraLCD](https://github.com/austinvaness/CameraLCD)
-- Multiplayer: VR players see each other's heads, hands and fingers, and VR works on vanilla servers
-- Tools and weapons with two-handed support. Properly zeroed iron sights and working holo sights
-- VR building with painting, symmetry, blueprints, planets, and third-person/diorama building
-- Third-person and spectator views with hand-controlled camera movement
-- HUD redesigned for VR while maintaining base game art
-- Wrist tablet, radial menus, floating game menus and a VR keyboard
-- Stereo 3D rendering, 6DOF tracking, motion controls and roomscale
+- **Interactive cockpits**: every base game and DLC cockpit, with in-game flight sticks. Inspired by [VTOL VR](https://store.steampowered.com/app/667970/VTOL_VR/)
+- **Tools and weapons** with two-handed holds and functional reticles
+- **VR building** with painting, symmetry and blueprints
+- **Third-person and spectator** views with hand-controlled camera
+- **Camera, turret and remote-grid views** in picture-in-picture. Inspired by [CameraLCD](https://github.com/austinvaness/CameraLCD)
+- **HUD built for VR**, maintaining base game art
+- **Multiplayer**, including vanilla servers
+
+Other features:
+- Third-person diorama build mode
+- Left-handed mode
+- Wrist tablet, radial menus and VR keyboard
+- [Mod API](MOD-API.md) and programmable block API
+- Stereo 3D, 6DOF and roomscale (obviously)
 
 With the 1.0 release, I consider this experience to be practically complete and stable. Of course there will always be bugs, polish, and new ideas to work on. I plan on maintaining this project until at least past the Warfare 3 update. If you run into any bugs or problems feel free to create a new [issue](https://github.com/ColbyJack1134/SpaceEngineersVR/issues) on GitHub.
 
@@ -24,8 +29,8 @@ With the 1.0 release, I consider this experience to be practically complete and 
 **Note:** The plugin only runs when SteamVR is running as the game starts. Otherwise, Space Engineers starts normally.
 
 1. Install [Pulsar](https://github.com/SpaceGT/Pulsar)
-2. Start SteamVR, then launch Space Engineers with Pulsar's `Legacy.exe`.<img width="742" height="538" alt="image" src="https://github.com/user-attachments/assets/2d068b81-083e-49e2-97ad-ca39c8e8ed8d" />
-4. Open **Plugins** from the main menu, search for `Space Engineers VR`, enable it and click **Apply**. Click **Yes** to restart.
+2. Start SteamVR, then launch Space Engineers with Pulsar's `Legacy.exe` (or `Interim.exe`).<img width="742" height="538" alt="image" src="https://github.com/user-attachments/assets/2d068b81-083e-49e2-97ad-ca39c8e8ed8d" />
+3. Open **Plugins** from the main menu, search for `Space Engineers VR`, enable it and click **Apply**. Click **Yes** to restart.
 
 <img width="1918" height="1079" alt="image" src="https://github.com/user-attachments/assets/b92509c4-ca99-4ba0-afd8-740c407980a7" />
 <img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/ed48a74a-7838-4723-b58c-b64b1febf015" />
@@ -36,6 +41,10 @@ With the 1.0 release, I consider this experience to be practically complete and 
 Set **Model Quality** to **High** to avoid artifacts with your in-game hand model.
 
 To install from a GitHub release or the optional flatscreen multiplayer companion, see [Installing manually from a release](INSTALL-MANUAL.md).
+
+### Linux (experimental)
+
+Use Pulsar's `Interim.exe` and install your distribution's `libgdiplus` package. Untested.
 
 ## Controls
 
@@ -68,7 +77,7 @@ Planned (at some point):
 - BuildVision
 - BuildInfo
 
-If you want to see specific mods, or are a mod developer that would like to add VR support, feel free to reach out!
+If you want to see specific mods, feel free to reach out! Mod developers can add VR support with the [Mod API](MOD-API.md).
 
 ### Recommended Mods
 
