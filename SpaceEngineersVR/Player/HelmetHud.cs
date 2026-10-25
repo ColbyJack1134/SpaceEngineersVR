@@ -107,9 +107,9 @@ namespace SpaceEngineersVR.Player
             Reveal=active && Markers && (Mode==2 || (nearLeft && !leftGun || nearRight && !rightGun) && DateTime.UtcNow>=revealPauseUntil);
             bool visorPressed=visorGesture.Update(active && Player.HandR.pose.isTracked && c.Secondary.Active,
                 rightGesture.Inside,c.Secondary.RawPressed,CameraRig.Detached,
-                CameraRig.Detached && c.LeftGripPressure.RawPosition.X>.025f && c.RightGripPressure.RawPosition.X>.025f,DateTime.UtcNow);
+                CameraRig.Detached && c.LeftGripPressure.RawPosition.X>InteractionInput.GripEngaged && c.RightGripPressure.RawPosition.X>InteractionInput.GripEngaged,DateTime.UtcNow);
             float grip=c.LeftGripPressure.RawPosition.X;
-            if(grip<=.025f) ViewGestureHeld=false;
+            if(grip<=InteractionInput.GripReleased) ViewGestureHeld=false;
             leftGrip.Update(active && Player.HandL.pose.isTracked && c.LeftGripPressure.Active,grip>.55f);
             if(leftGrip.Pressed && InputRouter.Gameplay && !CockpitControls.Held(Player.HandL) &&
                 !CockpitTouch.Owns(Player.HandL) && NearTemple(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix,true))

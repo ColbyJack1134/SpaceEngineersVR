@@ -180,7 +180,7 @@ namespace SpaceEngineersVR.Player
             if(SubjectCamera.IsInFirstPersonView) { Reset(); return; }
             var c=Controls.Static;
             float left=c.LeftGripPressure.RawPosition.X,right=c.RightGripPressure.RawPosition.X;
-            if(left<=.025f && right<=.025f) consumed=false;
+            if(left<=InteractionInput.GripReleased && right<=InteractionInput.GripReleased) consumed=false;
             bool previouslyConsumed=consumed;
             bool allowed=InputRouter.Gameplay && !Main.MenuOpen && !HelmetHud.ViewGestureHeld && transition==null &&
                 !CockpitTouch.OwnsRight && !CockpitTouch.Owns(Player.HandL) && !SpatialUi.OwnsRight && !FloatingWindows.OwnsInput &&
@@ -188,7 +188,7 @@ namespace SpaceEngineersVR.Player
                 !CockpitControls.NearGrip(Player.HandL) && !CockpitControls.NearGrip(Player.HandR) &&
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;
             descent.Update(allowed,c.SupportGripPressure.RawPosition.X,DateTime.UtcNow);
-            if(allowed && left>.025f && right>.025f) consumed=true;
+            if(allowed && left>InteractionInput.GripEngaged && right>InteractionInput.GripEngaged) consumed=true;
             if(consumed) descent.Cancel();
             bool started;
             lock(sync)

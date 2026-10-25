@@ -36,6 +36,11 @@ namespace SpaceEngineersVR.Diagnostics
                 double noise=RotationNoise(hz);
                 log($"PASS free gestures {hz} Hz: simultaneous 3D pan, zoom and full-axis rotation; held rotation noise RMS {noise*180/Math.PI:F3} deg.");
             }
+            var relaxed=new Diorama(); relaxed.Fit(1,MatrixD.Identity,Vector3D.Zero);
+            relaxed.Input(true,0,0); relaxed.Input(true,1,1);
+            Require(relaxed.Held,"Two-grip pan did not start");
+            relaxed.Input(true,.08f,.08f);
+            Require(!relaxed.Held,"Relaxed grip force kept the view pan held");
             var serializer=new XmlSerializer(typeof(PluginConfig));
             foreach(bool oldSetting in new[] {true,false})
             {

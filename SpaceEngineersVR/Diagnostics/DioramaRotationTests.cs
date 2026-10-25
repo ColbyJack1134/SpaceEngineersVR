@@ -110,7 +110,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(view.Coasting,"Angular cancellation fixture did not coast");
                 switch(reason)
                 {
-                    case 0: view.Input(true,.1f,0); break;
+                    case 0: view.Input(true,.2f,0); break;
                     case 1: view.Input(true,1,1); break;
                     case 2: view.Input(true,0,0,true); break;
                     case 3: view.Input(false,0,0); break;

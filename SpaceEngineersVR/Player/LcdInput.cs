@@ -63,7 +63,7 @@ namespace SpaceEngineersVR.Player
         {
             Targeted=targeted; Pressed=false;
             ReserveTrigger=(targeted || ReserveTrigger) && (!input.TriggerActive || input.Click || input.Pressure>.025f);
-            ReserveGrip=(targeted || ReserveGrip) && (!input.GripActive || input.Grip || input.GripPressure>.025f);
+            ReserveGrip=(targeted || ReserveGrip) && (!input.GripActive || input.Grip || input.GripPressure>InteractionInput.GripReleased);
             ReserveScroll=ReserveScroll && (!input.ScrollActive || Math.Abs(input.Scroll)>.15f);
             if(!targeted) { Cancel(); return; }
             if(input.ScrollActive && Math.Abs(input.Scroll)<.15f) scrollArmed=true;

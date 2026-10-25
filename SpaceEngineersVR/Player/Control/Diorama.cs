@@ -132,7 +132,7 @@ namespace SpaceEngineersVR.Player.Control
         public bool Input(bool available,float leftPressure,float rightPressure,bool flightActive=false)
         {
             if(!available || float.IsNaN(leftPressure) || float.IsNaN(rightPressure)) { Cancel(); return false; }
-            int next=(leftPressure>.025f ? 1:0)|(rightPressure>.025f ? 2:0);
+            int next=(leftPressure>InteractionInput.GripReleased ? 1:0)|(rightPressure>InteractionInput.GripReleased ? 2:0);
             if(next==0)
             {
                 if(Held) releasePending=sampledHands!=0;

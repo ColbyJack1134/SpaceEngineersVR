@@ -3,6 +3,8 @@ namespace SpaceEngineersVR.Player
     internal readonly struct InteractionInput
     {
         internal const float GripThreshold=.8f;
+        // Index grip force reads up to about .1 from a relaxed hold; its SteamVR profile ignores force below .1.
+        internal const float GripReleased=.1f,GripEngaged=.15f;
         internal readonly bool Near,Right,Down,CanAcquire,Grip;
         internal readonly float Pressure;
         private readonly float gripPressure,triggerPressure;

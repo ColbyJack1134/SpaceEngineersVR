@@ -81,6 +81,7 @@ namespace SpaceEngineersVR.Diagnostics
             Require(hands[1].Held==0,"Releasing one hand released the other");
             GripPresses();
             DualPresses();
+            RestingGrip();
             NearMisses();
             SoftCapture();
             var heldLever=new CockpitTouch.Hand();
@@ -431,6 +432,21 @@ namespace SpaceEngineersVR.Diagnostics
                 Sample(0,"Other",retain:true);
                 Require(hand.Surface==null,"Lever failed to release with the hand");
             }
+        }
+        private static void RestingGrip()
+        {
+            var hand=new CockpitTouch.Hand();
+            void Sample(float grip,float trigger=0) => hand.Sample(true,new InteractionInput(true,grip,trigger,true,true),"A",0,guarded:true);
+            Sample(0); Sample(.12f);
+            Require(!hand.Consumed,"Relaxed grip force claimed a hovered button");
+            Sample(.2f);
+            Require(hand.Reserving,"Light squeeze near a button was not reserved");
+            Sample(.12f);
+            Require(!hand.Consumed,"Relaxed grip stayed claimed after a light squeeze");
+            Sample(.12f,.13f);
+            Require(hand.Reserving,"Light trigger near a button was not reserved");
+            Sample(0); Sample(1);
+            Require(hand.Pressed && hand.Consumed && !hand.Reserving,"Full press near a button counted as a reservation");
         }
         private static void DualPresses()
         {

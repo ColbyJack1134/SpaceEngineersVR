@@ -13,7 +13,7 @@ namespace SpaceEngineersVR.Player.Control
         public bool Ready { get; private set; }
         public void Update(bool available,float left,DateTime now)
         {
-            if(!available || left<=.025f || float.IsNaN(left)) { pressed=null; Ready=false; return; }
+            if(!available || left<=InteractionInput.GripEngaged || float.IsNaN(left)) { pressed=null; Ready=false; return; }
             if(!pressed.HasValue) pressed=now;
             Ready=(now-pressed.Value).TotalSeconds>=Delay;
         }

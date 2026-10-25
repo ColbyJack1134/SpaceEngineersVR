@@ -144,7 +144,7 @@ namespace SpaceEngineersVR.Diagnostics
         }
         private static void RegrabAndTransitions(int hz)
         {
-            foreach(float pressure in new[] {.1f,1f})
+            foreach(float pressure in new[] {.2f,1f})
             {
                 var view=Drag(hz,.3,.6,out var left,out var right);
                 LetGo(view,hz,.3,.6,out left,out right);

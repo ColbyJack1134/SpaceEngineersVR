@@ -240,8 +240,8 @@ namespace SpaceEngineersVR.Player
                 if(failed || manager==null) { selected=null; CancelInput(); return; }
                 // A held native trigger is firing; screen-owned squeezes already blocked that gate.
                 bool firing=SeatFit.Eligible(SeatFit.Seat) && Controls.Static.Primary.IsPressed && !Controls.Static.Primary.HasPressed;
-                bool grabbingStick=Controls.Static.RightGripPressure.RawPosition.X>.025f && CockpitControls.NearGrip(Player.HandR) ||
-                    Controls.Static.LeftGripPressure.RawPosition.X>.025f && CockpitControls.NearGrip(Player.HandL);
+                bool grabbingStick=Controls.Static.RightGripPressure.RawPosition.X>InteractionInput.GripReleased && CockpitControls.NearGrip(Player.HandR) ||
+                    Controls.Static.LeftGripPressure.RawPosition.X>InteractionInput.GripReleased && CockpitControls.NearGrip(Player.HandL);
                 bool allowed=(bool)enabledProperty.GetValue(session) && Main.VrActive && !ThirdPersonView.Active && InputRouter.Gameplay && !Main.MenuOpen &&
                     !ArthurLcdBridge.OwnsInput && !firing && !grabbingStick && !FloatingWindows.OwnsInput &&
                     MySession.Static?.LocalCharacter?.IsDead==false && MySession.Static.LocalCharacter.CurrentWeapon==null &&

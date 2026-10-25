@@ -198,7 +198,7 @@ namespace SpaceEngineersVR.Player
             if(!Active) return;
             var c=Controls.Static;
             float left=c.LeftGripPressure.RawPosition.X,right=c.RightGripPressure.RawPosition.X;
-            if(left<=.025f && right<=.025f) consumed=false;
+            if(left<=InteractionInput.GripReleased && right<=InteractionInput.GripReleased) consumed=false;
             bool allowed=InputRouter.Gameplay && !Main.MenuOpen && !HelmetHud.ViewGestureHeld &&
                 !PlacementControls.Adjusting && !FloatingWindows.OwnsInput && !SpatialUi.OwnsRight &&
                 !CockpitTouch.Owns(Player.HandL) && !CockpitTouch.OwnsRight &&
