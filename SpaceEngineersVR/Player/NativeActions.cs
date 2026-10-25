@@ -44,8 +44,10 @@ namespace SpaceEngineersVR.Player
         internal static bool SprintAllowed => (InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Building) &&
             MySession.Static?.ControlledEntity is Sandbox.Game.Entities.Character.MyCharacter character && !character.IsOnLadder &&
             !WeaponHandling.ConsumesSupportGrip && ThirdPersonView.DescentReady && !PlacementControls.Adjusting;
-        internal static bool WheelJumpAllowed => InputRouter.Mode==InputMode.Piloting && MySession.Static?.ControlledEntity is MyShipController ship &&
-            ship.ControlWheels && !ToolbarWheel.QuickPending && !FloatingWindows.OwnsInput && !PlacementControls.Adjusting && !CockpitControls.Adjusting && !ThirdPersonView.Manipulating;
+        // A turret entered from a seat passes wheel jump to that seat, as on the desktop.
+        internal static MyShipController WheelShip => InputRouter.Mode==InputMode.Piloting ? MySession.Static?.ControlledEntity as MyShipController :
+            InputRouter.Mode==InputMode.Turret ? RemoteView.Previous as MyShipController : null;
+        internal static bool WheelJumpAllowed => WheelShip?.ControlWheels==true && !ToolbarWheel.QuickPending && !FloatingWindows.OwnsInput && !PlacementControls.Adjusting && !CockpitControls.Adjusting && !ThirdPersonView.Manipulating;
         public static bool Read(MyStringId action, MyControlStateType type) =>
             Main.VrActive && InputRouter.Gameplay && !Main.MenuOpen && frame.Read(action, type) && !Blocked(action) &&
             !(PlacementControls.ModDistanceScope && (action==MyControlsSpace.MOVE_FURTHER || action==MyControlsSpace.MOVE_CLOSER));
@@ -63,7 +65,7 @@ namespace SpaceEngineersVR.Player
             if (PlacementControls.BlockTool) MyCubeBuilder.Static?.InputLost();
             if (WasHeld(MyControlsSpace.PRIMARY_TOOL_ACTION)) owner?.EndShoot(MyShootActionEnum.PrimaryAction);
             if (WasHeld(MyControlsSpace.SECONDARY_TOOL_ACTION)) owner?.EndShoot(MyShootActionEnum.SecondaryAction);
-            if(WasHeld(MyControlsSpace.WHEEL_JUMP)) (owner as MyShipController)?.WheelJump(false);
+            if(WasHeld(MyControlsSpace.WHEEL_JUMP)) (owner as Sandbox.Game.Entities.Interfaces.IMyWheelControllableEntity)?.WheelJump(false);
             frame.Reset(); owner = null; wheelJumpHeld = false;
         }
     }

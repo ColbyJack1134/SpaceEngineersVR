@@ -68,8 +68,7 @@ namespace SpaceEngineersVR.Player.Components
                 if (!ReferenceEquals(inputOwner, MySession.Static.ControlledEntity)) StopInput();
                 inputOwner = MySession.Static.ControlledEntity;
                 DriveInput.Stop();
-                if(jumpOwner!=null && !NativeActions.WheelJumpAllowed)
-                { jumpOwner.WheelJump(false); jumpOwner=null; }
+                if(!keyboardOnly) WheelJump();
                 // A standing character watching a camera or remote feed still turns and steps with the player.
                 if(!RemoteView.Active || RemoteView.CharacterAnchor) BodyLocomotion.Update(Character);
 
@@ -169,7 +168,7 @@ namespace SpaceEngineersVR.Player.Components
         private void StopInput()
         {
             turnInput.Reset();
-            jumpOwner?.WheelJump(false); jumpOwner=null; stickSecondary.Block(); DriveInput.Stop();
+            jumpOwner?.WheelJumpFromOtherBlock(false); jumpOwner=null; stickSecondary.Block(); DriveInput.Stop();
             var controlled = inputOwner;
             if (hadControllerMovement)
             {
@@ -192,17 +191,21 @@ namespace SpaceEngineersVR.Player.Components
             secondaryTap.Update(false,false,true,System.DateTime.UtcNow);
         }
 
+        // MyShipController.WheelJump does nothing while a turret holds the seat's controller; WheelJumpFromOtherBlock works for both.
+        private void WheelJump()
+        {
+            var ship=NativeActions.WheelJumpAllowed ? NativeActions.WheelShip:null;
+            if(jumpOwner!=null && jumpOwner!=ship) { jumpOwner.WheelJumpFromOtherBlock(false); jumpOwner=null; }
+            if(ship==null) return;
+            jumpOwner=ship;
+            ship.WheelJumpFromOtherBlock(NativeActions.Read(Sandbox.Game.MyControlsSpace.WHEEL_JUMP,VRage.Input.MyControlStateType.PRESSED));
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void ControlShip(MyShipController home=null)
         {
             var controls = Controls.Static;
             var ship=home ?? (MyShipController)MySession.Static.ControlledEntity;
-            if(NativeActions.WheelJumpAllowed)
-            {
-                jumpOwner=ship;
-                ship.WheelJump(NativeActions.Read(Sandbox.Game.MyControlsSpace.WHEEL_JUMP,VRage.Input.MyControlStateType.PRESSED));
-            }
-            else if(jumpOwner!=null) { jumpOwner.WheelJump(false); jumpOwner=null; }
 
             Vector3 move=Vector3.Zero; Vector2 rotate=Vector2.Zero; float roll=0;
             bool controllerFlight=FlightAxes.ControllerInputAllowed(true,ThirdPersonView.Active || RemoteView.RemoteGrid && RemoteView.HomeSeat==null,Common.Config.PhysicalShipControlsOnly);

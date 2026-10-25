@@ -379,7 +379,9 @@ namespace SpaceEngineersVR.Player
             var jump=InputRouter.Flying ? c.FlightJump:c.JumpOrClimbUp;
             bool character=InputRouter.Gameplay && InputRouter.Mode!=InputMode.Piloting &&
                 MySession.Static?.ControlledEntity==MySession.Static?.LocalCharacter;
-            bool flight=InputRouter.Flying && InputRouter.Gameplay && !RemoteView.Turret;
+            // MyLargeTurretBase.EnabledDamping is always false, so auto dampeners from a turret would toggle the seat's dampeners.
+            bool turret=RemoteView.Turret;
+            bool flight=InputRouter.Flying && InputRouter.Gameplay && (!turret || RemoteView.Previous is MyShipController);
             bool alternate=character && InputRouter.Flying &&
                 !ArthurLcdBridge.Owns(Handedness.ActionHand) && (c.ThrustRoll.RawPressed || c.ActionGripPressure.RawPosition.X>.55f);
             var now=DateTime.UtcNow;
@@ -389,9 +391,9 @@ namespace SpaceEngineersVR.Player
             {
                 int taps=dampenerTap.Update(flight,jump.HasPressed,jump.IsPressed,flight && jumpHold.Tapped,now);
                 if(taps==1) Execute(Dampeners);
-                else if(taps==2) Execute(RelativeDampeners);
+                else if(taps==2 && !turret) Execute(RelativeDampeners);
             }
-            if(dampenerHold.Update(InputRouter.Gameplay,c.Dampener.HasPressed,c.Dampener.IsPressed,now)) Execute(RelativeDampeners);
+            if(dampenerHold.Update(InputRouter.Gameplay,c.Dampener.HasPressed,c.Dampener.IsPressed,now)) { if(!turret) Execute(RelativeDampeners); }
             else if(dampenerHold.Tapped) Execute(Dampeners);
             HandInteraction.UpdateSupportUse();
             bool interact=c.Interact.HasPressed && !ArthurLcdBridge.Owns(Player.HandR);
