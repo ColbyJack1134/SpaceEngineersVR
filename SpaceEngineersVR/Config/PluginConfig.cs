@@ -108,6 +108,9 @@ namespace SpaceEngineersVR.Config
         public bool HudWithVisorOpen { get => hudWithVisorOpen; set => SetValue(ref hudWithVisorOpen,value); }
         private bool reduceScreenEffects=true;
         public bool ReduceScreenEffects { get => reduceScreenEffects; set => SetValue(ref reduceScreenEffects,value); }
+        private bool visorDust,hideDustWithVisorOpen=true;
+        public bool VisorDust { get => visorDust; set => SetValue(ref visorDust,value); }
+        public bool HideDustWithVisorOpen { get => hideDustWithVisorOpen; set => SetValue(ref hideDustWithVisorOpen,value); }
         public bool ShowVitals { get => showVitals ?? helmetHudMode>0; set => SetValue(ref showVitals,(bool?)value); }
         public int WaypointMode { get => waypointMode<0 ? Math.Max(0,helmetHudMode-1):waypointMode; set => SetValue(ref waypointMode,Math.Max(0,Math.Min(2,value))); }
         private bool signalEdges=true,signalRings=true,showGps=true,showContacts=true,showResources=true;

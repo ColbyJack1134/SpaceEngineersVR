@@ -105,25 +105,34 @@ namespace SpaceEngineersVR.GUI
                     Reset(()=> { c.WarningPulse=true; c.WarningPulseInterval=Config.PluginConfig.DefaultWarningPulseInterval; });
                     break;
                 case "HUD visibility":
-                    Toggle(-.23f,"Show HUD with visor open",c.HudWithVisorOpen,v=>c.HudWithVisorOpen=v);
-                    Toggle(-.12f,"Ship crosshair",c.ShipCrosshair,v=>c.ShipCrosshair=v);
-                    Toggle(-.01f,"Block info without grip",c.InspectWithoutGrip,v=>c.InspectWithoutGrip=v);
-                    Slider(.10f,"Crosshair size",c.CrosshairScale,.2f,v=>c.CrosshairScale=v,100,Config.PluginConfig.DefaultCrosshairScale);
-                    Toggle(.24f,"Reduce screen effects",c.ReduceScreenEffects,v=>c.ReduceScreenEffects=v);
+                    Toggle(-.26f,"Show HUD with visor open",c.HudWithVisorOpen,v=>c.HudWithVisorOpen=v);
+                    Toggle(-.185f,"Ship crosshair",c.ShipCrosshair,v=>c.ShipCrosshair=v);
+                    Toggle(-.11f,"Block info without grip",c.InspectWithoutGrip,v=>c.InspectWithoutGrip=v);
+                    Slider(-.035f,"Crosshair size",c.CrosshairScale,.2f,v=>c.CrosshairScale=v,100,Config.PluginConfig.DefaultCrosshairScale);
+                    Toggle(.10f,"Reduce screen effects",c.ReduceScreenEffects,v=>c.ReduceScreenEffects=v);
+                    Action<bool> hideDust=null;
+                    Toggle(.175f,"Visor dust",c.VisorDust,v=> { c.VisorDust=v; hideDust(v); });
+                    hideDust=Toggle(.25f,"Hide dust with visor open",c.HideDustWithVisorOpen,v=>c.HideDustWithVisorOpen=v,.03f);
+                    hideDust(c.VisorDust);
                     break;
             }
             Controls.Add(new MyGuiControlButton(new Vector2(.18f,.34f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
         }
-        private void Label(float y,string text,float scale=.75f) => Controls.Add(new MyGuiControlLabel(new Vector2(-.3f,y),text:text,textScale:scale,originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER));
-        private void Toggle(float y,string text,bool value,Action<bool> store)
+        private MyGuiControlLabel Label(float y,string text,float scale=.75f,float indent=0)
         {
-            Label(y,text); var check=new MyGuiControlCheckbox(new Vector2(.29f,y)) { IsChecked=value };
+            var label=new MyGuiControlLabel(new Vector2(-.3f+indent,y),text:text,textScale:scale,originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER);
+            Controls.Add(label); return label;
+        }
+        private Action<bool> Toggle(float y,string text,bool value,Action<bool> store,float indent=0)
+        {
+            var label=Label(y,text,indent:indent);
+            var check=new MyGuiControlCheckbox(new Vector2(.29f,y)) { IsChecked=value };
             check.IsCheckedChanged+=v=>store(v.IsChecked); Controls.Add(check);
+            return enabled=>label.Enabled=check.Enabled=enabled;
         }
         private void Range(float y,string text,float value,Action<float> store)
         {
-            var label=new MyGuiControlLabel(new Vector2(-.3f,y),text:text,textScale:.7f,originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER);
-            Controls.Add(label);
+            var label=Label(y,text,.7f);
             Action<float> caption=v=>label.Text=text+": "+Player.WorldMarkers.Distance(Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.Denormalize(v));
             caption(value);
             var slider=new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:0,maxValue:1,width:.53f,defaultValue:1) { Value=value };

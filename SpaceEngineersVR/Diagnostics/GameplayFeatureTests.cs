@@ -77,17 +77,23 @@ namespace SpaceEngineersVR.Diagnostics
             foreach(var profile in WeaponProfile.All)
                 if((profile.Kind==ItemKind.Rifle || profile.Kind==ItemKind.Launcher || profile.Kind==ItemKind.Pistol)!=profile.Sight.HasValue || profile.Sight.HasValue && (profile.Sight.Value.Y<=profile.Muzzle.Y || profile.Mirror.Sight!=profile.Sight || profile.Mirror.SightDirection!=profile.SightDirection || Math.Abs(profile.SightDirection.Length()-1)>1e-5f))
                     throw new Exception("Sight line missing, below the barrel or lost in the mirrored profile: "+profile.Item);
-            var definition=VRageRender.MyPostprocessSettings.Default; definition.Data.ChromaticFactor=.02f; definition.Data.VignetteStart=.9f; definition.Data.BloomDirtRatio=.75f;
+            var definition=VRageRender.MyPostprocessSettings.Default; definition.Data.ChromaticFactor=.02f; definition.Data.VignetteStart=.9f; definition.Data.BloomDirtRatio=.75f; definition.Data.BloomMult=.02f;
+            Func<VRageRender.MyPostprocessSettings,float> clean=v=>v.Data.BloomMult*(1-v.Data.BloomDirtRatio);
             var settings=definition;
             ScreenEffects.Apply(ref settings,definition,true,0);
-            if(settings.Data.ChromaticFactor!=0 || settings.Data.VignetteStart!=0 || settings.Data.BloomDirtRatio!=0) throw new Exception("Screen effects not reduced");
+            if(settings.Data.ChromaticFactor!=0 || settings.Data.VignetteStart!=0 || settings.Data.BloomDirtRatio!=0 || Math.Abs(clean(settings)-.005f)>1e-6f) throw new Exception("Screen effects not reduced or open-visor bloom changed");
             ScreenEffects.Apply(ref settings,definition,true,1);
-            if(settings.Data.ChromaticFactor!=0 || settings.Data.BloomDirtRatio!=.75f) throw new Exception("Closed visor did not restore the dirt texture");
+            if(settings.Data.ChromaticFactor!=0 || settings.Data.BloomDirtRatio!=.75f || settings.Data.BloomMult!=.02f) throw new Exception("Closed visor did not restore the dirt texture and bloom");
             ScreenEffects.Apply(ref settings,definition,true,.5f);
-            if(Math.Abs(settings.Data.BloomDirtRatio-.375f)>1e-6f) throw new Exception("Dirt does not follow the visor animation");
+            if(Math.Abs(settings.Data.BloomDirtRatio-.375f)>1e-6f || Math.Abs(clean(settings)-.005f)>1e-6f) throw new Exception("Dirt does not follow the visor animation or bloom changed mid-animation");
             settings=definition; ScreenEffects.Apply(ref settings,definition,false,0);
-            if(settings.Data.ChromaticFactor!=.02f || settings.Data.VignetteStart!=.9f || settings.Data.BloomDirtRatio!=.75f) throw new Exception("Disabled screen effects changed settings");
-            log("PASS aiming and screen effects: sight-line detection with hysteresis, sighted shots converge on the sight line, sight profiles; effects follow VR, option and visor closure");
+            if(settings.Data.ChromaticFactor!=.02f || settings.Data.VignetteStart!=.9f || settings.Data.BloomDirtRatio!=0 || Math.Abs(clean(settings)-.005f)>1e-6f) throw new Exception("Dust removal depends on the screen effects option");
+            settings=definition; ScreenEffects.Apply(ref settings,definition,false,1);
+            if(settings.Data.ChromaticFactor!=.02f || settings.Data.VignetteStart!=.9f || settings.Data.BloomDirtRatio!=.75f || settings.Data.BloomMult!=.02f) throw new Exception("Disabled screen effects changed settings");
+            var allDirt=definition; allDirt.Data.BloomDirtRatio=1.2f;
+            settings=allDirt; ScreenEffects.Apply(ref settings,allDirt,true,.5f);
+            if(settings.Data.BloomMult<0 || settings.Data.BloomDirtRatio>1) throw new Exception("Out-of-range dirt ratio produced invalid bloom");
+            log("PASS aiming and screen effects: sight-line detection with hysteresis, sighted shots converge on the sight line, sight profiles; effects follow VR, option and visor closure; dust independent of the option with bloom held at the closed level");
         }
         public static void Run(Action<string> log,string output=null)
         {
