@@ -3,7 +3,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Player.Control
 {
-    // Right stick down crouches, up stands and then jumps, plus automatic crouch from real head height. All heights are metres below standing eye height.
+    // Right stick down crouches, up stands or reports a jump push, plus automatic crouch from real head height. All heights are metres below standing eye height.
     internal sealed class CrouchControl
     {
         public const float StickPress=.7f,StickRelease=.3f,CrouchAt=.7f,StandAt=.4f;

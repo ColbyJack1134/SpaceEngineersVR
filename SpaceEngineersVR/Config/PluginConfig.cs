@@ -103,6 +103,8 @@ namespace SpaceEngineersVR.Config
         public bool SnapTurn { get => snapTurn; set => SetValue(ref snapTurn,value); }
         private float snapTurnAngle=30;
         public float SnapTurnAngle { get => snapTurnAngle; set => SetValue(ref snapTurnAngle,Bound(value,15,90,30)); }
+        private bool stickJump;
+        public bool StickJump { get => stickJump; set => SetValue(ref stickJump,value); }
         public bool HudWithVisorOpen { get => hudWithVisorOpen; set => SetValue(ref hudWithVisorOpen,value); }
         private bool reduceScreenEffects=true;
         public bool ReduceScreenEffects { get => reduceScreenEffects; set => SetValue(ref reduceScreenEffects,value); }
