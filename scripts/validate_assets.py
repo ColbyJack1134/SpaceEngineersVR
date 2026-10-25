@@ -101,10 +101,11 @@ def validate(binding, name):
     assert "/actions/common/in/jetpack" in common_outputs, f"Inventory chord unavailable in {name}"
     wheel = {(s["path"], key) for s in common for key, v in s["inputs"].items()
              if v["output"].lower().endswith(("/quickmenu", "/actionswheel"))}
-    keyboard = {(s["path"], key) for s in menu for key, v in s["inputs"].items()
-                if v["output"].lower().endswith("/keyboardfallback")}
     assert wheel, f"Action wheel unbound in {name}"
-    assert wheel == keyboard, f"Wheel/menu button differs in {name}"
+    assert any(v["output"].lower().endswith("/keyboardfallback") for s in menu for v in s["inputs"].values()), f"Keyboard unbound in {name}"
+    # The menu set may share the wheel button only with the keyboard, which no wheel reads.
+    taken = {v["output"].lower() for s in menu for key, v in s["inputs"].items() if (s["path"], key) in wheel}
+    assert all(output.endswith("/keyboardfallback") for output in taken), f"Menu action on the wheel button in {name}"
 
 
 def validate_device(binding, profile, name):

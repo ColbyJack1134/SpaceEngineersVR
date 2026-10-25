@@ -115,7 +115,7 @@ namespace SpaceEngineersVR.Player
                     else if (MenuKeyboard.IsOpen) MenuKeyboard.Close();
                     else Key(27);
                 }
-                if (controls.Jetpack.HasPressed) MenuKeyboard.Open();
+                if (controls.Jetpack.HasPressed && !MenuKeyboard.IsOpen) InventoryDrop.TryThrow();
                 if (controls.MenuKeyboardFallback.HasPressed) MenuKeyboard.Open(true);
                 if (controls.Interact.HasPressed && !MenuKeyboard.IsOpen) Key(13);
 
@@ -143,7 +143,10 @@ namespace SpaceEngineersVR.Player
             bool menu=pointer.Left ? leftGrip.Pressed:controls.Secondary.HasPressed;
             bool menuHeld=pointer.Left ? leftGrip.Held:controls.Secondary.IsPressed;
             if(!held && DateTime.UtcNow<mouseUntil && !click) { Modifiers(false,false); return; }
-            if (!Components.VRGUIManager.TryPanelHit(MenuHands.PointerTracking(false,hand),out Vector2 uv))
+            // A drag carried past the panel stays held at its edge, as the desktop cursor stops at the window edge.
+            var tip=MenuHands.PointerTracking(false,hand);
+            if (!Components.VRGUIManager.TryPanelHit(tip,out Vector2 uv) &&
+                !(held && InventoryDrop.Dragging(Components.VRGUIManager.TopScreen) && Components.VRGUIManager.TryPanelHit(tip,out uv,true)))
             { ReleaseMouse(); Modifiers(false,false); return; }
             if (!GetClientRect(window,out Rect rect)) { ReleaseMouse(); Modifiers(false,false); return; }
             var point=new Point { X=(int)(uv.X*(rect.Right-rect.Left-1)),Y=(int)(uv.Y*(rect.Bottom-rect.Top-1)) };

@@ -383,8 +383,13 @@ namespace SpaceEngineersVR.Diagnostics
             hand.Translation=new Vector3(-1.2f,1.675f,0);
             if (!VrMath.PanelHit(hand,panel,2.4f,1.35f,out uv)) throw new Exception("panel corner miss");
             Near(uv.X,0,"panel left"); Near(uv.Y,0,"panel top");
+            hand.Translation=new Vector3(2,1.2f,0);
+            if(VrMath.PanelHit(hand,panel,2.4f,1.35f,out uv)) throw new Exception("ray beside the panel accepted");
+            if(!VrMath.PanelHit(hand,panel,2.4f,1.35f,out uv,true)) throw new Exception("edge projection missed the panel plane");
+            Near(uv.X,1,"panel edge x"); Near(uv.Y,0.5f-0.2f/1.35f,"panel edge y");
             hand=Matrix.CreateRotationY(MathHelper.Pi); hand.Translation=new Vector3(0,1,0);
             if(VrMath.PanelHit(hand,panel,2.4f,1.35f,out uv)) throw new Exception("backward ray accepted");
+            if(VrMath.PanelHit(hand,panel,2.4f,1.35f,out uv,true)) throw new Exception("backward ray reached the panel edge");
             log("PASS directional locomotion and panel pointer projection");
 
             Type environment=AccessTools.TypeByName("VRageRender.MyEnvironment");

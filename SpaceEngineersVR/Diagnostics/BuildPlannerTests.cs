@@ -41,6 +41,10 @@ namespace SpaceEngineersVR.Diagnostics
                 var native=(Delegate)AccessTools.Field(typeof(BuildPlannerActions),field).GetValue(null);
                 Require(native.Method.DeclaringType.Assembly==typeof(MyWelder).Assembly,"Planner operation no longer delegates to the installed game");
             }
+            foreach(string field in new[] {"tabs","controller","throwOut"})
+                Require(AccessTools.Field(typeof(InventoryDrop),field).GetValue(null)!=null,"Terminal throw out member missing: "+field);
+            var dropCalls=PatchProcessor.GetOriginalInstructions(AccessTools.Method(BuildPlannerActions.InventoryController,"dragDrop_OnItemDropped"));
+            Require(dropCalls.Any(i=>i.operand is System.Reflection.MethodInfo method && method.Name=="IsEmptySpace"),"Native inventory no longer throws items dropped outside the controls");
             var welderCalls=PatchProcessor.GetOriginalInstructions(AccessTools.Method(typeof(MyWelder),"AddMissingComponentsToBuildPlanner"));
             Require(welderCalls.Any(i=>i.operand is System.Reflection.MethodInfo method && method.Name=="GetMissingComponents"),"Native welder no longer calculates missing components");
             var steel=new MyComponentDefinition {Id=new MyDefinitionId(typeof(MyObjectBuilder_Component),"SteelPlate"),MaxIntegrity=100};

@@ -118,7 +118,8 @@ namespace SpaceEngineersVR.Player
         {
             return Vector3.TransformNormal(move,Matrix.CreateRotationY(PlanarYaw(forward)));
         }
-        public static bool PanelHit(Matrix hand, Matrix panel, float width, float height, out Vector2 uv)
+        // With edge set, a ray that meets the panel plane outside the panel reports the nearest edge point.
+        public static bool PanelHit(Matrix hand, Matrix panel, float width, float height, out Vector2 uv, bool edge=false)
         {
             Matrix local=hand*Matrix.Invert(panel);
             uv=Vector2.Zero;
@@ -127,6 +128,7 @@ namespace SpaceEngineersVR.Player
             if (distance>10) return false;
             Vector3 hit=local.Translation+local.Forward*distance;
             uv=new Vector2(hit.X/width+0.5f,0.5f-hit.Y/height);
+            if (edge) { uv=Vector2.Clamp(uv,Vector2.Zero,Vector2.One); return true; }
             return uv.X>=0 && uv.X<=1 && uv.Y>=0 && uv.Y<=1;
         }
         // All tracking translations stay in small, local coordinates. World-space camera math is double precision.

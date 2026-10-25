@@ -21,11 +21,11 @@ namespace SpaceEngineersVR.Player
         // Native feedback and partial-withdrawal handling are private to the gameplay screen.
         private static readonly Action<MyEntity,MyInventory,int?> withdraw=(Action<MyEntity,MyInventory,int?>)Delegate.CreateDelegate(
             typeof(Action<MyEntity,MyInventory,int?>),AccessTools.Method(typeof(MyGuiScreenGamePlay),"ProcessWithdraw"));
-        private static readonly Type inventoryController=typeof(MyGuiScreenGamePlay).Assembly.GetType("Sandbox.Game.Gui.MyTerminalInventoryController",true);
+        internal static readonly Type InventoryController=typeof(MyGuiScreenGamePlay).Assembly.GetType("Sandbox.Game.Gui.MyTerminalInventoryController",true);
         private static readonly Func<MyEntity,int?,int> production=(Func<MyEntity,int?,int>)Delegate.CreateDelegate(
-            typeof(Func<MyEntity,int?,int>),AccessTools.Method(inventoryController,"AddComponentsToProduction",new[] {typeof(MyEntity),typeof(int?)}));
+            typeof(Func<MyEntity,int?,int>),AccessTools.Method(InventoryController,"AddComponentsToProduction",new[] {typeof(MyEntity),typeof(int?)}));
         private static readonly Func<MyInventory,MyEntity,int> deposit=(Func<MyInventory,MyEntity,int>)Delegate.CreateDelegate(
-            typeof(Func<MyInventory,MyEntity,int>),AccessTools.Method(inventoryController,"DepositAll"));
+            typeof(Func<MyInventory,MyEntity,int>),AccessTools.Method(InventoryController,"DepositAll"));
         internal static readonly ActionChoice[] Shortcuts=InventoryChoices(()=>true,RunInventory);
 
         internal static bool InventoryTarget(IMyUseObject target) => target is MyUseObjectBase use &&

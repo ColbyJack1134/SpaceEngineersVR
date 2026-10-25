@@ -27,14 +27,14 @@ namespace SpaceEngineersVR.Player.Components
         private static readonly object panelLock = new object();
         private static Matrix panelPose;
         private static float panelHeight,panelWidth=MenuWindow.DefaultHeight*16/9;
-        public static bool TryPanelHit(Matrix hand, out Vector2 uv)
+        public static bool TryPanelHit(Matrix hand, out Vector2 uv, bool edge=false)
         {
             lock(panelLock)
             {
                 uv=Vector2.Zero;
                 var current=FloatingMenu.Current;
-                return panelHeight>0 && (current!=null ? VrMath.PanelHit(hand,current.Pose,current.Width,current.Height,out uv) :
-                    VrMath.PanelHit(hand,panelPose,panelWidth,panelHeight,out uv));
+                return panelHeight>0 && (current!=null ? VrMath.PanelHit(hand,current.Pose,current.Width,current.Height,out uv,edge) :
+                    VrMath.PanelHit(hand,panelPose,panelWidth,panelHeight,out uv,edge));
             }
         }
         public static float PointerDistance(Matrix aim)
