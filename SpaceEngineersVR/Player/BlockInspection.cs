@@ -24,13 +24,21 @@ namespace SpaceEngineersVR.Player
         private static readonly System.Reflection.FieldInfo markTime=AccessTools.Field(typeof(MyEngineerToolBase),"m_lastMarkTime"),marked=AccessTools.Field(typeof(MyEngineerToolBase),"m_markedComponent");
         public static SurfaceView Current { get; private set; }
         public static bool ConsumesSecondary { get; private set; }
+        // Direction from the finger to the card along the head's right axis.
+        internal static int Side { get; private set; }=-1;
         internal static bool Visible(bool grip,bool automatic) => grip!=automatic;
         public static void Reset() { Current=null; previous=null; shown=default(MyDefinitionId); changes=default((long,int,int,bool)); next=DateTime.MinValue; ConsumesSecondary=false; NativeBlockInfo.Hide(); }
         public static void Update()
         {
+            inspected=null;
             Inspect();
             if(Current==null) NativeBlockInfo.Hide();
+#if SEVR_DIAGNOSTICS
+            inspected=inspected ?? Diagnostics.BuildInfoProbe.Inspected;
+#endif
+            Patches.BuildInfoBridge.Inspect(inspected);
         }
+        private static MySlimBlock inspected;
         private static void Inspect()
         {
             Current=null; ConsumesSecondary=false;
@@ -79,10 +87,12 @@ namespace SpaceEngineersVR.Player
             }
             var head=SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix);
             var pixels=NativeBlockInfo.Pixels(info.Components.Count);
-            Current=new SurfaceView { Id="Block inspection",Style=SurfaceStyle.BlockInfo,Title=definition.DisplayNameText,Text=Key(block ?? projected,definition),
-                Width=Width,Height=Width*pixels.Y/pixels.X,Pose=CockpitTouch.LabelPose(head,finger.Translation,Width,hand==Player.HandR ? -1:1) };
+            Side=hand==Player.HandR ? -1:1;
+            if(!tool && !PlacementControls.OwnsTools) inspected=block ?? projected;
+            Current=new SurfaceView { Id="Block inspection",Style=SurfaceStyle.BlockInfo,Title=definition.DisplayNameText,Text=Key(block ?? projected,definition),Handle=info.Components.Count,
+                Width=Width,Height=Width*pixels.Y/pixels.X,Pose=CockpitTouch.LabelPose(head,finger.Translation,Width,Side) };
         }
-        private const float Width=.16f;
+        internal const float Width=.16f;
         // MyEngineerToolBase keeps the component a failed weld could not find for 2.5 s.
         private static int Marked(MyEngineerToolBase tool)
         {
@@ -101,6 +111,7 @@ namespace SpaceEngineersVR.Player
             target.BlockIntegrity=.01f; target.MissingComponentIndex=0; target.ShowComponentLoss=false;
         }
         private static MySlimBlock Target(LineD ray) => Target(ray,out _);
+        internal static MySlimBlock Pointed() => HandInteraction.TryInteractionRay(out var ray) ? Target(ray) : null;
         internal static MySlimBlock Target(LineD ray,out Vector3D point)
         {
             var character=MySession.Static.LocalCharacter;
@@ -127,7 +138,10 @@ namespace SpaceEngineersVR.Player
             canvas.ClearTexture();
             // Never show the previous target's capture.
             if(NativeBlockInfo.View!=null && NativeBlockInfo.Captured==view.Text)
+            {
                 NativeSprites.Draw(canvas.Texture,new[] {new NativeSprite(null,new VRageMath.RectangleF(0,0,canvas.Width,canvas.Height),Vector4.One) {Texture=NativeBlockInfo.View,EncodeSrgb=true,Premultiplied=true}});
+                CardAdditions.Draw(canvas.Texture,view.Text,view.Handle);
+            }
         }
     }
 }

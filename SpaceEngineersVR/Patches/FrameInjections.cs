@@ -69,6 +69,7 @@ namespace SpaceEngineersVR.Patches
             using (var target = new SharpDX.Direct3D11.RenderTargetView(Wrappers.MyRender11.DeviceInstance, source))
                 Wrappers.MyRender11.DeviceInstance.ImmediateContext.ClearRenderTargetView(target,
                     new SharpDX.Mathematics.Interop.RawColor4(0.025f, 0.035f, 0.05f, 1));
+            Player.MenuHudLayer.Draw(source);
         }
         private static void BeforePresent()
         {
@@ -90,6 +91,9 @@ namespace SpaceEngineersVR.Patches
                 Player.EssentialHud.Draw();
                 Player.HelmetHud.DrawTransition();
                 Player.BuildOrientationHud.Draw();
+#if SEVR_DIAGNOSTICS
+                Diagnostics.BuildInfoProbe.Render();
+#endif
                 Player.PerformanceHud.Draw();
                 if (!drewStereo) VRGUIManager.SubmitMenuBackground();
                 Player.GpuTiming.End(Player.GpuTiming.Area.Hud);

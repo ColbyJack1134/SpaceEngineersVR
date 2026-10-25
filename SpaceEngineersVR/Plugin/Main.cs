@@ -45,10 +45,12 @@ namespace SpaceEngineersVR.Plugin
             weaponCore=new Integration("WeaponCore",Player.WeaponCoreIntegration.Reset,Player.WeaponCoreIntegration.Refresh,Player.WeaponCoreIntegration.Update),
             shields=new Integration("Defense Shields",Player.ShieldsIntegration.Reset,Player.ShieldsIntegration.Refresh,Player.ShieldsIntegration.Update),
             pbFeed=new Integration("Programmable block VR data",PbFeed.Reset,PbFeed.Refresh,PbFeed.Update),
-            paintGun=new Integration("Paint Gun",Patches.PaintGunPatches.Reset,Patches.PaintGunPatches.RefreshRegistrations,Player.PaintGun.Update);
+            paintGun=new Integration("Paint Gun",Patches.PaintGunPatches.Reset,Patches.PaintGunPatches.RefreshRegistrations,Player.PaintGun.Update),
+            buildInfo=new Integration("Build Info",Patches.BuildInfoBridge.Reset,Patches.BuildInfoBridge.RefreshRegistrations,Patches.BuildInfoBridge.SyncPage);
         internal static readonly Integration[] Integrations={touchScreens,arthurLcd,weaponCore,shields,pbFeed,paintGun,
             new Integration("Mod HUD",Patches.ModHud.Reset,Patches.ModHud.RefreshRegistrations),
             new Integration("Voxel tool mods",Patches.DigiTools.Reset,Patches.DigiTools.RefreshRegistrations),
+            buildInfo,
             new Integration("Mod API",ModApi.Reset,ModApi.Refresh)};
         private static int recoveryAttempts;
         private static DateTime recoveredAt;
@@ -393,6 +395,7 @@ namespace SpaceEngineersVR.Plugin
             Player.RemoteView.Update();
             Player.DesktopWindow.Update();
             foreach(var integration in Integrations) integration.Refresh();
+            Player.MenuHudLayer.Publish();
             Player.CockpitTouch.BeginFrame();
             Player.CockpitButtons.Update();
             Player.SpatialUi.Update();
@@ -403,9 +406,13 @@ namespace SpaceEngineersVR.Plugin
             Player.SpectatorView.UpdateGestures();
             Player.HandGrab.Update();
             Player.BlockInspection.Update();
+#if SEVR_DIAGNOSTICS
+            Diagnostics.BuildInfoProbe.Update();
+#endif
             Player.DampenerTargeting.Update();
             Player.GridSelection.Update();
             weaponCore.Update();
+            buildInfo.Update();
             shields.Update();
             Player.ToolbarWheel.Update();
             Player.QuickToolbar.Update();

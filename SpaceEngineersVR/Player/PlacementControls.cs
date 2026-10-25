@@ -39,6 +39,10 @@ namespace SpaceEngineersVR.Player
         private static bool cancelRotation;
         internal static bool HoldingPose { get; private set; }
         [ThreadStatic] internal static bool EditingDistance;
+        // Mods that move the distance themselves (Build Info in survival) apply this factor instead of reading the move pulses.
+        [ThreadStatic] internal static bool ModDistanceScope;
+        internal static float ModDistanceStep { get; private set; }=1;
+        internal static bool NativeMovesDistance => Creative && !(MySession.Static?.ControlledEntity is MyShipController);
 
         // Rotate mode: a right grip tap lets the sticks rotate the preview, so a held grip still rolls in flight.
         // The optional hold mode rotates only while the grip is held; grip + trigger still removes.
@@ -52,7 +56,7 @@ namespace SpaceEngineersVR.Player
         {
             var now=DateTime.UtcNow;
             elapsed=(float)Math.Max(0,Math.Min(.05,(now-sampled).TotalSeconds)); sampled=now;
-            distanceFactor=1.1f;
+            distanceFactor=1.1f; ModDistanceStep=1;
             var c=Controls.Static;
             var hand=Handedness.ActionHand;
             bool grip=c.ActionGripClick.IsPressed && !(hand==Player.HandR ? CockpitControls.RotationOwned:(CockpitControls.Adjusting || CockpitControls.Held(hand))) && !CockpitTouch.Owns(hand) &&
@@ -112,9 +116,11 @@ namespace SpaceEngineersVR.Player
             bool continuous=Mode==InputMode.Clipboard ? index==3 || GridClipboardActive && clipboard!=null && (clipboard.EnableStationRotation && !clipboard.IsSnapped || clipboard.EnablePreciseRotationWhenSnapped) :
                 Sandbox.Game.Entities.MyCubeBuilder.Static?.DynamicMode==true;
             if(index==3 && continuous) distanceFactor=DistanceStep(value,elapsed);
-            if(AxisDue(ref repeat[index],value,continuous,DateTime.UtcNow,index==3 ? DistanceRepeat:RotationRepeat))
-                NativeActions.Pulse(value>0 ? positive:negative);
+            bool due=AxisDue(ref repeat[index],value,continuous,DateTime.UtcNow,index==3 ? DistanceRepeat:RotationRepeat);
+            if(index==3) ModDistanceStep=ModStep(value,continuous ? distanceFactor : due ? 1.1f : 1);
+            if(due) NativeActions.Pulse(value>0 ? positive:negative);
         }
+        internal static float ModStep(float axis,float magnitude) => magnitude==1 || float.IsNaN(axis) ? 1 : axis>0 ? magnitude : 1/magnitude;
         // DistanceStep is a magnitude; the native builder supplies direction by dividing for closer.
         internal static float AdjustFactor(float axis,float dt) => axis>0 ? DistanceStep(axis,dt):1/DistanceStep(axis,dt);
         internal static float NativeDistanceFactor(float original) => Adjusting ? distanceFactor : original;
@@ -234,6 +240,13 @@ namespace SpaceEngineersVR.Player
             finally { EditingDistance=previous; }
         }
         internal static bool BeginRawDistance() { bool previous=EditingDistance; EditingDistance=true; return previous; }
+        // Distance along the hand ray, whatever scope the caller is in.
+        internal static float HandRayDistance()
+        {
+            bool previous=EditingDistance; EditingDistance=false;
+            try { return MyBlockBuilderBase.IntersectionDistance; }
+            finally { EditingDistance=previous; }
+        }
         internal static double CreativeObserverDistance(double nativeDistance,double scale,double defaultDistance) =>
             Math.Min(20000,nativeDistance*scale/Math.Max(1,defaultDistance));
         internal static double ObserverDistance(double nativeDistance,double scale) => Math.Min(20000,Math.Max(nativeDistance,nativeDistance*scale));

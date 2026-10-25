@@ -296,6 +296,18 @@ namespace SpaceEngineersVR.Diagnostics
                         Enabled=Enumerable.Repeat(true,9).ToArray(),SubIcons=new string[9],ItemText=new string[9],Selected=0 };
                     Render(wheel,()=>ToolbarWheel.Paint(wheel,model));
                     Save(wheel.Texture,Path.Combine(output,"wheel-actions-preview.png"));
+                    var ship=new ToolbarWheel.View { Title="Toolbar 1/9",Hint=ToolbarWheel.ControlsHint,Group=0,Pages=9,Selected=2,
+                        Labels=new[] {"Gatling Gun","Assault Cannon","Autocannon","Drill","Assign slot","Assign slot","Assault Cannon","Assign slot","Assign slot","Unequip"},
+                        Icons=new[] {new[] {@"Textures\GUI\Icons\Cubes\gatling_gun.dds"},new[] {@"Textures\GUI\Icons\Cubes\missile_launcher.dds"},new[] {@"Textures\GUI\Icons\Cubes\gatling_gun.dds"},new[] {@"Textures\GUI\Icons\Cubes\drill.dds"},new string[0],new string[0],new[] {@"Textures\GUI\Icons\Cubes\missile_launcher.dds"},new string[0],new string[0],new string[0]},
+                        Enabled=Enumerable.Repeat(true,10).ToArray(),SubIcons=new string[10],ItemText=new[] {"2,400","Off · No fire · 1,240 · One","Fire · R:2.5s · 1,240 · All",null,null,null,"Off · No fire · 1,240 · One",null,null,null} };
+                    Render(wheel,()=>ToolbarWheel.Paint(wheel,ship));
+                    Save(wheel.Texture,Path.Combine(output,"wheel-toolbar-weapon-mode.png"));
+                    ship.Selected=1;
+                    Render(wheel,()=>ToolbarWheel.Paint(wheel,ship));
+                    Save(wheel.Texture,Path.Combine(output,"wheel-toolbar-weapon-mode-wrapped.png"));
+                    ship.Selected=6;
+                    Render(wheel,()=>ToolbarWheel.Paint(wheel,ship));
+                    Save(wheel.Texture,Path.Combine(output,"wheel-toolbar-weapon-mode-lower.png"));
                     var blockChoices=BlockActions.Choices(VRage.Game.Entity.UseObject.UseActionEnum.Manipulate|VRage.Game.Entity.UseObject.UseActionEnum.OpenTerminal,true,_=>true,_=>{});
                     var blockPages=ToolbarWheel.Layout(new[] {new ToolbarWheel.Group("Block actions",blockChoices),new ToolbarWheel.Group("Quick actions",GameActions.WheelActions(false,false,false))},out _,out _);
                     var blockPage=blockPages[0];
@@ -662,6 +674,19 @@ namespace SpaceEngineersVR.Diagnostics
                 WristPreview(device,canvas,wrist,output,"wrist-long-equipment-preview");
                 wrist.Status.Selected="Ship Welder"; wrist.Status.Icons=new[] {@"Textures\GUI\Icons\Cubes\Welder.dds"}; wrist.Status.Ammo=null;
                 WristPreview(device,canvas,wrist,output,"wrist-ship-tool-preview");
+                string drill=Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(typeof(Sandbox.MySandboxGame).Assembly.Location)))),"workshop","content","244850","514062285","Textures","ToolInventoryDrillIcon.dds");
+                if(File.Exists(drill))
+                {
+                    wrist.Status.ShipToolIcon=drill; wrist.Status.Inventory="46%"; wrist.Status.InventoryLevel=.46f;
+                    foreach(float fill in new[] {.45f,.85f})
+                    {
+                        wrist.Status.ShipToolLevel=fill; wrist.Status.ShipTool=Math.Round(fill*100)+"%";
+                        WristPreview(device,canvas,wrist,output,"wrist-ship-drill-"+Math.Round(fill*100)+"-preview");
+                    }
+                    wrist.Status.ShipToolIcon=drill.Replace("Drill","Grinder");
+                    WristPreview(device,canvas,wrist,output,"wrist-ship-grinder-preview");
+                    wrist.Status.ShipTool=null; wrist.Status.ShipToolIcon=null; wrist.Status.ShipToolLevel=0; wrist.Status.Inventory=null; wrist.Status.InventoryLevel=0;
+                }
                 wrist.Status.Notices=new[] {new Notice("This action is unavailable or access is denied.",NoticeStyle.Warning)};
                 WristPreview(device,canvas,wrist,output,"wrist-alert-preview");
                 wrist.Status.Notices=new Notice[0];

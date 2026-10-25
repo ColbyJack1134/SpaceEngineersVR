@@ -68,7 +68,7 @@ namespace SpaceEngineersVR.Player
                     int slot=i; var item=toolbar?.GetItemAtSlot(i);
                     keys.Add(new SurfaceKey(item?.DisplayName?.ToString() ?? "Assign slot",.02f+i%3*.325f,.16f+i/3*.215f,.31f,.20f) {
                         Icons=item?.Icons ?? new[] {GameActions.ConfigureToolbarAction.Icon},SubIcon=item?.SubIcon,
-                        Text=(i+1)+ (string.IsNullOrEmpty(item?.IconText?.ToString()) ? "":"  "+item.IconText),
+                        Text=(i+1)+ (string.IsNullOrEmpty(item?.IconText?.ToString()) ? "":"  "+Patches.BuildInfoBridge.StatusText(item.IconText.ToString())),
                         Enabled=toolbar!=null && (item==null || item.Enabled),Active=toolbar?.SelectedSlot==i,
                         Action=new ActionChoice("Toolbar slot",()=> {
                             if(!ReferenceEquals(toolbar,MyToolbarComponent.CurrentToolbar)) return;

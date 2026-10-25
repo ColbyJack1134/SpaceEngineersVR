@@ -59,6 +59,7 @@ namespace SpaceEngineersVR.Player
         private static string[] pageTitles;
         private static bool[] variantPages;
         public static bool QuickPending => Controls.Static.QuickMenu.RawPressed;
+        internal static bool ShowingToolbar => holder!=null && group==0;
         private static int iconRevision;
         private static object owner;
         private static MyToolbar toolbar;
@@ -206,6 +207,8 @@ namespace SpaceEngineersVR.Player
                     var weaponCore=symmetry ? Array.Empty<ActionChoice>() : GameActions.WeaponCoreWheelActions();
                     if(weaponCore.Length>0) groups.Add(new Group("WeaponCore",weaponCore));
                 }
+                var buildInfo=symmetry ? Array.Empty<ActionChoice>() : Patches.BuildInfoBridge.Actions();
+                if(buildInfo.Length>0) groups.Add(new Group("Build Info",buildInfo));
                 var recent=ActionCatalog.Recent();
                 if(MySession.Static.ControlledEntity is Sandbox.Game.Entities.MyShipController)
                     recent=recent.Where(action=>action!=GameActions.SymmetryAction && action!=GameActions.SymmetrySetupAction).ToArray();
@@ -227,6 +230,7 @@ namespace SpaceEngineersVR.Player
         internal static SlotResult SelectSlot(MyToolbar target,int slot,bool assign,Action<int> configure)
         {
             if(target==null) return SlotResult.Ignored;
+            if(!assign && Patches.BuildInfoBridge.TryPickSlot(slot,target.SlotCount)) return SlotResult.Activated;
             if(Holster(target,slot))
             {
                 // Assignment opens the configuration screen with no slot; the holster cannot hold an action.
@@ -268,7 +272,9 @@ namespace SpaceEngineersVR.Player
                     icons[i] = item==null && toolbar!=null ? new[] { GameActions.ConfigureToolbarAction.Icon } :
                         item?.Icons == null ? new string[0] : (string[])item.Icons.Clone();
                     subIcons[i] = item?.SubIcon;
-                    itemText[i] = item?.IconText?.ToString();
+                    itemText[i] = Patches.BuildInfoBridge.StatusText(item?.IconText?.ToString());
+                    string mode=toolbar?.SelectedSlot==i ? Patches.BuildInfoBridge.WeaponMode : null;
+                    if(mode!=null) itemText[i]=string.IsNullOrEmpty(itemText[i]) ? mode : itemText[i]+" · "+mode;
                     enabled[i] = toolbar!=null && (item==null || item.Enabled);
                 }
                 else
@@ -354,10 +360,21 @@ namespace SpaceEngineersVR.Player
                 }
                 // Anchor motion uses every predicted render pose; texture content can update at 10Hz.
                 MatrixD anchor=(MatrixD)HandPose((current.Group==1 ? Player.HandL:Player.HandR).RenderGripTracking,Player.Headset.renderPose.deviceToAbsolute.matrix)*trackingToWorld;
-                var sprite=Sprite(texture,anchor,viewMatrix,projection,current.Compact ? .40f:.52f);
-                NativeSprites.Draw(target,new[] { sprite },PhysicalSurface.SceneDepth());
+                float size=current.Compact ? .40f:.52f;
+                var sprites=new List<NativeSprite> { Sprite(texture,anchor,viewMatrix,projection,size) };
+                var info=BuildInfoPanel.Toolbar.Current;
+                if(current.Group==0 && BuildInfoPanel.Fresh(info,DateTime.UtcNow))
+                    sprites.Add(BuildInfoPanel.Toolbar.WorldQuad(target.Device,info,BelowRing(anchor,size,info.Height),viewMatrix,projection));
+                NativeSprites.Draw(target,sprites,PhysicalSurface.SceneDepth());
             }
             catch (Exception ex) { drawn = null; recovery.Fail(ex, "Toolbar wheel rendering disabled"); RenderRecovery.Quietly(() => canvas?.Hide()); }
+        }
+        // Centred below the painted ring, whose bottom is 895 of 1024 px.
+        internal static MatrixD BelowRing(MatrixD anchor,float size,float height)
+        {
+            var pose=anchor;
+            pose.Translation=anchor.Translation+anchor.Down*(size*383/1024+BuildInfoPanel.Gap+height/2);
+            return pose;
         }
         internal static NativeSprite Sprite(ShaderResourceView texture,MatrixD anchor,MatrixD view,MatrixD projection,float size=.52f)
         {
@@ -392,6 +409,9 @@ namespace SpaceEngineersVR.Player
             var widths=new float[count];
             var labelTops=new float[count];
             var labelFits=new bool[count];
+            var numbers=new PointF[count];
+            var itemFonts=new Font[count];
+            var itemBoxes=new System.Drawing.RectangleF[count];
             try
             {
                 float labelSize=font.Size;
@@ -405,10 +425,22 @@ namespace SpaceEngineersVR.Player
                     // Upper segments narrow toward the center, where their label sits; move the stack outward.
                     float x=512+(float)Math.Sin(angle)*ring,y=485-(float)Math.Cos(angle)*ring-24*(float)Math.Max(0,Math.Cos(angle));
                     centers[i]=new PointF(x,y);
-                    // Native item text (weapon ammo "0 • 20x") gets its own line under the icon; the label follows it.
-                    labelTops[i]=y+(string.IsNullOrEmpty(current.ItemText[i]) ? 38:62);
+                    // Slot numbers sit near the rim on the counterclockwise side, inside the segment at every angle.
+                    double number=angle-degrees*Math.PI/180*.32;
+                    numbers[i]=new PointF(512+(float)Math.Sin(number)*378,485-(float)Math.Cos(number)*378);
+                    // Native item text (weapon ammo "0 • 20x") gets its own lines under the icon, wrapping before it gets small; the label follows it.
+                    float itemHeight=0;
+                    string item=current.ItemText[i];
+                    if(!string.IsNullOrEmpty(item))
+                    {
+                        float one=SectorSpan(sector,x,y+40,y+60),two=SectorSpan(sector,x,y+40,y+84);
+                        if(TextFit.TryFont(g,item,font,one,1,17,out itemFonts[i])) itemHeight=24;
+                        else { itemHeight=48; itemFonts[i]=TextFit.Font(g,item,font,two,2,14); one=two; }
+                        itemBoxes[i]=new System.Drawing.RectangleF(x-one/2,y+38,one,itemHeight);
+                    }
+                    labelTops[i]=y+38+itemHeight;
                     widths[i]=SectorSpan(sector,x,labelTops[i]+13,labelTops[i]+41);
-                    if(ShowsLabel(current,i) && (labelFits[i]=TextFit.TryFont(g,current.Labels[i],font,widths[i],2,15,out var fitted)))
+                    if(ShowsLabel(current) && (labelFits[i]=TextFit.TryFont(g,current.Labels[i],font,widths[i],2,15,out var fitted)))
                         labelSize=Math.Min(labelSize,fitted.Size);
                 }
                 // One size for every segment keeps the ring even.
@@ -420,24 +452,24 @@ namespace SpaceEngineersVR.Player
                     if(i==current.Selected) using(var outline=new Pen(Color.Cyan,3)) g.DrawPath(outline,sectors[i]);
                     foreach(string icon in current.Icons[i]) target.Icon(icon,x-56,y-68,112,current.Enabled[i]);
                     if(current.SubIcons[i]!=null) target.Icon(current.SubIcons[i],x+24,y+2,40,current.Enabled[i]);
-                    g.DrawString((i+1).ToString(),font,Brushes.LightGray,x-72,y-64);
+                    // Toolbar slots carry their key number; the tenth slot is key 0.
+                    if(current.Group==0 && !current.Variants)
+                        g.DrawString(((i+1)%10).ToString(),font,Brushes.LightGray,new System.Drawing.RectangleF(numbers[i].X-20,numbers[i].Y-14,40,28),centered);
                     var labelBrush=current.Enabled[i] ? Brushes.White:Brushes.Gray;
-                    if(ShowsLabel(current,i) && labelFits[i])
+                    if(ShowsLabel(current) && labelFits[i])
                         g.DrawString(current.Labels[i],labelFont,labelBrush,new System.Drawing.RectangleF(x-widths[i]/2,labelTops[i],widths[i],54),centered);
                     // The center already names the selected item; others shorten rather than break a word.
-                    else if(ShowsLabel(current,i) && i!=current.Selected)
+                    else if(ShowsLabel(current) && i!=current.Selected)
                         g.DrawString(current.Labels[i],TextFit.Sized(font,15),labelBrush,new System.Drawing.RectangleF(x-widths[i]/2,labelTops[i],widths[i],27),singleLine);
-                    if(!string.IsNullOrEmpty(current.ItemText[i]))
-                    {
-                        float width=SectorSpan(sectors[i],x,y+50,y+50);
-                        g.DrawString(current.ItemText[i],TextFit.Font(g,current.ItemText[i],font,width,1,14),Brushes.Cyan,new System.Drawing.RectangleF(x-width/2,y+38,width,24),singleLine);
-                    }
+                    if(itemFonts[i]!=null)
+                        g.DrawString(current.ItemText[i],itemFonts[i],Brushes.Cyan,itemBoxes[i],itemBoxes[i].Height>24 ? centered:singleLine);
                 }
             }
             finally { foreach(var sector in sectors) sector?.Dispose(); }
             // Instruction text belongs in controller help, not below the wheel.
         }
-        private static bool ShowsLabel(View current,int i) => !current.Variants && (current.Group==1 || i==current.Selected);
+        // The center names the selected item, so only action segments carry their own label.
+        private static bool ShowsLabel(View current) => !current.Variants && current.Group==1;
         // Widest label centered on x whose two text lines stay inside the segment, so text never crosses into a neighbor.
         private static float SectorSpan(System.Drawing.Drawing2D.GraphicsPath sector,float x,float firstLine,float secondLine)
         {

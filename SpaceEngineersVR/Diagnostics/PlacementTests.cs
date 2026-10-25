@@ -211,7 +211,8 @@ namespace SpaceEngineersVR.Diagnostics
             Require(nativeReach.Any(i=>i.operand is System.Reflection.MethodInfo m && m.Name=="GetHeadMatrix"),"Installed reach no longer uses character head");
             Require(AccessTools.Field(typeof(MyCubeBuilder),"m_gizmo")?.FieldType==typeof(MyCubeBuilderGizmo) && AccessTools.Method(typeof(MyCubeBuilder),"Change")!=null,"Native paint/gizmo contract changed");
             var rewrites=DistanceRewrites().ToArray();
-            Require(rewrites.OrderBy(m=>m).SequenceEqual(new[] {"MyCubeBuilder.HandleBlockCreationMovement"}),
+            // BuildInfoBridge.Step runs only inside the raw scope its Build Info prefix opens.
+            Require(rewrites.OrderBy(m=>m).SequenceEqual(new[] {"BuildInfoBridge.Step","MyCubeBuilder.HandleBlockCreationMovement"}),
                 "Unguarded read-modify-write of the observer-scaled build distance: "+string.Join(", ",rewrites));
             log("PASS observer building: consistent observer distances at five scales and billion-metre origins; independent character reach; paint chord ownership; only guarded methods rewrite the build distance; installed character/cockpit camera, paint and reach APIs.");
             log("PASS placement: continuous free-space and five grid steps/second at 36/72/90 Hz with neutral/reverse/cancel; build/clipboard/tool ownership, simultaneous cancel priority, alternate-trigger isolation, transition release gates; installed native remove/paste/cancel/distance IDs, Creative checks and clipboard pose API. No world modified.");

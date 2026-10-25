@@ -38,8 +38,8 @@ namespace SpaceEngineersVR.Player
             public bool FoodEnabled,RadiationEnabled,RadiationImmunity,OxygenRefilling,HydrogenRefilling;
             public float FoodLevel,RadiationLevel;
             public string Food,Radiation,OxygenBottles,HydrogenBottles,EnvironmentOxygen,Temperature,ShipMass;
-            public float InventoryLevel;
-            public string Inventory;
+            public float InventoryLevel,ShipToolLevel;
+            public string Inventory,ShipTool,ShipToolIcon;
             public bool InventoryFull,BuffsEnabled;
             public int BuffLevel;
             public Notice[] Notices=new Notice[0];
@@ -58,6 +58,7 @@ namespace SpaceEngineersVR.Player
                 OxygenRefilling==other.OxygenRefilling && HydrogenRefilling==other.HydrogenRefilling &&
                 EnvironmentOxygen==other.EnvironmentOxygen && Temperature==other.Temperature &&
                 InventoryLevel==other.InventoryLevel && Inventory==other.Inventory && InventoryFull==other.InventoryFull &&
+                ShipToolLevel==other.ShipToolLevel && ShipTool==other.ShipTool && ShipToolIcon==other.ShipToolIcon &&
                 BuffsEnabled==other.BuffsEnabled && BuffLevel==other.BuffLevel && Enumerable.SequenceEqual(Notices,other.Notices);
         }
         private static volatile View snapshot;
@@ -141,7 +142,7 @@ namespace SpaceEngineersVR.Player
                 if (weapon != null && MyDefinitionManager.Static.GetPhysicalItemForHandItem(weapon.DefinitionId) is MyPhysicalItemDefinition definition)
                 { selected = definition.DisplayNameText; icons = definition.Icons; }
             }
-            string ammo = piloting ? item?.IconText?.ToString() : weapon?.GunBase is Sandbox.Game.Weapons.MyGunBase gun ? WeaponAmmo.Count(gun) : "";
+            string ammo = piloting ? Patches.BuildInfoBridge.StatusText(item?.IconText?.ToString()) : weapon?.GunBase is Sandbox.Game.Weapons.MyGunBase gun ? WeaponAmmo.Count(gun) : "";
             if(!piloting && block==null && weapon==null) { selected=null; icons=null; ammo=null; }
             if (InputRouter.Mode == InputMode.Clipboard) selected = "Blueprint preview";
             if (VoxelTools.Current is VoxelTool tool && tool.Selected(out var material, out var materialIcon))
@@ -155,6 +156,8 @@ namespace SpaceEngineersVR.Player
                 NaturalGravity=Stat("natural_gravity")?.GetValueString(), ArtificialGravity=Stat("artificial_gravity")?.GetValueString() };
             view.Piloting=piloting;
             if(piloting) ReadShipEquipment(ship.GridSelectionSystem?.CurrentGuns,view,ResolveDefinition);
+            if(piloting && Patches.BuildInfoBridge.ShipToolFill(out float toolFill,out string toolIcon))
+            { view.ShipToolLevel=toolFill; view.ShipTool=Math.Round(toolFill*100)+"%"; view.ShipToolIcon=toolIcon; }
             view.ShipHydrogen=hydrogen; view.ShipBattery=battery; view.ShipLoad=Percent("controlled_power_usage");
             view.ShipHydrogenLevel=hydrogenLevel; view.ShipBatteryLevel=batteryLevel; view.ShipLoadLevel=Level("controlled_power_usage");
             view.ShipEndurance=Stat("controlled_estimated_time_remaining_energy")?.GetValueString() ?? "--";
@@ -369,6 +372,7 @@ namespace SpaceEngineersVR.Player
                     Gauge(target,"Battery",s.ShipBatteryLevel,Compact(s.ShipBattery),22,153,colors[3]);
                     Gauge(target,"EnergyIcon",s.ShipLoadLevel,s.ShipLoad,22+pitch,153,colors[3],false);
                     Gauge(target,"HydrogenIcon",s.ShipHydrogenLevel,Compact(s.ShipHydrogen),22+2*pitch,153,colors[2]);
+                    ToolGauge(target,s,22+3*pitch,153);
                     using(var rightAligned=new StringFormat { Alignment=StringAlignment.Far,FormatFlags=StringFormatFlags.NoWrap,Trimming=StringTrimming.EllipsisCharacter })
                     {
                         g.DrawString(s.ShipBattery ?? "--",small,Brushes.LightCyan,new System.Drawing.RectangleF(396,234,226,26),rightAligned);
@@ -548,12 +552,24 @@ namespace SpaceEngineersVR.Player
         private static void Gauge(OverlayCanvas target,string icon,float level,string value,int x,int y,Color color,bool warnLow=true)
         {
             if(warnLow && level<.2f && value!="--") color=Color.OrangeRed;
-            Arc(target.Graphics,Color.FromArgb(65,color),x,y,60,60,135,270,4);
-            if(level>0) Arc(target.Graphics,color,x,y,60,60,135,270*MathHelper.Clamp(level,0,1),4);
+            Ring(target,level,value,x,y,color);
             if(icon=="Battery") target.Icon(NativeSprites.Hud(icon),x+17,y+21,26,13,new Vector4(27f/128,45f/128,73f/128,37f/128),color);
             else if(icon=="Backpack") target.Icon(NativeSprites.Hud(icon),x+21,y+15,18,26,new Vector4(0,0,1,1),color);
             else target.Icon(NativeSprites.Hud(icon),x+17,y+15,26,color);
+        }
+        private static void Ring(OverlayCanvas target,float level,string value,int x,int y,Color color)
+        {
+            Arc(target.Graphics,Color.FromArgb(65,color),x,y,60,60,135,270,4);
+            if(level>0) Arc(target.Graphics,color,x,y,60,60,135,270*MathHelper.Clamp(level,0,1),4);
             target.Graphics.DrawString((value ?? "--").Replace("%",""),small,Brushes.LightCyan,new System.Drawing.RectangleF(x-10,y+65,80,29),centered);
+        }
+        // Build Info's ship drill or grinder fill, with the icon cropped from the left end of its 1536x128 bar texture; it warns above 70 percent.
+        private static void ToolGauge(OverlayCanvas target,View s,int x,int y)
+        {
+            if(s.ShipTool==null) return;
+            Ring(target,s.ShipToolLevel,s.ShipTool,x,y,s.ShipToolLevel>.7f ? Color.OrangeRed : Color.FromArgb(136,218,240));
+            if(s.ShipToolIcon.IndexOf("Grinder",StringComparison.OrdinalIgnoreCase)>=0) target.Icon(s.ShipToolIcon,x+10,y+16,40,24,new Vector4(23f/1536,41f/128,74f/1536,45f/128),Color.White);
+            else target.Icon(s.ShipToolIcon,x+8,y+21,44,15,new Vector4(4f/1536,48f/128,89f/1536,31f/128),Color.White);
         }
         private static string Percent(string id)
         {

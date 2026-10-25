@@ -148,6 +148,7 @@ namespace SpaceEngineersVR.Diagnostics
             StickPlacementTests.Run(log);
             InteractionTests.Run(log);
             BuildOrientationTests.Run(log);
+            BuildInfoTests.Run(log);
 
             foreach (int count in new[] { 8, 9, 10 })
                 for (int sector = 0; sector < count; sector++)

@@ -17,6 +17,9 @@ namespace SpaceEngineersVR.Player.Components
     {
         private static ulong overlayHandle;
         internal static ulong OverlayHandle => overlayHandle;
+#if SEVR_DIAGNOSTICS
+        internal static Texture2D MenuImage => desktopCopy;
+#endif
         private static Texture2D blackTexture, desktopCopy;
         private static ShaderResourceView desktopView;
         private static bool visible, reportedMenu;

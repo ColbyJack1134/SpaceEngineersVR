@@ -26,17 +26,12 @@ namespace SpaceEngineersVR.Player
             internal void Add(MyBillboard billboard)
             {
                 if(!visible) return;
-                var material=MyTransparentMaterials.GetMaterial(billboard.Material);
                 var projection=Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4,1,.1f,100);
                 var points=new[] { billboard.Position0,billboard.Position1,billboard.Position2,billboard.Position3 }
                     .Select(p=>(Vector3)Vector3D.Transform(p,view)-new Vector3(1,.6f,0)).ToArray();
                 var clip=points.Select(p=>Vector4.Transform(new Vector4(p,1),projection)).ToArray();
                 if(clip.Any(p=>!new Vector3(p.X,p.Y,p.Z).IsValid() || !p.W.IsValid() || p.W<=0)) return;
-                var uv=material.UVOffset+billboard.UVOffset;
-                var size=material.UVSize*billboard.UVSize;
-                var sprite=new NativeSprite(material.Texture,default(RectangleF),billboard.Color) {
-                    EncodeSrgb=true,Projected=true,TopLeft=clip[0],TopRight=clip[1],BottomLeft=clip[3],BottomRight=clip[2],UV=new Vector4(uv.X,uv.Y,size.X,size.Y) };
-                sprites.Add(Tuple.Create(sprite,points.Average(p=>p.Z)));
+                sprites.Add(Tuple.Create(Sprite(billboard,clip),points.Average(p=>p.Z)));
             }
             internal View Complete()
             {
@@ -46,6 +41,15 @@ namespace SpaceEngineersVR.Player
                 return result;
             }
             public void Dispose() { if(ReferenceEquals(capturing,this)) capturing=null; }
+        }
+        // Clip corners in billboard vertex order.
+        internal static NativeSprite Sprite(MyBillboard billboard,Vector4[] clip)
+        {
+            var material=MyTransparentMaterials.GetMaterial(billboard.Material);
+            var uv=material.UVOffset+billboard.UVOffset;
+            var size=material.UVSize*billboard.UVSize;
+            return new NativeSprite(material.Texture,default(RectangleF),billboard.Color) {
+                EncodeSrgb=true,Projected=true,TopLeft=clip[0],TopRight=clip[1],BottomLeft=clip[3],BottomRight=clip[2],UV=new Vector4(uv.X,uv.Y,size.X,size.Y) };
         }
         [ThreadStatic] private static Capture capturing;
         internal static Capture Capturing => capturing;

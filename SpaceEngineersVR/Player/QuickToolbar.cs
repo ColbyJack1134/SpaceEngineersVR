@@ -170,7 +170,7 @@ namespace SpaceEngineersVR.Player
                 var item=toolbar.GetItemAtIndex(i);
                 labels[i]=item?.DisplayName?.ToString() ?? "Assign";
                 icons[i]=item==null ? new[] {GameActions.ConfigureToolbarAction.Icon} : item.Icons==null ? new string[0] : (string[])item.Icons.Clone();
-                subIcons[i]=item?.SubIcon; itemText[i]=item?.IconText?.ToString();
+                subIcons[i]=item?.SubIcon; itemText[i]=Patches.BuildInfoBridge.StatusText(item?.IconText?.ToString());
                 enabled[i]=item==null || item.Enabled;
             }
             return new ToolbarWheel.View { Title="Quick toolbar",Group=1,Page=0,Pages=1,Selected=pressed,Labels=labels,Icons=icons,Enabled=enabled,

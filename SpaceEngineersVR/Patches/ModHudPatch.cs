@@ -135,6 +135,7 @@ namespace SpaceEngineersVR.Patches
         internal static void Reset()
         {
             Rollback(0); attempted.Clear(); richPools.Clear(); suppressWhile.Clear(); drawing=0; suppressing=0; retry=DateTime.MinValue;
+            MenuHudLayer.Reset();
         }
         private static void Begin(out int __state) { __state=drawing; if(Main.VrActive) drawing++; }
         // Hidden only while the mod's VR replacement is live; a failed integration shows the mod's own HUD again.
@@ -156,15 +157,21 @@ namespace SpaceEngineersVR.Patches
         private static bool PlaceKnown(MyBillboard billboard)
         {
             var camera=MySector.MainCamera;
-            return !Main.VrActive || camera==null || Place(billboard,camera.Position,camera.ForwardVector,HelmetHud.HudAlpha);
+            if(!Main.VrActive || camera==null) return true;
+            if(MenuHudLayer.Active && Near(billboard,camera.Position) && MenuHudLayer.Add(billboard)) return false;
+            return Place(billboard,camera.Position,camera.ForwardVector,HelmetHud.HudAlpha);
+        }
+        private static bool Near(MyBillboard billboard,Vector3D origin)
+        {
+            double reach=Reach*Reach;
+            return billboard!=null && billboard.CustomViewProjection==-1 && Vector3D.DistanceSquared(billboard.Position0,origin)<=reach &&
+                Vector3D.DistanceSquared(billboard.Position1,origin)<=reach && Vector3D.DistanceSquared(billboard.Position2,origin)<=reach &&
+                (billboard is MyTriangleBillboard || Vector3D.DistanceSquared(billboard.Position3,origin)<=reach);
         }
         internal static bool Place(MyBillboard billboard,Vector3D origin,Vector3D forward,float alpha)
         {
-            if(billboard==null || billboard.CustomViewProjection!=-1) return true;
+            if(!Near(billboard,origin)) return true;
             bool triangle=billboard is MyTriangleBillboard;
-            double reach=Reach*Reach;
-            if(Vector3D.DistanceSquared(billboard.Position0,origin)>reach || Vector3D.DistanceSquared(billboard.Position1,origin)>reach ||
-                Vector3D.DistanceSquared(billboard.Position2,origin)>reach || (!triangle && Vector3D.DistanceSquared(billboard.Position3,origin)>reach)) return true;
             if(alpha<=0) return false;
             if(alpha<1) billboard.Color*=alpha;
             var center=triangle ? (billboard.Position0+billboard.Position1+billboard.Position2)/3:(billboard.Position0+billboard.Position2)*.5;
@@ -183,6 +190,13 @@ namespace SpaceEngineersVR.Patches
     [HarmonyPatch(typeof(MyRenderProxy),nameof(MyRenderProxy.AddBillboard))]
     internal static class ModHudBillboardPatch
     {
-        private static bool Prefix(MyBillboard billboard) => BuildOrientationHud.Capturing!=null || (ModHud.Place(billboard) && PaintGunPatches.Keep(billboard));
+        private static bool Prefix(MyBillboard billboard)
+        {
+            // Before ModHud.Place, which moves the vertices and fades the color.
+            var buildInfo=BuildInfoPanel.Capturing;
+            if(buildInfo!=null) { buildInfo.Add(billboard); return false; }
+            if(CardAdditions.Capturing) { CardAdditions.Add(billboard); return false; }
+            return BuildOrientationHud.Capturing!=null || (ModHud.Place(billboard) && PaintGunPatches.Keep(billboard));
+        }
     }
 }

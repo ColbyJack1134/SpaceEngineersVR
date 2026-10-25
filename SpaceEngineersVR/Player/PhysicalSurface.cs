@@ -9,7 +9,7 @@ using Color=System.Drawing.Color;
 
 namespace SpaceEngineersVR.Player
 {
-    internal enum SurfaceStyle { Default,WristStatus,WristMenu,Keyboard,ModelControl,Pointer,Label,BlockInfo,Ammo }
+    internal enum SurfaceStyle { Default,WristStatus,WristMenu,Keyboard,ModelControl,Pointer,Label,BlockInfo,Ammo,BuildInfo }
     internal sealed class SurfaceKey
     {
         public string Label;
@@ -65,7 +65,7 @@ namespace SpaceEngineersVR.Player
         public float[] Levels;
         public int Handle;
         public string ContentKey => Desktop+"|"+FlightPage+"|"+SeatSettings+"|"+SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+(SignalWindow && Signals?.Candidates.Length==0)+"|"+(SignalWindow ? Plugin.Common.Config?.WaypointMode:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+HoverAlt+"|"+PressedAlt+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Horizontal+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
-            "|"+Selection+"|"+(Style==SurfaceStyle.BlockInfo ? NativeBlockInfo.Revision:0)+"|"+HudSettings?.Key+"|"+ShieldsView?.Key+"|"+ChatView?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob+":"+k.Slider))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
+            "|"+Selection+"|"+(Style==SurfaceStyle.BlockInfo ? NativeBlockInfo.Revision+"/"+CardAdditions.Revision:Style==SurfaceStyle.BuildInfo ? BuildInfoPanel.Text.Revision.ToString():"0")+"|"+HudSettings?.Key+"|"+ShieldsView?.Key+"|"+ChatView?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob+":"+k.Slider))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
         public int KeyAt(Vector2 uv)
         {
@@ -97,7 +97,8 @@ namespace SpaceEngineersVR.Player
         internal static readonly Vector4 LeftLaser=new Vector4(1,.706f,.235f,1);
         // Matching the card aspect keeps mip selection sharp.
         internal static Vector2I TextureSize(SurfaceView s) => s.Style==SurfaceStyle.BlockInfo ?
-            new Vector2I(NativeBlockInfo.TextureWidth,(int)Math.Ceiling(NativeBlockInfo.TextureWidth*s.Height/s.Width)):TextureSize(s.Style);
+            new Vector2I(NativeBlockInfo.TextureWidth,(int)Math.Ceiling(NativeBlockInfo.TextureWidth*s.Height/s.Width)):
+            s.Style==SurfaceStyle.BuildInfo ? BuildInfoPanel.TextureSize(s.Width,s.Height):TextureSize(s.Style);
         internal static Vector2I TextureSize(SurfaceStyle style) => style==SurfaceStyle.Ammo ? new Vector2I(512,192) : style==SurfaceStyle.Label ? new Vector2I(1536,236) : new Vector2I(1024,640);
         private sealed class Cache { public OverlayCanvas Canvas; public ShaderResourceView Texture; public string Content; public int Revision; public EssentialHud.View Status; }
         private static readonly Dictionary<string,Cache> cache=new Dictionary<string,Cache>();
@@ -143,6 +144,7 @@ namespace SpaceEngineersVR.Player
             if(s.Style==SurfaceStyle.Pointer) { target.Clear(Color.White); return; }
             if(s.Style==SurfaceStyle.Ammo) { WeaponAmmo.Paint(target,s); return; }
             if(s.Style==SurfaceStyle.BlockInfo) { BlockInspection.Paint(target,s); return; }
+            if(s.Style==SurfaceStyle.BuildInfo) { BuildInfoPanel.Text.Paint(target); return; }
             if(s.Style==SurfaceStyle.Label)
             {
                 PaintSwitchInfo(target,s);
@@ -488,7 +490,7 @@ namespace SpaceEngineersVR.Player
                 {
                     Paint(c.Canvas,s);
                     // Block info is GPU only; the empty bitmap upload cost several ms.
-                    if(s.Style!=SurfaceStyle.BlockInfo) c.Canvas.Upload();
+                    if(s.Style!=SurfaceStyle.BlockInfo && s.Style!=SurfaceStyle.BuildInfo) c.Canvas.Upload();
                     target.Device.ImmediateContext.GenerateMips(c.Texture);
                     c.Content=content; c.Revision=NativeSprites.Revision; c.Status=s.Status;
                 }
@@ -516,7 +518,7 @@ namespace SpaceEngineersVR.Player
                     sprites.Add(pointer);
                     continue;
                 }
-                if(s.Style==SurfaceStyle.ModelControl || s.Style==SurfaceStyle.Label || s.Style==SurfaceStyle.BlockInfo || s.Style==SurfaceStyle.Ammo)
+                if(s.Style==SurfaceStyle.ModelControl || s.Style==SurfaceStyle.Label || s.Style==SurfaceStyle.BlockInfo || s.Style==SurfaceStyle.BuildInfo || s.Style==SurfaceStyle.Ammo)
                 {
                     var pose=s.Pose;
                     if(s.RenderParent!=uint.MaxValue)
@@ -528,7 +530,8 @@ namespace SpaceEngineersVR.Player
                     if(Vector3D.Dot(pose.Backward,MatrixD.Invert(view).Translation-pose.Translation)>0)
                     {
                         var sprite=Quad(c.Texture,pose,full,new Vector4(0,0,1,1),Vector4.One,view,projection,.001f);
-                        sprite.IgnoreSceneDepth=s.Style==SurfaceStyle.Label || s.Style==SurfaceStyle.BlockInfo;
+                        sprite.IgnoreSceneDepth=s.Style==SurfaceStyle.Label || s.Style==SurfaceStyle.BlockInfo || s.Style==SurfaceStyle.BuildInfo;
+                        sprite.Sharpen=s.Style==SurfaceStyle.BuildInfo;
                         sprites.Add(sprite);
                     }
                     continue;
