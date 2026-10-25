@@ -72,10 +72,10 @@ Supported:
 - [WeaponCore](https://steamcommunity.com/workshop/filedetails/?id=3154371364) and [Defense Shields](https://steamcommunity.com/workshop/filedetails/?id=3154379105)
   - [Controls guide](CONTROLS.md) and guide in game with mod enabled show the relevant controls.
 - [Paint Gun](https://steamcommunity.com/sharedfiles/filedetails/?id=500818376)
+- [Build Info](https://steamcommunity.com/sharedfiles/filedetails/?id=514062285)
 
 Planned (at some point):
 - BuildVision
-- BuildInfo
 
 If you want to see specific mods, feel free to reach out! Mod developers can add VR support with the [Mod API](MOD-API.md).
 
