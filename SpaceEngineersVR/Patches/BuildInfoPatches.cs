@@ -136,8 +136,9 @@ namespace SpaceEngineersVR.Patches
             if(Try("weapon mode on the toolbar wheel",modeShow!=null && hideIcon!=null,() => Patch(modeShow,postfix:nameof(ModeShown)))) parts.Add("weapon mode on the toolbar wheel");
             var turret=Find("Digi.BuildInfo.Features.TurretHUD");
             var turretDraw=turret==null ? null:AccessTools.Method(turret,"DrawHUD",Type.EmptyTypes);
+            var turretIndicator=turret==null ? null:AccessTools.Method(turret,"UpdateDraw",Type.EmptyTypes);
             hideHud=turret==null ? null:AccessTools.Method(turret,"HideHUD",Type.EmptyTypes);
-            if(Try("turret HUD hidden",turretDraw!=null && hideHud!=null,() => Patch(turretDraw,nameof(TurretSkip)))) parts.Add("turret HUD hidden");
+            if(Try("turret HUD hidden",turretDraw!=null && turretIndicator?.DeclaringType==turret && hideHud!=null,() => { Patch(turretDraw,nameof(TurretSkip)); Patch(turretIndicator,nameof(TurretIndicatorSkip)); })) parts.Add("turret HUD hidden");
 
             var additions=Find("Digi.BuildInfo.Features.BlockInfoAdditions");
             var additionsDraw=additions==null ? null:AccessTools.Method(additions,"UpdateDraw",Type.EmptyTypes);
@@ -170,7 +171,7 @@ namespace SpaceEngineersVR.Patches
                 finalizer:finalizer==null ? null:new HarmonyMethod(finalizer));
         }
         private static readonly MethodInfo[] Patches=new[] {nameof(DistanceInput),nameof(DistanceBegin),nameof(DistanceEnd),nameof(EquippedMatrix),nameof(TextBegin),nameof(TextEnd),nameof(AdditionsBegin),nameof(AdditionsEnd),
-                nameof(ToolbarVisible),nameof(ToolbarHidden),nameof(ToolbarDraw),nameof(SingleList),nameof(RestoreStyle),nameof(MenuToolbarDraw),nameof(BarDrawBegin),nameof(BarDrawEnd),nameof(ModeShown),nameof(TurretSkip)}
+                nameof(ToolbarVisible),nameof(ToolbarHidden),nameof(ToolbarDraw),nameof(SingleList),nameof(RestoreStyle),nameof(MenuToolbarDraw),nameof(BarDrawBegin),nameof(BarDrawEnd),nameof(ModeShown),nameof(TurretSkip),nameof(TurretIndicatorSkip)}
             .Select(name=>AccessTools.Method(typeof(BuildInfoBridge),name)).Concat(new[] {AccessTools.Method(typeof(ModHud),"Begin"),AccessTools.Method(typeof(ModHud),"End")}).ToArray();
         private static void Rollback(int start)
         {
@@ -555,6 +556,8 @@ namespace SpaceEngineersVR.Patches
             try { hideHud.Invoke(__instance,null); } catch(Exception ex) { Logger.Warning(ex,"Build Info turret HUD not hidden"); }
             return false;
         }
+        // Its ship direction mark sits in front of the turret camera, which VR shows on a screen while the eyes stay in the seat.
+        private static bool TurretIndicatorSkip() => !Main.VrActive;
         private static readonly MyStringId[] SlotControls={MyControlsSpace.SLOT1,MyControlsSpace.SLOT2,MyControlsSpace.SLOT3,MyControlsSpace.SLOT4,
             MyControlsSpace.SLOT5,MyControlsSpace.SLOT6,MyControlsSpace.SLOT7,MyControlsSpace.SLOT8,MyControlsSpace.SLOT9};
         // Build Info waits for a slot control after Pick block; a direct activation would not reach it.
