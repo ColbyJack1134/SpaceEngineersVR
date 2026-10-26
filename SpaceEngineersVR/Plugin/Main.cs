@@ -80,10 +80,7 @@ namespace SpaceEngineersVR.Plugin
         // OVRSharp imports "openvr_api"; the Linux library is a Bin asset next to this plugin.
         private static void LoadNative(string folder)
         {
-            // System.Drawing needs libgdiplus outside Windows.
-            if (!NativeLibrary.TryLoad("libgdiplus.so", out _) && !NativeLibrary.TryLoad("libgdiplus.so.0", out _))
-                throw new DllNotFoundException("libgdiplus is missing. Install the libgdiplus package from your distribution.");
-            AppContext.SetSwitch("System.Drawing.EnableUnixSupport", true);
+            LinuxDrawing.Load(folder, line => Logger.Info(line));
             var nativePath = Path.Combine(folder, "libopenvr_api.so");
             IntPtr openvr = NativeLibrary.Load(File.Exists(nativePath) ? nativePath : "libopenvr_api.so");
             if (resolverSet) return;

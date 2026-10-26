@@ -14,9 +14,7 @@ namespace SpaceEngineersVR.Player
         {
 #if LINUX
             var b=bounds;
-            var result=Dxvk.With(texture,colorSpace,input => OpenVR.Compositor.Submit(eye,ref input,ref b,EVRSubmitFlags.Submit_Default));
-            Dxvk.Submitted();
-            return result;
+            return Dxvk.With(texture,colorSpace,input => OpenVR.Compositor.Submit(eye,ref input,ref b,EVRSubmitFlags.Submit_Default));
 #else
             var input=new Texture_t { eColorSpace=colorSpace,eType=ETextureType.DirectX,handle=texture };
             return OpenVR.Compositor.Submit(eye,ref input,ref bounds,EVRSubmitFlags.Submit_Default);
@@ -44,15 +42,14 @@ namespace SpaceEngineersVR.Player
 
         internal static void PostPresentHandoff()
         {
-#if LINUX
-            Dxvk.PostPresentHandoff();
-#else
+            // Linux stays in implicit timing: the compositor takes the handoff inside WaitGetPoses.
+#if !LINUX
             OpenVR.Compositor.PostPresentHandoff();
 #endif
         }
 
 #if LINUX
-        // SteamVR on Linux takes only Vulkan images and copies on DXVK's queue, so calls hold DXVK's queue lock with explicit timing, as Proton's vrclient does.
+        // SteamVR on Linux takes only Vulkan images and copies on DXVK's queue, so calls hold DXVK's queue lock, as Proton's vrclient does.
         private static unsafe class Dxvk
         {
             private static readonly Guid SurfaceId=new Guid("5546cf8c-77e7-4341-b05d-8d4d5000e77d");
@@ -68,7 +65,6 @@ namespace SpaceEngineersVR.Player
 
             private static IntPtr d3dDevice,device,instance,physical,vkDevice,queue;
             private static uint family;
-            private static bool handoffPending;
 
             private static IntPtr Slot(IntPtr com,int index) => (*(IntPtr**)com)[index];
             private static int Query(IntPtr com,Guid id,out IntPtr result)
@@ -97,8 +93,8 @@ namespace SpaceEngineersVR.Player
                 IntPtr i,p,d,q; uint f;
                 ((delegate* unmanaged<IntPtr,IntPtr*,IntPtr*,IntPtr*,void>)Slot(interop,3))(interop,&i,&p,&d);
                 ((delegate* unmanaged<IntPtr,IntPtr*,uint*,void>)Slot(interop,4))(interop,&q,&f);
+                VrClientPatch.Apply(line => Logger.Info(line));
                 instance=i; physical=p; vkDevice=d; queue=q; family=f; device=interop; d3dDevice=d3d;
-                OpenVR.Compositor.SetExplicitTimingMode(EVRCompositorTimingMode.Explicit_ApplicationPerformsPostPresentHandoff);
                 var required=new StringBuilder(4096);
                 OpenVR.Compositor.GetVulkanInstanceExtensionsRequired(required,(uint)required.Capacity);
                 Logger.Info("SteamVR Vulkan instance extensions: "+required);
@@ -135,25 +131,9 @@ namespace SpaceEngineersVR.Player
             {
                 if(!Ready()) { OpenVR.Compositor.WaitGetPoses(render,game); return; }
                 Lock();
-                try
-                {
-                    if(handoffPending) { OpenVR.Compositor.PostPresentHandoff(); handoffPending=false; }
-                    OpenVR.Compositor.WaitGetPoses(render,game);
-                    OpenVR.Compositor.SubmitExplicitTimingData();
-                }
+                try { OpenVR.Compositor.WaitGetPoses(render,game); }
                 finally { Unlock(); }
             }
-
-            internal static void PostPresentHandoff()
-            {
-                if(!Ready()) return;
-                Lock();
-                try { OpenVR.Compositor.PostPresentHandoff(); handoffPending=false; }
-                finally { Unlock(); }
-            }
-
-            // Explicit timing requires a handoff after each frame's submits, also on frames that skip Present.
-            internal static void Submitted() => handoffPending=true;
         }
 #endif
     }
