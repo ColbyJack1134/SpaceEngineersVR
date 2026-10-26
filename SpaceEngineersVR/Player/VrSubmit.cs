@@ -68,7 +68,6 @@ namespace SpaceEngineersVR.Player
 
             private static IntPtr d3dDevice,device,instance,physical,vkDevice,queue;
             private static uint family;
-            private static bool handoffPending;
 
             private static IntPtr Slot(IntPtr com,int index) => (*(IntPtr**)com)[index];
             private static int Query(IntPtr com,Guid id,out IntPtr result)
@@ -98,7 +97,15 @@ namespace SpaceEngineersVR.Player
                 ((delegate* unmanaged<IntPtr,IntPtr*,IntPtr*,IntPtr*,void>)Slot(interop,3))(interop,&i,&p,&d);
                 ((delegate* unmanaged<IntPtr,IntPtr*,uint*,void>)Slot(interop,4))(interop,&q,&f);
                 instance=i; physical=p; vkDevice=d; queue=q; family=f; device=interop; d3dDevice=d3d;
-                OpenVR.Compositor.SetExplicitTimingMode(EVRCompositorTimingMode.Explicit_ApplicationPerformsPostPresentHandoff);
+                PatchVrClientVulkanNames();
+                // SteamVR's Linux vrclient resolves core-promoted Vulkan functions by their KHR-suffixed
+                // names, but the Vulkan loader only returns those when the extension was enabled at device
+                // creation. linux-compat's DXVK device does not enable VK_KHR_get_memory_requirements2, so
+                // vrclient caches NULL entry points for vkGetImage/BufferMemoryRequirements2KHR and later
+                // crashes calling one while allocating its shared copy texture. The plain core functions
+                // exist on every Vulkan 1.1+ device, so the query names are rewritten in vrclient's
+                // read-only data before the first submission can cache the NULL pointers.
+                OpenVR.Compositor.SetExplicitTimingMode(EVRCompositorTimingMode.Implicit);
                 var required=new StringBuilder(4096);
                 OpenVR.Compositor.GetVulkanInstanceExtensionsRequired(required,(uint)required.Capacity);
                 Logger.Info("SteamVR Vulkan instance extensions: "+required);
@@ -106,6 +113,71 @@ namespace SpaceEngineersVR.Player
                 OpenVR.Compositor.GetVulkanDeviceExtensionsRequired(physical,required,(uint)required.Capacity);
                 Logger.Info("SteamVR Vulkan device extensions: "+required);
                 return true;
+            }
+
+            [System.Runtime.InteropServices.DllImport("libc",SetLastError=true)]
+            private static extern int mprotect(IntPtr addr,UIntPtr len,int prot);
+
+            private static unsafe void PatchVrClientVulkanNames()
+            {
+                try
+                {
+                    var replacements=new (string From,string To)[]
+                    {
+                        ("vkGetImageMemoryRequirements2KHR","vkGetImageMemoryRequirements2"),
+                        ("vkGetBufferMemoryRequirements2KHR","vkGetBufferMemoryRequirements2"),
+                    };
+                    foreach(var line in System.IO.File.ReadAllLines("/proc/self/maps"))
+                    {
+                        if(!line.Contains("vrclient.so")) continue;
+                        var fields=line.Split(new[]{' '},StringSplitOptions.RemoveEmptyEntries);
+                        if(fields.Length<5) continue;
+                        string perms=fields[1];
+                        if(perms.Length<3||perms[0]!='r') continue;
+                        var range=fields[0].Split('-');
+                        ulong start=Convert.ToUInt64(range[0],16),end=Convert.ToUInt64(range[1],16);
+                        if(end<=start) continue;
+                        int size=checked((int)(end-start));
+                        byte* ptr=(byte*)start;
+                        var snapshot=new byte[size];
+                        System.Runtime.InteropServices.Marshal.Copy((IntPtr)ptr,snapshot,0,size);
+                        var span=snapshot.AsSpan();
+                        int prot=0;
+                        if(perms[0]=='r') prot|=0x1;
+                        if(perms[1]=='w') prot|=0x2;
+                        if(perms[2]=='x') prot|=0x4;
+                        foreach(var (from,to) in replacements)
+                        {
+                            var pattern=System.Text.Encoding.ASCII.GetBytes(from);
+                            var patch=System.Text.Encoding.ASCII.GetBytes(to);
+                            int offset=0;
+                            while(offset+pattern.Length<=size)
+                            {
+                                int found=span.Slice(offset).IndexOf(pattern);
+                                if(found<0) break;
+                                found+=offset;
+                                ulong pageStart=(ulong)(ptr+found)&~0xFFFUL;
+                                ulong pageEnd=((ulong)(ptr+found)+(uint)pattern.Length+0xFFFUL)&~0xFFFUL;
+                                UIntPtr pageLen=(UIntPtr)(pageEnd-pageStart);
+                                if(mprotect((IntPtr)pageStart,pageLen,prot|0x2)!=0)
+                                {
+                                    Logger.Error("vrclient Vulkan name patch: mprotect failed for 0x"+pageStart.ToString("x"));
+                                    offset=found+1;
+                                    continue;
+                                }
+                                fixed(byte* src=patch)
+                                {
+                                    Buffer.MemoryCopy(src,ptr+found,patch.Length,patch.Length);
+                                    for(int i=patch.Length;i<pattern.Length;i++) ptr[found+i]=0;
+                                }
+                                mprotect((IntPtr)pageStart,pageLen,prot);
+                                Logger.Info("vrclient Vulkan entry point name patched: "+from+" -> "+to);
+                                offset=found+1;
+                            }
+                        }
+                    }
+                }
+                catch(Exception e) { Logger.Error("vrclient Vulkan name patch failed: "+e.Message); }
             }
 
             internal static T With<T>(IntPtr texture,EColorSpace colorSpace,Func<Texture_t,T> call)
@@ -135,25 +207,17 @@ namespace SpaceEngineersVR.Player
             {
                 if(!Ready()) { OpenVR.Compositor.WaitGetPoses(render,game); return; }
                 Lock();
-                try
-                {
-                    if(handoffPending) { OpenVR.Compositor.PostPresentHandoff(); handoffPending=false; }
-                    OpenVR.Compositor.WaitGetPoses(render,game);
-                    OpenVR.Compositor.SubmitExplicitTimingData();
-                }
+                try { OpenVR.Compositor.WaitGetPoses(render,game); }
                 finally { Unlock(); }
             }
 
             internal static void PostPresentHandoff()
             {
-                if(!Ready()) return;
-                Lock();
-                try { OpenVR.Compositor.PostPresentHandoff(); handoffPending=false; }
-                finally { Unlock(); }
+                // No explicit timing mode: PostPresentHandoff must not be called outside it.
             }
 
-            // Explicit timing requires a handoff after each frame's submits, also on frames that skip Present.
-            internal static void Submitted() => handoffPending=true;
+            // Explicit timing is disabled, so nothing tracks a pending handoff.
+            internal static void Submitted() { }
         }
 #endif
     }

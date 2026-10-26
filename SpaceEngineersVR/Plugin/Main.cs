@@ -9,6 +9,7 @@ using SpaceEngineersVR.Wrappers;
 using System;
 using System.IO;
 using System.Reflection;
+using System.Runtime.Loader;
 using Valve.VR;
 using VRage.FileSystem;
 using VRage.Plugins;
@@ -122,6 +123,23 @@ namespace SpaceEngineersVR.Plugin
                 Common.SetPlugin(this);
                 // Native dependencies are staged next to this plugin, not in the game's Bin64.
                 LoadNative(Path.GetDirectoryName(typeof(Main).Assembly.Location));
+
+                // Diagnose the System.Drawing binding early: the shared framework's copy dropped
+                // Unix support after .NET 6 and would break every Font/Bitmap call on Linux.
+                try
+                {
+                    var fontAssembly = typeof(System.Drawing.Font).Assembly;
+                    AppContext.TryGetSwitch("System.Drawing.EnableUnixSupport", out var unixSwitch);
+                    Logger.Info($"System.Drawing binds {fontAssembly.GetName().Name} {fontAssembly.GetName().Version} @ {fontAssembly.Location}; EnableUnixSupport={unixSwitch}");
+                    using (var probe = new System.Drawing.Bitmap(8, 8))
+                    using (var g = System.Drawing.Graphics.FromImage(probe))
+                    using (var probeFont = new System.Drawing.Font("DejaVu Sans", 12f))
+                        Logger.Info($"System.Drawing probe OK: {g.DpiX:0}x{g.DpiY:0} dpi, font '{probeFont.FontFamily.Name}'");
+                }
+                catch (Exception e)
+                {
+                    Logger.Error($"System.Drawing probe FAILED: {e.GetType().Name}: {e.Message}");
+                }
 
                 bool compatible = CompatibilityProbe.Run(line => Logger.Info(line));
 #if SEVR_DIAGNOSTICS
