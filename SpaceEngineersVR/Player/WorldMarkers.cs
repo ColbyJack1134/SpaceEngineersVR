@@ -362,6 +362,7 @@ namespace SpaceEngineersVR.Player
                 NativeSprites.Fade(target,HelmetHud.HudAlpha);
                 if(ShipCrosshair.Enabled(Common.Config,HelmetHud.Visible)) ShipCrosshair.Draw(target,renderCrosshair,renderHead,view,projection,Common.Config.FaceMarkersTowardViewer);
                 if(HelmetHud.Visible) { DamageMarkers.Draw(target,renderHead,view,projection); if(Common.Config.ShowHitMarkers) RemoteCombat.DrawImpact(target,renderHead,view,projection); }
+                if(HelmetHud.Visible) BuildInfoLabels.Draw(target,signalHead,view,projection,Common.Config.FaceMarkersTowardViewer,signalUp);
                 if(current!=null && (DateTime.UtcNow-current.Time).TotalSeconds<=MaxCaptureAge && markersVisible)
                 {
                     SignalPainter.Draw(target,layout,signalHead,view,projection,Common.Config.FaceMarkersTowardViewer,signalUp);

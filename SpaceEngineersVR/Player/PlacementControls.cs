@@ -160,7 +160,7 @@ namespace SpaceEngineersVR.Player
         {
             object owner = MySession.Static?.ControlledEntity;
             if (!ReferenceEquals(owner, poseOwner)) { lastPose = null; heldPose = null; poseOwner = owner; }
-            bool active = ClipboardActive || Sandbox.Game.Entities.MyCubeBuilder.Static?.IsActivated == true || VoxelTools.Active;
+            bool active = ClipboardActive || Sandbox.Game.Entities.MyCubeBuilder.Static?.IsActivated == true || VoxelTools.Active || Patches.BuildInfoBridge.MultiToolEquipped;
             if (!Main.VrActive || !active) { lastPose = null; heldPose = null; pose = MatrixD.Identity; return false; }
             MatrixD frame = PoseFrame(owner);
             pose = MatrixD.Identity;

@@ -305,8 +305,11 @@ namespace SpaceEngineersVR.Player
             if(BlockInspection.Current!=null)
             {
                 output.Add(BlockInspection.Current);
-                var buildInfo=BuildInfoPanel.Text.Surface(BlockInspection.Current,BlockInspection.Side);
+                bool multiTool=Patches.BuildInfoBridge.MultiToolEquipped;
+                var buildInfo=multiTool ? BuildInfoPanel.Text.Above(BlockInspection.Current) : BuildInfoPanel.Text.Surface(BlockInspection.Current,BlockInspection.Side);
                 if(buildInfo!=null) output.Add(buildInfo);
+                var legend=BuildInfoPanel.Legend.Surface(BlockInspection.Current,BlockInspection.Side,buildInfo==null || multiTool ? 0:buildInfo.Height+BuildInfoPanel.Gap);
+                if(legend!=null) output.Add(legend);
             }
             var ammo=WeaponAmmo.View(); if(ammo!=null) output.Add(ammo);
             current=output.ToArray();

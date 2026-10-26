@@ -19,6 +19,7 @@ namespace SpaceEngineersVR.Player
         private static DateTime next;
         private static MySlimBlock previous;
         private static MyDefinitionId shown;
+        private static string shownInstrument;
         private static (long,int,int,bool) changes;
         private static DateTime settle;
         private static readonly System.Reflection.FieldInfo markTime=AccessTools.Field(typeof(MyEngineerToolBase),"m_lastMarkTime"),marked=AccessTools.Field(typeof(MyEngineerToolBase),"m_markedComponent");
@@ -27,7 +28,7 @@ namespace SpaceEngineersVR.Player
         // Direction from the finger to the card along the head's right axis.
         internal static int Side { get; private set; }=-1;
         internal static bool Visible(bool grip,bool automatic) => grip!=automatic;
-        public static void Reset() { Current=null; previous=null; shown=default(MyDefinitionId); changes=default((long,int,int,bool)); next=DateTime.MinValue; ConsumesSecondary=false; NativeBlockInfo.Hide(); }
+        public static void Reset() { Current=null; previous=null; shown=default(MyDefinitionId); shownInstrument=null; changes=default((long,int,int,bool)); next=DateTime.MinValue; ConsumesSecondary=false; NativeBlockInfo.Hide(); }
         public static void Update()
         {
             inspected=null;
@@ -69,11 +70,14 @@ namespace SpaceEngineersVR.Player
             // Rebuild only on change like the native tools, at most 10 Hz.
             var state=block==null ? default((long,int,int,bool)):(block.GetStockpileStamp()+(long)block.ComponentStack.LastChangeStamp,(int)(block.Integrity/block.MaxIntegrity*1000),Marked(engineerTool),engineerTool is MyAngleGrinder);
             // Icons stream in after a new target's first capture.
-            bool target=previous!=(block ?? projected) || shown!=definition.Id;
+            // Build Info's multitool is a placeholder block; the native block info holds its selected instrument instead.
+            string instrument=block==null && projected==null && Patches.BuildInfoBridge.MultiToolEquipped ? MyHud.BlockInfo.BlockName ?? "" : null;
+            string key=Key(block ?? projected,definition)+(instrument==null ? "":"|"+instrument);
+            bool target=previous!=(block ?? projected) || shown!=definition.Id || shownInstrument!=instrument;
             if(target) settle=DateTime.UtcNow.AddSeconds(2);
             if(target || (state!=changes || DateTime.UtcNow<settle) && DateTime.UtcNow>=next)
             {
-                previous=block ?? projected; shown=definition.Id; changes=state;
+                previous=block ?? projected; shown=definition.Id; shownInstrument=instrument; changes=state;
                 next=DateTime.UtcNow.AddMilliseconds(100);
                 if(block!=null)
                 {
@@ -82,17 +86,25 @@ namespace SpaceEngineersVR.Player
                     info.ShowComponentLoss=engineerTool is MyAngleGrinder;
                 }
                 else if(projected!=null) Projection(info,projected);
+                else if(instrument!=null) Instrument(info,MyHud.BlockInfo);
                 else MySlimBlock.SetBlockComponents(info,definition,MyCubeBuilder.BuildComponent.GetBuilderInventory(character));
-                NativeBlockInfo.Show(info,Key(block ?? projected,definition));
+                NativeBlockInfo.Show(info,key);
             }
             var head=SpatialUi.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix);
             var pixels=NativeBlockInfo.Pixels(info.Components.Count);
             Side=hand==Player.HandR ? -1:1;
             if(!tool && !PlacementControls.OwnsTools) inspected=block ?? projected;
-            Current=new SurfaceView { Id="Block inspection",Style=SurfaceStyle.BlockInfo,Title=definition.DisplayNameText,Text=Key(block ?? projected,definition),Handle=info.Components.Count,
+            Current=new SurfaceView { Id="Block inspection",Style=SurfaceStyle.BlockInfo,Title=instrument ?? definition.DisplayNameText,Text=key,Handle=info.Components.Count,
                 Width=Width,Height=Width*pixels.Y/pixels.X,Pose=CockpitTouch.LabelPose(head,finger.Translation,Width,Side) };
         }
         internal const float Width=.16f;
+        private static void Instrument(MyHudBlockInfo target,MyHudBlockInfo source)
+        {
+            target.Components.Clear();
+            target.DefinitionId=source.DefinitionId; target.BlockName=source.BlockName; target.BlockIcons=source.BlockIcons; target.GridSize=source.GridSize;
+            target.PCUCost=0; target.BlockIntegrity=0; target.CriticalIntegrity=target.OwnershipIntegrity=1;
+            target.CriticalComponentIndex=0; target.MissingComponentIndex=-1; target.BlockBuiltBy=0; target.ShowComponentLoss=false;
+        }
         // MyEngineerToolBase keeps the component a failed weld could not find for 2.5 s.
         private static int Marked(MyEngineerToolBase tool)
         {

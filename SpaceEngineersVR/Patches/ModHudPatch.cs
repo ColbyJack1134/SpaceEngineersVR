@@ -196,6 +196,7 @@ namespace SpaceEngineersVR.Patches
             var buildInfo=BuildInfoPanel.Capturing;
             if(buildInfo!=null) { buildInfo.Add(billboard); return false; }
             if(CardAdditions.Capturing) { CardAdditions.Add(billboard); return false; }
+            if(BuildInfoBridge.SeeThrough(billboard)) return true;
             return BuildOrientationHud.Capturing!=null || (ModHud.Place(billboard) && PaintGunPatches.Keep(billboard));
         }
     }

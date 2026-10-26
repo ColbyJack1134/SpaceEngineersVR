@@ -112,6 +112,11 @@ namespace SpaceEngineersVR.Patches
             var session=Find("Digi.ComponentLib.BuildInfo_GameSession");
             var sessionDraw=session==null ? null:AccessTools.Method(session,"Draw",Type.EmptyTypes);
             if(Try("HUD placement",sessionDraw!=null,() => Patch(sessionDraw,AccessTools.Method(typeof(ModHud),"Begin"),finalizer:AccessTools.Method(typeof(ModHud),"End")))) parts.Add("HUD placement");
+            var batch=AccessTools.Method(typeof(VRageRender.MyRenderProxy),nameof(VRageRender.MyRenderProxy.AddBillboards),new[] {typeof(IEnumerable<VRageRender.MyBillboard>)});
+            if(Try("see-through overlays",sessionDraw!=null && batch!=null,() => {
+                Patch(sessionDraw,nameof(DrawBegin),finalizer:nameof(DrawEnd));
+                Patch(batch,nameof(SeeThroughBatch));
+            })) parts.Add("see-through overlays");
 
             var labels=Find("Digi.BuildInfo.Features.ToolbarInfo.ToolbarLabelRender");
             var compute=labels==null ? null:AccessTools.Method(labels,"ComputeVisible",Type.EmptyTypes);
@@ -146,6 +151,7 @@ namespace SpaceEngineersVR.Patches
             if(Try("block info additions on the card",additionsDraw!=null && gameConfig!=null,() => Patch(additionsDraw,nameof(AdditionsBegin),finalizer:nameof(AdditionsEnd)))) parts.Add("block info additions on the card");
 
             if(Try("wheel actions",BindActions(instance),null)) parts.Add("wheel actions");
+            AttachMultiTool(instance,Find,parts);
             toolbarMonitor=ModReflection.Get(instance,"ToolbarMonitor");
             var monitorType=toolbarMonitor?.GetType();
             var page=monitorType==null ? null:AccessTools.Property(monitorType,"ToolbarPage");
@@ -171,7 +177,11 @@ namespace SpaceEngineersVR.Patches
                 finalizer:finalizer==null ? null:new HarmonyMethod(finalizer));
         }
         private static readonly MethodInfo[] Patches=new[] {nameof(DistanceInput),nameof(DistanceBegin),nameof(DistanceEnd),nameof(EquippedMatrix),nameof(TextBegin),nameof(TextEnd),nameof(AdditionsBegin),nameof(AdditionsEnd),
-                nameof(ToolbarVisible),nameof(ToolbarHidden),nameof(ToolbarDraw),nameof(SingleList),nameof(RestoreStyle),nameof(MenuToolbarDraw),nameof(BarDrawBegin),nameof(BarDrawEnd),nameof(ModeShown),nameof(TurretSkip),nameof(TurretIndicatorSkip)}
+                nameof(ToolbarVisible),nameof(ToolbarHidden),nameof(ToolbarDraw),nameof(SingleList),nameof(RestoreStyle),nameof(MenuToolbarDraw),nameof(BarDrawBegin),nameof(BarDrawEnd),nameof(ModeShown),nameof(TurretSkip),nameof(TurretIndicatorSkip),
+                nameof(ControlPressed),nameof(ControlJustPressed),nameof(AimBegin),nameof(AimEnd),nameof(HeadBegin),nameof(HeadEnd),nameof(HandCamera),nameof(ToolDrawBegin),
+                nameof(InstrumentDrawBegin),nameof(InstrumentDrawEnd),nameof(DrawBegin),nameof(DrawEnd),nameof(SeeThroughBatch),nameof(LegendBegin),nameof(LegendEnd),
+                nameof(LabelScopeBegin),nameof(LabelScopeEnd),nameof(LabelAnchor),nameof(LabelBegin),nameof(LabelEnd),
+                nameof(HandView),nameof(CopiesBegin),nameof(CopiesEnd),nameof(GeometryBegin),nameof(GeometryEnd)}
             .Select(name=>AccessTools.Method(typeof(BuildInfoBridge),name)).Concat(new[] {AccessTools.Method(typeof(ModHud),"Begin"),AccessTools.Method(typeof(ModHud),"End")}).ToArray();
         private static void Rollback(int start)
         {
@@ -187,6 +197,7 @@ namespace SpaceEngineersVR.Patches
             fed=null; setBlock=null; pointed=null; closedUi=null; toolbarMonitor=null; setPage=null; monitorPage=null;
             toolBar=null; toolBarShown=null; weaponModeShown=false; hideIcon=hideHud=null; gameConfig=null; CardAdditions.Reset();
             Rollback(0); attempted.Clear(); scanned.Clear(); candidates.Clear(); main=null; instanceField=null; actions=null; textApiScale=null; retry=DateTime.MinValue;
+            multiTool=null; isEquipped=null; toolActions=null; aimDepth=headDepth=0; drawing=copyDepth=geometryDepth=0; labelText=null; BuildInfoPanel.Legend.Reset(); BuildInfoLabels.Reset();
             maxRange=swapAt=null; distance=null; toolbarLabels=null; toolbarBackgrounds=null; BuildInfoPanel.Text.Reset(); BuildInfoPanel.Toolbar.Reset();
         }
 
@@ -232,6 +243,8 @@ namespace SpaceEngineersVR.Patches
 #if SEVR_DIAGNOSTICS
             keep|=Diagnostics.BuildInfoProbe.ForceCapture;
 #endif
+            // The multitool's own list and description take the box's place; this text describes only its placeholder block.
+            if(Main.VrActive && BuildInfoPanel.Capturing==null && MultiToolEquipped) { __state=BuildInfoPanel.Hidden.Begin(false,1); return; }
             __state=Main.VrActive && BuildInfoPanel.Capturing==null ? BuildInfoPanel.Text.Begin(keep,HalfHeight()) : null;
         }
         private static Exception TextEnd(Exception __exception,BuildInfoPanel.Capture __state)
@@ -467,8 +480,240 @@ namespace SpaceEngineersVR.Patches
         {
             if(actions==null || !(CubeBuilder || BuildTool || MySession.Static?.ControlledEntity is Sandbox.Game.Entities.Character.MyCharacter)) return Array.Empty<ActionChoice>();
             pointed=BlockInspection.Pointed();
-            return actions;
+            return toolActions!=null && MultiToolEquipped ? toolActions.Concat(actions).ToArray() : actions;
         }
+
+        // The multitool's instruments read keyboard and mouse controls and aim along the camera, which in VR is the head.
+        private static object multiTool;
+        private static Func<object,bool> isEquipped;
+        private static ActionChoice[] toolActions;
+        internal static bool MultiToolEquipped => Active && multiTool!=null && isEquipped!=null && isEquipped(multiTool);
+        private static void AttachMultiTool(object instance,Func<string,Type> find,List<string> parts)
+        {
+            var tool=find("Digi.BuildInfo.Features.MultiTool.MultiToolHandler");
+            multiTool=ModReflection.Get(instance,"MultiTool");
+            isEquipped=Getter<bool>(multiTool,"IsEquipped");
+            if(tool==null || multiTool==null || isEquipped==null) { multiTool=null; isEquipped=null; Logger.Info("Build Info multitool not found; left unchanged in VR"); return; }
+
+            var input=find("Digi.Input.InputLib");
+            var pressed=input==null ? null:AccessTools.Method(input,"GetGameControlPressed");
+            var justPressed=input==null ? null:AccessTools.Method(input,"GetGameControlJustPressed");
+            if(Try("multitool controls",pressed?.ReturnType==typeof(bool) && justPressed?.ReturnType==typeof(bool) &&
+                pressed.GetParameters().Any(p=>p.Name=="controlId" && p.ParameterType==typeof(MyStringId)) && justPressed.GetParameters().Any(p=>p.Name=="controlId" && p.ParameterType==typeof(MyStringId)),() => {
+                Patch(pressed,postfix:nameof(ControlPressed));
+                Patch(justPressed,postfix:nameof(ControlJustPressed));
+            })) parts.Add("multitool controls");
+
+            var measure=find("Digi.BuildInfo.Features.MultiTool.Instruments.Measure.Measure");
+            var modifiers=find("Digi.BuildInfo.Features.MultiTool.Instruments.Measure.Modifiers");
+            var conveyor=find("Digi.BuildInfo.Features.MultiTool.Instruments.ConveyorVis");
+            // Mods read the camera through IMyCamera, which MyCamera implements explicitly.
+            var map=typeof(VRage.Game.Utils.MyCamera).GetInterfaceMap(typeof(VRage.ModAPI.IMyCamera));
+            int slot=Array.IndexOf(map.InterfaceMethods,AccessTools.PropertyGetter(typeof(VRage.ModAPI.IMyCamera),nameof(VRage.ModAPI.IMyCamera.WorldMatrix)));
+            var camera=slot<0 ? null:map.TargetMethods[slot];
+            int viewSlot=Array.IndexOf(map.InterfaceMethods,AccessTools.PropertyGetter(typeof(VRage.ModAPI.IMyCamera),nameof(VRage.ModAPI.IMyCamera.ViewMatrix)));
+            var viewMatrix=viewSlot<0 ? null:map.TargetMethods[viewSlot];
+            var snapshot=find("Digi.BuildInfo.Features.MultiTool.Instruments.PhysicsSnapshot");
+            var aim=new[] {measure==null ? null:AccessTools.Method(measure,"HandleAim",Type.EmptyTypes),conveyor==null ? null:AccessTools.Method(conveyor,"Update",new[] {typeof(bool)}),
+                snapshot==null ? null:AccessTools.Method(snapshot,"CaptureSnapshot",new[] {typeof(bool)}),snapshot==null ? null:AccessTools.Method(snapshot,"RenderSquare",Type.EmptyTypes)};
+            var head=new[] {"DrawCursor","DrawMeasurementLine","DrawMeasurementAngle"}.Select(name=>measure==null ? null:AccessTools.Method(measure,name))
+                .Concat(new[] {modifiers==null ? null:AccessTools.Method(modifiers,"Apply")}).ToArray();
+            if(Try("multitool hand aim",camera?.ReturnType==typeof(MatrixD) && viewMatrix?.ReturnType==typeof(MatrixD) && aim.All(m=>m!=null) && head.All(m=>m!=null),() => {
+                Patch(camera,postfix:nameof(HandCamera));
+                Patch(viewMatrix,postfix:nameof(HandView));
+                foreach(var method in aim) Patch(method,nameof(AimBegin),finalizer:nameof(AimEnd));
+                foreach(var method in head) Patch(method,nameof(HeadBegin),finalizer:nameof(HeadEnd));
+            })) parts.Add("multitool hand aim");
+
+            var screen=Array.IndexOf(map.InterfaceMethods,AccessTools.Method(typeof(VRage.ModAPI.IMyCamera),nameof(VRage.ModAPI.IMyCamera.WorldToScreen)));
+            var worldToScreen=screen<0 ? null:map.TargetMethods[screen];
+            var labelled=new[] {"DrawMeasurementLine","DrawMeasurementAngle"}.Select(name=>measure==null ? null:AccessTools.Method(measure,name)).ToArray();
+            var package=find("Digi.BuildInfo.Systems.TextAPI+TextPackage");
+            var packageDraw=package==null ? null:AccessTools.Method(package,"Draw",Type.EmptyTypes);
+            // Label frames start and end with the see-through part's session draw scope.
+            if(Try("measurement labels at their points",parts.Contains("see-through overlays") && worldToScreen!=null && packageDraw!=null && labelled.All(m=>m!=null && m.GetParameters().Any(p=>p.Name=="text")),() => {
+                foreach(var method in labelled) Patch(method,nameof(LabelScopeBegin),finalizer:nameof(LabelScopeEnd));
+                Patch(worldToScreen,postfix:nameof(LabelAnchor));
+                Patch(packageDraw,nameof(LabelBegin),finalizer:nameof(LabelEnd));
+            })) parts.Add("measurement labels at their points");
+
+            var instrument=find("Digi.BuildInfo.Features.MultiTool.InstrumentBase");
+            var toolDraw=AccessTools.Method(tool,"UpdateDraw",Type.EmptyTypes);
+            var instrumentDraws=instrument==null ? new MethodInfo[0] : tool.Assembly.GetTypes().Where(t=>instrument.IsAssignableFrom(t))
+                .Select(t=>t.GetMethod("Draw",BindingFlags.Public|BindingFlags.Instance|BindingFlags.DeclaredOnly,null,Type.EmptyTypes,null)).Where(m=>m!=null && !m.IsAbstract).ToArray();
+            if(Try("multitool list beside the card",toolDraw!=null && instrumentDraws.Length>0,() => {
+                Patch(toolDraw,nameof(ToolDrawBegin),finalizer:nameof(TextEnd));
+                foreach(var method in instrumentDraws) Patch(method,nameof(InstrumentDrawBegin),finalizer:nameof(InstrumentDrawEnd));
+            })) parts.Add("multitool list beside the card");
+            var conveyorView=find("Digi.BuildInfo.Features.Overlays.ConveyorNetwork.ConveyorNetworkView");
+            var conveyorRender=find("Digi.BuildInfo.Features.Overlays.ConveyorNetwork.ConveyorNetworkRender");
+            var viewDraw=conveyorView==null ? null:AccessTools.Method(conveyorView,"UpdateDraw",Type.EmptyTypes);
+            var renderDraw=conveyorRender==null ? null:AccessTools.Method(conveyorRender,"Draw",Type.EmptyTypes);
+            if(Try("conveyor legend beside the card",viewDraw?.DeclaringType==conveyorView && renderDraw!=null,() => {
+                Patch(viewDraw,nameof(LegendBegin),finalizer:nameof(LegendEnd));
+                Patch(renderDraw,nameof(InstrumentDrawBegin),finalizer:nameof(InstrumentDrawEnd));
+            })) parts.Add("conveyor legend beside the card");
+            // These draw only see-through copies, at any distance; the snapshot's viewfinder and frustum are true geometry.
+            var copies=new[] {renderDraw,snapshot==null ? null:AccessTools.Method(snapshot,"RenderPixels",Type.EmptyTypes)};
+            var geometry=new[] {"RenderSquare","RenderSnapshotFrustum"}.Select(name=>snapshot==null ? null:AccessTools.Method(snapshot,name,Type.EmptyTypes)).ToArray();
+            if(Try("multitool overlay depth",copies.All(m=>m!=null) && geometry.All(m=>m!=null),() => {
+                foreach(var method in copies) Patch(method,nameof(CopiesBegin),finalizer:nameof(CopiesEnd));
+                foreach(var method in geometry) Patch(method,nameof(GeometryBegin),finalizer:nameof(GeometryEnd));
+            })) parts.Add("multitool overlay depth");
+
+            var instruments=AccessTools.Field(tool,"Instruments");
+            var index=AccessTools.Field(tool,"InstrumentIdx");
+            var current=AccessTools.Property(tool,"Instrument");
+            var refresh=AccessTools.Field(tool,"ForceRefresh");
+            var selected=instrument==null ? null:AccessTools.Method(instrument,"Selected",Type.EmptyTypes);
+            var deselected=instrument==null ? null:AccessTools.Method(instrument,"Deselected",Type.EmptyTypes);
+            var clear=measure==null ? null:AccessTools.Method(measure,"ClearMeasurements",Type.EmptyTypes);
+            var cancel=measure==null ? null:AccessTools.Method(measure,"CancelProgress",Type.EmptyTypes);
+            if(new object[] {instruments,index,current?.GetSetMethod(true),refresh,selected,deselected,clear,cancel}.Any(m=>m==null) || index.FieldType!=typeof(int) || refresh.FieldType!=typeof(bool))
+            { Logger.Info("Build Info multitool instruments not found; no instrument actions on the wheel"); return; }
+            object Current() => current.GetValue(multiTool);
+            bool Is(Type type) => type!=null && type.IsInstanceOfType(Current());
+            void Next()
+            {
+                if(!(instruments.GetValue(multiTool) is System.Collections.IList list) || list.Count==0) return;
+                int next=((int)index.GetValue(multiTool)+1)%list.Count;
+                if(Current() is object previous) deselected.Invoke(previous,null);
+                index.SetValue(multiTool,next);
+                current.GetSetMethod(true).Invoke(multiTool,new[] {list[next]});
+                selected.Invoke(list[next],null);
+                refresh.SetValue(multiTool,true);
+            }
+            toolActions=new[] {
+                new ActionChoice(()=>"Instrument: "+(ModReflection.Get(Current(),"DisplayName") as string ?? "none"),Next,historyKey:"Build Info instrument",icon:()=>NativeSprites.Hud("RadialMenu")),
+                new ActionChoice(()=>"Cycle ruler",()=>NativeActions.Pulse(Sandbox.Game.MyControlsSpace.RELOAD),()=>Is(measure),"Build Info ruler",icon:()=>NativeSprites.Hud("PlacementMode")),
+                new ActionChoice(()=>"Cycle angle snap",()=>NativeActions.Pulse(Sandbox.Game.MyControlsSpace.SYMMETRY_SWITCH),()=>Is(measure),"Build Info angle snap",icon:()=>NativeSprites.Hud("Symmetry")),
+                new ActionChoice(()=>"Delete aimed measurement",()=>NativeActions.Pulse(Sandbox.Game.MyControlsSpace.USE_SYMMETRY),()=>Is(measure),"Build Info delete measurement",icon:()=>NativeSprites.Hud("CutGrid")),
+                new ActionChoice(()=>"Delete all measurements",()=>{ var m=Current(); clear.Invoke(m,null); cancel.Invoke(m,null); },()=>Is(measure),"Build Info delete measurements",icon:()=>NativeSprites.Hud("CutGrid")),
+                new ActionChoice(()=>"Snapshot colors",()=>NativeActions.Pulse(Sandbox.Game.MyControlsSpace.USE_SYMMETRY),()=>Is(snapshot),"Build Info snapshot colors",icon:()=>NativeSprites.Hud("ColorPicker")) };
+            parts.Add("multitool wheel actions");
+        }
+        private static void ControlPressed(MyStringId controlId,ref bool __result)
+        { if(!__result && Main.VrActive && MultiToolEquipped) __result=NativeActions.Read(controlId,VRage.Input.MyControlStateType.PRESSED); }
+        private static void ControlJustPressed(MyStringId controlId,ref bool __result)
+        { if(!__result && Main.VrActive && MultiToolEquipped) __result=NativeActions.Read(controlId,VRage.Input.MyControlStateType.NEW_PRESSED); }
+        // Aiming reads the hand ray; drawing inside it keeps the real camera so cursors and labels face the viewer.
+        private static int aimDepth,headDepth;
+        private static void AimBegin() => aimDepth++;
+        private static Exception AimEnd(Exception __exception) { aimDepth--; return __exception; }
+        private static void HeadBegin() => headDepth++;
+        private static Exception HeadEnd(Exception __exception) { headDepth--; return __exception; }
+        private static void HandCamera(ref MatrixD __result)
+        {
+            if(aimDepth>0 && headDepth==0 && Main.VrActive && PlacementControls.TryBuilderPose(out var pose)) __result=pose;
+        }
+        private static void HandView(ref MatrixD __result)
+        {
+            if(aimDepth>0 && headDepth==0 && Main.VrActive && PlacementControls.TryBuilderPose(out var pose)) __result=MatrixD.Invert(pose);
+        }
+        private static void ToolDrawBegin(out BuildInfoPanel.Capture __state) =>
+            __state=Main.VrActive && BuildInfoPanel.Capturing==null && MultiToolEquipped ? BuildInfoPanel.Text.Begin(BlockInspection.Current!=null,HalfHeight()) : null;
+        private static void LegendBegin(out BuildInfoPanel.Capture __state) =>
+            __state=Main.VrActive && BuildInfoPanel.Capturing==null ? BuildInfoPanel.Legend.Begin(BlockInspection.Current!=null,HalfHeight()) : null;
+        private static Exception LegendEnd(Exception __exception,BuildInfoPanel.Capture __state)
+        {
+            if(__state==null) return __exception;
+            try { __state.Complete(); }
+            catch(Exception ex) { Logger.Warning(ex,"Build Info conveyor legend capture failed"); BuildInfoPanel.Legend.Reset(); }
+            finally { __state.Dispose(); }
+            return __exception;
+        }
+        private static void InstrumentDrawBegin(out BuildInfoPanel.Capture __state) => __state=BuildInfoPanel.Suspend();
+        private static Exception InstrumentDrawEnd(Exception __exception,BuildInfoPanel.Capture __state) { BuildInfoPanel.Resume(__state); return __exception; }
+
+        // Build Info draws see-through overlays as copies at 1% of their distance; in stereo they return to their true place, drawn with no depth test.
+        private static int drawing;
+        private const double CopyRatio=.01,CopyReach=.5,TextApiPlane=.1,PlaneTolerance=.0005;
+        private static int copyDepth,geometryDepth;
+        private static void CopiesBegin() => copyDepth++;
+        private static Exception CopiesEnd(Exception __exception) { copyDepth--; return __exception; }
+        private static void GeometryBegin() => geometryDepth++;
+        private static Exception GeometryEnd(Exception __exception) { geometryDepth--; return __exception; }
+        private static void DrawBegin() { if(drawing++==0) BuildInfoLabels.BeginFrame(); }
+        private static Exception DrawEnd(Exception __exception) { if(--drawing==0) BuildInfoLabels.EndFrame(); return __exception; }
+
+        // A measurement places its label with WorldToScreen; that point anchors the label's capture when it is drawn.
+        private sealed class Anchor { public Vector3D Point; }
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object,Anchor> anchors=new System.Runtime.CompilerServices.ConditionalWeakTable<object,Anchor>();
+        private static object labelText;
+        private static void LabelScopeBegin(object text,out object __state) { __state=labelText; labelText=text; }
+        private static Exception LabelScopeEnd(Exception __exception,object __state) { labelText=__state; return __exception; }
+        private static void LabelAnchor(ref Vector3D __0)
+        {
+            if(labelText!=null && Main.VrActive) anchors.GetValue(labelText,_=>new Anchor()).Point=__0;
+        }
+        // HUD text is laid out on the real camera's plane, also when drawn inside an aim scope.
+        private static void LabelBegin(object __instance,out BuildInfoPanel.Capture __state)
+        {
+            __state=null; headDepth++;
+            if(Main.VrActive && BuildInfoPanel.Capturing==null && anchors.TryGetValue(__instance,out var anchor)) __state=BuildInfoLabels.Begin(anchor.Point,HalfHeight());
+        }
+        private static Exception LabelEnd(Exception __exception,BuildInfoPanel.Capture __state)
+        {
+            headDepth--;
+            if(__state==null) return __exception;
+            try { __state.Complete(); }
+            catch(Exception ex) { Logger.Warning(ex,"Build Info measurement label capture failed"); }
+            finally { __state.Dispose(); }
+            return __exception;
+        }
+        private static readonly List<VRageRender.MyBillboard> batchCopy=new List<VRageRender.MyBillboard>();
+        private static void SeeThroughBatch(IEnumerable<VRageRender.MyBillboard> billboards)
+        {
+            if(drawing==0 || !Main.VrActive || billboards==null) return;
+            // Build Info's snapshot passes a collection that only supports CopyTo.
+            if(billboards is ICollection<VRageRender.MyBillboard> collection)
+            {
+                var items=new VRageRender.MyBillboard[collection.Count];
+                collection.CopyTo(items,0);
+                foreach(var billboard in items) SeeThrough(billboard);
+                return;
+            }
+            batchCopy.Clear(); batchCopy.AddRange(billboards);
+            foreach(var billboard in batchCopy) SeeThrough(billboard);
+            batchCopy.Clear();
+        }
+        // True when the billboard is placed and must skip HUD placement.
+        internal static bool SeeThrough(VRageRender.MyBillboard billboard)
+        {
+            if(drawing==0 || !Main.VrActive || billboard==null) return false;
+            // True geometry near the hand stays where it is, not on the HUD plane.
+            if(geometryDepth>0) return true;
+            if(billboard.CustomViewProjection!=-1 || billboard.ParentID!=uint.MaxValue) return false;
+            var camera=MySector.MainCamera;
+            if(camera==null) return false;
+            var origin=camera.Position; Vector3D forward=camera.ForwardVector;
+            // Point and Line billboards keep only their start in Position0; Position2 holds sizes (Point: size, Line: length and thickness).
+            if(billboard.LocalType!=VRageRender.MyBillboard.LocalTypeEnum.Custom)
+            {
+                if(!Near(billboard.Position0,origin)) return false;
+                billboard.Position0=origin+(billboard.Position0-origin)/CopyRatio;
+                var sizes=billboard.Position2;
+                billboard.Position2=billboard.LocalType==VRageRender.MyBillboard.LocalTypeEnum.Point ? new Vector3D(sizes.X/CopyRatio,sizes.Y,sizes.Z) : new Vector3D(sizes.X/CopyRatio,sizes.Y/CopyRatio,sizes.Z);
+                billboard.DistanceSquared=(float)Vector3D.DistanceSquared(billboard.Position0,origin);
+                billboard.BlendType=VRageRender.MyBillboard.BlendTypeEnum.AdditiveTop;
+                return true;
+            }
+            bool triangle=billboard is VRageRender.MyTriangleBillboard;
+            if(!Near(billboard.Position0,origin) || !Near(billboard.Position1,origin) || !Near(billboard.Position2,origin) || !triangle && !Near(billboard.Position3,origin)) return false;
+            // Text HUD API's own boxes lie on its plane in front of the camera and stay HUD; renderers of copies draw none.
+            if(copyDepth==0 && OnPlane(billboard.Position0,origin,forward) && OnPlane(billboard.Position1,origin,forward) && OnPlane(billboard.Position2,origin,forward) &&
+                (triangle || OnPlane(billboard.Position3,origin,forward))) return false;
+            billboard.Position0=origin+(billboard.Position0-origin)/CopyRatio;
+            billboard.Position1=origin+(billboard.Position1-origin)/CopyRatio;
+            billboard.Position2=origin+(billboard.Position2-origin)/CopyRatio;
+            if(!triangle) billboard.Position3=origin+(billboard.Position3-origin)/CopyRatio;
+            var center=triangle ? (billboard.Position0+billboard.Position1+billboard.Position2)/3:(billboard.Position0+billboard.Position2)*.5;
+            billboard.DistanceSquared=(float)Vector3D.DistanceSquared(center,origin);
+            billboard.BlendType=VRageRender.MyBillboard.BlendTypeEnum.AdditiveTop;
+            return true;
+        }
+        private static bool Near(Vector3D point,Vector3D origin) => copyDepth>0 || Vector3D.DistanceSquared(point,origin)<=CopyReach*CopyReach;
+        private static bool OnPlane(Vector3D point,Vector3D origin,Vector3D forward) => Math.Abs(Vector3D.Dot(point-origin,forward)-TextApiPlane)<=PlaneTolerance;
 
         // Build Info writes toolbar status for its own font: private-use icons beside words, a spacer, a tag line and up to three lines.
         private const char Spacer='\ue13f',Bad='\ue104',Alert='\ue105';

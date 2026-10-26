@@ -9,11 +9,12 @@ namespace SpaceEngineersVR.Player
     internal sealed class BuildInfoPanel
     {
         // The toolbar list below the 0.52 m wheel is enlarged to the wheel's label size.
-        internal static readonly BuildInfoPanel Text=new BuildInfoPanel(1),Toolbar=new BuildInfoPanel(1.6f);
+        internal static readonly BuildInfoPanel Text=new BuildInfoPanel(1),Toolbar=new BuildInfoPanel(1.6f),Legend=new BuildInfoPanel(1);
         // Discards what Build Info draws inside its scope.
         internal static readonly BuildInfoPanel Hidden=new BuildInfoPanel(1);
         private readonly float scale;
         private BuildInfoPanel(float scale) { this.scale=scale; }
+        internal static BuildInfoPanel Create() => new BuildInfoPanel(1);
         internal sealed class View
         {
             public NativeSprite[] Sprites;
@@ -44,7 +45,13 @@ namespace SpaceEngineersVR.Player
             private Vector3D origin,right,down;
             private bool framed;
             // halfHeight: Text HUD API's localscale, half the screen height on its plane.
-            internal Capture(BuildInfoPanel panel,bool keep,double halfHeight) { this.panel=panel; this.keep=keep; this.halfHeight=halfHeight; }
+            internal Capture(BuildInfoPanel panel,bool keep,double halfHeight)
+            {
+                this.panel=panel; this.keep=keep; this.halfHeight=halfHeight;
+                // Text HUD API draws on a plane facing the camera; a box's first quad can be a rotated corner piece.
+                var camera=Sandbox.Game.World.MySector.MainCamera;
+                if(camera!=null) { origin=camera.Position; right=camera.WorldMatrix.Right; down=camera.WorldMatrix.Down; framed=true; }
+            }
             internal void Add(MyBillboard billboard)
             {
                 if(!keep || billboard==null || billboard is MyTriangleBillboard || billboard.CustomViewProjection!=-1) return;
@@ -83,6 +90,9 @@ namespace SpaceEngineersVR.Player
         internal View Current => current;
         internal int Revision => revision;
         internal Capture Begin(bool keep,double halfHeight) => capturing=new Capture(this,keep,halfHeight);
+        // Lets world overlays drawn inside a captured scope reach the world.
+        internal static Capture Suspend() { var paused=capturing; capturing=null; return paused; }
+        internal static void Resume(Capture paused) => capturing=paused;
 
         // Null when nothing usable was drawn. Plane metres scale to the card by their share of the screen height.
         internal static View Build(List<Quad> quads,double halfHeight,DateTime now,float enlarge=1)
@@ -132,13 +142,25 @@ namespace SpaceEngineersVR.Player
             pose.Translation=card.Translation+card.Right*side*(cardWidth/2+Gap+width/2)+card.Up*(cardHeight/2-height/2);
             return pose;
         }
-        internal SurfaceView Surface(SurfaceView card,int side)
+        // below: height already taken under the card's top edge by a panel above this one.
+        internal SurfaceView Surface(SurfaceView card,int side,float below=0)
         {
             var view=current;
             if(card==null || !Fresh(view,DateTime.UtcNow)) return null;
-            return new SurfaceView { Id="Build Info",Style=SurfaceStyle.BuildInfo,Width=view.Width,Height=view.Height,
-                Pose=Beside(card.Pose,card.Width,card.Height,view.Width,view.Height,side) };
+            var pose=Beside(card.Pose,card.Width,card.Height,view.Width,view.Height,side);
+            pose.Translation-=card.Pose.Up*below;
+            return new SurfaceView { Id=ReferenceEquals(this,Legend) ? "Build Info legend":"Build Info",Style=SurfaceStyle.BuildInfo,Width=view.Width,Height=view.Height,Pose=pose };
         }
+        // Centred on top of the card; for the multitool's small instrument list.
+        internal SurfaceView Above(SurfaceView card)
+        {
+            var view=current;
+            if(card==null || !Fresh(view,DateTime.UtcNow)) return null;
+            var pose=card.Pose;
+            pose.Translation+=card.Pose.Up*(card.Height/2+Gap+view.Height/2);
+            return new SurfaceView { Id="Build Info",Style=SurfaceStyle.BuildInfo,Width=view.Width,Height=view.Height,Pose=pose };
+        }
+        internal static BuildInfoPanel For(SurfaceView surface) => surface?.Id=="Build Info legend" ? Legend:Text;
         internal static Vector2I TextureSize(float width,float height)
         {
             double scale=Math.Min(PixelsPerMetre,MaxTexture/Math.Max(width,height));

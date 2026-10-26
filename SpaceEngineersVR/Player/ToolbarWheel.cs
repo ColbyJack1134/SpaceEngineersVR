@@ -183,7 +183,8 @@ namespace SpaceEngineersVR.Player
         {
             holder=button; latched=false; openedAt=DateTime.UtcNow;
             bool jetpack=InputRouter.Mode==InputMode.Jetpack || MySession.Static?.LocalCharacter?.JetpackComp?.TurnedOn==true;
-            quickChoices=quick ? GameActions.WheelActions(PlacementControls.OwnsTools,InputRouter.Mode==InputMode.Piloting,ThirdPersonView.Active,jetpack):null;
+            // The multitool places no blocks, so it keeps the on-foot actions; its own are on the Build Info page.
+            quickChoices=quick ? GameActions.WheelActions(PlacementControls.OwnsTools && !Patches.BuildInfoBridge.MultiToolEquipped,InputRouter.Mode==InputMode.Piloting,ThirdPersonView.Active,jetpack):null;
             quickPage=0; quickPages=null; pageTitles=null; variantPages=null;
             if(quick)
             {

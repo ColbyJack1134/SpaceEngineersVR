@@ -65,7 +65,7 @@ namespace SpaceEngineersVR.Player
         public float[] Levels;
         public int Handle;
         public string ContentKey => Desktop+"|"+FlightPage+"|"+SeatSettings+"|"+SignalWindow+"|"+(SignalWindow ? Signals?.Tint:0)+"|"+(SignalWindow && Signals?.Candidates.Length==0)+"|"+(SignalWindow ? Plugin.Common.Config?.WaypointMode:0)+"|"+Style+"|"+Handle+"|"+Title+"|"+Text+"|"+Action+"|"+Argument+"|"+Hover+"|"+Pressed+"|"+HoverAlt+"|"+PressedAlt+"|"+string.Join("|",Keys.Select(k=>k.Label+":"+k.Horizontal+":"+k.Enabled+":"+k.Active+":"+k.Text+":"+k.SubIcon+":"+string.Join(",",k.Icons)))+
-            "|"+Selection+"|"+(Style==SurfaceStyle.BlockInfo ? NativeBlockInfo.Revision+"/"+CardAdditions.Revision:Style==SurfaceStyle.BuildInfo ? BuildInfoPanel.Text.Revision.ToString():"0")+"|"+HudSettings?.Key+"|"+ShieldsView?.Key+"|"+ChatView?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob+":"+k.Slider))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
+            "|"+Selection+"|"+(Style==SurfaceStyle.BlockInfo ? NativeBlockInfo.Revision+"/"+CardAdditions.Revision:Style==SurfaceStyle.BuildInfo ? BuildInfoPanel.For(this).Revision.ToString():"0")+"|"+HudSettings?.Key+"|"+ShieldsView?.Key+"|"+ChatView?.Key+"|"+string.Join("|",Keys.Select(k=>k.Value+":"+k.Knob+":"+k.Slider))+"|"+string.Join("|",Icons)+"|"+SubIcon+"|"+Enabled+"|"+GeometryFeedback+
             (Levels==null ? "" : string.Join(",",Levels.Select(v=>v.ToString("0.00"))))+(Id=="Seat" ? "|"+Width+"|"+Height : "");
         public int KeyAt(Vector2 uv)
         {
@@ -144,7 +144,7 @@ namespace SpaceEngineersVR.Player
             if(s.Style==SurfaceStyle.Pointer) { target.Clear(Color.White); return; }
             if(s.Style==SurfaceStyle.Ammo) { WeaponAmmo.Paint(target,s); return; }
             if(s.Style==SurfaceStyle.BlockInfo) { BlockInspection.Paint(target,s); return; }
-            if(s.Style==SurfaceStyle.BuildInfo) { BuildInfoPanel.Text.Paint(target); return; }
+            if(s.Style==SurfaceStyle.BuildInfo) { BuildInfoPanel.For(s).Paint(target); return; }
             if(s.Style==SurfaceStyle.Label)
             {
                 PaintSwitchInfo(target,s);
