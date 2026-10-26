@@ -39,7 +39,7 @@ namespace SpaceEngineersVR.Player
         {
             // HUD draw follows camera enqueue. Finalize before AfterUpdate publishes the native batch.
             // Camera-only updates do not mean the native HUD removed its markers.
-            var markers=pending.Count>0 ? WorldMarkers.WithWeaponCore(latestMarkers) : null;
+            var markers=pending.Count>0 ? WorldMarkers.WithWeaponCore(WorldMarkers.Live(latestMarkers)) : null;
             foreach(var packet in pending)
             {
                 packet.Markers=markers;

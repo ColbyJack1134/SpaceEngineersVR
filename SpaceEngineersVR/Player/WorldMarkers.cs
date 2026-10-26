@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Sandbox.Game.Screens.Helpers;
 using VRage.Game.Entity;
+using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Character;
 using Sandbox.Game.Gui;
 using HarmonyLib;
@@ -34,6 +35,10 @@ namespace SpaceEngineersVR.Player
             public string Symbol, LabelSide;
             public float Span=1;
             public bool AvoidOverlap, EdgeArrow;
+            // Markers that follow an entity: its id and the native height above its position.
+            public long Entity;
+            public float Lift;
+            internal Marker At(Vector3D position) { var copy=(Marker)MemberwiseClone(); copy.Position=position; return copy; }
         }
         internal sealed class View
         {
@@ -48,6 +53,23 @@ namespace SpaceEngineersVR.Player
             // A stale capture keeps only the live markers, stamped now, so they still draw.
             internal View With(Marker[] extra,NativeLead.View lead,bool stale) =>
                 new View(stale ? extra : Markers.Concat(extra).ToArray(),stale ? DateTime.UtcNow:Time,Generation) {Mode=Mode,Reveal=Reveal,Lead=lead};
+            internal View Replace(Marker[] markers) => new View(markers,Time,Generation) {Mode=Mode,Reveal=Reveal,Lead=Lead};
+        }
+        // The parallel HUD draw usually finishes after commit, a frame old; entity markers take the entity's position at commit.
+        internal static View Live(View view)
+        {
+            if(view==null) return null;
+            Marker[] markers=null;
+            for(int i=0;i<view.Markers.Length;i++)
+            {
+                var marker=view.Markers[i];
+                if(marker.Entity==0 || !MyEntities.TryGetEntityById(marker.Entity,out MyEntity item) || item.PositionComp==null) continue;
+                var live=item.PositionComp.GetPosition()+item.WorldMatrix.Up*marker.Lift;
+                if(live==marker.Position) continue;
+                if(markers==null) markers=(Marker[])view.Markers.Clone();
+                markers[i]=marker.At(live);
+            }
+            return markers==null ? view:view.Replace(markers);
         }
         // The native HUD stops capturing markers in third person; older captures are not drawn.
         private const double MaxCaptureAge=1;
@@ -200,7 +222,7 @@ namespace SpaceEngineersVR.Player
                     Remaining=remaining.GetValue(poi) as string,Encounter=info?.Encounter==true || type=="Scenario",
                     Pinned=pinned,Cluster=(bool)cluster.GetValue(poi),
                     Icon=type=="Ore" ? "ore" : @"Textures\HUD\marker_"+icon+".dds",
-                    Distance=(double)nativeDistance.GetValue(poi) });
+                    Distance=(double)nativeDistance.GetValue(poi),Entity=item?.EntityId ?? 0,Lift=item is MyCharacter ? 1.3f:0 });
             }
             IdentifyProxies(renderer,markers,now);
             ReadTarget(renderer,markers);
@@ -274,7 +296,7 @@ namespace SpaceEngineersVR.Player
                 relation=relation=="Self" ? "Owner":relation=="Allies" ? "FactionShare":relation=="Neutral" ? "Neutral":"Enemies";
                 var position=character.PositionComp.GetPosition()+character.WorldMatrix.Up*(character.PositionComp.LocalAABB.Height+.02);
                 string icon=relation=="Owner" ? "self":relation=="FactionShare" ? "friendly":relation=="Enemies" ? "enemy":"neutral";
-                markers.Add(new Marker { Id="player:"+character.EntityId,Position=position,Name=character.CustomNameWithFaction.ToString(),
+                markers.Add(new Marker { Id="player:"+character.EntityId,Position=position,Entity=character.EntityId,Lift=character.PositionComp.LocalAABB.Height+.02f,Name=character.CustomNameWithFaction.ToString(),
                     Kind="Character",Relation=relation,Color=tint.ToVector4(),FontColor=tint.ToVector4(),Font="Blue",Pinned=(bool)indicatorPinned.GetValue(indicator),
                     Icon=@"Textures\HUD\marker_"+icon+".dds",Distance=Vector3D.Distance(position,head) });
             }
