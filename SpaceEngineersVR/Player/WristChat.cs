@@ -124,6 +124,11 @@ namespace SpaceEngineersVR.Player
             if(MyMultiplayer.Static!=null && !MyMultiplayer.Static.IsTextChatAvailable) return;
             string message=draft;
             draft="";
+            Send(message);
+        }
+        internal static void Send(string message)
+        {
+            if(MyMultiplayer.Static!=null && !MyMultiplayer.Static.IsTextChatAvailable) return;
             if(string.IsNullOrWhiteSpace(message) || MySession.Static?.LocalHumanPlayer==null) return;
             var session=MySession.Static;
             if(session.ChatSystem.CommandSystem.CanHandle(message))
