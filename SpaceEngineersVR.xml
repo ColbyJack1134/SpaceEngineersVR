@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<PluginData xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="GitHubPlugin">
+  <Id>SpaceEngineersVR-source</Id>
+  <FriendlyName>Space Engineers VR</FriendlyName>
+  <Author>ColbyJack</Author>
+  <Tooltip>Play in a SteamVR headset with motion controls.</Tooltip>
+  <Description>A native-feeling VR experience for Space Engineers via SteamVR.
+
+- Interactive vanilla and DLC cockpits: grab the joysticks, throttles, steering wheels and buttons
+- Motion-controlled tools and weapons, with two-handed and left-handed holds
+- VR building with painting, symmetry, blueprints and voxel tools
+- 3rd person, spectator, camera, turret and remote-grid views
+- Wrist HUD and tablet, radial menus, a VR keyboard and all game menus in VR
+- Interactive LCDs, including Arthur and TouchScreenAPI
+- Multiplayer
+- Pulsar Legacy and Interim, with experimental native Linux support
+
+Start SteamVR before launching. On Linux, install your distribution's libgdiplus package. Full feature list, controls and issues: https://github.com/ColbyJack1134/SpaceEngineersVR</Description>
+  <SourceDirectories>
+    <Directory>SpaceEngineersVR/</Directory>
+  </SourceDirectories>
+  <Asset Name="AssetFolder" Path="SpaceEngineersVR/Assets/" />
+  <Asset Name="LinuxOpenVR" Url="https://raw.githubusercontent.com/ValveSoftware/openvr/v1.16.8/bin/linux64/libopenvr_api.so" Sha256="b5027afdc44d3ec3152e405e0af07a079c9ed167b5dce39833549d73dcb7aba5" Placement="Bin" Platforms="Linux" />
+  <NuGetReferences>
+    <PackageReference Include="OVRSharp" Version="1.2.0" />
+    <PackageReference Include="System.Drawing.Common" Version="6.0.0" />
+  </NuGetReferences>
+  <Runtimes>CLR;CoreCLR;Mono</Runtimes>
+  <Platforms>Windows;Proton;Linux</Platforms>
+  <Hidden>false</Hidden>
+</PluginData>

@@ -4,10 +4,10 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
-if (Get-Process Legacy,SpaceEngineers -ErrorAction SilentlyContinue) {
+if (Get-Process Legacy,Interim,SpaceEngineers -ErrorAction SilentlyContinue) {
     throw 'A game is running. Close it before deploying; no process was stopped.'
 }
-foreach ($process in @(Get-Process Legacy,SEVR.Diagnostics -ErrorAction SilentlyContinue)) {
+foreach ($process in @(Get-Process Legacy,Interim,SEVR.Diagnostics -ErrorAction SilentlyContinue)) {
     if ($process.Path -and $process.Path.StartsWith($PrototypeRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
         throw 'Close the running SEVR prototype/diagnostic before deploying.'
     }
@@ -48,6 +48,29 @@ New-Item -ItemType Directory -Force (Join-Path $pulsar 'Legacy\Sources'), (Join-
 <?xml version="1.0"?>
 <Profile><Name>SEVR Prototype</Name><GitHub /><DevFolder /><Local><string>SpaceEngineersVR.dll</string></Local><Mods /></Profile>
 '@ | Set-Content (Join-Path $pulsar 'Legacy\Profiles\sevr.xml') -Encoding UTF8
+New-Item -ItemType Directory -Force (Join-Path $pulsar 'Interim\Sources'), (Join-Path $pulsar 'Interim\Profiles') | Out-Null
+# The hub source supplies DotNetCompat, which Interim needs; SEVR itself comes from the local source folder.
+@"
+<?xml version="1.0"?>
+<SourcesConfig>
+  <ShowWarning>true</ShowWarning>
+  <LocalHubSources />
+  <RemoteHubSources><RemoteHub><Name>PluginHub</Name><Repo>StarCpt/PluginHub</Repo><Branch>main</Branch><Enabled>true</Enabled><Trusted>true</Trusted></RemoteHub></RemoteHubSources>
+  <RemotePluginSources /><ModSources />
+  <LocalPluginSources><LocalPlugin><Name>SEVR source</Name><Folder>$PrototypeRoot\Source</Folder><File>$PrototypeRoot\Source\SpaceEngineersVR.xml</File><Enabled>true</Enabled></LocalPlugin></LocalPluginSources>
+</SourcesConfig>
+"@ | Set-Content (Join-Path $pulsar 'Interim\Sources\sources.xml') -Encoding UTF8
+@'
+<?xml version="1.0"?>
+<Profile><Name>SEVR Prototype</Name><GitHub /><DevFolder><LocalFolderConfig><Id>SpaceEngineersVR-source</Id><DebugBuild>false</DebugBuild></LocalFolderConfig></DevFolder><Local /><Mods /></Profile>
+'@ | Set-Content (Join-Path $pulsar 'Interim\Profiles\sevr.xml') -Encoding UTF8
+$interimConfig = Join-Path $pulsar 'Interim\config.xml'
+if (!(Test-Path $interimConfig)) {
+    @'
+<?xml version="1.0"?>
+<CoreConfig><CompilerTimeout>120000</CompilerTimeout></CoreConfig>
+'@ | Set-Content $interimConfig -Encoding UTF8
+}
 @{ GameBinPath = $GameBinPath; PrototypeRoot = $PrototypeRoot; SourceRoot = $repo; PulsarVersion = '2.4.2' } |
     ConvertTo-Json | Set-Content (Join-Path $PrototypeRoot 'settings.json') -Encoding UTF8
 $desktop = [Environment]::GetFolderPath('Desktop')

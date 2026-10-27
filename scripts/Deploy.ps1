@@ -4,7 +4,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
-if (Get-Process Legacy,SpaceEngineers,SEVR.Diagnostics -ErrorAction SilentlyContinue) {
+if (Get-Process Legacy,Interim,SpaceEngineers,SEVR.Diagnostics -ErrorAction SilentlyContinue) {
     throw 'Close the game and diagnostics before deployment. No process was stopped.'
 }
 $targets = @(
@@ -37,6 +37,12 @@ foreach ($target in $targets) {
     }
     Write-Host ($target.Name + ': verified ' + $files.Count + ' files')
 }
+# Pulsar Interim compiles this copy at launch; mirror it so deleted files stop compiling.
+$source = Join-Path $PrototypeRoot 'Source'
+robocopy (Join-Path $repo 'SpaceEngineersVR') (Join-Path $source 'SpaceEngineersVR') /MIR /XD bin obj /NFL /NDL /NJH /NJS /NP | Out-Null
+if ($LASTEXITCODE -ge 8) { throw "Source copy failed (robocopy $LASTEXITCODE)." }
+Copy-Item -LiteralPath (Join-Path $repo 'SpaceEngineersVR.xml') -Destination $source -Force
+Write-Host ('Source: mirrored ' + @(Get-ChildItem -LiteralPath $source -Recurse -File).Count + ' files')
 $controls = Join-Path $repo 'docs\CONTROLS.md'
 if (Test-Path $controls) {
     Copy-Item -LiteralPath $controls -Destination (Join-Path $PrototypeRoot 'READ ME FIRST.txt') -Force

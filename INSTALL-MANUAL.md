@@ -14,3 +14,5 @@ GitHub releases can be newer than the version on the Pulsar plugin hub. If you i
 **Note**: If you extract the ZIP and it fails to load via Pulsar, it may be blocked. Try: right click each DLL -> Properties -> Unblock
 
 Flatscreen multiplayer hosts and clients can install the optional `SpaceEngineersVR.FlatscreenCompanion.dll` plugin from the same release.
+
+Interim cannot load the release DLL.

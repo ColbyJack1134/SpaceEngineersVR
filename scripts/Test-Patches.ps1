@@ -1,6 +1,6 @@
 param([string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype'))
 $ErrorActionPreference = 'Stop'
-if (Get-Process Legacy,SpaceEngineers -ErrorAction SilentlyContinue) {
+if (Get-Process Legacy,Interim,SpaceEngineers -ErrorAction SilentlyContinue) {
     throw 'A game is already running. Patch smoke test did not launch or stop anything.'
 }
 $started = Get-Date

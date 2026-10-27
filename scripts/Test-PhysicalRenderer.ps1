@@ -1,6 +1,6 @@
 param([string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype'),[switch]$CockpitsOnly,[string]$Cockpit,[switch]$InterfaceOnly,[switch]$CameraHudOnly,[switch]$NativeSignals,[switch]$NativeLead,[switch]$NativeBlockInfo,[switch]$MenusOnly,[switch]$SetupOnly,[switch]$ActionsOnly)
 $ErrorActionPreference = 'Stop'
-if (Get-Process Legacy,SpaceEngineers -ErrorAction SilentlyContinue) {
+if (Get-Process Legacy,Interim,SpaceEngineers -ErrorAction SilentlyContinue) {
     throw 'A game is already running. Physical renderer test did not launch or stop anything.'
 }
 $started = Get-Date

@@ -2,6 +2,7 @@ param(
     [switch]$Diagnostics,
     [switch]$PatchTest,
     [switch]$PhysicalRenderTest,
+    [switch]$Legacy,
     [switch]$PassThru,
     [string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype')
 )
@@ -25,9 +26,12 @@ if ($mode -eq 'render') {
     if ($LASTEXITCODE -ne 0) { throw 'VR preflight failed. Run Check VR.cmd for a saved report.' }
 } else { $env:SEVR_MODE = $mode }
 $pulsar = Join-Path $PrototypeRoot 'Pulsar'
-$arguments = @('-bin64', ('"' + $settings.GameBinPath + '"'), '-noUpdate', '-noStats', '-noDiscord', '-bare', '-sources',
-    '-profile', ('"' + (Join-Path $pulsar 'Legacy\Profiles\sevr.xml') + '"'),
+# Test harnesses watch the Legacy DLL build. Interim compiles Source and needs the hub for DotNetCompat, so no -bare.
+$flavour = if ($Legacy -or $mode -ne 'render') { 'Legacy' } else { 'Interim' }
+$arguments = @('-bin64', ('"' + $settings.GameBinPath + '"'), '-noUpdate', '-noStats', '-noDiscord', '-sources',
+    '-profile', ('"' + (Join-Path $pulsar "$flavour\Profiles\sevr.xml") + '"'),
     '-appdata', ('"' + (Join-Path $PrototypeRoot 'GameData') + '"'))
-$launched = Start-Process (Join-Path $pulsar 'Legacy.exe') -WorkingDirectory $pulsar -ArgumentList $arguments -PassThru
-Write-Host "Started SEVR in $mode mode. Logs and test saves: $PrototypeRoot\GameData"
+if ($flavour -eq 'Legacy') { $arguments += '-bare' }
+$launched = Start-Process (Join-Path $pulsar "$flavour.exe") -WorkingDirectory $pulsar -ArgumentList $arguments -PassThru
+Write-Host "Started SEVR on Pulsar $flavour in $mode mode. Logs and test saves: $PrototypeRoot\GameData"
 if ($PassThru) { $launched }
