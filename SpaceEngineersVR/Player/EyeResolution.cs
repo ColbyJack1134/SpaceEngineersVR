@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using System.Linq;
+using System.Threading;
 using HarmonyLib;
 using SharpDX.Direct3D11;
 using SpaceEngineersVR.Plugin;
@@ -72,8 +73,21 @@ namespace SpaceEngineersVR.Player
             }
             private static readonly Resources[] retained=new Resources[2];
             public static int Allocations { get; private set; }
+            private sealed class DesktopViewport
+            {
+                internal Vector2I Size;
+                internal Thread RenderThread;
+            }
+            private static volatile DesktopViewport desktopViewport;
+            internal static bool DesktopFor(Thread thread,out Vector2I size)
+            {
+                var desktop=desktopViewport;
+                size=desktop?.Size ?? Vector2I.Zero;
+                return desktop!=null && desktop.RenderThread!=thread;
+            }
             private readonly Vector2I resolution;
             private readonly object oldViewport,oldFullViewport;
+            private readonly bool publishesDesktop;
             private readonly object[] previous;
             private readonly bool drs;
             private readonly int slot;
@@ -91,6 +105,8 @@ namespace SpaceEngineersVR.Player
                 previous=Capture();
                 var settings=MyRender11.Settings; drs=settings.User.DRScaling;
                 settings.User.DRScaling=false; MyRender11.Settings=settings;
+                publishesDesktop=desktopViewport==null;
+                if(publishesDesktop) desktopViewport=new DesktopViewport {Size=(Vector2I)oldViewport,RenderThread=Thread.CurrentThread};
                 try
                 {
                     MyRender11.Resolution=size;
@@ -119,6 +135,7 @@ namespace SpaceEngineersVR.Player
                 MyRender11.Resolution=resolution;
                 Restore(previous);
                 viewport.SetValue(null,oldViewport); fullViewport.SetValue(null,oldFullViewport);
+                if(publishesDesktop) desktopViewport=null;
                 var settings=MyRender11.Settings; settings.User.DRScaling=drs; MyRender11.Settings=settings;
             }
             public static void RestoreNative() { Release(0); Release(1); }

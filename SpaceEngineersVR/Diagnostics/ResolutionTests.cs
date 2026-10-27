@@ -1,6 +1,7 @@
 #if SEVR_DIAGNOSTICS
 using System;
 using System.IO;
+using System.Threading;
 using System.Xml.Serialization;
 using HarmonyLib;
 using SharpDX.Direct3D11;
@@ -8,6 +9,7 @@ using SpaceEngineersVR.Config;
 using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Wrappers;
 using VRageMath;
+using VRageRender;
 using VRageRender.Messages;
 
 namespace SpaceEngineersVR.Diagnostics
@@ -64,6 +66,8 @@ namespace SpaceEngineersVR.Diagnostics
             var aoField=AccessTools.Field(AccessTools.TypeByName("VRageRender.MyHBAO"),"m_fullResViewDepthTarget");
             object desktopAo=aoField.GetValue(null);
             var desktopSize=MyRender11.Resolution;
+            var viewportProperty=AccessTools.Property(AccessTools.TypeByName("VRageRender.MyRender11"),"ViewportResolution");
+            var desktopViewport=(Vector2I)viewportProperty.GetValue(null);
             var matrices=MyRender11.Environment_Matrices;
             var snapshot=matrices.Capture();
             int allocations=EyeResolution.Scene.Allocations;
@@ -86,8 +90,16 @@ namespace SpaceEngineersVR.Diagnostics
                             var texture=(Texture2D)CockpitRender.Member(CockpitRender.Member(eye,attachment),"Resource");
                             if(texture.Description.Width!=size.X || texture.Description.Height!=size.Y) throw new Exception(attachment+" has the wrong eye resolution");
                         }
-                        var viewport=(Vector2I)AccessTools.Property(AccessTools.TypeByName("VRageRender.MyRender11"),"ViewportResolution").GetValue(null);
+                        var viewport=(Vector2I)viewportProperty.GetValue(null);
                         if(MyRender11.Resolution!=size || viewport!=size || MyRender11.Settings.User.DRScaling) throw new Exception("Eye viewport or DRS state differs from its buffers");
+                        var other=default(MyViewport);
+                        Exception readerError=null;
+                        var reader=new Thread(() => { try { other=MyRenderProxy.MainViewport; } catch(Exception ex) { readerError=ex; } });
+                        reader.Start(); reader.Join();
+                        if(readerError!=null) throw new Exception("MainViewport read failed off the render thread",readerError);
+                        var own=MyRenderProxy.MainViewport;
+                        if(own.Width!=size.X || own.Height!=size.Y || other.Width!=desktopViewport.X || other.Height!=desktopViewport.Y)
+                            throw new Exception("MainViewport during an eye pass: render thread "+own.Width+"x"+own.Height+", other thread "+other.Width+"x"+other.Height);
                         MyRender11.SetupCameraMatrices(camera);
                         var target=MyManagers.RwTexturesPool.BorrowRtv("SEVR resolution probe",size.X,size.Y,SharpDX.DXGI.Format.R8G8B8A8_UNorm_SRgb);
                         object ao=null;
@@ -127,7 +139,7 @@ namespace SpaceEngineersVR.Diagnostics
                     }
                 }
                 if(EyeResolution.Scene.Allocations!=allocations+3) throw new Exception("Eye/camera resources were reallocated between fixed-size frames");
-                Plugin.Logger.Info("PASS native independent resolution: retained eye and camera feed scene/depth/AO resources, eye resize, 1280x720 mirror, desktop restored");
+                Plugin.Logger.Info("PASS native independent resolution: retained eye and camera feed scene/depth/AO resources, eye resize, 1280x720 mirror, desktop MainViewport off the render thread, desktop restored");
             }
             finally { matrices.Restore(snapshot); EyeResolution.Scene.RestoreNative(); }
         }
