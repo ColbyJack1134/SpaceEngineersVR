@@ -1,5 +1,6 @@
 #if SEVR_DIAGNOSTICS
 using System;
+using System.Diagnostics;
 using System.Runtime.Serialization;
 using HarmonyLib;
 using Sandbox.Game.World;
@@ -156,7 +157,7 @@ namespace SpaceEngineersVR.Diagnostics
             }
             var follow=new ObserverFollow(); follow.Reset(MatrixD.Identity,Vector3D.Up);
             var ship=MatrixD.CreateFromYawPitchRoll(.4,.3,-.25);
-            follow.Advance(ship);
+            follow.Advance(ship,Vector3D.Zero,1);
             Near(follow.Reference(ObserverMode.Ship).Forward,ship.Forward,"Full follow lost ship pitch/yaw");
             Near(follow.Reference(ObserverMode.Ship).Up,ship.Up,"Full follow lost ship roll");
             Near(follow.Reference(ObserverMode.Fixed).Forward,Vector3D.Forward,"Fixed observer followed rotation");
@@ -174,19 +175,55 @@ namespace SpaceEngineersVR.Diagnostics
                 Near(before.Forward,after.Forward,"Cycling camera mode rotated");
                 Near(before.Up,after.Up,"Cycling camera mode rolled");
             }
+            long tick=Stopwatch.Frequency/90,time=0;
             follow.Reset(MatrixD.Identity,Vector3D.Up);
             for(int i=1;i<=1440;i++)
             {
-                follow.Advance(MatrixD.CreateRotationX(i*Math.PI/360));
+                follow.Advance(MatrixD.CreateRotationX(i*Math.PI/360),Vector3D.Zero,time+=tick);
                 Near(follow.Reference(ObserverMode.Heading).Forward,Vector3D.Forward,"Pitch loop flipped heading at a pole");
                 Near(follow.Reference(ObserverMode.Heading).Up,Vector3D.Up,"Heading pole lost vertical");
             }
             follow.Reset(MatrixD.Identity,Vector3D.Up);
             for(int i=1;i<=1440;i++)
             {
-                follow.Advance(MatrixD.CreateRotationZ(i*Math.PI/360));
+                follow.Advance(MatrixD.CreateRotationZ(i*Math.PI/360),Vector3D.Zero,time+=tick);
                 Near(follow.Reference(ObserverMode.Heading).Forward,Vector3D.Forward,"Roll loop changed heading");
             }
+            Vector3D Heading() => follow.Reference(ObserverMode.Heading).Forward;
+            void Hold(MatrixD pose,int frames,Vector3D gravity=default) { for(int i=0;i<frames;i++) follow.Advance(pose,gravity,time+=tick); }
+            var gravityDown=new Vector3D(0,-9.81,0);
+            // Terrain turning a banked ship around its own up axis.
+            var bank=MatrixD.CreateRotationZ(MathHelper.ToRadians(40));
+            follow.Reset(bank,Vector3D.Up);
+            MatrixD turned=bank;
+            for(int i=1;i<=180;i++) { turned=bank*MatrixD.CreateFromAxisAngle(bank.Up,i*Math.PI/360); follow.Advance(turned,gravityDown,time+=tick); }
+            Hold(turned,540,gravityDown);
+            Near(Heading(),VrMath.Level(turned,Vector3D.Up).Forward,"Heading did not recover a turn made while banked",.001);
+            // Tumble with no world-vertical turn that ends upright at a new heading.
+            follow.Reset(MatrixD.Identity,Vector3D.Up);
+            MatrixD tumble=MatrixD.Identity;
+            foreach(var axis in new[] {Vector3D.Right,Vector3D.Backward,Vector3D.Left})
+                for(int i=0;i<90;i++) { tumble*=MatrixD.CreateFromAxisAngle(axis,Math.PI/180); follow.Advance(tumble,gravityDown,time+=tick); }
+            Require(Vector3D.Distance(VrMath.Level(tumble,Vector3D.Up).Forward,Vector3D.Forward)>.5,"Tumble test did not change the ship heading");
+            Hold(tumble,720,gravityDown);
+            Near(Heading(),VrMath.Level(tumble,Vector3D.Up).Forward,"Heading did not recover after a tumble",.001);
+            follow.Reset(MatrixD.Identity,Vector3D.Up);
+            for(int i=1;i<=180;i++) follow.Advance(MatrixD.CreateRotationX(i*Math.PI/180),gravityDown,time+=tick);
+            Hold(MatrixD.CreateRotationX(Math.PI),360,gravityDown);
+            Near(Heading(),Vector3D.Forward,"Inverted ship turned the heading view");
+            var reversed=MatrixD.CreateRotationZ(Math.PI)*MatrixD.CreateRotationX(Math.PI);
+            Hold(reversed,45,gravityDown);
+            double turnedHalfSecond=Math.Acos(MathHelper.Clamp(Vector3D.Dot(Heading(),Vector3D.Forward),-1,1));
+            Require(turnedHalfSecond>.05 && turnedHalfSecond<=Math.PI/6+.01,"Upright recovery rate out of range: "+turnedHalfSecond);
+            Hold(reversed,720,gravityDown);
+            Near(Heading(),VrMath.Level(reversed,Vector3D.Up).Forward,"Heading did not follow a reversal after a half roll",.001);
+            // Gravity direction changes gradually re-level the heading.
+            var tilted=Vector3D.Normalize(new Vector3D(.2,1,0));
+            follow.Reset(MatrixD.Identity,Vector3D.Up);
+            follow.Advance(MatrixD.Identity,-tilted,time+=tick); follow.Advance(MatrixD.Identity,-tilted,time+=tick);
+            Require(Vector3D.Distance(follow.Reference(ObserverMode.Heading).Up,Vector3D.Up)<.02,"Gravity change snapped the heading");
+            Hold(MatrixD.Identity,180,-tilted);
+            Near(follow.Reference(ObserverMode.Heading).Up,tilted,"Heading did not follow the current gravity",.0001);
             var defaults=new Config.PluginConfig();
             Require(defaults.ThirdPersonMode==0,"New camera mode must default to full ship follow");
             defaults.ThirdPersonMode=9; Require(defaults.ThirdPersonMode==0,"Invalid saved camera mode accepted");
@@ -195,7 +232,7 @@ namespace SpaceEngineersVR.Diagnostics
             var flipped=l; flipped=MatrixD.CreateRotationX(Math.PI)*flipped;
             Require(!jump.Move(flipped,r,1d/90) && !jump.Held,"Angular tracking discontinuity threw the world");
             Require(!jump.Input(true,1,1),"Angular tracking cancellation rearmed held grips");
-            log("PASS observer modes: full ship/heading/fixed, retained full-axis gesture offset, all nine mode transitions without a jump, pitch/roll loops and ship-follow default.");
+            log("PASS observer modes: full ship/heading/fixed, retained full-axis gesture offset, all nine mode transitions without a jump, pitch/roll loops, upright heading recovery and ship-follow default.");
         }
         private static void RenderCadence(Action<string> log)
         {

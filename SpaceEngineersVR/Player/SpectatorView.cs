@@ -176,7 +176,7 @@ namespace SpaceEngineersVR.Player
                 Vector3D center; MatrixD orientation;
                 if(target!=null)
                 {
-                    follow.Advance(target.WorldMatrix);
+                    follow.Advance(target.WorldMatrix,target.Physics.Gravity,Stopwatch.GetTimestamp());
                     center=TargetCenter(target); orientation=follow.Reference(Mode);
                 }
                 else

@@ -223,8 +223,9 @@ namespace SpaceEngineersVR.Player
             var target=Vector3D.Transform(Target.PositionComp.LocalAABB.Center,Target.WorldMatrix);
             lock(sync)
             {
-                follow.Advance(subject.WorldMatrix);
-                var scene=new Diorama.Scene(target,follow.Reference(Mode),Stopwatch.GetTimestamp(),Limit);
+                long now=Stopwatch.GetTimestamp();
+                follow.Advance(subject.WorldMatrix,Target.Physics?.Gravity ?? Vector3.Zero,now);
+                var scene=new Diorama.Scene(target,follow.Reference(Mode),now,Limit);
                 Volatile.Write(ref frame,new CameraRig.Frame(view.Anchor(target,scene.Reference,Player.Headset.deviceToPlayer.Translation,Limit),
                     Player.PlayerToAbsolute.inverted,epoch,view.UnitsPerMeter,true,scene));
             }

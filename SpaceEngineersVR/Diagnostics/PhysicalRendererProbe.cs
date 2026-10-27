@@ -244,7 +244,7 @@ namespace SpaceEngineersVR.Diagnostics
                     if(phase>=26)
                     {
                         var follow=new Player.Control.ObserverFollow(); follow.Reset(MatrixD.Identity,Vector3D.Up);
-                        var ship=MatrixD.CreateFromYawPitchRoll(.4,.3,-.25); follow.Advance(ship);
+                        var ship=MatrixD.CreateFromYawPitchRoll(.4,.3,-.25); follow.Advance(ship,Vector3D.Zero,1);
                         reference=follow.Reference((Player.Control.ObserverMode)(phase-26));
                         modelWorld=MatrixD.CreateTranslation(-model.BoundingBox.Center)*ship*MatrixD.CreateTranslation(model.BoundingBox.Center);
                         var l=MatrixD.CreateTranslation(-.2,-.1,-.5); var r=MatrixD.CreateTranslation(.2,-.1,-.5);
