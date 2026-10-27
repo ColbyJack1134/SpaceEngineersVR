@@ -66,7 +66,6 @@ namespace SpaceEngineersVR.Player
                 case "Power": return "GridPowerOn";
                 case "Broadcast": return "ToggleBroadcasting";
                 case "Detach boots": return "Magboot";
-                case "Toggle trigger action": return "DrillIcon";
                 case "Signal visibility": return "SignalMode";
                 case "Closer": return "MoveCloser";
                 case "Further": return "MoveFurther";
@@ -193,7 +192,6 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice BuffsAction=new ActionChoice("Buffs",()=>MyGuiSandbox.AddScreen(MyGuiScreenGamePlay.ActiveGameplayScreen=MyGuiSandbox.CreateScreen(typeof(Sandbox.Game.Screens.MyGuiScreenBuffs))),true,
             NativeSprites.Hud("ActiveBuff"),()=>MySession.Static!=null && SpaceEngineers.Game.EntityComponents.GameLogic.Buffs.MySurvivalBuffsProgression.BuffsEnabled,"survival buffs");
         public static readonly ActionChoice HudOptions=new ActionChoice("HUD",()=>MyGuiSandbox.AddScreen(new GUI.MyPluginConfigDialog(3)),true);
-        public static bool AlternateTrigger { get; private set; }
         private static ActionChoice Native(string label, MyStringId control,Func<bool> enabled=null) => new ActionChoice(label, () => NativeActions.Pulse(control),enabled:enabled);
         internal static readonly ActionChoice CycleAmmoAction=new ActionChoice("Cycle ammo",Patches.WeaponCoreReload.Cycle,icon:@"Textures\GUI\Icons\buttons\Ammo.dds",
             enabled:()=>Patches.WeaponCoreReload.Ready,searchTerms:"weaponcore wc ammo cycle switch magazine type");
@@ -263,7 +261,7 @@ namespace SpaceEngineersVR.Player
             ParkAction,
             ParkAction,
             PowerAction,
-            new ActionChoice("Toggle trigger action", () => AlternateTrigger = !AlternateTrigger),
+            new ActionChoice("Clear terrain mode",ClearTerrain.Toggle,icon:NativeSprites.Hud("DrillIcon"),enabled:()=>ClearTerrain.Available,searchTerms:"drill dig tunnel alternate secondary toggle"),
             new ActionChoice("Signal visibility", () => Common.Config.WaypointMode=(Common.Config.WaypointMode+1)%3),
             BlueprintsAction,
             new ActionChoice("Switch view",ThirdPersonView.Toggle),
@@ -325,7 +323,6 @@ namespace SpaceEngineersVR.Player
         }
         public static void Unequip()
         {
-            AlternateTrigger = false;
             if (PlacementControls.ClipboardActive) { PlacementControls.Cancel(); return; }
             // Native unequip only clears a held weapon; the voxel hand turns off when the toolbar selection clears.
             if (VoxelTools.Hand.Active) { MyToolbarComponent.CurrentToolbar?.Unselect(); return; }
@@ -335,7 +332,7 @@ namespace SpaceEngineersVR.Player
         private static readonly Control.JumpHold dampenerHold=new Control.JumpHold(),inventoryHold=new Control.JumpHold();
         private static readonly Control.DoubleTap dampenerTap=new Control.DoubleTap();
         internal static void ResetJumpHold() { jumpHold.Reset(); dampenerTap.Reset(); dampenerHold.Reset(); inventoryHold.Reset(); }
-        public static void Reset() { AlternateTrigger=false; ResetJumpHold(); GridSelection.Clear(); DampenerTargeting.Cancel(); }
+        public static void Reset() { ClearTerrain.Reset(); ResetJumpHold(); GridSelection.Clear(); DampenerTargeting.Cancel(); }
         public static void ToolbarConfig() => ToolbarConfig(-1);
         public static void AssignToolbarSlot(int slot)
         {

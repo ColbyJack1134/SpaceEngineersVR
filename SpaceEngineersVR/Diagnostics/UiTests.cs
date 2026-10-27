@@ -131,6 +131,15 @@ namespace SpaceEngineersVR.Diagnostics
                 Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"ship-hud.png"));
                 Wrist("wrist-ship");
                 Chat("ship-hud"); model.Notices=new Notice[0];
+                model.Alternate=true; model.Selected="Drill"; model.Icons=new[] {@"Textures\GUI\Icons\Cubes\drill.dds"}; model.Ammo="";
+                Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"ship-hud-clear-terrain.png"));
+                Wrist("wrist-ship-clear-terrain");
+                model.Piloting=false; model.Selected="Elite Hand Drill"; model.Icons=new[] {@"Textures\GUI\Icons\WeaponDrill_3.dds"};
+                Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"foot-hud-clear-terrain.png"));
+                Wrist("wrist-foot-clear-terrain");
+                model.Alternate=false;
+                using(var badge=new OverlayCanvas("Clear terrain preview",384,384,1,false,device))
+                { Render(badge,()=>BuildOrientationHud.PaintClearTerrain(badge)); Save(badge.Texture,Path.Combine(output,"visor-clear-terrain.png")); }
                 model.Piloting=false; model.Selected="Enhanced Welder"; model.Icons=new[] {@"Textures\GUI\Icons\WeaponWelder.dds"}; model.Ammo="";
                 model.Inventory="46%"; model.InventoryLevel=.46f;
                 if(Plugin.Common.AssetFolder==null) Plugin.Common.SetAssetPath(Util.Util.GetDefaultAssetFolder());

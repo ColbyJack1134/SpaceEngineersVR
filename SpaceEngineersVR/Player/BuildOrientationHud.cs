@@ -67,24 +67,38 @@ namespace SpaceEngineersVR.Player
             target.Clear(System.Drawing.Color.Transparent);
             foreach(var sprite in view.Sprites) target.Sprite(sprite);
         }
+        // Clear terrain needs a drill and rotate mode a placement preview, so they never share the panel.
+        internal static void PaintClearTerrain(OverlayCanvas target)
+        {
+            target.Clear(System.Drawing.Color.Transparent);
+            target.Icon(NativeSprites.Hud("DrillIcon"),132,120,120,60,new Vector4(0,0,1,1),System.Drawing.Color.White);
+            using(var font=new System.Drawing.Font("Segoe UI",34,System.Drawing.FontStyle.Regular,System.Drawing.GraphicsUnit.Pixel))
+            using(var centered=new System.Drawing.StringFormat { Alignment=System.Drawing.StringAlignment.Center })
+                target.Graphics.DrawString("Clear terrain",font,System.Drawing.Brushes.LightCyan,new System.Drawing.RectangleF(0,196,384,48),centered);
+        }
         public static void Draw()
         {
             if(failed) return;
             try
             {
                 var view=current; var now=DateTime.UtcNow;
-                if(!Visible(view,now,HelmetHud.Visible && !Main.MenuOpen,PlacementControls.Adjusting) || !Player.Headset.renderPose.isTracked)
-                { Hide(); nextDraw=DateTime.MinValue; return; }
-                if(now<nextDraw) return;
-                nextDraw=now.AddMilliseconds(1000.0/30);
+                bool hud=HelmetHud.Visible && !Main.MenuOpen && Player.Headset.renderPose.isTracked;
+                bool rotation=Visible(view,now,hud,PlacementControls.Adjusting),clear=hud && !rotation && ClearTerrain.Shown;
+                if(!rotation && !clear) { Hide(); nextDraw=DateTime.MinValue; return; }
                 if(canvas==null) { canvas=new OverlayCanvas("Build orientation",384,384,Width); canvas.Position(Mount,true); }
-                Paint(canvas,view); canvas.Upload();
+                if(clear) { if(!showingClear) { PaintClearTerrain(canvas); canvas.Upload(); showingClear=true; } }
+                else if(now>=nextDraw)
+                {
+                    nextDraw=now.AddMilliseconds(1000.0/30);
+                    Paint(canvas,view); canvas.Upload(); showingClear=false;
+                }
                 float alpha=HelmetHud.HudAlpha; if(alpha!=shownAlpha) { canvas.Show(alpha); shownAlpha=alpha; }
             }
             catch(Exception ex) { failed=true; Logger.Warning(ex,"Build orientation HUD disabled"); Hide(); }
         }
         private static float shownAlpha=-1;
-        public static void Hide() { canvas?.Hide(); shownAlpha=-1; }
+        private static bool showingClear;
+        public static void Hide() { canvas?.Hide(); shownAlpha=-1; showingClear=false; }
         public static void Reset() { current=null; nextDraw=DateTime.MinValue; }
     }
 }

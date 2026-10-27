@@ -150,7 +150,7 @@ namespace SpaceEngineersVR.Player
             var view = new View {
                 Selected=selected, Icons=icons == null ? new string[0] : (string[])icons.Clone(), Ammo=ammo,
                 Levels=new float[4], Values=new string[4], Helmet=On("player_helmet"), Jetpack=On("player_jetpack"),
-                Dampeners=On("controlled_dampeners"), AutoDampeners=Stat("controlled_dampeners")?.CurrentValue==.5f, Alternate=GameActions.AlternateTrigger && !PlacementControls.OwnsTools, Flying=InputRouter.Flying,
+                Dampeners=On("controlled_dampeners"), AutoDampeners=Stat("controlled_dampeners")?.CurrentValue==.5f, Alternate=ClearTerrain.Active, Flying=InputRouter.Flying,
                 Speed=Stat("controlled_speed")?.GetValueString() ?? "--",
                 SpeedLevel=Level("controlled_speed"),
                 NaturalGravity=Stat("natural_gravity")?.GetValueString(), ArtificialGravity=Stat("artificial_gravity")?.GetValueString() };
@@ -280,7 +280,7 @@ namespace SpaceEngineersVR.Player
             Speedometer(target,current,right,374+lower);
             GravityReadout(target,current,900,451,1.15f);
             float equipmentX=Math.Max(430,environmentX+14);
-            EquipmentReadout(target,current,equipmentX,514,Math.Max(0,900-equipmentX),42,true);
+            EquipmentReadout(target,current,equipmentX,514,Math.Max(0,900-equipmentX),42,true,false);
         }
         internal static IEnumerable<Notice> Shown(IEnumerable<Notice> notices,bool notifications,bool chat) =>
             notices.Where(n=>n.Style==NoticeStyle.Chat ? chat:notifications);
@@ -460,11 +460,12 @@ namespace SpaceEngineersVR.Player
                 }
             });
         }
-        private static void EquipmentReadout(OverlayCanvas target,View s,float x,float y,float width,float size,bool center=false)
+        // The visor shows clear terrain on the build orientation panel instead of the item row.
+        private static void EquipmentReadout(OverlayCanvas target,View s,float x,float y,float width,float size,bool center=false,bool clearTerrain=true)
         {
             if(string.IsNullOrEmpty(s.Selected) || width<=size+12) return;
             var g=target.Graphics;
-            string suffix=(string.IsNullOrEmpty(s.Ammo) ? "":" ["+s.Ammo+"]")+(s.Alternate ? "  ALT":"");
+            string suffix=(string.IsNullOrEmpty(s.Ammo) ? "":" ["+s.Ammo+"]")+(s.Alternate && clearTerrain ? " · Clear terrain":"");
             using(var format=new StringFormat(StringFormat.GenericTypographic) { Trimming=StringTrimming.EllipsisCharacter,FormatFlags=StringFormatFlags.NoWrap })
             {
                 float suffixWidth=string.IsNullOrEmpty(suffix) ? 0:g.MeasureString(suffix,small,int.MaxValue,format).Width;

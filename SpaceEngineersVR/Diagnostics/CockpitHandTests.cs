@@ -63,9 +63,6 @@ namespace SpaceEngineersVR.Diagnostics
                     FlightAxes.SecondaryGrip(true,ship,owned,near,new Vector2(.5f,0)))
                     throw new Exception("Secondary grip conflicts with flight roll or joystick capture");
             }
-            foreach(bool owned in new[] {false,true}) foreach(bool near in new[] {false,true})
-                if(FlightAxes.SecondaryGrip(true,false,owned,near,new Vector2(.5f,.5f),turret:true)!=(!owned && !near))
-                    throw new Exception("Turret locking conflicts with aiming or physical joystick ownership");
             foreach(bool left in new[] {true,false})
             {
                 var arm=ArmTests.InstalledBones(); var side=left ? "L":"R";

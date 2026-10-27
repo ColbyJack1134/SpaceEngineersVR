@@ -36,7 +36,7 @@ namespace SpaceEngineersVR.Player
                 // The Paint Gun polls the fire control.
                 if(PaintGun.Firing && PaintGun.Equipped) frame.Queue(MyControlsSpace.PRIMARY_TOOL_ACTION);
                 PlacementControls.Queue(frame, PlacementControls.Mode, Controls.Static.Fire.IsPressed,
-                    Controls.Static.ActionGripClick.IsPressed, GameActions.AlternateTrigger);
+                    Controls.Static.ActionGripClick.IsPressed, ClearTerrain.Active);
             }
             frame.Advance(enabled);
         }

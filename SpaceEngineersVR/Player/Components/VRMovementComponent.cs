@@ -26,7 +26,6 @@ namespace SpaceEngineersVR.Player.Components
         private bool secondaryShooting;
         private bool lockChordWas;
         private readonly Control.InputGate stickSecondary=new Control.InputGate();
-        private readonly Control.GripTap secondaryTap=new Control.GripTap();
         private readonly Control.TurnInput turnInput=new Control.TurnInput();
         internal static readonly Control.CrouchControl Crouch=new Control.CrouchControl();
         internal static float HeadDrop => -Player.Headset.deviceToPlayer.Translation.Y;
@@ -188,7 +187,7 @@ namespace SpaceEngineersVR.Player.Components
             wasShooting=wasSecondary=secondaryShooting=false;
             PaintGun.Firing=PaintGun.Deep=false;
             stickSecondary.Block();
-            secondaryTap.Update(false,false,true,System.DateTime.UtcNow);
+            ClearTerrain.Shown=false;
         }
 
         // MyShipController.WheelJump does nothing while a turret holds the seat's controller; WheelJumpFromOtherBlock works for both.
@@ -370,12 +369,12 @@ namespace SpaceEngineersVR.Player.Components
 
         private static FlightTuning SeatTuning => FlightSettings.For(MySession.Static?.ControlledEntity as MyCockpit ?? RemoteView.HomeSeat);
         private static bool PrimaryPressed => !HelmetHud.ProtectsFire && !FloatingWindows.OwnsInput && !InputRouter.RadialOpen && Controls.Static.Fire.IsPressed &&
-            !GameActions.AlternateTrigger && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Handedness.ActionHand) &&
+            !ClearTerrain.Active && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Handedness.ActionHand) &&
             FlightAxes.StickTriggerAllowed(MySession.Static?.ControlledEntity is MyShipController,Common.Config.PhysicalShipControlsOnly,
                 CockpitControls.SticksAvailable,CockpitControls.AnyHeld);
-        // Grip + trigger is ship secondary, as with tools on foot. A held physical stick owns the grip.
+        // Grip + trigger is ship and turret secondary, as with tools on foot. A held physical stick owns the grip.
         private static bool ShipChord => Controls.Static.Fire.IsPressed && Controls.Static.ActionGripClick.IsPressed && !CockpitControls.Held(Handedness.ActionHand);
-        internal static bool PrimaryFire => PrimaryPressed && !TriggerArm.AnyArmed && !(MySession.Static?.ControlledEntity is MyShipController && ShipChord);
+        internal static bool PrimaryFire => PrimaryPressed && !TriggerArm.AnyArmed && !((MySession.Static?.ControlledEntity is MyShipController || RemoteView.Turret) && ShipChord);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void ControlCommonFunctions()
@@ -393,17 +392,19 @@ namespace SpaceEngineersVR.Player.Components
             bool ship=controlledEntity is MyShipController;
             var action=Handedness.ActionHand;
             var grip=controls.ActionGripClick;
-            bool gripSecondary=FlightAxes.SecondaryGrip(InputRouter.Flying,ship,CockpitControls.RotationOwned,CockpitControls.NearGrip(action),controls.ThrustRotate.RawPosition,turret);
-            // The action grip is also the roll modifier, so ships take secondary from a short tap without stick input.
+            bool gripSecondary=FlightAxes.SecondaryGrip(InputRouter.Flying,ship,CockpitControls.RotationOwned,CockpitControls.NearGrip(action),controls.ThrustRotate.RawPosition);
             bool uiOwnsAction=SpatialUi.Owns(action) || CockpitTouch.Owns(action) || HandInteraction.Consumes(action) || FloatingWindows.OwnsInput || TouchScreenBridge.OwnsInput || ArthurLcdBridge.Owns(action);
-            bool chord=ship && ShipChord && !uiOwnsAction;
+            bool chord=(ship || turret) && ShipChord && !uiOwnsAction;
             if(chord) primaryPressed=false;
             // On WeaponCore grids grip + trigger aims a lock with a pointer and its release locks.
-            bool lockChord=chord && TargetLock.ShooterGrid()!=null;
-            bool gripTap=secondaryTap.Update((ship || turret) && grip.IsPressed,(ship || turret) && grip.HasReleased,!gripSecondary || uiOwnsAction || chord,System.DateTime.UtcNow);
+            bool lockChord=ship && chord && TargetLock.ShooterGrid()!=null;
             bool secondaryAllowed=!HelmetHud.ProtectsFire && !InputRouter.RadialOpen && (!turret || ShipTargeting.CanLock(controlledEntity)) && !FloatingWindows.OwnsInput && !BlockInspection.ConsumesSecondary &&
                 !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(action);
-            bool secondaryPressed=secondaryAllowed && (stickSecondary.Held || chord && !lockChord || (ship || turret ? gripTap && gripSecondary:grip.IsPressed && gripSecondary) || controls.Fire.IsPressed && GameActions.AlternateTrigger);
+            // The action grip is also the roll modifier, so in ships a tap toggles only with the right stick centred.
+            ClearTerrain.Update(Common.Config.ClearTerrainToggle && secondaryAllowed && !turret,WeaponHandling.GripModifier,controls.ActionGripPressure.RawPosition.X>.5f,
+                controls.Fire.IsPressed || uiOwnsAction || ship && !gripSecondary);
+            bool secondaryPressed=secondaryAllowed && (stickSecondary.Held || chord && !lockChord || !(ship || turret) && grip.IsPressed && gripSecondary ||
+                controls.Fire.IsPressed && ClearTerrain.Active);
             TargetLock.Aim(lockChord && secondaryAllowed);
             if(lockChordWas && !lockChord)
             {
@@ -420,8 +421,9 @@ namespace SpaceEngineersVR.Player.Components
             {
                 bool trigger=controls.Fire.IsPressed && !HelmetHud.ProtectsFire && !uiOwnsAction && !PlacementControls.OwnsTools && !TriggerArm.AnyArmed;
                 // The Paint Gun reads the grip as deep paint, never ironsight.
-                primaryPressed=trigger && (paintGun || !WeaponHandling.ToolModifier);
-                secondaryPressed=trigger && !paintGun && WeaponHandling.ToolModifier;
+                bool alternate=WeaponHandling.ToolModifier || ClearTerrain.Active;
+                primaryPressed=trigger && (paintGun || !alternate);
+                secondaryPressed=trigger && !paintGun && alternate;
             }
             // The shoot calls bypass the control blacklist, so a blocked fire control must not start the vanilla weapon.
             if(NativeActions.Blocked(Sandbox.Game.MyControlsSpace.PRIMARY_TOOL_ACTION)) primaryPressed=false;

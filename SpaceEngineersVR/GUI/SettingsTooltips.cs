@@ -41,6 +41,7 @@ namespace SpaceEngineersVR.GUI
             ["Tracked arms"]="Arms follow your controllers",
             ["Legacy hand-tilt ship steering"]="Tilt your hand to steer ships",
             ["Double-tap to keep tools running"]="Double-tap trigger to lock tools on",
+            ["Clear terrain toggle"]="Tap grip with a drill to toggle",
             ["Right stick up jumps"]="Stick up jumps, or stands from crouch",
             ["VR data to [SEVR] programmable blocks"]="Head and hand data for [SEVR] blocks",
             ["Turret aim sensitivity"]="Stick aim speed in turrets",
