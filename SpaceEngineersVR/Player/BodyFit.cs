@@ -126,11 +126,13 @@ namespace SpaceEngineersVR.Player
         {
             if(value && Main.VrActive && Player.Headset.pose.isTracked) Common.Config.SeatedReference=Player.Headset.pose.deviceToAbsolute.matrix.Translation.Y;
             Common.Config.SeatedPlay=value; Common.Config.BodyCalibrated=true;
-            if(Main.VrActive)
-            {
-                if(MySession.Static?.LocalCharacter?.IsSitting==true) Player.SeatOrigin(true);
-                else Player.ApplyCalibrationOrigin();
-            }
+            ApplyOrigin();
+        }
+        internal static void ApplyOrigin()
+        {
+            if(!Main.VrActive) return;
+            if(MySession.Static?.LocalCharacter?.IsSitting==true) Player.SeatOrigin(true);
+            else Player.ApplyCalibrationOrigin();
         }
         public static void CaptureSeat()
         {

@@ -200,5 +200,10 @@ namespace SpaceEngineersVR.Player
             sprite.IgnoreSceneDepth=true; sprite.Sharpen=true;
             return sprite;
         }
+        internal void Release()
+        {
+            texture?.Dispose(); canvas?.Dispose();
+            texture=null; canvas=null; painted=-1;
+        }
     }
 }

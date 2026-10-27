@@ -6,6 +6,7 @@ using Sandbox.Game.World;
 using SpaceEngineersVR.Player.Control;
 using SpaceEngineersVR.Plugin;
 using VRage.Game.Entity;
+using VRage.Game.ModAPI;
 using VRageMath;
 
 namespace SpaceEngineersVR.Player
@@ -176,5 +177,17 @@ namespace SpaceEngineersVR.Player
             Handedness.ActionHand.Vibrate(0,kind>=ItemKind.Welder ? .06f:.035f,kind==ItemKind.Welder ? 160:kind==ItemKind.Drill ? 65:110,strength);
             if(Supported) Handedness.SupportHand.Vibrate(0,.03f,100,strength*.45f);
         }
+        // Vanilla reports a trigger pull that cannot fire once per pull.
+        internal static void EmptyClick(MyCharacter owner,MyGunStatusEnum status)
+        {
+            if(status!=MyGunStatusEnum.OutOfAmmo || owner!=MySession.Static?.LocalCharacter || !Main.VrActive || !InputRouter.Gameplay || Main.MenuOpen) return;
+            Handedness.ActionHand.Vibrate(0,.015f,150,.32f);
+        }
+    }
+
+    [HarmonyLib.HarmonyPatch(typeof(MyCharacter),"ShootBeginFailed")]
+    internal static class EmptyClickPatch
+    {
+        private static void Postfix(MyCharacter __instance,MyGunStatusEnum status) => WeaponHandling.EmptyClick(__instance,status);
     }
 }

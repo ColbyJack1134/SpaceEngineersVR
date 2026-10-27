@@ -24,8 +24,9 @@ namespace SpaceEngineersVR.GUI
             return result;
         }
         public override string GetFriendlyName() => "SEVR Body and seated play";
+        private readonly SettingsUndo undo;
         public BodyOptions() : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.8f,.88f))
-        { m_closeOnEsc=true; CloseButtonEnabled=true; }
+        { m_closeOnEsc=true; CloseButtonEnabled=true; undo=new SettingsUndo(this); }
         public override void LoadContent() { base.LoadContent(); RecreateControls(true); }
         public override void RecreateControls(bool constructor)
         {
@@ -34,25 +35,28 @@ namespace SpaceEngineersVR.GUI
             Label(-.25f,"Standing height (cm)");
             height=new MyGuiControlSlider(new Vector2(-.035f,-.20f),minValue:100,maxValue:240,width:.53f,defaultValue:180,
                 labelText:"{0} cm",labelDecimalPlaces:1,labelSpaceWidth:.09f,showLabel:true) { Value=config.PlayerHeight*100 };
-            height.ValueChanged+=s=>BodyFit.SetHeight(s.Value/100); Controls.Add(height);
+            height.ValueChanged+=s=>BodyFit.SetHeight(s.Value/100); Controls.Add(height); SettingsTooltips.Set("Standing height (cm)",height);
             measure=new MyGuiControlButton(new Vector2(0,-.115f),text:new StringBuilder("Measure headset height"),onButtonClick:b=> {
                 if(Player.Player.IsCalibrating) Player.Player.CancelCalibration(); else Player.Player.StartCalibration();
-            }) { Enabled=Main.VrActive }; Controls.Add(measure);
+            }) { Enabled=Main.VrActive }; Controls.Add(measure); SettingsTooltips.Set("Measure headset height",measure);
             measurement=new MyGuiControlLabel(new Vector2(0,-.055f),text:Main.VrActive ? Player.Player.CalibrationStatus : "Enter your height above. Stand upright to measure headset height.",textScale:.55f,
                 originAlign:MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER); Controls.Add(measurement);
             Label(.005f,"Seated play (toggle for standing)");
             var seated=new MyGuiControlCheckbox(new Vector2(.29f,.005f)) { IsChecked=config.SeatedPlay };
-            seated.IsCheckedChanged+=v=>BodyFit.SetSeated(v.IsChecked); Controls.Add(seated);
-            Controls.Add(new MyGuiControlButton(new Vector2(0,.10f),text:new StringBuilder("Set seated head position"),onButtonClick:b=>BodyFit.CaptureSeat()));
+            seated.IsCheckedChanged+=v=>BodyFit.SetSeated(v.IsChecked); Controls.Add(seated); SettingsTooltips.Set("Seated play (toggle for standing)",seated);
+            var capture=new MyGuiControlButton(new Vector2(0,.10f),text:new StringBuilder("Set seated head position"),onButtonClick:b=>BodyFit.CaptureSeat());
+            Controls.Add(capture); SettingsTooltips.Set("Set seated head position",capture);
             Label(.195f,"Fit body on foot");
             var fit=new MyGuiControlCheckbox(new Vector2(.29f,.195f)) { IsChecked=config.FitBodyOnFoot };
             fit.IsCheckedChanged+=v=> { config.FitBodyOnFoot=v.IsChecked; config.BodyCalibrated=true; if(Main.VrActive) Player.Player.ApplyCalibrationOrigin(); };
-            Controls.Add(fit);
+            Controls.Add(fit); SettingsTooltips.Set("Fit body on foot",fit);
             Controls.Add(new MyGuiControlLabel(new Vector2(0,.265f),text:"Recenter keeps calibration. Cockpits keep native body size.",textScale:.59f,
                 originAlign:MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER));
             Controls.Add(new MyGuiControlButton(new Vector2(-.18f,.34f),text:new StringBuilder("Reset calibration"),onButtonClick:b=> {
                 BodyFit.ResetCalibration(); RecreateControls(false);
             }));
+            var restore=new MyGuiControlButton(new Vector2(0,.34f),text:new StringBuilder("Undo"),onButtonClick:b=>undo.Restore());
+            Controls.Add(restore); undo.Attach(restore);
             Controls.Add(new MyGuiControlButton(new Vector2(.18f,.34f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
         }
         private void Label(float y,string text) => Controls.Add(new MyGuiControlLabel(new Vector2(-.3f,y),text:text,textScale:.75f,

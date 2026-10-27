@@ -10,6 +10,8 @@ namespace SpaceEngineersVR.Player
         private sealed class Slot { public readonly BuildInfoPanel Panel=BuildInfoPanel.Create(); public Vector3D Anchor; }
         private struct Label { public Slot Slot; public BuildInfoPanel.View View; public Vector3D Anchor; public double Share; }
         private static readonly List<Slot> slots=new List<Slot>();
+        // Reset runs on the game thread; the render thread owns the canvases and disposes retired slots.
+        private static readonly List<Slot> retired=new List<Slot>();
         private static int used;
         private static volatile Label[] published=new Label[0];
         // Build Info offsets the text .03 HUD units right of the point: .015 screen widths, in screen heights at 16:9.
@@ -33,11 +35,17 @@ namespace SpaceEngineersVR.Player
             slot.Anchor=anchor;
             return slot.Panel.Begin(true,halfHeight);
         }
-        internal static void Reset() { used=0; published=new Label[0]; foreach(var slot in slots) slot.Panel.Reset(); }
+        internal static void Reset()
+        {
+            used=0; published=new Label[0];
+            lock(retired) retired.AddRange(slots);
+            slots.Clear();
+        }
 
         // Render thread, with the marker head, up and facing.
         internal static void Draw(Texture2D target,MatrixD head,MatrixD view,MatrixD projection,bool faceViewer,Vector3D? up)
         {
+            lock(retired) { foreach(var slot in retired) slot.Panel.Release(); retired.Clear(); }
             var labels=published;
             if(labels.Length==0) return;
             var sprites=new List<NativeSprite>(labels.Length);

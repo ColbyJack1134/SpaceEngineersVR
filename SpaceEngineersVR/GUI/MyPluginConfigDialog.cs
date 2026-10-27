@@ -13,11 +13,13 @@ namespace SpaceEngineersVR.GUI
     public class MyPluginConfigDialog : MyGuiScreenBase
     {
         private int page;
+        private readonly SettingsUndo undo;
         private static readonly string[] pages={"Comfort & body","Flight & cockpit","View & cameras","HUD & navigation","Graphics"};
         public override string GetFriendlyName() => "SEVR options";
         public MyPluginConfigDialog(int page=0) : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.98f,.90f),false,null,MySandboxGame.Config.UIBkOpacity,MySandboxGame.Config.UIOpacity)
         {
             this.page=Math.Max(0,Math.Min(4,page));
+            undo=new SettingsUndo(this);
             EnabledBackgroundFade=true; m_closeOnEsc=true; m_drawEvenWithoutFocus=true;
             CanHideOthers=true; CanBeHidden=true; CloseButtonEnabled=true;
         }
@@ -53,12 +55,14 @@ namespace SpaceEngineersVR.GUI
             switch(page)
             {
                 case 0:
-                    Link(-.17f,"Height & posture",()=>new BodyOptions());
-                    Toggle(-.085f,"Seated play",c.SeatedPlay,BodyFit.SetSeated);
-                    Toggle(0,"Controller-relative movement",c.ControllerRelativeMovement,v=>c.ControllerRelativeMovement=v);
-                    Link(.085f,"Movement & input",()=>new SettingsPage("Character"));
-                    Link(.17f,"Character turning",()=>new SettingsPage("Character turning"));
-                    MenuLayout.Button(this,-.0075f,.27f,.265f,"Recenter",()=>Player.Player.Headset.RequestRecenter()).Enabled=Main.VrActive;
+                    Link(-.19f,"Height & posture",()=>new BodyOptions());
+                    Toggle(-.115f,"Seated play",c.SeatedPlay,BodyFit.SetSeated);
+                    Toggle(-.04f,"Controller-relative movement",c.ControllerRelativeMovement,v=>c.ControllerRelativeMovement=v);
+                    Link(.035f,"Movement & input",()=>new SettingsPage("Character"));
+                    Link(.11f,"Character turning",()=>new SettingsPage("Character turning"));
+                    MenuLayout.Slider(this,.165f,"Haptics strength",c.HapticStrength*100,0,100,10,"%",v=>c.HapticStrength=v/100);
+                    var recenter=MenuLayout.Button(this,-.0075f,.27f,.265f,"Recenter",()=>Player.Player.Headset.RequestRecenter());
+                    recenter.Enabled=Main.VrActive; SettingsTooltips.Set("Recenter",recenter);
                     MenuLayout.Button(this,.2775f,.27f,.265f,"Hand alignment",()=>MyGuiSandbox.AddScreen(new HandAlignment()));
                     break;
                 case 1:
@@ -86,10 +90,10 @@ namespace SpaceEngineersVR.GUI
                         int index=i;
                         var state=c.HudProfiles[i];
                         var button=MenuLayout.Button(this,-.085f+i*.112f,-.155f,.103f,(i+1)+" "+state.Name,()=> {c.SelectHudProfile(index); RecreateControls(false);},.065f);
-                        button.Checked=i==c.HudProfileIndex;
+                        button.Checked=i==c.HudProfileIndex; SettingsTooltips.Set("HUD state",button);
                     }
                     Toggle(-.055f,"Vitals",c.ShowVitals,v=>c.ShowVitals=v);
-                    MenuLayout.Button(this,.135f,.025f,.55f,"Markers: "+new[] {"Off","No names","Detailed"}[c.WaypointMode],()=> {c.WaypointMode=(c.WaypointMode+1)%3; RecreateControls(false);});
+                    SettingsTooltips.Set("Markers",MenuLayout.Button(this,.135f,.025f,.55f,"Markers: "+new[] {"Off","No names","Detailed"}[c.WaypointMode],()=> {c.WaypointMode=(c.WaypointMode+1)%3; RecreateControls(false);}));
                     Link(.105f,"Selected state",()=>new HudStateOptions());
                     Link(.185f,"GPS, contacts & arrows",()=>new SettingsPage("Signals"));
                     Link(.265f,"HUD visibility & crosshair",()=>new SettingsPage("HUD visibility"));
@@ -104,6 +108,7 @@ namespace SpaceEngineersVR.GUI
                     MenuLayout.Button(this,.2775f,.27f,.265f,"Reset resolution",()=> {c.EyeRenderScale=1;c.RemoteFeedScale=5f/6;RecreateControls(false);});
                     break;
             }
+            undo.Attach(MenuLayout.Button(this,.095f,.355f,.20f,"Undo",undo.Restore));
             MenuLayout.Button(this,.315f,.355f,.20f,"Close",()=>CloseScreen());
         }
         // The Steam Frame dashboard ignores the in-headset binding request; the desktop editor works on every headset.

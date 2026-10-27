@@ -423,7 +423,7 @@ namespace SpaceEngineersVR.Plugin
             if(Player.WeaponHandling.ToolEquipped) Patches.MotionToolPatch.Refresh(MySession.Static.LocalCharacter);
             Player.NativeActions.Update();
             Player.BodyProximity.Update();
-            Player.BootsHaptics.Update();
+            Player.SuitHaptics.Update();
             if(Player.SeatFit.Eligible(Player.SeatFit.Seat))
                 Player.TrackedArms.Update(Player.SeatFit.Seat.Pilot);
             pbFeed.Update();

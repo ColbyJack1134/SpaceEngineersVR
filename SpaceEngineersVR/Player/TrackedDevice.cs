@@ -49,6 +49,8 @@ namespace SpaceEngineersVR.Player
             if (hapticsActionHandle == 0)
                 return;
             Watch(caller,file);
+            amplitude*=Plugin.Common.Config.HapticStrength;
+            if(amplitude<=0) return;
             var error=OpenVR.Input.TriggerHapticVibrationAction(hapticsActionHandle, delay, duration, frequency, amplitude, OpenVR.k_ulInvalidInputValueHandle);
             if(error!=EVRInputError.None && !hapticsReported)
             { hapticsReported=true; Plugin.Logger.Warning("Controller haptic output failed: "+error); }

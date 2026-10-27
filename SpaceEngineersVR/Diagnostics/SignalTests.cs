@@ -263,6 +263,7 @@ namespace SpaceEngineersVR.Diagnostics
                 WindowClip(device,output,log);
                 HudProfileTests.Render(device,output,log);
                 SharedWaypointRenders(device,output,log);
+                VoiceRenders(device,output,log);
             }
             var now=DateTime.UtcNow;
             using(var scene=new OverlayCanvas("Signal production scenarios",1920,1080,1,false,device))
@@ -378,6 +379,27 @@ namespace SpaceEngineersVR.Diagnostics
             var a=Marker("inspection","GPS","Owner",head.Translation+ray*1240,"Base"); a.Distance=1240; a.Encounter=true; a.Remaining="8 min";
             panel.Signals=WristSignals.Resolve(new WorldMarkers.View(new[] {a},now) {Mode=MyHudMarkerRender.SignalMode.NoNames},panel,head.Translation,new SignalLayout.Options(),now);
             WristPanel.Show(3); panel.Keys=WristPanel.Keys(null,false,false,false,true,null); WristPanel.Show(0);
+        }
+        // A talking player's name tag with the voice icon above the head, as ReadPlayers and VoiceMarkers place them.
+        private static void VoiceRenders(Device device,string output,Action<string> log)
+        {
+            using(var scene=new OverlayCanvas("Talking player",1600,900,1,false,device))
+            foreach(double distance in new[] {3.0,12,60})
+            {
+                var head=MatrixD.CreateTranslation(0,1.7,0);
+                var feet=new Vector3D(0,0,-distance);
+                var marker=Marker("player:"+distance,"Character","FactionShare",feet+Vector3D.Up*1.82,"Engineer");
+                marker.Distance=distance; marker.Font="Blue"; marker.Entity=1;
+                var source=new WorldMarkers.View(new[] {marker},DateTime.UtcNow) {Mode=MyHudMarkerRender.SignalMode.FullDisplay};
+                var entries=SignalLayout.Build(source,head,new SignalLayout.Options(),DateTime.UtcNow);
+                var talking=new[] {new VoiceMarkers.Talker {Entity=1,Position=feet+Vector3D.Up*2.0}};
+                var projection=VrMath.Projection(-.8f,.8f,-.45f,.45f,.05);
+                Action paint=()=> { Background(scene,false); SignalPainter.Draw(scene.Texture,entries,head,MatrixD.Invert(head),projection,true,Vector3D.Up);
+                    VoiceMarkers.Draw(scene.Texture,talking,entries,head,MatrixD.Invert(head),projection,true,Vector3D.Up); };
+                paint(); WaitIcons(); paint();
+                UiTests.Save(scene.Texture,Path.Combine(output,"voice-marker-"+distance.ToString("0",System.Globalization.CultureInfo.InvariantCulture)+"m.png"));
+            }
+            log("PASS production voice marker renders: talking icon above a player name tag at 3, 12 and 60 m.");
         }
         private static void SharedWaypointRenders(Device device,string output,Action<string> log)
         {

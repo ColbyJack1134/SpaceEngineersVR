@@ -36,14 +36,15 @@ namespace SpaceEngineersVR.GUI
         }
         internal static void Toggle(MyGuiScreenBase screen,float y,string label,bool value,Action<bool> save,float center=.135f)
         {
-            Button(screen,center,y,.55f,label+"    "+(value ? "On":"Off"),()=> {save(!value); screen.RecreateControls(false);});
+            SettingsTooltips.Set(label,Button(screen,center,y,.55f,label+"    "+(value ? "On":"Off"),()=> {save(!value); screen.RecreateControls(false);}));
         }
         internal static void Slider(MyGuiScreenBase screen,float y,string label,float value,float min,float max,float step,string unit,Action<float> save,float center=.135f,bool enabled=true)
         {
-            Label(screen,center-.275f,y,label).Enabled=enabled;
+            var title=Label(screen,center-.275f,y,label); title.Enabled=enabled;
             var caption=Label(screen,center+.145f,y,value.ToString("0.#")+unit,.68f); caption.Enabled=enabled;
             var slider=new MyGuiControlSlider(new Vector2(center,y+.044f),minValue:min,maxValue:max,width:.40f,defaultValue:value) {Value=value,Enabled=enabled};
             slider.ValueChanged+=s=> {save(s.Value); caption.Text=s.Value.ToString("0.#")+unit;}; screen.Controls.Add(slider);
+            SettingsTooltips.Set(label,title,slider);
             Button(screen,center-.25f,y+.044f,.06f,"−",()=>slider.Value=Math.Max(min,slider.Value-step),.042f).Enabled=enabled;
             Button(screen,center+.25f,y+.044f,.06f,"+",()=>slider.Value=Math.Min(max,slider.Value+step),.042f).Enabled=enabled;
         }

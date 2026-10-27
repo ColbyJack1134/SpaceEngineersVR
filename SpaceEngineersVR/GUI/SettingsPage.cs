@@ -10,9 +10,10 @@ namespace SpaceEngineersVR.GUI
     internal sealed class SettingsPage : MyGuiScreenBase
     {
         private readonly string page;
+        private readonly SettingsUndo undo;
         public override string GetFriendlyName() => "SEVR "+page;
         public SettingsPage(string page) : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.8f,.88f))
-        { this.page=page; m_closeOnEsc=true; CloseButtonEnabled=true; }
+        { this.page=page; m_closeOnEsc=true; CloseButtonEnabled=true; undo=new SettingsUndo(this); }
         public override void LoadContent() { base.LoadContent(); RecreateControls(true); }
         public override void RecreateControls(bool constructor)
         {
@@ -96,11 +97,11 @@ namespace SpaceEngineersVR.GUI
                     break;
                 case "Weapon & shield warnings":
                     Toggle(-.23f,"Warning pulse",c.WarningPulse,v=>c.WarningPulse=v);
-                    Label(-.12f,"Repeat pulse every");
+                    var repeat=Label(-.12f,"Repeat pulse every");
                     var interval=new MyGuiControlSlider(new Vector2(-.035f,-.07f),minValue:0,maxValue:Config.PluginConfig.MaxWarningPulseInterval,width:.53f,
                         defaultValue:Config.PluginConfig.DefaultWarningPulseInterval,labelText:"{0} s",labelDecimalPlaces:1,labelSpaceWidth:.08f,showLabel:true) { Value=c.WarningPulseInterval };
                     interval.ValueChanged+=v=>c.WarningPulseInterval=v.Value;
-                    Controls.Add(interval);
+                    Controls.Add(interval); SettingsTooltips.Set("Repeat pulse every",repeat,interval);
                     Label(.06f,"0 s: pulse only when a warning starts.",.6f);
                     Reset(()=> { c.WarningPulse=true; c.WarningPulseInterval=Config.PluginConfig.DefaultWarningPulseInterval; });
                     break;
@@ -116,6 +117,8 @@ namespace SpaceEngineersVR.GUI
                     hideDust(c.VisorDust);
                     break;
             }
+            var restore=new MyGuiControlButton(new Vector2(0,.34f),text:new StringBuilder("Undo"),onButtonClick:b=>undo.Restore());
+            Controls.Add(restore); undo.Attach(restore);
             Controls.Add(new MyGuiControlButton(new Vector2(.18f,.34f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
         }
         private MyGuiControlLabel Label(float y,string text,float scale=.75f,float indent=0)
@@ -128,6 +131,7 @@ namespace SpaceEngineersVR.GUI
             var label=Label(y,text,indent:indent);
             var check=new MyGuiControlCheckbox(new Vector2(.29f,y)) { IsChecked=value };
             check.IsCheckedChanged+=v=>store(v.IsChecked); Controls.Add(check);
+            SettingsTooltips.Set(text,label,check);
             return enabled=>label.Enabled=check.Enabled=enabled;
         }
         private void Range(float y,string text,float value,Action<float> store)
@@ -137,12 +141,14 @@ namespace SpaceEngineersVR.GUI
             caption(value);
             var slider=new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:0,maxValue:1,width:.53f,defaultValue:1) { Value=value };
             slider.ValueChanged+=v=> { store(v.Value); caption(v.Value); }; Controls.Add(slider);
+            SettingsTooltips.Set(text,label,slider);
         }
         private void Slider(float y,string text,float value,float min,Action<float> store,float max=200,float fallback=1)
         {
-            Label(y,text);
+            var label=Label(y,text);
             var slider=new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:min*100,maxValue:max,width:.53f,defaultValue:fallback*100,labelText:"{0}%",labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=value*100 };
             slider.ValueChanged+=v=>store(v.Value/100); Controls.Add(slider);
+            SettingsTooltips.Set(text,label,slider);
         }
         private void Link(float y,string text,Func<MyGuiScreenBase> screen) => Controls.Add(new MyGuiControlButton(new Vector2(0,y),text:new StringBuilder(text),onButtonClick:b=>MyGuiSandbox.AddScreen(screen())));
         private void Reset(Action reset) => Controls.Add(new MyGuiControlButton(new Vector2(-.18f,.34f),text:new StringBuilder("Reset group"),onButtonClick:b=> { reset(); RecreateControls(false); }));

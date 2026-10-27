@@ -43,8 +43,8 @@ namespace SpaceEngineersVR.Player
             public bool InventoryFull,BuffsEnabled;
             public int BuffLevel;
             public Notice[] Notices=new Notice[0];
-            public bool Takeover;
-            public bool SameAs(View other) => other!=null && Selected==other.Selected && Ammo==other.Ammo && Takeover==other.Takeover &&
+            public bool Takeover,Transmitting;
+            public bool SameAs(View other) => other!=null && Selected==other.Selected && Ammo==other.Ammo && Takeover==other.Takeover && Transmitting==other.Transmitting &&
                 Speed==other.Speed && SpeedLevel==other.SpeedLevel && ShipHydrogenLevel==other.ShipHydrogenLevel &&
                 ShipBatteryLevel==other.ShipBatteryLevel && ShipLoadLevel==other.ShipLoadLevel && NaturalGravity==other.NaturalGravity && ArtificialGravity==other.ArtificialGravity && Helmet==other.Helmet && Jetpack==other.Jetpack &&
                 Dampeners==other.Dampeners && AutoDampeners==other.AutoDampeners && Alternate==other.Alternate && Flying==other.Flying && Down==other.Down &&
@@ -93,7 +93,7 @@ namespace SpaceEngineersVR.Player
         private sealed class Entry { public Notice Notice; public DateTime? Gone; }
         // Ordered by first appearance, so the newest notice is last.
         private static readonly List<Entry> entries=new List<Entry>();
-        private const int VitalY=422,ShipY=VitalY-115;
+        private const int VitalY=422,ShipY=VitalY-115,MicrophoneX=905,MicrophoneY=VitalY-44,MicrophoneSize=36;
         internal const double NoticeRepeat=20,NoticeFade=1;
         // Room for every live source (native lines, one plugin notice, chat), so trimming only drops fading entries.
         internal const int MaxNotices=NativeNotices.MaxLines+1+NativeNotices.ChatMessages,ChatRows=3,NoticeRow=28,NoticeWidth=700;
@@ -183,6 +183,7 @@ namespace SpaceEngineersVR.Player
                 foreach(var type in buffs)
                     if(character.Components.TryGet(type,out var component) && component is MySurvivalBuffBase buff)
                         view.BuffLevel=Math.Max(view.BuffLevel,buff.Level);
+            view.Transmitting=MyHud.VoiceChat?.Visible==true;
             ReadNotices(view);
             for (int i=0;i<4;i++)
             {
@@ -225,6 +226,7 @@ namespace SpaceEngineersVR.Player
             target.Clear(Color.Transparent);
             if(vitals) Vitals(target,current);
             NoticeLines(target,current,notifications,chat);
+            if(current.Transmitting) Microphone(target);
         }
         private static void Vitals(OverlayCanvas target,View current)
         {
@@ -343,6 +345,7 @@ namespace SpaceEngineersVR.Player
                 StateIcon(target,s.Piloting ? "GridBroadcastingOnCenter":"PlayerBroadcastingOnCenter",s.Piloting ? s.ShipBroadcasting:s.Broadcasting,204,3);
                 StateIcon(target,"LightCenter",s.Flashlight,286,3);
                 StateIcon(target,s.Piloting ? "HandbrakeCenter":"Magboot",s.Piloting ? s.ShipPark:s.Magboots,368,3);
+                if(s.Transmitting) target.Icon(VoiceMarkers.Icon,451,5,28,Color.White);
                 int[] order={0,3,1,2};
                 // On foot the personal gauges wrap to the empty second row; piloting needs that row for ship gauges.
                 bool wrap=!s.Piloting;
@@ -473,6 +476,9 @@ namespace SpaceEngineersVR.Player
                 if(suffixWidth>0) g.DrawString(suffix,small,Brushes.LightCyan,new System.Drawing.RectangleF(textX+nameWidth,textY,Math.Min(suffixWidth+2,width-size-12-nameWidth),28),format);
             }
         }
+        // Vanilla draws its voice icon at the bottom left while the local player transmits; here beside the first vital.
+        private static void Microphone(OverlayCanvas target) =>
+            target.Icon(VoiceMarkers.Icon,MicrophoneX,MicrophoneY,MicrophoneSize,Color.White);
         private static void StateIcon(OverlayCanvas target,string icon,bool on,int x,int y)
         {
             var color=on ? Color.LightCyan : Color.FromArgb(85,170,195,210);
@@ -619,7 +625,7 @@ namespace SpaceEngineersVR.Player
             {
                 var current=snapshot; float alpha=HelmetHud.HudAlpha; var config=Common.Config;
                 bool vitals=config.ShowVitals,notifications=config.ShowNotifications,chat=config.ShowChat;
-                if (alpha<=0 || Main.MenuOpen || InputRouter.RadialOpen || current==null || !vitals && !Shown(current.Notices,notifications,chat).Any())
+                if (alpha<=0 || Main.MenuOpen || InputRouter.RadialOpen || current==null || !vitals && !current.Transmitting && !Shown(current.Notices,notifications,chat).Any())
                 { canvas?.Hide(); drawn=null; shownAlpha=-1; return; }
                 int mode=(vitals ? 1:0)|(notifications ? 2:0)|(chat ? 4:0);
                 if (ReferenceEquals(current,drawn) && mode==drawnMode && iconRevision==NativeSprites.Revision)

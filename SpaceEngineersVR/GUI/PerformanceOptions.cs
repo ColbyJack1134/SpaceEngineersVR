@@ -9,9 +9,10 @@ namespace SpaceEngineersVR.GUI
     {
         private static readonly string[] Costly={"Game settings that cost the most in VR:","•  Grass density and draw distance","•  Shadow quality","•  Tree view distance"};
         private MyGuiControlLabel detail,live;
+        private readonly SettingsUndo undo;
         public override string GetFriendlyName() => "SEVR performance";
         public PerformanceOptions() : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.8f,.88f))
-        { m_closeOnEsc=true; CloseButtonEnabled=true; CanHideOthers=true; CanBeHidden=true; }
+        { m_closeOnEsc=true; CloseButtonEnabled=true; CanHideOthers=true; CanBeHidden=true; undo=new SettingsUndo(this); }
         public override void LoadContent() { base.LoadContent(); RecreateControls(true); }
         public override bool Update(bool hasFocus)
         {
@@ -27,7 +28,8 @@ namespace SpaceEngineersVR.GUI
             live=MenuLayout.Label(this,-.275f,.07f,Status(),.62f);
             MenuLayout.Toggle(this,.135f,"Performance panel",PerformanceHud.Enabled,v=>PerformanceHud.Enabled=v,0);
             Tips(this,.2f,.027f);
-            MenuLayout.Button(this,0,.36f,.26f,"Done",()=>CloseScreen());
+            undo.Attach(MenuLayout.Button(this,-.14f,.36f,.26f,"Undo",undo.Restore));
+            MenuLayout.Button(this,.14f,.36f,.26f,"Done",()=>CloseScreen());
         }
 
         internal static MyGuiControlLabel Add(MyGuiScreenBase screen,float top)

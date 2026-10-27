@@ -227,6 +227,8 @@ namespace SpaceEngineersVR.Config
         private bool tapHoldSticks,tapHoldLevers;
         public bool TapHoldSticks { get => tapHoldSticks; set => SetValue(ref tapHoldSticks,value); }
         public bool TapHoldLevers { get => tapHoldLevers; set => SetValue(ref tapHoldLevers,value); }
+        private float hapticStrength=1;
+        public float HapticStrength { get => hapticStrength; set => SetValue(ref hapticStrength,Bound(value,0,1,1)); }
         private bool keepScreenPlacement;
         public bool KeepScreenPlacement { get => keepScreenPlacement; set => SetValue(ref keepScreenPlacement,value); }
         private string desktopMonitor;

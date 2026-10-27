@@ -5,7 +5,7 @@ namespace SpaceEngineersVR.Player
 {
     internal static class RenderFrameBridge
     {
-        private sealed class Packet { public CameraRig.Frame Rig; public RemoteView.View Remote; public SurfaceView[] Surfaces; public WorldMarkers.View Markers; public ShipCrosshair.View Crosshair; public TargetFeedback.View Selection; public HoloSight.View Holo; public SymmetryPlanes.View[] Symmetry; public VRageRender.Messages.MyRenderMessageDebugDrawSphere[] Planets; }
+        private sealed class Packet { public CameraRig.Frame Rig; public RemoteView.View Remote; public SurfaceView[] Surfaces; public WorldMarkers.View Markers; public ShipCrosshair.View Crosshair; public TargetFeedback.View Selection; public HoloSight.View Holo; public SymmetryPlanes.View[] Symmetry; public VRageRender.Messages.MyRenderMessageDebugDrawSphere[] Planets; public VoiceMarkers.Talker[] Talking; }
         private static readonly ConditionalWeakTable<object, Packet> packets = new ConditionalWeakTable<object, Packet>();
         private static readonly List<Packet> pending=new List<Packet>();
         private static WorldMarkers.View latestMarkers;
@@ -18,6 +18,7 @@ namespace SpaceEngineersVR.Player
         internal static HoloSight.View Holo { get; private set; }
         internal static SymmetryPlanes.View[] Symmetry { get; private set; }
         internal static VRageRender.Messages.MyRenderMessageDebugDrawSphere[] Planets { get; private set; }
+        internal static VoiceMarkers.Talker[] Talking { get; private set; }
         public static CameraRig.Frame ForCurrentOwner(CameraRig.Frame current)
         {
             // During respawn/ejection, keep validated eye height until the new batch arrives.
@@ -40,9 +41,11 @@ namespace SpaceEngineersVR.Player
             // HUD draw follows camera enqueue. Finalize before AfterUpdate publishes the native batch.
             // Camera-only updates do not mean the native HUD removed its markers.
             var markers=pending.Count>0 ? WorldMarkers.WithWeaponCore(WorldMarkers.Live(latestMarkers)) : null;
+            var talking=pending.Count>0 ? VoiceMarkers.Capture() : null;
             foreach(var packet in pending)
             {
                 packet.Markers=markers;
+                packet.Talking=talking;
                 packet.Surfaces=surfaces;
                 packet.Selection=GridSelection.Feedback ?? TargetLock.Feedback;
                 packet.Holo=HoloSight.Capture();
@@ -63,6 +66,7 @@ namespace SpaceEngineersVR.Player
             Holo=packet?.Holo;
             Symmetry=packet?.Symmetry;
             Planets=packet?.Planets;
+            Talking=packet?.Talking;
         }
     }
 }

@@ -201,6 +201,7 @@ namespace SpaceEngineersVR.Diagnostics
             Near(rotation.X, -6, "ship pitch convention"); Near(rotation.Y, 0, "roll owns horizontal axis"); Near(roll, 4, "flight roll");
             log("PASS flight axes: XYZ translation, opposing thrust, pitch conventions, yaw/roll ownership");
             RollSensitivityTests.Run(log);
+            SettingsUndoTests.Run(log);
 
             // OpenVR raw top/bottom are signed Y bounds, not negated camera-space Y.
             // Independently checked against IVRSystem.GetProjectionMatrix in VrProbe.

@@ -10,8 +10,9 @@ namespace SpaceEngineersVR.GUI
     internal sealed class PhysicalFlightOptions : MyGuiScreenBase
     {
         public override string GetFriendlyName() => "SEVR physical stick options";
+        private readonly SettingsUndo undo;
         public PhysicalFlightOptions() : base(new Vector2(0.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(0.80f,0.80f))
-        { m_closeOnEsc=true; CloseButtonEnabled=true; }
+        { m_closeOnEsc=true; CloseButtonEnabled=true; undo=new SettingsUndo(this); }
         public override void LoadContent() { base.LoadContent(); RecreateControls(true); }
         public override void RecreateControls(bool constructor)
         {
@@ -23,13 +24,16 @@ namespace SpaceEngineersVR.GUI
             Toggle(-0.04f,"Tap to hold analog levers",config.TapHoldLevers,v=>config.TapHoldLevers=v);
             Controls.Add(new MyGuiControlLabel(new Vector2(-0.30f,0.10f),text:"Flight tuning: settings on the seat panel or wrist.",textScale:0.7f,
                 originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER));
-            Controls.Add(new MyGuiControlButton(new Vector2(0,0.30f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
+            var restore=new MyGuiControlButton(new Vector2(-0.12f,0.30f),text:new StringBuilder("Undo"),onButtonClick:b=>undo.Restore());
+            Controls.Add(restore); undo.Attach(restore);
+            Controls.Add(new MyGuiControlButton(new Vector2(0.12f,0.30f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
         }
         private void Toggle(float y,string label,bool value,Action<bool> save)
         {
-            Controls.Add(new MyGuiControlLabel(new Vector2(-0.30f,y),text:label,originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER));
+            var title=new MyGuiControlLabel(new Vector2(-0.30f,y),text:label,originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER);
             var box=new MyGuiControlCheckbox(new Vector2(0.29f,y)) { IsChecked=value };
-            box.IsCheckedChanged+=c=>save(c.IsChecked); Controls.Add(box);
+            box.IsCheckedChanged+=c=>save(c.IsChecked); Controls.Add(title); Controls.Add(box);
+            SettingsTooltips.Set(label,title,box);
         }
     }
 }

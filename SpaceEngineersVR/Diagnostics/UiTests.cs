@@ -100,6 +100,11 @@ namespace SpaceEngineersVR.Diagnostics
                 void Wrist(string name) => WristPreview(device,canvas,new SurfaceView {Id="Wrist preview",Style=SurfaceStyle.WristStatus,Width=.133f,Height=.07f,Status=model},output,name);
                 Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"foot-hud.png"));
                 Wrist("wrist-foot");
+                model.Transmitting=true;
+                Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"foot-hud-transmitting.png"));
+                Render(hud,()=>EssentialHud.Paint(hud,model,false)); Save(hud.Texture,Path.Combine(output,"foot-hud-transmitting-novitals.png"));
+                Wrist("wrist-foot-transmitting");
+                model.Transmitting=false;
                 model.Notices=notices;
                 Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"foot-hud-notices.png"));
                 Wrist("wrist-foot-inline");
