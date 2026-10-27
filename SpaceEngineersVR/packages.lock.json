@@ -17,6 +17,12 @@
           "Microsoft.NETFramework.ReferenceAssemblies.net48": "1.0.3"
         }
       },
+      "Mono.Cecil": {
+        "type": "Direct",
+        "requested": "[0.11.6, )",
+        "resolved": "0.11.6",
+        "contentHash": "f33RkDtZO8VlGXCtmQIviOtxgnUdym9xx/b1p9h91CRGOsJFxCFOFK1FDbVt1OCf1aWwYejUFa2MOQyFWTFjbA=="
+      },
       "OVRSharp": {
         "type": "Direct",
         "requested": "[1.2.0, )",

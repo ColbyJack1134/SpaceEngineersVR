@@ -1,5 +1,9 @@
 #if SEVR_DIAGNOSTICS
 using System;
+using System.IO;
+using System.Linq;
+using Mono.Cecil;
+using Mono.Cecil.Cil;
 using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Player.Control;
 using Valve.VR;
@@ -48,6 +52,30 @@ namespace SpaceEngineersVR.Diagnostics
             overlay.Update(true,false,true,false);
             Require(overlay.Update(true,false,true,true),"Fresh press after overlay failed");
             log("PASS window focus: fresh trigger only, dashboard/tracking gates, held squeeze suppression, partial release, successful focus and denied retry");
+            CursorClip(Require);
+            log("PASS cursor clip preloader: no Legacy target, installed UpdateClip gated on the free-cursor flag once, rewritten assembly writes");
+        }
+
+        private static void CursorClip(Action<bool,string> require)
+        {
+            require(!global::Preloader.TargetDLLs.Any(),"Preloader targets game DLLs on .NET Framework");
+            string bin=Path.GetDirectoryName(typeof(VRage.MyWindowModeEnum).Assembly.Location);
+            // Matches Pulsar's reader, which resolves references from the game folder.
+            var resolver=new DefaultAssemblyResolver(); resolver.AddSearchDirectory(bin);
+            using(resolver)
+            using(var assembly=AssemblyDefinition.ReadAssembly(Path.Combine(bin,"VRage.Platform.Windows.dll"),new ReaderParameters {AssemblyResolver=resolver}))
+            {
+                global::Preloader.Patch(assembly);
+                global::Preloader.Patch(assembly);
+                var window=assembly.MainModule.GetType("VRage.Platform.Windows.Forms.MyGameWindow");
+                var code=window.Methods.Single(m => m.Name=="UpdateClip").Body.Instructions;
+                require(window.Fields.Count(f => f.Name==Patches.CursorClipPatch.FreeField)==1,"Preloader did not add exactly one free-cursor flag");
+                require(code[0].OpCode==OpCodes.Ldsfld && ((FieldReference)code[0].Operand).Name==Patches.CursorClipPatch.FreeField
+                    && code[1].OpCode==OpCodes.Brfalse && code[1].Operand==code[4]
+                    && code[2].OpCode==OpCodes.Call && ((MethodReference)code[2].Operand).Name=="ClearClip" && code[3].OpCode==OpCodes.Ret,"UpdateClip gate missing");
+                require(code.Count(i => i.OpCode==OpCodes.Ldsfld && ((FieldReference)i.Operand).Name==Patches.CursorClipPatch.FreeField)==1,"UpdateClip gate inserted twice");
+                using(var stream=new MemoryStream()) assembly.Write(stream);
+            }
         }
     }
 }

@@ -38,6 +38,7 @@ namespace SpaceEngineersVR.GUI
             ["Hide first-person body"]="Hands stay visible",
             ["Controller menu pointer"]="Laser pointer in menus",
             ["Keyboard / mouse gameplay"]="Keyboard and mouse alongside controllers",
+            ["Lock mouse to game window"]="Keep the cursor inside the game",
             ["Tracked arms"]="Arms follow your controllers",
             ["Legacy hand-tilt ship steering"]="Tilt your hand to steer ships",
             ["Double-tap to keep tools running"]="Double-tap trigger to lock tools on",

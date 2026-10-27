@@ -201,6 +201,9 @@ namespace SpaceEngineersVR.Plugin
             if (Harmony != null)
                 try { Patches.DoubleClickTolerancePatch.Install(Harmony); }
                 catch (Exception ex) { Logger.Warning(ex, "Double-click tolerance patch skipped; native double clicks keep the default radius"); }
+#if !LINUX
+            if (Harmony != null) Patches.CursorClipPatch.Update();
+#endif
 #if SEVR_DIAGNOSTICS
             if (PhysicalRendererProbe.Active) { PhysicalRendererProbe.Update(); return; }
 #endif

@@ -10,6 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="../../SpaceEngineersVR/SpaceEngineersVR.csproj" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Mono.Cecil" Version="0.11.6" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="../../ModApi/SevrApi.cs" LogicalName="SevrApi.cs" />

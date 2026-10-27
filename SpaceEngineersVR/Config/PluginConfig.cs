@@ -40,6 +40,7 @@ namespace SpaceEngineersVR.Config
         public string[] RecentSearchActions { get => recentSearchActions; set => SetValue(ref recentSearchActions,value ?? Array.Empty<string>()); }
 
         private bool enableKeyboardAndMouseControls = true;
+        private bool lockMouseToWindow;
         private bool enableCharacterRendering = true;
 
         private bool useHeadRotationForCharacter = true;
@@ -251,6 +252,8 @@ namespace SpaceEngineersVR.Config
             get => enableKeyboardAndMouseControls;
             set => SetValue(ref enableKeyboardAndMouseControls, value);
         }
+
+        public bool LockMouseToWindow { get => lockMouseToWindow; set => SetValue(ref lockMouseToWindow,value); }
 
         public bool EnableCharacterRendering
         {
