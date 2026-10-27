@@ -29,7 +29,7 @@ With the 1.0 release, I consider this experience to be practically complete and 
 **Note:** The plugin only runs when SteamVR is running as the game starts. Otherwise, Space Engineers starts normally.
 
 1. Install [Pulsar](https://github.com/SpaceGT/Pulsar)
-2. Start SteamVR, then launch Space Engineers with Pulsar's `Interim.exe` (or `Legacy.exe`).
+2. Start SteamVR, then launch Space Engineers with Pulsar's `Interim.exe` (the installer's default). `Legacy.exe` also works.
 
 <img width="688" height="515" alt="image" src="https://github.com/user-attachments/assets/5f0dbdbf-321b-4960-bf84-7325c99f2f36" />
 
