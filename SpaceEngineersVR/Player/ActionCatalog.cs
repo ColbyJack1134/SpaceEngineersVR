@@ -79,6 +79,7 @@ namespace SpaceEngineersVR.Player
             // Native suicide asks for confirmation and honors campaign respawn rules.
             yield return new ActionChoice("Respawn",()=>NativeActions.Pulse(Sandbox.Game.MyControlsSpace.SUICIDE),searchTerms:"suicide kill die stuck");
             if(PbFeed.ArmsAction.Enabled) yield return PbFeed.ArmsAction;
+            if(PbFeed.LeanAction.Enabled) yield return PbFeed.LeanAction;
             if(native==null) native=NativeEntries();
             foreach(var action in native) yield return action;
             var ids=new HashSet<MyStringId>();

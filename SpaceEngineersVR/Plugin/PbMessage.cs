@@ -14,7 +14,7 @@ namespace SpaceEngineersVR.Plugin
     {
         internal const string Tag="SEVR1";
         internal const int Fields=61;
-        internal const int Arms=1,Head=2,Left=4,Right=8,Stopped=16,LeftJoints=32,RightJoints=64;
+        internal const int Arms=1,Head=2,Left=4,Right=8,Stopped=16,LeftJoints=32,RightJoints=64,Lean=128;
 
         internal sealed class Hand
         {
