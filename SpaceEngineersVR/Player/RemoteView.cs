@@ -198,7 +198,12 @@ namespace SpaceEngineersVR.Player
         public static void Refresh()
         {
             if(!Active) return;
-            if(seat!=null) SeatedRig=new CameraRig.Frame(seat.GetHeadMatrix(true,true),Player.PlayerToAbsolute.inverted,epoch);
+            if(seat!=null)
+            {
+                SeatedRig=new CameraRig.Frame(seat.GetHeadMatrix(true,true),Player.PlayerToAbsolute.inverted,epoch);
+                // Native camera release shows the pilot's head.
+                seat.Pilot?.EnableHead(ThirdPersonView.Active);
+            }
             Publish();
         }
         private static void Place()
