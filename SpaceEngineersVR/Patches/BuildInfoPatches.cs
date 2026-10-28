@@ -197,7 +197,7 @@ namespace SpaceEngineersVR.Patches
             fed=null; setBlock=null; pointed=null; closedUi=null; toolbarMonitor=null; setPage=null; monitorPage=null;
             toolBar=null; toolBarShown=null; weaponModeShown=false; hideIcon=hideHud=null; gameConfig=null; CardAdditions.Reset();
             Rollback(0); attempted.Clear(); scanned.Clear(); candidates.Clear(); main=null; instanceField=null; actions=null; textApiScale=null; retry=DateTime.MinValue;
-            multiTool=null; isEquipped=null; toolActions=null; aimDepth=headDepth=0; drawing=copyDepth=geometryDepth=0; labelText=null; BuildInfoPanel.Legend.Reset(); BuildInfoLabels.Reset();
+            multiTool=null; isEquipped=null; toolActions=null; instrumentName=null; refreshInstrument=null; aimDepth=headDepth=0; drawing=copyDepth=geometryDepth=0; labelText=null; BuildInfoPanel.Legend.Reset(); BuildInfoLabels.Reset();
             maxRange=swapAt=null; distance=null; toolbarLabels=null; toolbarBackgrounds=null; BuildInfoPanel.Text.Reset(); BuildInfoPanel.Toolbar.Reset();
         }
 
@@ -257,6 +257,14 @@ namespace SpaceEngineersVR.Patches
         }
         // Build Info anchors its panel marks at a lower bottom edge in the basic HUD.
         private static object gameConfig;
+#if SEVR_DIAGNOSTICS
+        internal static string SetHudState(int state)
+        {
+            Sandbox.MySandboxGame.Config.HudState=state;
+            AccessTools.Method(gameConfig.GetType(),"UpdateHudState").Invoke(gameConfig,new object[] {false});
+            return ModReflection.Get(gameConfig,"HudState")?.ToString();
+        }
+#endif
         private static void AdditionsBegin(out bool __state)
         {
             __state=Main.VrActive && !CardAdditions.Capturing && BuildInfoPanel.Capturing==null;
@@ -487,6 +495,11 @@ namespace SpaceEngineersVR.Patches
         private static object multiTool;
         private static Func<object,bool> isEquipped;
         private static ActionChoice[] toolActions;
+        private static Func<string> instrumentName;
+        private static Action refreshInstrument;
+        internal static string MultiToolInstrument => MultiToolEquipped && instrumentName!=null ? instrumentName() : null;
+        // Build Info leaves MyHud.BlockInfo stale on the BASIC HUD state.
+        internal static void RefreshInstrument() => refreshInstrument?.Invoke();
         internal static bool MultiToolEquipped => Active && multiTool!=null && isEquipped!=null && isEquipped(multiTool);
         private static void AttachMultiTool(object instance,Func<string,Type> find,List<string> parts)
         {
@@ -572,6 +585,14 @@ namespace SpaceEngineersVR.Patches
             if(new object[] {instruments,index,current?.GetSetMethod(true),refresh,selected,deselected,clear,cancel}.Any(m=>m==null) || index.FieldType!=typeof(int) || refresh.FieldType!=typeof(bool))
             { Logger.Info("Build Info multitool instruments not found; no instrument actions on the wheel"); return; }
             object Current() => current.GetValue(multiTool);
+            instrumentName=()=>ModReflection.Get(Current(),"DisplayNameHUD") as string;
+            var refreshInfo=AccessTools.Method(tool,"RefreshBlockInfo",Type.EmptyTypes);
+            var equippedDef=AccessTools.Field(tool,"EquippedDef");
+            // IsEquipped lags the builder; RefreshBlockInfo throws while the current block is not the multitool.
+            if(refreshInfo!=null && equippedDef!=null) refreshInstrument=()=>{
+                var def=MyCubeBuilder.Static?.CubeBuilderState?.CurrentBlockDefinition;
+                if(def!=null && def==equippedDef.GetValue(multiTool)) refreshInfo.Invoke(multiTool,null);
+            };
             bool Is(Type type) => type!=null && type.IsInstanceOfType(Current());
             void Next()
             {
@@ -610,8 +631,14 @@ namespace SpaceEngineersVR.Patches
         {
             if(aimDepth>0 && headDepth==0 && Main.VrActive && PlacementControls.TryBuilderPose(out var pose)) __result=MatrixD.Invert(pose);
         }
-        private static void ToolDrawBegin(out BuildInfoPanel.Capture __state) =>
-            __state=Main.VrActive && BuildInfoPanel.Capturing==null && MultiToolEquipped ? BuildInfoPanel.Text.Begin(BlockInspection.Current!=null,HalfHeight()) : null;
+        private static void ToolDrawBegin(out BuildInfoPanel.Capture __state)
+        {
+            bool keep=BlockInspection.Current!=null;
+#if SEVR_DIAGNOSTICS
+            keep|=Diagnostics.BuildInfoProbe.ForceCapture;
+#endif
+            __state=Main.VrActive && BuildInfoPanel.Capturing==null && MultiToolEquipped ? BuildInfoPanel.Text.Begin(keep,HalfHeight()) : null;
+        }
         private static void LegendBegin(out BuildInfoPanel.Capture __state) =>
             __state=Main.VrActive && BuildInfoPanel.Capturing==null ? BuildInfoPanel.Legend.Begin(BlockInspection.Current!=null,HalfHeight()) : null;
         private static Exception LegendEnd(Exception __exception,BuildInfoPanel.Capture __state)

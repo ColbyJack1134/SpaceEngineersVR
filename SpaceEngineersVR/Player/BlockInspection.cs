@@ -70,8 +70,8 @@ namespace SpaceEngineersVR.Player
             // Rebuild only on change like the native tools, at most 10 Hz.
             var state=block==null ? default((long,int,int,bool)):(block.GetStockpileStamp()+(long)block.ComponentStack.LastChangeStamp,(int)(block.Integrity/block.MaxIntegrity*1000),Marked(engineerTool),engineerTool is MyAngleGrinder);
             // Icons stream in after a new target's first capture.
-            // Build Info's multitool is a placeholder block; the native block info holds its selected instrument instead.
-            string instrument=block==null && projected==null && Patches.BuildInfoBridge.MultiToolEquipped ? MyHud.BlockInfo.BlockName ?? "" : null;
+            // Build Info's multitool is a placeholder block; the card shows its selected instrument instead.
+            string instrument=block==null && projected==null ? Patches.BuildInfoBridge.MultiToolInstrument : null;
             string key=Key(block ?? projected,definition)+(instrument==null ? "":"|"+instrument);
             bool target=previous!=(block ?? projected) || shown!=definition.Id || shownInstrument!=instrument;
             if(target) settle=DateTime.UtcNow.AddSeconds(2);
@@ -86,7 +86,7 @@ namespace SpaceEngineersVR.Player
                     info.ShowComponentLoss=engineerTool is MyAngleGrinder;
                 }
                 else if(projected!=null) Projection(info,projected);
-                else if(instrument!=null) Instrument(info,MyHud.BlockInfo);
+                else if(instrument!=null) { Patches.BuildInfoBridge.RefreshInstrument(); Instrument(info,MyHud.BlockInfo,definition,instrument); }
                 else MySlimBlock.SetBlockComponents(info,definition,MyCubeBuilder.BuildComponent.GetBuilderInventory(character));
                 NativeBlockInfo.Show(info,key);
             }
@@ -98,12 +98,14 @@ namespace SpaceEngineersVR.Player
                 Width=Width,Height=Width*pixels.Y/pixels.X,Pose=CockpitTouch.LabelPose(head,finger.Translation,Width,Side) };
         }
         internal const float Width=.16f;
-        private static void Instrument(MyHudBlockInfo target,MyHudBlockInfo source)
+        internal static void Instrument(MyHudBlockInfo target,MyHudBlockInfo source,MyDefinitionBase definition,string name)
         {
             target.Components.Clear();
-            target.DefinitionId=source.DefinitionId; target.BlockName=source.BlockName; target.BlockIcons=source.BlockIcons; target.GridSize=source.GridSize;
+            target.DefinitionId=source.DefinitionId; target.BlockName=name; target.BlockIcons=source.BlockIcons; target.GridSize=source.GridSize;
             target.PCUCost=0; target.BlockIntegrity=0; target.CriticalIntegrity=target.OwnershipIntegrity=1;
             target.CriticalComponentIndex=0; target.MissingComponentIndex=-1; target.BlockBuiltBy=0; target.ShowComponentLoss=false;
+            // The native title control only redraws the name after a context help change.
+            target.SetContextHelp(definition);
         }
         // MyEngineerToolBase keeps the component a failed weld could not find for 2.5 s.
         private static int Marked(MyEngineerToolBase tool)

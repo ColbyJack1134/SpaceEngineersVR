@@ -47,6 +47,7 @@ namespace SpaceEngineersVR.Diagnostics
             if(next==DateTime.MaxValue) { next=now; deadline=now.AddMinutes(4); Log("waiting for the world, Text HUD API and Build Info"); }
             if(now>deadline) { Require(false,"timed out in stage "+stage); Finish(); return; }
             if(stage==1 || stage==2) KeepCard();
+            if(stage==31 || stage==32) KeepInstrumentCard();
             if(stage>0 && Sandbox.MySandboxGame.IsPaused) Sandbox.MySandboxGame.PausePop();
             if(now<next) return;
             next=now.AddSeconds(Poll);
@@ -64,6 +65,7 @@ namespace SpaceEngineersVR.Diagnostics
                     if(Sandbox.MySandboxGame.IsPaused) Sandbox.MySandboxGame.PausePop();
                     Require(MySession.Static.SurvivalMode,"the probe world must be survival");
                     CheckAdapter();
+                    if(Environment.GetEnvironmentVariable("SEVR_BUILDINFO_MULTITOOL")=="1") { Activate("BuildInfo_MultiTool_Large"); Enter(30,now); return; }
                     ForceCapture=true; block=0; Activate(blocks[0]);
                     Enter(1,now);
                     return;
@@ -96,6 +98,33 @@ namespace SpaceEngineersVR.Diagnostics
                     }
                     RequestPanel(blocks[block]);
                     Enter(2,now);
+                    return;
+                case 30:
+                    if(!BuildInfoBridge.MultiToolEquipped && (now-stageStart).TotalSeconds<BlockLimit) return;
+                    Require(BuildInfoBridge.MultiToolEquipped,"multitool not equipped");
+                    if(!BuildInfoBridge.MultiToolEquipped) { Finish(); return; }
+                    ForceCapture=true;
+                    Enter(31,now);
+                    return;
+                case 31:
+                    if((now-stageStart).TotalSeconds<1) return;
+                    Snapshot("switch "+switches+(basic ? " basic":""));
+                    RequestPanel("multitool-"+(basic ? "basic-":"")+switches);
+                    Enter(32,now);
+                    return;
+                case 32:
+                    if(!rendered) return;
+                    if(switches==4)
+                    {
+                        if(basic) { Finish(); return; }
+                        basic=true; switches=0; hudState=Sandbox.MySandboxGame.Config.HudState;
+                        Log("HUD state now "+BuildInfoBridge.SetHudState(2));
+                        Enter(31,now);
+                        return;
+                    }
+                    GameActions.Execute(BuildInfoBridge.Actions()[0]);
+                    switches++;
+                    Enter(31,now);
                     return;
                 case 2:
                     if(!rendered) return;
@@ -272,9 +301,34 @@ namespace SpaceEngineersVR.Diagnostics
             };
         }
         private static string Escape(string text) => text==null ? "" : string.Concat(text.Select(c=>c<32 || c>126 ? "\\u"+((int)c).ToString("x4"):c.ToString()));
+        private static int switches;
+        private static bool basic;
+        private static int? hudState;
+        private static void Snapshot(string label)
+        {
+            string hud=MyHud.BlockInfo.BlockName;
+            string instrument=BuildInfoBridge.MultiToolInstrument;
+            BuildInfoBridge.RefreshInstrument();
+            var help=AccessTools.Field(typeof(NativeBlockInfo),"help").GetValue(null);
+            string title=(help==null ? null:AccessTools.Field(help.GetType(),"m_blockNameLabel").GetValue(help) as Sandbox.Graphics.GUI.MyGuiControlLabel)?.TextToDraw?.ToString();
+            Log(label+": instrument "+instrument+", native block info "+hud+" -> "+MyHud.BlockInfo.BlockName+", card title "+title);
+            Require(MyHud.BlockInfo.BlockName==instrument && string.Equals(title,instrument,StringComparison.OrdinalIgnoreCase),"multitool card does not show the selected instrument at "+label);
+        }
+        private static void KeepInstrumentCard()
+        {
+            string instrument=BuildInfoBridge.MultiToolInstrument;
+            var definition=MyCubeBuilder.Static?.CubeBuilderState?.CurrentBlockDefinition;
+            if(instrument==null || definition==null) return;
+            string key=definition.Id+"||"+instrument;
+            if(key==cardKey) { NativeBlockInfo.Show(card,cardKey); return; }
+            BuildInfoBridge.RefreshInstrument();
+            BlockInspection.Instrument(card,MyHud.BlockInfo,definition,instrument);
+            NativeBlockInfo.Show(card,cardKey=key);
+        }
         private static void Finish()
         {
             done=true; ForceCapture=false;
+            if(hudState.HasValue) BuildInfoBridge.SetHudState(hudState.Value);
             Logger.Info(failures.Count==0 ? "BUILD INFO PROBE PASSED" : "BUILD INFO PROBE FAILED: "+string.Join("; ",failures));
         }
         private static BuildInfoPanel.View Current() => BuildInfoPanel.Text.Current;
