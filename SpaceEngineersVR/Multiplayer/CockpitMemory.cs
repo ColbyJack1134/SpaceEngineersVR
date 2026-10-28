@@ -25,6 +25,7 @@ namespace SpaceEngineersVR.Multiplayer
             internal FlightTuning Flight;
             internal bool[] Covers=new bool[0];
             internal int LayoutVersion=CurrentLayout;
+            internal bool[] Springs=new bool[0];
         }
         private static VRage.Game.ModAPI.IMyUtilities Utilities => MyAPIUtilities.Static;
         internal static string Encode(Record record)
@@ -32,10 +33,14 @@ namespace SpaceEngineersVR.Multiplayer
             using(var stream=new MemoryStream())
             using(var writer=new BinaryWriter(stream))
             {
-                writer.Write(record.Flight?.CustomTriggers==true ? 7:6); writer.Write(record.Revision); writer.Write(record.Toolbar ?? "");
+                // Write the lowest version that holds the data; older builds reject newer ones.
+                bool springs=record.Springs.Any(s=>s);
+                int version=springs ? 8 : record.Flight?.CustomTriggers==true ? 7:6;
+                writer.Write(version); writer.Write(record.Revision); writer.Write(record.Toolbar ?? "");
                 writer.Write(record.Covers.Length); foreach(bool value in record.Covers) writer.Write(value);
-                writer.Write(record.Flight!=null); record.Flight?.Write(writer);
+                writer.Write(record.Flight!=null); record.Flight?.Write(writer,version);
                 writer.Write(record.LayoutVersion);
+                if(springs) { writer.Write(record.Springs.Length); foreach(bool value in record.Springs) writer.Write(value); }
                 if(stream.Length>Limit) throw new InvalidDataException("Cockpit assignments exceed the storage limit.");
                 return Convert.ToBase64String(stream.ToArray());
             }
@@ -65,7 +70,7 @@ namespace SpaceEngineersVR.Multiplayer
             using(var reader=new BinaryReader(stream))
             {
                 int version=reader.ReadInt32();
-                if(stream.Length>Limit || version<1 || version>7) throw new InvalidDataException("Unsupported cockpit storage.");
+                if(stream.Length>Limit || version<1 || version>8) throw new InvalidDataException("Unsupported cockpit storage.");
                 var result=new Record {Revision=reader.ReadInt64(),Toolbar=ReadBoundedString(reader)};
                 int count=reader.ReadInt32();
                 if(count<0 || count>MaximumControls || result.Revision<0) throw new InvalidDataException("Invalid cockpit storage.");
@@ -73,6 +78,12 @@ namespace SpaceEngineersVR.Multiplayer
                 if(version>=2 && reader.ReadBoolean()) result.Flight=FlightTuning.Read(reader,version);
                 result.LayoutVersion=version>=3 ? reader.ReadInt32():0;
                 if(result.LayoutVersion<0 || result.LayoutVersion>CurrentLayout) throw new InvalidDataException("Unsupported cockpit layout.");
+                if(version>=8)
+                {
+                    count=reader.ReadInt32();
+                    if(count<0 || count>MaximumControls) throw new InvalidDataException("Invalid cockpit storage.");
+                    result.Springs=new bool[count]; for(int i=0;i<count;i++) result.Springs[i]=reader.ReadBoolean();
+                }
                 if(stream.Position!=stream.Length) throw new InvalidDataException("Invalid cockpit storage length.");
                 return result;
             }
@@ -144,6 +155,8 @@ namespace SpaceEngineersVR.Multiplayer
         internal static bool Upgrade(Record record,string subtype)
         {
             if(record.LayoutVersion>=CurrentLayout) return false;
+            // Springs are not remapped with the controls.
+            record.Springs=new bool[0];
             var toolbar=Toolbar(record.Toolbar);
             UpgradeToolbar(toolbar,subtype,record.LayoutVersion);
             if(toolbar!=null) record.Toolbar=Toolbar(toolbar);

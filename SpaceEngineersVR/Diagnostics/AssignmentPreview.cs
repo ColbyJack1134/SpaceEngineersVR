@@ -40,6 +40,10 @@ namespace SpaceEngineersVR.Diagnostics
         private readonly MyToolbar physical;
         private readonly int selected;
         private readonly NativeIntegrationTests.Item occupied;
+        // Control 73 stands in for an action that cannot reach zero.
+        private readonly bool[] springs=new bool[Player.CockpitLayout.MaximumCount];
+        private int springRequests;
+        private (bool Handle,bool? On) Spring(int control) => (Multiplayer.AnalogControl.IsHandle(Player.CockpitLayout.ControlSeat,control),control==73 ? (bool?)null:springs[control]);
         private static int Count => Player.CockpitLayout.Count(Player.CockpitLayout.ControlSeat);
         public override string GetFriendlyName() => "SEVR assignment preview";
         private static void Set(object instance,string field,object value) => AccessTools.Field(instance.GetType(),field).SetValue(instance,value);
@@ -85,7 +89,9 @@ namespace SpaceEngineersVR.Diagnostics
             Controls.Add(new MyGuiControlLabel(new Vector2(-.32f,.10f),text:"Switches") {Name="LabelToolbar"});
             Controls.Add(new MyGuiControlLabel(new Vector2(0,-.23f),text:quickToolbar ? "Quick toolbar assignment":ordinary ? "Toolbar assignment":"Cockpit assignment",originAlign:MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER));
             assignment=new CockpitAssignment(owner,target,source,target.SlotCount*target.PageCount,selected,switches:!ordinary,layout:grouped?.Layout,
-                title:quickToolbar ? "Quick toolbar · "+Player.QuickToolbar.Names[selected]:null,holster:!quickToolbar); assignment.Update();
+                title:quickToolbar ? "Quick toolbar · "+Player.QuickToolbar.Names[selected]:null,holster:!quickToolbar,
+                spring:ordinary ? null:(Func<int,(bool,bool?)>)Spring,setSpring:(c,on)=>{springRequests++; springs[c]=on;}); assignment.Update();
+            springs[72]=springs[74]=true;
             FillArtwork();
             if(ordinary && !quickToolbar) VerifyInputSelection();
         }
@@ -170,8 +176,33 @@ namespace SpaceEngineersVR.Diagnostics
                 forward.PressButton();
             }
             if(target.CurrentPage!=0) throw new Exception("Switch page wrap failed");
-            backward.PressButton(); FillArtwork();
+            if(Controls.OfType<MyGuiControlCheckbox>().Any(c=>c.Visible)) throw new Exception("Spring checkboxes shown on a switch page");
+            backward.PressButton(); backward.PressButton(); backward.PressButton(); FillArtwork();
+            VerifySprings();
             Plugin.Logger.Info("PASS native grouped assignment UI: actual Control Seat groups, hidden unused slots/drop rejection, fixed arrows/grid, independent ship browsing, all pages and wrap.");
+        }
+        private void VerifySprings()
+        {
+            var boxes=Controls.OfType<MyGuiControlCheckbox>().Where(c=>c.Visible).ToList();
+            var controls=grouped.Layout.Pages[target.CurrentPage].Controls;
+            if(boxes.Count!=controls.Length || boxes.Count(c=>c.Enabled)!=controls.Length-1 || !Controls.OfType<MyGuiControlLabel>().Any(l=>l.Visible && l.Text=="Spring back"))
+                throw new Exception("Lever page does not show one spring checkbox per lever");
+            var grid=toolbar.ToolbarGrid;
+            var items=(RectangleF)AccessTools.Field(typeof(MyGuiControlGrid),"m_itemsRectangle").GetValue(grid);
+            for(int i=0;i<boxes.Count;i++)
+            {
+                var center=boxes[i].GetPositionAbsoluteCenter();
+                float left=items.X+grid.ItemStep.X*i;
+                if(center.X<left || center.X>left+grid.ItemSize.X || center.Y<items.Y+grid.ItemSize.Y || center.Y>items.Y+grid.ItemSize.Y+.05f)
+                    throw new Exception("Spring checkbox "+i+" is not under its lever slot");
+            }
+            for(int i=0;i<controls.Length;i++)
+                if(boxes[i].Enabled!=(controls[i]!=73) || boxes[i].IsChecked!=springs[controls[i]]) throw new Exception("Spring checkbox "+i+" does not match its lever");
+            int off=Array.FindIndex(controls,c=>c!=73 && !springs[c]);
+            boxes[off].IsChecked=true;
+            if(springRequests!=1 || !springs[controls[off]]) throw new Exception("Spring checkbox saved to the wrong lever");
+            springs[controls[off]]=false; boxes[off].IsChecked=false; springRequests=0;
+            Plugin.Logger.Info("PASS native spring checkboxes: hidden on switch pages, one per lever, unavailable action disabled, toggle saves the matching control.");
         }
         private void VerifyDoubleClick()
         {

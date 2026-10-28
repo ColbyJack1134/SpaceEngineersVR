@@ -60,6 +60,30 @@ namespace SpaceEngineersVR.Player
         }
         internal static string AnalogLabel(int slot,float position) => analog[slot]?.FirstOrDefault()?.Label(position);
         internal static float? AnalogDetent(int slot) => slot>=0 && slot<analog.Length ? analog[slot]?.FirstOrDefault()?.Detent:null;
+        internal static float? AnalogRest(int slot) => slot>=0 && slot<analog.Length ? AnalogControl.Rest(analog[slot]):null;
+        internal static bool AnalogInstant(int slot) => slot>=0 && slot<analog.Length && AnalogControl.Instant(analog[slot]);
+
+        private static readonly bool[] pendingSpring=new bool[CockpitLayout.MaximumCount];
+        private static readonly double[] pendingSpringUntil=new double[CockpitLayout.MaximumCount];
+        internal static bool Springs(int slot)
+        {
+            if(owner==null || slot<0 || slot>=CockpitLayout.MaximumCount) return false;
+            if(MultiplayerRuntime.Now<pendingSpringUntil[slot]) return pendingSpring[slot];
+            return MultiplayerRuntime.Get(owner,out var shared) && slot<shared.Springs.Length && shared.Springs[slot];
+        }
+        // Handle=false hides the option; On=null means the assigned action cannot reach zero.
+        internal static (bool Handle,bool? On) SpringOption(int slot)
+        {
+            if(toolbar==null || !Handle(slot)) return (false,null);
+            var channels=AnalogControl.Resolve(toolbar.GetItemAtIndex(slot),MySession.Static.LocalPlayerId,false);
+            return (true,AnalogControl.Rest(channels).HasValue ? Springs(slot):(bool?)null);
+        }
+        internal static void SetSpring(int slot,bool on)
+        {
+            if(!Handle(slot) || !SharedReady) return;
+            pendingSpring[slot]=on; pendingSpringUntil[slot]=MultiplayerRuntime.Now+5;
+            MultiplayerRuntime.SaveSpring(owner,slot,on);
+        }
 
         public static void Update(MyCockpit seat)
         {
@@ -204,7 +228,7 @@ namespace SpaceEngineersVR.Player
                 if(selected>=0) target.SwitchToPage(selected/target.SlotCount);
                 editor=MyGuiSandbox.CreateScreen(MyPerGameSettings.GUI.ToolbarConfigScreen,0,owner,null);
                 assignment=new GUI.CockpitAssignment((MyGuiScreenToolbarConfigBase)editor,target,previous,
-                    target.SlotCount*target.PageCount,selected,layout:assignmentToolbar.Layout);
+                    target.SlotCount*target.PageCount,selected,layout:assignmentToolbar.Layout,spring:SpringOption,setSpring:SetSpring);
                 assignment.Update();
                 editor.Closed+=Closed;
                 MyGuiSandbox.AddScreen(MyGuiScreenGamePlay.ActiveGameplayScreen=editor);
@@ -244,6 +268,7 @@ namespace SpaceEngineersVR.Player
                 var old=new CockpitMemory.Record { Covers=(bool[])state.Covers.Clone(),LayoutVersion=state.LayoutVersion };
                 CockpitMemory.Upgrade(old,seat.BlockDefinition.Id.SubtypeName); record.Covers=old.Covers;
             }
+            if(state?.Springs!=null && state.LayoutVersion==CockpitMemory.CurrentLayout) record.Springs=(bool[])state.Springs.Clone();
             return record;
         }
         internal static void SaveLocal(MyCockpit seat,CockpitMemory.Record record)
@@ -253,7 +278,8 @@ namespace SpaceEngineersVR.Player
             config.CockpitActions=config.CockpitActions.Where(s=>s.World!=path || s.Cockpit!=id)
                 .Append(new CockpitActionSetting { World=path,Cockpit=id,ToolbarXml=record.Toolbar,LayoutVersion=CockpitMemory.CurrentLayout }).ToArray();
             config.CockpitStates=config.CockpitStates.Where(s=>s.World!=path || s.Cockpit!=id)
-                .Append(new CockpitStateSetting { World=path,Cockpit=id,Covers=(bool[])record.Covers.Clone(),LayoutVersion=CockpitMemory.CurrentLayout }).ToArray();
+                .Append(new CockpitStateSetting { World=path,Cockpit=id,Covers=(bool[])record.Covers.Clone(),
+                    Springs=record.Springs.Any(s=>s) ? (bool[])record.Springs.Clone():null,LayoutVersion=CockpitMemory.CurrentLayout }).ToArray();
         }
         public static void Reset()
         {
@@ -264,7 +290,7 @@ namespace SpaceEngineersVR.Player
                 MultiplayerRuntime.Detach(toolbar);
                 toolbar.ItemChanged-=Changed; toolbar.Clear();
             }
-            Array.Clear(analog,0,analog.Length); Array.Clear(nextAnalog,0,nextAnalog.Length);
+            Array.Clear(analog,0,analog.Length); Array.Clear(nextAnalog,0,nextAnalog.Length); Array.Clear(pendingSpringUntil,0,pendingSpringUntil.Length);
             toolbar=null; owner=null; world=null; loadedXml=pendingXml=null; pendingUntil=0; migrated=false;
         }
     }

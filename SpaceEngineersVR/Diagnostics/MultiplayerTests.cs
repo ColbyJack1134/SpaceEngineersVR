@@ -81,6 +81,11 @@ namespace SpaceEngineersVR.Diagnostics
             var record=new CockpitMemory.Record {Revision=3,Toolbar="<toolbar>parameter &amp; text</toolbar>",Covers=new[] {true,false,true}};
             var saved=CockpitMemory.Decode(CockpitMemory.Encode(record));
             Require(saved.Revision==3 && saved.Toolbar==record.Toolbar && Enumerable.SequenceEqual(saved.Covers,record.Covers),"Cockpit record loses assignments or covers");
+            Require(BitConverter.ToInt32(Convert.FromBase64String(CockpitMemory.Encode(record)),0)==6,"Cockpit record without spring levers is not written as version 6");
+            record.Flight=new FlightTuning {Rotation=1.5f}; record.Springs=new bool[77]; record.Springs[69]=true;
+            saved=CockpitMemory.Decode(CockpitMemory.Encode(record));
+            Require(Enumerable.SequenceEqual(saved.Springs,record.Springs) && Enumerable.SequenceEqual(saved.Covers,record.Covers) && saved.Flight?.Rotation==1.5f,
+                "Cockpit record loses spring levers or the flight settings beside them");
             var oldToolbar=new MyObjectBuilder_Toolbar {ToolbarType=MyToolbarType.ButtonPanel,Slots=new List<MyObjectBuilder_Toolbar.Slot> {
                 new MyObjectBuilder_Toolbar.Slot {Index=0},new MyObjectBuilder_Toolbar.Slot {Index=4},new MyObjectBuilder_Toolbar.Slot {Index=60} }};
             var old=new CockpitMemory.Record {LayoutVersion=0,Toolbar=CockpitMemory.Toolbar(oldToolbar),Covers=new bool[64]};

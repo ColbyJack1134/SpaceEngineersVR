@@ -36,14 +36,14 @@ namespace SpaceEngineersVR.Multiplayer
             Within(WheelPitchTravel,.02f,.06f) && Within(WheelPitchDeadzone,0,.015f) &&
             Within(WheelRollTravel,(float)(Math.PI/12),(float)(Math.PI/3)) &&
             RightTrigger<=RightTrigger.Off && LeftTrigger<=LeftTrigger.Off;
-        internal void Write(BinaryWriter writer)
+        internal void Write(BinaryWriter writer,int version)
         {
             if(!Valid) throw new InvalidDataException("Invalid flight settings.");
             foreach(float v in new[] {Rotation,Translation,RotationCurve,TranslationCurve,TiltDeadzone,TwistDeadzone,Smoothing}) writer.Write(v);
             writer.Write(FlightMode); writer.Write(BarTiltEnabled);
             foreach(float v in new[] {ThrottleSensitivity,PitchSensitivity,RollSensitivity,BarPitchTravel,BarPitchDeadzone,BarRollTravel,BarRollDeadzone}) writer.Write(v);
             writer.Write(WheelMotion); writer.Write(WheelPitchTravel); writer.Write(WheelPitchDeadzone); writer.Write(WheelRollTravel);
-            if(CustomTriggers) { writer.Write((byte)RightTrigger); writer.Write((byte)LeftTrigger); }
+            if(version>=7) { writer.Write((byte)RightTrigger); writer.Write((byte)LeftTrigger); }
         }
         internal static FlightTuning Read(BinaryReader reader,int version=7)
         {
@@ -77,7 +77,7 @@ namespace SpaceEngineersVR.Multiplayer
         }
         internal string Encode()
         {
-            using(var stream=new MemoryStream()) using(var writer=new BinaryWriter(stream)) { Write(writer); return Convert.ToBase64String(stream.ToArray()); }
+            using(var stream=new MemoryStream()) using(var writer=new BinaryWriter(stream)) { Write(writer,CustomTriggers ? 7:6); return Convert.ToBase64String(stream.ToArray()); }
         }
         internal static FlightTuning Decode(string text)
         {

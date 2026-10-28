@@ -92,6 +92,16 @@ namespace SpaceEngineersVR.Multiplayer
                     return DetentPosition(min,max,zero);
                 }
             }
+            // Null when the range excludes zero.
+            internal float? Rest
+            {
+                get
+                {
+                    if(!Range(out float min,out float max) || min>0 || max<0) return null;
+                    float n=Type==Kind.Slider && Normalize!=null ? (float)Normalize.DynamicInvoke(Block,0f) : -min/(max-min);
+                    return Finite(n) ? ToLever(MathHelper.Clamp(n,0,1)):(float?)null;
+                }
+            }
             internal float Value(float position)
             {
                 if(!Range(out float min,out float max)) return Actual;
@@ -122,6 +132,14 @@ namespace SpaceEngineersVR.Multiplayer
             }
         }
         internal static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
+        // One lever drives every channel, so all of them must reach zero at the same position.
+        internal static float? Rest(List<Channel> channels)
+        {
+            float? rest=channels?.FirstOrDefault()?.Rest;
+            return rest.HasValue && channels.All(c=>c.Rest is float r && Math.Abs(r-rest.Value)<=LeverStep) ? rest:null;
+        }
+        // Thrust overrides and terminal sliders change at once; pistons and rotors travel at their own speed.
+        internal static bool Instant(List<Channel> channels) => channels!=null && channels.All(c=>c.Type==Kind.Thrust || c.Type==Kind.Slider);
         internal static float AngleInRange(float angle,float min,float max) => angle+(float)Math.Round(((min+max)*.5f-angle)/MathHelper.TwoPi)*MathHelper.TwoPi;
         internal static List<Channel> Resolve(MyToolbarItem item,long identity,bool requireEnabled=true)
         {

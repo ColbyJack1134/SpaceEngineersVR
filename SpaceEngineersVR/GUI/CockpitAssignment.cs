@@ -37,6 +37,12 @@ namespace SpaceEngineersVR.GUI
         private MyGuiControlLabel sourceLabel;
         private int sourcePage,dropSlot=-1,dropPage=-1,pendingPage=-1,heldItem=-1;
         private DateTime heldSince;
+        private readonly Func<int,(bool Handle,bool? On)> spring;
+        private readonly Action<int,bool> setSpring;
+        private MyGuiControlCheckbox[] springBoxes;
+        private MyGuiControlLabel springLabel;
+        private DateTime nextSpring;
+        private bool updatingSprings;
         internal static string MarkerIcon => System.IO.Path.Combine(Plugin.Common.AssetFolder,"Icons","vr.dds");
         [HarmonyPatch(typeof(MyToolbarComponent),nameof(MyToolbarComponent.GetSlotControlText))]
         private static class PageLabel
@@ -47,8 +53,9 @@ namespace SpaceEngineersVR.GUI
                 if(__result==null && slotIndex>=0) __result=new StringBuilder((slotIndex+1).ToString());
             }
         }
-        public CockpitAssignment(MyGuiScreenToolbarConfigBase screen,MyToolbar target,MyToolbar source,int count,int selected,bool switches=true,CockpitAssignmentLayout layout=null,string title=null,bool holster=true)
-        { this.screen=screen; this.target=target; this.source=source; this.count=count; this.selected=selected; this.switches=switches; this.layout=layout; this.title=title; this.holster=holster; sourcePage=source?.CurrentPage ?? 0; current=this; screen.Closed+=Closed; }
+        public CockpitAssignment(MyGuiScreenToolbarConfigBase screen,MyToolbar target,MyToolbar source,int count,int selected,bool switches=true,CockpitAssignmentLayout layout=null,string title=null,bool holster=true,
+            Func<int,(bool Handle,bool? On)> spring=null,Action<int,bool> setSpring=null)
+        { this.screen=screen; this.target=target; this.source=source; this.count=count; this.selected=selected; this.switches=switches; this.layout=layout; this.title=title; this.holster=holster; this.spring=spring; this.setSpring=setSpring; sourcePage=source?.CurrentPage ?? 0; current=this; screen.Closed+=Closed; }
         private int Control(int index) => layout!=null ? layout.Control(index):index>=0 && index<count ? index:-1;
         internal static void Update(MyGuiScreenToolbarConfigBase screen)
         { if(current?.screen==screen) current.Update(); }
@@ -63,6 +70,7 @@ namespace SpaceEngineersVR.GUI
                 toolbar=next; drag=Field<MyGuiControlGridDragAndDrop>("m_dragAndDrop");
                 AddPaging(toolbar.ToolbarGrid,false);
                 if(source!=null && drag!=null) AddSource();
+                if(spring!=null) AddSprings();
             }
             if(layout!=null)
                 foreach(var page in (System.Collections.Generic.List<MyGuiControlLabel>)AccessTools.Field(typeof(MyGuiControlToolbar),"m_pageLabelList").GetValue(toolbar)) page.Visible=false;
@@ -83,6 +91,50 @@ namespace SpaceEngineersVR.GUI
                     if(item==null) toolbar.ToolbarGrid.SetItemAt(i,new MyGuiGridItem((string[])null,null,"",null) { Enabled=false });
                     else item.Enabled=false;
                 }
+            UpdateSprings(false);
+        }
+        private void AddSprings()
+        {
+            var grid=toolbar.ToolbarGrid;
+            // The grid's cached item rectangle is only refreshed when it draws.
+            var style=(MyGuiStyleDefinition)AccessTools.Field(typeof(MyGuiControlGrid),"m_styleDef").GetValue(grid);
+            var origin=grid.GetPositionAbsoluteTopLeft()-screen.GetPosition()+style.BackgroundPaddingSize+style.ContentPadding.TopLeftOffset+style.ItemMargin.TopLeftOffset;
+            float top=origin.Y+grid.ItemSize.Y;
+            springBoxes=new MyGuiControlCheckbox[target.SlotCount];
+            for(int i=0;i<springBoxes.Length;i++)
+            {
+                int column=i;
+                var box=new MyGuiControlCheckbox(new Vector2(origin.X+grid.ItemStep.X*i+grid.ItemSize.X/2,top),toolTip:"Spring back to zero when let go",
+                    originAlign:MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_TOP) { Visible=false };
+                box.IsCheckedChanged+=c=>{ if(!updatingSprings) setSpring?.Invoke(Control(target.CurrentPage*target.SlotCount+column),c.IsChecked); };
+                springBoxes[i]=box; screen.Controls.Add(box);
+            }
+            var size=springBoxes[0].Size;
+            springLabel=new MyGuiControlLabel(new Vector2(origin.X-.012f,top+size.Y/2),text:"Spring back",textScale:.65f,
+                originAlign:MyGuiDrawAlignEnum.HORISONTAL_RIGHT_AND_VERTICAL_CENTER) { Visible=false };
+            screen.Controls.Add(springLabel);
+        }
+        private void UpdateSprings(bool force)
+        {
+            if(springBoxes==null || !force && DateTime.UtcNow<nextSpring) return;
+            nextSpring=DateTime.UtcNow.AddSeconds(.25);
+            int first=target.CurrentPage*target.SlotCount;
+            bool any=false;
+            updatingSprings=true;
+            try
+            {
+                for(int i=0;i<springBoxes.Length;i++)
+                {
+                    int control=Control(first+i);
+                    var option=control>=0 ? spring(control):(false,null);
+                    var box=springBoxes[i];
+                    box.Visible=option.Handle; box.Enabled=option.On.HasValue;
+                    box.IsChecked=option.On==true;
+                    any|=option.Handle;
+                }
+            }
+            finally { updatingSprings=false; }
+            springLabel.Visible=any;
         }
         private void AddSource()
         {
@@ -116,7 +168,7 @@ namespace SpaceEngineersVR.GUI
                 toolbar.HideContextMenu();
                 int pages=layout?.Pages.Length ?? (count+target.SlotCount-1)/target.SlotCount;
                 target.SwitchToPage((target.CurrentPage+pages+direction)%pages);
-                Update();
+                nextSpring=DateTime.MinValue; Update();
             }
         }
         private void AddPaging(MyGuiControlGrid grid,bool ship)

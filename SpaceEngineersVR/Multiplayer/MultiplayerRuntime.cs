@@ -223,7 +223,7 @@ namespace SpaceEngineersVR.Multiplayer
                 }
                 if(kind==5 && message.Server)
                 { Notify("Cockpit settings could not be shared. See the plugin log."); Log(value); return; }
-                if(!network.IsServer || player==null || !(kind>=1 && kind<=3 || kind==6 || kind==8)) return;
+                if(!network.IsServer || player==null || !(kind>=1 && kind<=3 || kind==6 || kind==8 || kind==9)) return;
                 if(!budgets.TryGetValue(message.Sender,out var sender)) budgets.Add(message.Sender,sender=new SenderBudget());
                 var budget=kind==6 ? sender.Analog:sender.Edits;
                 if(!budget.Allow(now))
@@ -279,10 +279,10 @@ namespace SpaceEngineersVR.Multiplayer
                     else if(kind==8) record.Flight=FlightTuning.Decode(value);
                     else
                     {
-                        var covers=Convert.FromBase64String(value);
-                        if(covers.Length!=2 || covers[0]>=count || covers[1]>1) throw new InvalidDataException("Invalid cockpit cover.");
-                        if(record.Covers.Length<CockpitMemory.MaximumControls) Array.Resize(ref record.Covers,CockpitMemory.MaximumControls);
-                        record.Covers[covers[0]]=covers[1]!=0;
+                        if(!Flag(value,count,out int index,out bool on) || kind==9 && !AnalogControl.IsHandle(seat.BlockDefinition.Id.SubtypeName,index))
+                            throw new InvalidDataException(kind==9 ? "Invalid cockpit lever.":"Invalid cockpit cover.");
+                        if(kind==9) SetFlag(ref record.Springs,index,on);
+                        else SetFlag(ref record.Covers,index,on);
                     }
                     record.Revision=checked(record.Revision+1); CockpitMemory.Write(seat,record);
                 }
@@ -371,12 +371,11 @@ namespace SpaceEngineersVR.Multiplayer
                 if(kind==6) { ApplyAnalog(seat,record,session.LocalPlayerId,value); return; }
                 if(kind==2) record.Toolbar=value;
                 else if(kind==8) record.Flight=FlightTuning.Decode(value);
-                else if(kind==3)
+                else if(kind==3 || kind==9)
                 {
-                    var covers=Convert.FromBase64String(value);
-                    if(covers.Length!=2 || covers[0]>=CockpitMemory.MaximumControls) return;
-                    if(record.Covers.Length<CockpitMemory.MaximumControls) Array.Resize(ref record.Covers,CockpitMemory.MaximumControls);
-                    record.Covers[covers[0]]=covers[1]!=0;
+                    if(!Flag(value,CockpitMemory.MaximumControls,out int index,out bool on)) return;
+                    if(kind==9) SetFlag(ref record.Springs,index,on);
+                    else SetFlag(ref record.Covers,index,on);
                 }
                 else return;
                 record.Revision++;
@@ -394,6 +393,18 @@ namespace SpaceEngineersVR.Multiplayer
         internal static void SaveFlight(MyCockpit seat,FlightTuning value) => Request(8,seat,value.Encode());
         internal static void SaveToolbar(MyCockpit seat,string xml) => Request(2,seat,xml);
         internal static void SaveCover(MyCockpit seat,int index,bool open) => Request(3,seat,Convert.ToBase64String(new[] {(byte)index,(byte)(open ? 1:0)}));
+        internal static void SaveSpring(MyCockpit seat,int slot,bool on) => Request(9,seat,Convert.ToBase64String(new[] {(byte)slot,(byte)(on ? 1:0)}));
+        private static bool Flag(string value,int count,out int index,out bool on)
+        {
+            var data=Convert.FromBase64String(value);
+            index=data.Length==2 ? data[0]:-1; on=data.Length==2 && data[1]==1;
+            return data.Length==2 && data[0]<count && data[1]<=1;
+        }
+        private static void SetFlag(ref bool[] flags,int index,bool on)
+        {
+            if(flags.Length<CockpitMemory.MaximumControls) Array.Resize(ref flags,CockpitMemory.MaximumControls);
+            flags[index]=on;
+        }
         private static void Forget(RemoteArms arms)
         {
             if(arms.Character!=null) characters.Remove(arms.Character.EntityId);

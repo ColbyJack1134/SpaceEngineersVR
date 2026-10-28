@@ -11,6 +11,12 @@ namespace SpaceEngineersVR.Patches
         private static void Prefix(MyCockpit __instance) => VRMovementComponent.StopOwner(__instance);
     }
 
+    [HarmonyPatch(typeof(MyShipController),nameof(MyShipController.Use))]
+    internal static class LeverReleasePatch
+    {
+        private static void Prefix(MyShipController __instance) => Player.CockpitButtons.LetGo(__instance);
+    }
+
     [HarmonyPatch(typeof(MyEntityController),nameof(MyEntityController.TakeControl))]
     internal static class MovementReleasePatch
     {

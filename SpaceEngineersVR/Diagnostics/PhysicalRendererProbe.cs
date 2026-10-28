@@ -413,7 +413,7 @@ namespace SpaceEngineersVR.Diagnostics
                     phase==31 ? "front-closed" : phase==32 ? "front-open" : phase==33 ? "front-right-rest" : phase==34 ? "front-right-on" :
                     phase==29 ? "uncovered-rest" : phase==30 ? "uncovered-on" :
                     phase>=26 ? "camera-"+(Player.Control.ObserverMode)(phase-26) : "rendering-scene-"+phase;
-                if(phase==1 || phase==3) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"assignment-page-"+(phase==1 ? "1" : "last")+".png"),false,false,false);
+                if(phase==1 || phase==3) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,phase==1 ? "assignment-page-1.png":"assignment-levers.png"),false,false,false);
                 if(phase==5 || phase==6) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"toolbar-assignment-"+(phase==5 ? "selected":"paged")+".png"),false,false,false);
                 if(phase>=33 && phase<=35) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,"bindings-native-"+phase+".png"),false,false,false);
                 if(phase==24 || phase==25) MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,phase==24 ? "options-native.png" : "rendering-options-native.png"),false,false,false);

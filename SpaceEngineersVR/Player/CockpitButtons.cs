@@ -13,6 +13,10 @@ namespace SpaceEngineersVR.Player
         private static readonly double[] nextAnalogSend=new double[CockpitLayout.MaximumCount];
         private static readonly float?[] sentAnalog=new float?[CockpitLayout.MaximumCount];
         private static readonly float?[] pendingAnalog=new float?[CockpitLayout.MaximumCount];
+        private static readonly bool[] heldAnalog=new bool[CockpitLayout.MaximumCount];
+        // Instant levers are already at zero; the model eases there for display until the block reports it.
+        private static readonly float?[] glide=new float?[CockpitLayout.MaximumCount];
+        private static readonly DateTime[] glideUntil=new DateTime[CockpitLayout.MaximumCount];
         private static readonly DateTime[] pulses=new DateTime[CockpitLayout.MaximumCount];
         private static readonly float[] covers=new float[CockpitLayout.MaximumCount];
         private static readonly bool[] open=new bool[CockpitLayout.MaximumCount];
@@ -72,6 +76,7 @@ namespace SpaceEngineersVR.Player
             recovery.Clear(); owner=null; Release(); ResetCovers(); CockpitTouch.Reset();
             Array.Clear(positions,0,positions.Length); Array.Clear(pulses,0,pulses.Length);
             Array.Clear(nextAnalogSend,0,nextAnalogSend.Length); Array.Clear(sentAnalog,0,sentAnalog.Length); Array.Clear(pendingAnalog,0,pendingAnalog.Length);
+            Array.Clear(heldAnalog,0,heldAnalog.Length); Array.Clear(glide,0,glide.Length);
             lastUpdate=DateTime.MinValue; CockpitActions.Reset();
         }
         public static void Prepare()
@@ -83,7 +88,7 @@ namespace SpaceEngineersVR.Player
                 bool eligible=SeatFit.Eligible(seat) && CockpitLayout.Supported(seat.BlockDefinition.Id.SubtypeName);
                 CockpitActions.Update(eligible ? seat : null);
                 if(!ReferenceEquals(owner,seat))
-                { Array.Clear(pendingAnalog,0,pendingAnalog.Length); Array.Clear(nextAnalogSend,0,nextAnalogSend.Length); Array.Clear(sentAnalog,0,sentAnalog.Length); owner=seat; subtype=seat?.BlockDefinition.Id.SubtypeName; Release(); ResetCovers(); Array.Clear(positions,0,positions.Length); Array.Clear(pulses,0,pulses.Length); }
+                { Array.Clear(pendingAnalog,0,pendingAnalog.Length); Array.Clear(nextAnalogSend,0,nextAnalogSend.Length); Array.Clear(sentAnalog,0,sentAnalog.Length); Array.Clear(heldAnalog,0,heldAnalog.Length); Array.Clear(glide,0,glide.Length); owner=seat; subtype=seat?.BlockDefinition.Id.SubtypeName; Release(); ResetCovers(); Array.Clear(positions,0,positions.Length); Array.Clear(pulses,0,pulses.Length); }
                 Release(); SynchronizeCovers();
                 if(!eligible || ThirdPersonView.Active || !InputRouter.CockpitInteraction || Main.MenuOpen || CockpitControls.Adjusting)
                 { Array.Clear(pendingAnalog,0,pendingAnalog.Length); Array.Clear(sentAnalog,0,sentAnalog.Length); return; }
@@ -123,6 +128,14 @@ namespace SpaceEngineersVR.Player
             }
             catch(Exception ex) { Fail(ex); }
         }
+        // Called before exit so the zero is sent while this player is still the pilot.
+        internal static void LetGo(Sandbox.Game.Entities.MyShipController seat)
+        {
+            if(!ReferenceEquals(seat,owner)) return;
+            for(int i=0;i<heldAnalog.Length;i++)
+                if(heldAnalog[i] && CockpitActions.Springs(i) && CockpitActions.AnalogRest(i) is float rest) CockpitActions.SetAnalog(i,rest);
+            Array.Clear(heldAnalog,0,heldAnalog.Length);
+        }
         public static void Update()
         {
             long started=FeatureTiming.Start();
@@ -156,6 +169,14 @@ namespace SpaceEngineersVR.Player
                             float position=AnalogControl.Quantize(input.Position.Value);
                             pendingAnalog[i]=sentAnalog[i].HasValue && position==sentAnalog[i].Value ? (float?)null : position;
                         }
+                        bool held=input.Held>=0;
+                        if(held) glide[i]=null;
+                        else if(heldAnalog[i] && CockpitActions.Springs(i) && CockpitActions.AnalogRest(i) is float rest)
+                        {
+                            pendingAnalog[i]=rest;
+                            if(CockpitActions.AnalogInstant(i)) { glide[i]=rest; glideUntil[i]=now.AddSeconds(1); }
+                        }
+                        heldAnalog[i]=held;
                         if(pendingAnalog[i].HasValue && (input.Held<0 || MultiplayerRuntime.Now>=nextAnalogSend[i]))
                         {
                             CockpitActions.SetAnalog(i,pendingAnalog[i].Value);
@@ -184,7 +205,13 @@ namespace SpaceEngineersVR.Player
                     float target=input.Position ?? state;
                     if(input.Position.HasValue && CockpitRig.Find(subtype)?.LeverAt(i)!=null)
                         target=MathHelper.Lerp(state,target,.65f);
-                    positions[i]=numeric ? target:positions[i]+MathHelper.Clamp(target-positions[i],-step,step);
+                    if(numeric && glide[i].HasValue && !input.Position.HasValue)
+                    {
+                        float rest=glide[i].Value;
+                        positions[i]+=MathHelper.Clamp(rest-positions[i],-step*.4f,step*.4f);
+                        if(Math.Abs(positions[i]-rest)<=AnalogControl.LeverStep && Math.Abs(actual-rest)<=AnalogControl.LeverStep || now>=glideUntil[i]) glide[i]=null;
+                    }
+                    else positions[i]=numeric ? target:positions[i]+MathHelper.Clamp(target-positions[i],-step,step);
                 }
             }
             catch(Exception ex) { Fail(ex); }
