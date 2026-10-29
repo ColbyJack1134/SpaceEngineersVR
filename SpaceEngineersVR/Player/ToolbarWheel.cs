@@ -58,6 +58,8 @@ namespace SpaceEngineersVR.Player
         private static int quickPage;
         private static string[] pageTitles;
         private static bool[] variantPages;
+        private static int buildVisionPage=-1;
+        private static bool buildVision,buildVisionLatched;
         public static bool QuickPending => Controls.Static.QuickMenu.RawPressed;
         internal static bool ShowingToolbar => holder!=null && group==0;
         private static int iconRevision;
@@ -87,6 +89,33 @@ namespace SpaceEngineersVR.Player
                     !Player.HandL.pose.isTracked ||
                     !ReferenceEquals(owner, MySession.Static?.ControlledEntity) || MySession.Static?.LocalCharacter?.IsDead != false)
                 { Close(); return; }
+                if(buildVision)
+                {
+                    if(!Patches.BuildVisionBridge.StillOpen || Patches.BuildVisionBridge.Done) { Close(); return; }
+                    // Next press after a tap or release chooses the pointed entry; in an editor or the list it closes.
+                    if(buildVisionLatched && holder.HasPressed)
+                    {
+                        if(Patches.BuildVisionBridge.Editing || !Patches.BuildVisionBridge.ReleaseWheel(controls.MenuPage.Position,controls.MenuNavigate.Position)) Close();
+                        return;
+                    }
+                    if(!buildVisionLatched && !holder.RawPressed)
+                    {
+                        bool tap=TapLatches && (DateTime.UtcNow-openedAt).TotalSeconds<TapSeconds;
+                        if(!tap && !Patches.BuildVisionBridge.ReleaseWheel(controls.MenuPage.Position,controls.MenuNavigate.Position)) { Close(); return; }
+                        buildVisionLatched=true;
+                    }
+                    bool editing=Patches.BuildVisionBridge.Editing;
+                    if(!editing && (controls.Primary.HasPressed || controls.WheelNextPage.HasPressed)) { Patches.BuildVisionBridge.Close(); buildVision=false; }
+                    else
+                    {
+                        Patches.BuildVisionBridge.Update(controls.MenuPage.Position,controls.MenuNavigate.Position,controls.Interact.HasPressed,controls.Unequip.HasPressed,
+                            controls.LeftGripPressure.RawPosition.X>.5f || controls.RightGripPressure.RawPosition.X>.5f,controls.Primary.IsPressed,
+                            BuildVisionHand,
+                            left=>(left ? Player.HandL:Player.HandR).Vibrate(0,0.025f,90,0.2f));
+                        Publish();
+                        return;
+                    }
+                }
                 var stick=navigation.Update(controls.MenuPage.Position,controls.MenuNavigate.Position,group==0 ? 0:1);
                 if(holder!=controls.Unequip && controls.Unequip.HasPressed) { Close(); return; }
                 if(group==1 && controls.Jetpack.HasPressed)
@@ -135,6 +164,7 @@ namespace SpaceEngineersVR.Player
                     {
                         quickPage=(quickPage+quickPages.Length+pageDelta)%quickPages.Length;
                         quickChoices=quickPages[quickPage];
+                        EnterBuildVision();
                     }
                     selection=-1;
                     controls.MenuPage.BlockUntilRelease(); controls.MenuNavigate.BlockUntilRelease(); navigation.Reset(); stick=Vector2.Zero;
@@ -162,8 +192,9 @@ namespace SpaceEngineersVR.Player
             if(action==ToolbarGesture.Action.Unequip) { if(!PlacementControls.TryCancelRotation()) GameActions.Unequip(); InputRouter.Update(); return; }
             Open(false,controls.Unequip);
         }
+        private static bool TapLatches => holder==Controls.Static.ActionsWheel || holder==Controls.Static.ToolbarWheel;
         private static bool Confirming(DateTime now) =>
-            Confirms(holder==Controls.Static.ActionsWheel || holder==Controls.Static.ToolbarWheel,holder.RawPressed,holder.HasPressed,(now-openedAt).TotalSeconds,ref latched);
+            Confirms(TapLatches,holder.RawPressed,holder.HasPressed,(now-openedAt).TotalSeconds,ref latched);
         // Holding confirms on release. On the dedicated wheel buttons a quick tap keeps the wheel open until the next tap;
         // Touch Y and B open only on a hold, since a B tap unequips.
         internal static bool Confirms(bool tapLatches,bool held,bool pressed,double seconds,ref bool latched)
@@ -208,6 +239,9 @@ namespace SpaceEngineersVR.Player
                     var weaponCore=symmetry ? Array.Empty<ActionChoice>() : GameActions.WeaponCoreWheelActions();
                     if(weaponCore.Length>0) groups.Add(new Group("WeaponCore",weaponCore));
                 }
+                // Build Vision's own HUD replaces this page's entries while it is open.
+                if(!symmetry && Patches.BuildVisionBridge.Capture())
+                    groups.Insert(groups.IndexOf(aimed)+1,new Group(Patches.BuildVisionBridge.Title,new ActionChoice[1]));
                 var buildInfo=symmetry ? Array.Empty<ActionChoice>() : Patches.BuildInfoBridge.Actions();
                 if(buildInfo.Length>0) groups.Add(new Group("Build Info",buildInfo));
                 var recent=ActionCatalog.Recent();
@@ -215,12 +249,33 @@ namespace SpaceEngineersVR.Player
                     recent=recent.Where(action=>action!=GameActions.SymmetryAction && action!=GameActions.SymmetrySetupAction).ToArray();
                 quickPages=WithRecents(Layout(groups,out var titles,out var variants),recent);
                 pageTitles=titles.Concat(new[] {"Recent searches"}).ToArray(); variantPages=variants.Concat(new[] {false}).ToArray();
+                buildVisionPage=Array.IndexOf(pageTitles,Patches.BuildVisionBridge.Title);
                 quickChoices=quickPages[0];
             }
             owner=MySession.Static.ControlledEntity; toolbar=MyToolbarComponent.CurrentToolbar;
             group=quick ? 1:0; selection=-1; navigation.Reset();
             pose=HandPose((quick ? Player.HandL:Player.HandR).GripTracking,Player.Headset.pose.deviceToAbsolute.matrix);
-            InputRouter.RadialOpen=true; InputRouter.Update(); nextSnapshot=DateTime.MinValue; Publish();
+            InputRouter.RadialOpen=true; InputRouter.Update(); nextSnapshot=DateTime.MinValue;
+            EnterBuildVision();
+            Publish();
+        }
+        // Build Vision's own open checks can refuse the page's target; drop the page.
+        private static void DropBuildVisionPage()
+        {
+            int index=buildVisionPage;
+            quickPages=quickPages.Where((_,i)=>i!=index).ToArray(); pageTitles=pageTitles.Where((_,i)=>i!=index).ToArray(); variantPages=variantPages.Where((_,i)=>i!=index).ToArray();
+            buildVisionPage=-1; quickPage=Math.Min(quickPage,quickPages.Length-1); quickChoices=quickPages[quickPage];
+            selection=-1; nextSnapshot=DateTime.MinValue;
+        }
+        private static Matrix BuildVisionHand => HandPose(Player.HandL.GripTracking,Player.Headset.pose.deviceToAbsolute.matrix);
+        private static void EnterBuildVision()
+        {
+            if(group!=1 || buildVisionPage<0 || quickPage!=buildVisionPage) return;
+            buildVision=Patches.BuildVisionBridge.Open(BuildVisionHand);
+            if(!buildVision) { DropBuildVisionPage(); return; }
+            // Releasing a held wheel button chooses the pointed entry; after that, or when opened by a tap, the next press does.
+            buildVisionLatched=!holder.RawPressed;
+            latched=true; nextSnapshot=DateTime.MinValue; Publish();
         }
 
         private const string HolsterIcon=@"Textures\GUI\Icons\HideWeapon.dds";
@@ -255,6 +310,7 @@ namespace SpaceEngineersVR.Player
 
         private static void Publish()
         {
+            if(buildVision) { view=null; Patches.BuildVisionBridge.Page=quickPage; Patches.BuildVisionBridge.Pages=quickPages?.Length ?? 1; return; }
             if (DateTime.UtcNow < nextSnapshot) return;
             nextSnapshot = DateTime.UtcNow.AddMilliseconds(100);
             int count = group == 0 ? Slots(toolbar) : 9;
@@ -321,6 +377,7 @@ namespace SpaceEngineersVR.Player
         {
             gesture.Reset(); quickGesture.Reset(); navigation.Reset(); selection = -1; view = null; holder=null; latched=false;
             quickChoices=null; quickPages=null;
+            Patches.BuildVisionBridge.Close(); buildVision=buildVisionLatched=false; buildVisionPage=-1;
             InputRouter.RadialOpen = false;
             InputRouter.Reset();
             if (resume) InputRouter.Update();
@@ -348,6 +405,7 @@ namespace SpaceEngineersVR.Player
             try
             {
                 var current = view ?? external;
+                Patches.BuildVisionBridge.DrawRay(target,viewMatrix,projection);
                 if (current == null) { canvas?.Hide(); drawn = null; return; }
                 if (canvas == null)
                 {

@@ -10,6 +10,10 @@ using SpaceEngineersVR.Plugin;
 using SpaceEngineersVR.Util;
 using VRageMath;
 using VRageRender;
+using TriangleData=VRage.MyTuple<VRageRender.MyBillboard.BlendTypeEnum,VRageMath.Vector2I,VRage.Utils.MyStringId,VRageMath.Vector4,
+    VRage.MyTuple<VRageMath.Vector2,VRageMath.Vector2,VRageMath.Vector2>,VRage.MyTuple<VRageMath.Vector3D,VRageMath.Vector3D,VRageMath.Vector3D>>;
+using FlatTriangleData=VRage.MyTuple<VRageRender.MyBillboard.BlendTypeEnum,VRageMath.Vector2I,VRage.Utils.MyStringId,VRage.MyTuple<VRageMath.Vector4,VRageMath.BoundingBox2?>,
+    VRage.MyTuple<VRageMath.Vector2,VRageMath.Vector2,VRageMath.Vector2>,VRage.MyTuple<VRageMath.Vector2,VRageMath.Vector2,VRageMath.Vector2>>;
 
 namespace SpaceEngineersVR.Patches
 {
@@ -25,12 +29,15 @@ namespace SpaceEngineersVR.Patches
         private static DateTime retry;
         private sealed class RichPool
         {
-            internal readonly FieldInfo Triangles,FlatTriangles,Pool,FlatPool;
+            internal readonly FieldInfo Triangles,FlatTriangles,Pool,FlatPool,Matrices,MatrixIds;
+            private readonly HashSet<int> moved=new HashSet<int>(),movedFlat=new HashSet<int>(),handMatrices=new HashSet<int>();
+            private bool reported;
             internal bool Valid => Triangles!=null && FlatTriangles!=null && Pool!=null && FlatPool!=null;
             internal RichPool(Type type)
             {
                 Triangles=Field(type,"triangleList",false); FlatTriangles=Field(type,"flatTriangleList",false);
                 Pool=Field(type,"triPoolBack",true); FlatPool=Field(type,"flatTriPoolBack",true);
+                Matrices=AccessTools.Field(type,"matrixBuf"); MatrixIds=AccessTools.Field(type,"matrixTable");
             }
             private static FieldInfo Field(Type type,string name,bool pool)
             {
@@ -41,13 +48,46 @@ namespace SpaceEngineersVR.Patches
             }
             internal void Place(object instance)
             {
-                PlacePool(instance,Triangles,Pool); PlacePool(instance,FlatTriangles,FlatPool);
+                moved.Clear(); movedFlat.Clear(); handMatrices.Clear();
+                // Build Vision labels use per-label copies of its plane matrix translated within the plane; match by basis and position.
+                if(BuildVisionBridge.TryHandPlane(out var planes,out var center,out float reach,out var transform) && Matrices?.GetValue(instance) is List<MatrixD> matrices &&
+                    MatrixIds?.GetValue(instance) is Dictionary<MatrixD[],int> ids)
+                {
+                    if(ids.TryGetValue(planes,out int own)) handMatrices.Add(own);
+                    var plane=planes[0];
+                    var inverse=MatrixD.Invert(plane);
+                    for(int i=0;i<matrices.Count;i++)
+                    {
+                        var matrix=matrices[i];
+                        if(matrix.Right!=plane.Right || matrix.Up!=plane.Up || matrix.Backward!=plane.Backward) continue;
+                        var local=Vector3D.Transform(matrix.Translation,inverse);
+                        if(Math.Abs(local.Z)<1e-3 && new Vector2D(local.X-center.X,local.Y-center.Y).Length()<=reach) handMatrices.Add(i);
+                    }
+                    if(handMatrices.Count>0 && Triangles.GetValue(instance) is List<TriangleData> triangles && FlatTriangles.GetValue(instance) is List<FlatTriangleData> flat)
+                    {
+                        Hand(triangles,entry=>entry.Item2,handMatrices,((List<MyTriangleBillboard>[])Pool.GetValue(instance))[0],moved,ref transform);
+                        Hand(flat,entry=>entry.Item2,handMatrices,((List<MyTriangleBillboard>[])FlatPool.GetValue(instance))[0],movedFlat,ref transform);
+                    }
+                    else if(handMatrices.Count>0 && !reported) { reported=true; Logger.Info("Rich HUD Master billboard data changed; Build Vision stays in the head-locked HUD"); }
+                    BuildVisionBridge.DrawPageDots();
+                }
+                PlacePool(instance,Triangles,Pool,moved); PlacePool(instance,FlatTriangles,FlatPool,movedFlat);
             }
-            private static void PlacePool(object instance,FieldInfo data,FieldInfo pool)
+            private static void Hand<T>(List<T> data,Func<T,Vector2I> ids,HashSet<int> matrices,List<MyTriangleBillboard> values,HashSet<int> moved,ref MatrixD transform)
+            {
+                for(int i=0;i<data.Count;i++)
+                {
+                    var id=ids(data[i]);
+                    if(!matrices.Contains(id.Y) || id.X<0 || id.X>=(values?.Count ?? 0)) continue;
+                    Move(values[id.X],ref transform);
+                    moved.Add(id.X);
+                }
+            }
+            private static void PlacePool(object instance,FieldInfo data,FieldInfo pool,HashSet<int> moved)
             {
                 var values=((List<MyTriangleBillboard>[])pool.GetValue(instance))[0];
                 int count=Math.Min(((IList)data.GetValue(instance)).Count,values?.Count??0);
-                for(int i=0;i<count;i++) if(!PlaceKnown(values[i])) values[i].Color=Vector4.Zero;
+                for(int i=0;i<count;i++) if(!moved.Contains(i) && !PlaceKnown(values[i])) values[i].Color=Vector4.Zero;
             }
         }
         internal static void RefreshRegistrations()
@@ -152,6 +192,14 @@ namespace SpaceEngineersVR.Patches
             // RHF submits pooled objects before its worker update fills their vertices.
             try { pools.Place(__instance); }
             catch(Exception ex) { richPools.Remove(__instance.GetType()); Logger.Warning(ex,"Rich HUD Framework VR billboard placement disabled"); }
+        }
+        private static void Move(MyTriangleBillboard billboard,ref MatrixD transform)
+        {
+            billboard.Position0=Vector3D.Transform(billboard.Position0,transform);
+            billboard.Position1=Vector3D.Transform(billboard.Position1,transform);
+            billboard.Position2=Vector3D.Transform(billboard.Position2,transform);
+            var camera=MySector.MainCamera;
+            if(camera!=null) billboard.DistanceSquared=(float)Vector3D.DistanceSquared((billboard.Position0+billboard.Position1+billboard.Position2)/3,camera.Position);
         }
         internal static bool Place(MyBillboard billboard) => suppressing==0 && (drawing==0 || PlaceKnown(billboard));
         private static bool PlaceKnown(MyBillboard billboard)

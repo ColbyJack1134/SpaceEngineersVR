@@ -181,7 +181,7 @@ namespace SpaceEngineersVR.Player
                 case "↑": MoveCaretLine(target,-1); break;
                 case "↓": MoveCaretLine(target,1); break;
                 case "BKSP": Backspace(target); break;
-                case "DONE": Close(); break;
+                case "DONE": var apply=submitted; Close(); apply?.Invoke(); break;
                 case "SEND":
                     var chat=screen; var box=target as MyGuiControlTextbox; var send=submitted;
                     Close();

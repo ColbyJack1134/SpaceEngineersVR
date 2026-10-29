@@ -231,7 +231,7 @@ namespace SpaceEngineersVR.Player
         internal static float Trigger(Controller hand) => CockpitTouch.HoldingBar(hand) || LadderClimb.Holding(hand) ? 1 : (hand==Player.HandL ? Controls.Static.LeftTriggerPressure:Controls.Static.PointerPressure).RawPosition.X;
         private static bool RequiresPointing(Controller hand) => GridSelection.Owns(hand) || Main.MenuOpen || MenuKeyboard.IsOpen || CockpitTouch.Attached(hand) ||
             TouchScreenBridge.PoseFor(hand) || ArthurLcdBridge.PoseFor(hand) || FloatingWindows.PointingFor(hand) || HandInteraction.PointingFor(hand) ||
-            (hand==Player.HandL ? CockpitTouch.LeftPointing:CockpitTouch.RightPointing || SpatialUi.Pointing) || hand==Handedness.ActionHand && BlockInspection.Current!=null;
+            (hand==Player.HandL ? CockpitTouch.LeftPointing:CockpitTouch.RightPointing || SpatialUi.Pointing || Patches.BuildVisionBridge.SliderOpen) || hand==Handedness.ActionHand && BlockInspection.Current!=null;
         private static bool FreeFingers(MyCharacter character,Controller hand) => !ThirdPersonView.Active && Empty(character,hand) &&
             !CockpitControls.OnStick(hand) && !RequiresPointing(hand);
         // A hand that is not on the tracked item behaves as an empty hand.

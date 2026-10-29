@@ -50,6 +50,7 @@ namespace SpaceEngineersVR.Plugin
         internal static readonly Integration[] Integrations={touchScreens,arthurLcd,weaponCore,shields,pbFeed,paintGun,
             new Integration("Mod HUD",Patches.ModHud.Reset,Patches.ModHud.RefreshRegistrations),
             new Integration("Voxel tool mods",Patches.DigiTools.Reset,Patches.DigiTools.RefreshRegistrations),
+            new Integration("Build Vision",Patches.BuildVisionBridge.Reset,Patches.BuildVisionBridge.RefreshRegistrations),
             buildInfo,
             new Integration("Mod API",ModApi.Reset,ModApi.Refresh)};
         private static int recoveryAttempts;
