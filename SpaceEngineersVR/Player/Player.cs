@@ -70,6 +70,7 @@ namespace SpaceEngineersVR.Player
             }
         }
 
+        private static int poseErrors;
         public static void RenderUpdate()
         {
             //Check for new devices
@@ -94,7 +95,10 @@ namespace SpaceEngineersVR.Player
             }
 
             long waitStart=FeatureTiming.Start();
-            VrSubmit.WaitGetPoses(RenderPoses, RenderPosesFuture);
+            var poseError=VrSubmit.WaitGetPoses(RenderPoses, RenderPosesFuture);
+            // A compositor that keeps refusing poses has died without a quit event; the frame hook's catch falls back to the desktop.
+            if(poseError==EVRCompositorError.None || poseError==EVRCompositorError.DoNotHaveFocus) poseErrors=0;
+            else if(++poseErrors>=30) { poseErrors=0; throw new System.InvalidOperationException("SteamVR compositor stopped: "+poseError); }
             RenderPerformance.PoseWait=FeatureTiming.End(FeatureTiming.Area.WaitPoses,waitStart);
 
             {

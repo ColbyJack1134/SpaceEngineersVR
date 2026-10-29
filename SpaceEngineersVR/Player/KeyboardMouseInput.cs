@@ -16,8 +16,8 @@ namespace SpaceEngineersVR.Player
         {
             if(!Common.Config.EnableKeyboardAndMouseControls || MyInput.Static==null) return;
             var mouse=MyInput.Static.GetRotation();
-            // The headset owns the walking character's head pitch; jetpack pitch turns the body like gyros.
-            if(controlled is MyCharacter character && !((IMyCharacter)character).EnabledThrusts) mouse.X=0;
+            // The headset owns the walking character's head pitch, unless it is asleep; jetpack pitch turns the body like gyros.
+            if(controlled is MyCharacter character && !((IMyCharacter)character).EnabledThrusts && !InputRouter.HeadsetAway) mouse.X=0;
             rotate+=mouse;
             if(MySessionComponentVoxelHand.Static?.BuildMode==true || MyCubeBuilder.Static?.IsBuildMode==true) return;
             move+=MyInput.Static.GetPositionDelta();

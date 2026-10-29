@@ -15,6 +15,8 @@ namespace SpaceEngineersVR.Player
         private static bool wasFlying;
         public static InputMode Mode { get; private set; } = InputMode.Blocked;
         public static bool RadialOpen { get; set; }
+        // Headset asleep, off or SteamVR reconnecting: VR input is blocked and the desktop keeps the game's own input, Esc included.
+        internal static bool HeadsetAway { get; private set; }
         public static bool CockpitInteraction => Mode==InputMode.Piloting || Mode==InputMode.Turret && RemoteView.HomeSeat!=null;
         public static bool Flying => SpectatorView.Active || RemoteView.Turret || MySession.Static?.ControlledEntity is MyShipController ||
             (MySession.Static?.LocalCharacter is IMyCharacter character && character.EnabledThrusts);
@@ -33,9 +35,12 @@ namespace SpaceEngineersVR.Player
             var character = MySession.Static?.LocalCharacter;
             object nextOwner = Main.MenuOpen ? (object)VRGUIManager.TopScreen : SpectatorView.Active ? (object)MySession.Static.CameraController:MySession.Static?.ControlledEntity;
             InputMode next;
-            if (!Player.Headset.pose.isTracked ||
-                !Valve.VR.OpenVR.System.IsInputAvailable()) next = InputMode.Blocked;
-            else if (Main.MenuOpen) next = InputMode.Menu;
+            bool away=!Player.Headset.pose.isTracked || !Valve.VR.OpenVR.System.IsInputAvailable() || VrSubmit.HeadsetAsleep;
+            // Mouse pitch while away moved the head angle VR never writes; resync it to the headset.
+            if(!away && HeadsetAway && character!=null && !character.IsSitting)
+                character.SetHeadLocalXAngle(Patches.AimPitchSyncPatch.Pitch(CameraRig.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Forward,character.WorldMatrix.Up));
+            HeadsetAway=away;
+            if (Main.MenuOpen) next = InputMode.Menu;
             else if (Player.IsCalibrating || character == null || character.IsDead || MySandboxGame.IsPaused) next = InputMode.Blocked;
             else if (!RemoteView.Live(MySession.Static.ControlledEntity)) next = InputMode.Blocked;
             else if (RadialOpen) next = InputMode.Radial;
@@ -48,8 +53,8 @@ namespace SpaceEngineersVR.Player
             else if (MyCubeBuilder.Static?.IsActivated == true || VoxelTools.Active || Patches.BuildInfoBridge.MultiToolEquipped) next = InputMode.Building;
             else next = Flying ? InputMode.Jetpack : InputMode.Walking;
             bool handsTracked = Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;
-            KeyboardMouse = !handsTracked && IsGameplay(next) && Common.Config.EnableKeyboardAndMouseControls;
-            if (!handsTracked && next != InputMode.Menu) next = InputMode.Blocked;
+            KeyboardMouse = (!handsTracked || HeadsetAway) && IsGameplay(next) && Common.Config.EnableKeyboardAndMouseControls;
+            if (HeadsetAway || !handsTracked && next != InputMode.Menu) next = InputMode.Blocked;
             bool flying = Flying;
             if (next != Mode || !ReferenceEquals(nextOwner, owner) || flying != wasFlying)
             {

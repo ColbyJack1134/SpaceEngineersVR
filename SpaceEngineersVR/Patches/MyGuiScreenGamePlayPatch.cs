@@ -10,7 +10,7 @@ namespace SpaceEngineersVR.Patches
     {
         [HarmonyPrefix]
         [HarmonyPatch(nameof(MyGuiScreenGamePlay.HandleInput))]
-        private static bool GameplayInput() => !Main.VrActive || InputRouter.Gameplay || InputRouter.KeyboardMouse || MenuKeyboard.Hotkeys;
+        private static bool GameplayInput() => !Main.VrActive || InputRouter.Gameplay || InputRouter.KeyboardMouse || InputRouter.HeadsetAway || MenuKeyboard.Hotkeys;
 
         // VRMovementComponent merges keyboard and mouse into its own MoveAndRotate call.
         [HarmonyPrefix]

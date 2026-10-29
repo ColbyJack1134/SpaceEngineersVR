@@ -10,6 +10,17 @@ namespace SpaceEngineersVR.Player
 {
     internal static class VrSubmit
     {
+        // Standby or disconnected, not lost tracking (inside-out headsets drop it briefly in play); frames go to the desktop meanwhile.
+        internal static bool HeadsetAsleep
+        {
+            get
+            {
+                var system=OpenVR.System;
+                return system!=null && (!system.IsTrackedDeviceConnected(OpenVR.k_unTrackedDeviceIndex_Hmd) ||
+                    system.GetTrackedDeviceActivityLevel(OpenVR.k_unTrackedDeviceIndex_Hmd)==EDeviceActivityLevel.k_EDeviceActivityLevel_Standby);
+            }
+        }
+
         internal static EVRCompositorError Eye(EVREye eye,IntPtr texture,EColorSpace colorSpace,ref VRTextureBounds_t bounds)
         {
 #if LINUX
@@ -31,12 +42,12 @@ namespace SpaceEngineersVR.Player
 #endif
         }
 
-        internal static void WaitGetPoses(TrackedDevicePose_t[] render,TrackedDevicePose_t[] game)
+        internal static EVRCompositorError WaitGetPoses(TrackedDevicePose_t[] render,TrackedDevicePose_t[] game)
         {
 #if LINUX
-            Dxvk.WaitGetPoses(render,game);
+            return Dxvk.WaitGetPoses(render,game);
 #else
-            OpenVR.Compositor.WaitGetPoses(render,game);
+            return OpenVR.Compositor.WaitGetPoses(render,game);
 #endif
         }
 
@@ -127,11 +138,11 @@ namespace SpaceEngineersVR.Player
                 finally { Release(surface); }
             }
 
-            internal static void WaitGetPoses(TrackedDevicePose_t[] render,TrackedDevicePose_t[] game)
+            internal static EVRCompositorError WaitGetPoses(TrackedDevicePose_t[] render,TrackedDevicePose_t[] game)
             {
-                if(!Ready()) { OpenVR.Compositor.WaitGetPoses(render,game); return; }
+                if(!Ready()) return OpenVR.Compositor.WaitGetPoses(render,game);
                 Lock();
-                try { OpenVR.Compositor.WaitGetPoses(render,game); }
+                try { return OpenVR.Compositor.WaitGetPoses(render,game); }
                 finally { Unlock(); }
             }
         }

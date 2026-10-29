@@ -233,6 +233,7 @@ namespace SpaceEngineersVR.Plugin
                 }
                 catch (Exception ex) { Logger.Critical(ex, "VR failure cleanup"); }
             }
+            if(!failed && SteamVrQuit()) { Fail(new InvalidOperationException("SteamVR quit"),"SteamVR closed; continuing on the desktop"); return; }
             if(menuFallback)
             {
                 try { UpdateFallbackMenu(); }
@@ -376,6 +377,18 @@ namespace SpaceEngineersVR.Plugin
             }
         }
 
+        private static readonly uint EventSize=(uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(VREvent_t));
+        // SteamVR asks running apps to quit when it closes. Acknowledging lets it shut down while the game falls back to the desktop.
+        private static bool SteamVrQuit()
+        {
+            var system=OpenVR.System;
+            if(system==null) return false;
+            var e=new VREvent_t();
+            while(system.PollNextEvent(ref e,EventSize))
+                if(e.eventType==(uint)EVREventType.VREvent_Quit || e.eventType==(uint)EVREventType.VREvent_DriverRequestedQuit)
+                { system.AcknowledgeQuit_Exiting(); return true; }
+            return false;
+        }
         private void CustomUpdate()
         {
             Player.Player.MainUpdate();

@@ -10,6 +10,8 @@ namespace SpaceEngineersVR.Patches
     {
         private static bool posesAcquired;
         private static bool drewStereo;
+        private static bool? standby;
+        private static bool Standby => standby ?? (standby=Player.VrSubmit.HeadsetAsleep).Value;
         private static bool reportedCameraFrame;
         private static long presentStart;
         public static void Install(Harmony harmony)
@@ -45,6 +47,7 @@ namespace SpaceEngineersVR.Patches
         private static bool BeforeScene()
         {
             if (!Main.VrActive) { Player.RemoteFeed.Reset(); Player.DesktopCapture.Release(); Player.GpuTiming.Reset(); Player.EyeResolution.Scene.RestoreNative(); return true; }
+            if (Standby) { Player.EyeResolution.Scene.RestoreNative(); return true; }
             try
             {
                 GetPoses();
@@ -74,7 +77,7 @@ namespace SpaceEngineersVR.Patches
         private static void BeforePresent()
         {
             presentStart=0;
-            if (!Main.VrPresent) return;
+            if (!Main.VrPresent || Standby) return;
             try
             {
                 GetPoses();
@@ -107,8 +110,9 @@ namespace SpaceEngineersVR.Patches
             Player.GpuTiming.EndFrame();
             Player.RenderPerformance.Sample(Main.VrActive && drewStereo && Main.WorldAvailable && !Main.MenuOpen);
             Player.StereoRenderState.End();
-            if (Main.VrPresent) Player.VrSubmit.PostPresentHandoff();
+            if (Main.VrPresent && !Standby) Player.VrSubmit.PostPresentHandoff();
             posesAcquired = drewStereo = false;
+            standby = null;
         }
     }
 }
