@@ -262,7 +262,7 @@ namespace SpaceEngineersVR.Player
             ParkAction,
             PowerAction,
             new ActionChoice("Clear terrain mode",ClearTerrain.Toggle,icon:NativeSprites.Hud("DrillIcon"),enabled:()=>ClearTerrain.Available,searchTerms:"drill dig tunnel alternate secondary toggle"),
-            new ActionChoice("Signal visibility", () => Common.Config.WaypointMode=(Common.Config.WaypointMode+1)%3),
+            new ActionChoice("Signal visibility", CycleSignals),
             BlueprintsAction,
             new ActionChoice("Switch view",ThirdPersonView.Toggle),
             new ActionChoice("Reset view",ThirdPersonView.ResetView),
@@ -332,6 +332,8 @@ namespace SpaceEngineersVR.Player
         private static readonly Control.JumpHold dampenerHold=new Control.JumpHold(),inventoryHold=new Control.JumpHold();
         private static readonly Control.DoubleTap dampenerTap=new Control.DoubleTap();
         internal static void ResetJumpHold() { jumpHold.Reset(); dampenerTap.Reset(); dampenerHold.Reset(); inventoryHold.Reset(); }
+        // Separate from the desktop signal mode (H).
+        private static void CycleSignals() => Common.Config.WaypointMode=(Common.Config.WaypointMode+1)%3;
         public static void Reset() { ClearTerrain.Reset(); ResetJumpHold(); GridSelection.Clear(); DampenerTargeting.Cancel(); }
         public static void ToolbarConfig() => ToolbarConfig(-1);
         public static void AssignToolbarSlot(int slot)
@@ -432,7 +434,7 @@ namespace SpaceEngineersVR.Player
             if (c.ToggleSymmetry.HasPressed) Execute(SymmetryAction);
             if (c.SymmetrySetup.HasPressed) Execute(SymmetrySetupAction);
             if (c.PlacementMode.HasPressed) Execute(PlacementAction);
-            if (c.ToggleSignals.HasPressed) new MyActionToggleSignals().ExecuteAction();
+            if (c.ToggleSignals.HasPressed) CycleSignals();
             if (c.ToggleView.HasPressed && !SpectatorView.Active) ThirdPersonView.Toggle();
             if(c.SpectatorMode.HasPressed && !SpectatorView.Active) SpectatorView.Enter();
             if (c.CutGrid.HasPressed) new MyActionCutGrid().ExecuteAction();
