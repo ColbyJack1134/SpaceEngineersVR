@@ -99,6 +99,7 @@ namespace SpaceEngineersVR.Patches
 #endif
                 Player.PerformanceHud.Draw();
                 if (!drewStereo) VRGUIManager.SubmitMenuBackground();
+                else if (!Main.MenuOpen && !Main.ShowDesktopPanel) Player.Player.Headset.RestoreMirror();
                 Player.GpuTiming.End(Player.GpuTiming.Area.Hud);
             }
             catch (Exception ex) { Main.Fail(ex,"VR presentation stopped"); }

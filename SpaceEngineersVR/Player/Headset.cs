@@ -111,6 +111,13 @@ namespace SpaceEngineersVR.Player
             return true;
         }
 
+        // The native HUD draws over the mirrored eye with the desktop camera; the eye already carries the VR HUD.
+        internal void RestoreMirror()
+        {
+            if(!MirroredDesktop || !Common.Config.MirrorDesktop || leftTexture==null) return;
+            EyeResolution.Mirror((SharpDX.Direct3D11.Texture2D)leftTexture.GetResource(),(SharpDX.Direct3D11.Texture2D)MyRender11.GetBackbuffer().GetResource());
+        }
+
         private void RenderEye(EVREye eye, BorrowedRtvTexture target, EnvironmentMatrices env,
             MatrixD gameView, SceneCamera sceneCamera, Matrix originInverse,CameraRig.Frame rig,out object ambientOcclusion)
         {
