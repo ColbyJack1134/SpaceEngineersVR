@@ -1,3 +1,6 @@
+using System;
+using System.Reflection;
+using HarmonyLib;
 using Sandbox;
 using Sandbox.Game.Entities;
 using Sandbox.Game.World;
@@ -12,11 +15,28 @@ namespace SpaceEngineersVR.Player
     public static class InputRouter
     {
         private static object owner;
+        private static DateTime lostAt;
+        private static bool overlayChecked;
+        private static readonly MethodInfo overlayActivated=AccessTools.Method(typeof(MySandboxGame),"OverlayActivated");
         private static bool wasFlying;
         public static InputMode Mode { get; private set; } = InputMode.Blocked;
         public static bool RadialOpen { get; set; }
         // Headset asleep, off or SteamVR reconnecting: VR input is blocked and the desktop keeps the game's own input, Esc included.
         internal static bool HeadsetAway { get; private set; }
+        // Powering the headset off with the SteamVR dashboard open never reports the Steam overlay closed, so its pause and input block never lift.
+        private static void ReleaseStrandedOverlay(bool gone)
+        {
+            if(!gone) { lostAt=DateTime.MinValue; overlayChecked=false; return; }
+            var now=DateTime.UtcNow;
+            if(lostAt==DateTime.MinValue) lostAt=now;
+            // Checked once per drop, so a desktop Shift+Tab later keeps its own pause.
+            if(overlayChecked || (now-lostAt).TotalSeconds<2) return;
+            overlayChecked=true;
+            if(MySandboxGame.Static?.PauseInput!=true || overlayActivated==null) return;
+            overlayActivated.Invoke(MySandboxGame.Static,new object[] {false});
+            Patches.OverlayPausePatch.Released=true;
+            Logger.Info("Headset gone with the Steam overlay open; released its pause");
+        }
         public static bool CockpitInteraction => Mode==InputMode.Piloting || Mode==InputMode.Turret && RemoteView.HomeSeat!=null;
         public static bool Flying => SpectatorView.Active || RemoteView.Turret || MySession.Static?.ControlledEntity is MyShipController ||
             (MySession.Static?.LocalCharacter is IMyCharacter character && character.EnabledThrusts);
@@ -35,11 +55,14 @@ namespace SpaceEngineersVR.Player
             var character = MySession.Static?.LocalCharacter;
             object nextOwner = Main.MenuOpen ? (object)VRGUIManager.TopScreen : SpectatorView.Active ? (object)MySession.Static.CameraController:MySession.Static?.ControlledEntity;
             InputMode next;
-            bool away=!Player.Headset.pose.isTracked || !Valve.VR.OpenVR.System.IsInputAvailable() || VrSubmit.HeadsetAsleep;
+            // An open dashboard also makes input unavailable; only a headset that is gone releases the overlay pause.
+            bool gone=!Player.Headset.pose.isTracked || VrSubmit.HeadsetAsleep;
+            bool away=gone || !Valve.VR.OpenVR.System.IsInputAvailable();
             // Mouse pitch while away moved the head angle VR never writes; resync it to the headset.
             if(!away && HeadsetAway && character!=null && !character.IsSitting)
                 character.SetHeadLocalXAngle(Patches.AimPitchSyncPatch.Pitch(CameraRig.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix).Forward,character.WorldMatrix.Up));
             HeadsetAway=away;
+            ReleaseStrandedOverlay(gone);
             if (Main.MenuOpen) next = InputMode.Menu;
             else if (Player.IsCalibrating || character == null || character.IsDead || MySandboxGame.IsPaused) next = InputMode.Blocked;
             else if (!RemoteView.Live(MySession.Static.ControlledEntity)) next = InputMode.Blocked;
