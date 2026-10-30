@@ -22,7 +22,8 @@ namespace SpaceEngineersVR.Player
         public static bool Markers => Visible && Mode >= 1;
         public static bool Names => Visible && Mode == 2;
         internal static bool Reveal { get; private set; }
-        private static int lastMode=-1;
+        private static MyHudMarkerRender.SignalMode? forcedSignals;
+        private static MyHudMarkerRender.SignalMode desktopSignals;
         private static float ownRange=-1,friendlyRange=-1,otherRange=-1;
         private static readonly InputGate leftTrigger=new InputGate(),leftGrip=new InputGate();
         private static readonly VisorGesture visorGesture=new VisorGesture();
@@ -53,6 +54,21 @@ namespace SpaceEngineersVR.Player
             if(left) p.X=-p.X;
             return p.X>0.10f && InHeadZone(p);
         }
+        // The native marker pass feeds the VR markers, so it follows the VR setting while the headset renders; the desktop's own H mode returns when it sleeps.
+        private static void UpdateSignalMode()
+        {
+            var native=MyHudMarkerRender.SignalDisplayMode;
+            if(!VrSubmit.HeadsetAsleep)
+            {
+                var vr=Mode>0 ? MyHudMarkerRender.SignalMode.NoNames:MyHudMarkerRender.SignalMode.Off;
+                if(native!=forcedSignals) desktopSignals=native;
+                if(native!=vr) SetSignalMode(vr);
+                forcedSignals=vr;
+            }
+            else if(forcedSignals!=null) { SetSignalMode(desktopSignals); forcedSignals=null; }
+        }
+        private static void SetSignalMode(MyHudMarkerRender.SignalMode mode) =>
+            AccessTools.Property(typeof(MyHudMarkerRender),nameof(MyHudMarkerRender.SignalDisplayMode)).SetValue(null,mode,null);
         internal static bool NearHead(Matrix hand,Matrix head)
         {
             Vector3 p=(hand*Matrix.Invert(head)).Translation;
@@ -69,12 +85,7 @@ namespace SpaceEngineersVR.Player
             { characterId=character?.EntityId ?? 0; transition=null; }
             else if(closed!=VisorClosed) transition=new Transition(closed);
             VisorClosed=closed;
-            if(Mode!=lastMode || MyHudMarkerRender.SignalDisplayMode!=(Mode>0 ? MyHudMarkerRender.SignalMode.NoNames:MyHudMarkerRender.SignalMode.Off))
-            {
-                AccessTools.Property(typeof(MyHudMarkerRender),nameof(MyHudMarkerRender.SignalDisplayMode))
-                    .SetValue(null,Mode>0 ? MyHudMarkerRender.SignalMode.NoNames : MyHudMarkerRender.SignalMode.Off,null);
-                lastMode=Mode;
-            }
+            UpdateSignalMode();
             var config=Common.Config;
             if(ownRange!=config.OwnSignalRange) MyHudMarkerRender.OwnerAntennaRange=ownRange=config.OwnSignalRange;
             if(friendlyRange!=config.FriendlySignalRange) MyHudMarkerRender.FriendAntennaRange=friendlyRange=config.FriendlySignalRange;
