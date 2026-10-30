@@ -25,6 +25,8 @@
     <Reference Include="Sandbox.Graphics"><HintPath>$(GameBinPath)/Sandbox.Graphics.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="SpaceEngineers.ObjectBuilders"><HintPath>$(GameBinPath)/SpaceEngineers.ObjectBuilders.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="SpaceEngineers.Game"><HintPath>$(GameBinPath)/SpaceEngineers.Game.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="EmptyKeys.UserInterface"><HintPath>$(GameBinPath)/EmptyKeys.UserInterface.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="EmptyKeys.UserInterface.Core"><HintPath>$(GameBinPath)/EmptyKeys.UserInterface.Core.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="VRage"><HintPath>$(GameBinPath)/VRage.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="VRage.Game"><HintPath>$(GameBinPath)/VRage.Game.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="VRage.Input"><HintPath>$(GameBinPath)/VRage.Input.dll</HintPath><Private>false</Private></Reference>

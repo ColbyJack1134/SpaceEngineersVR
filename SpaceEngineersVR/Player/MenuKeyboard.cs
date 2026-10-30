@@ -21,6 +21,8 @@ namespace SpaceEngineersVR.Player
         private static string done="DONE";
         internal static bool Hotkeys { get; private set; }
         public static bool Standalone => target!=null && valid!=null;
+        // Wrist chat and search have no native screen to show behind the keyboard; store and ATM fields keep theirs.
+        public static bool HidesMenu => Standalone && screen==null;
         public static bool IsOpen => target != null;
         private static int page;
         // Declared before Keys, whose initialiser reads these labels.
@@ -226,7 +228,7 @@ namespace SpaceEngineersVR.Player
             valid=isValid; closed=onClosed; submitted=onSubmit; done=submitLabel; Keys=MakeKeys(false,done); Selected=0;
             Main.MenuOpen=true;
             InputRouter.Update();
-            FloatingKeyboard.Show(false);
+            FloatingKeyboard.Show(false,screen!=null ? FloatingMenu.Current?.Pose.Translation : null);
             MenuPointer.Release(); Controls.Static.BlockUntilRelease();
         }
         internal static void OpenHotkeys()

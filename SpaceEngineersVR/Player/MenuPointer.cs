@@ -77,6 +77,8 @@ namespace SpaceEngineersVR.Player
             }
         }
         public static void Release() { ReleaseMouse(); ReleaseKey(); Modifiers(false,false); }
+        // Gamepad shoulder steps: other-hand trigger x10, grip x100, both x1000.
+        internal static int StepMultiplier => controlHeld ? (shiftHeld ? 1000:10) : shiftHeld ? 100:1;
         private static bool Aimed(Controller hand)
         {
             if(!hand.pose.isTracked) return false;
@@ -105,6 +107,7 @@ namespace SpaceEngineersVR.Player
                 checkTextFocus=false;
                 if(MenuKeyboard.TextHovered(Components.VRGUIManager.TopScreen))
                     MenuKeyboard.Open();
+                else EmptyKeysText.TryOpen(Components.VRGUIManager.TopScreen);
             }
             var controls = Controls.Static;
             if (InputRouter.Mode == InputMode.Menu && GameFocused)

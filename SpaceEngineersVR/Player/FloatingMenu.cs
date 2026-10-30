@@ -40,7 +40,7 @@ namespace SpaceEngineersVR.Player
             // before the thumbstick can scroll native contents again.
             if(window.Drag!=0) Controls.Static.MenuNavigate.BlockUntilRelease();
             OwnsInput=false;
-            bool shown=(Main.MenuOpen && !MenuKeyboard.Standalone) || Main.ShowDesktopPanel;
+            bool shown=(Main.MenuOpen && !MenuKeyboard.HidesMenu) || Main.ShowDesktopPanel;
             bool available=shown && Available && InputRouter.Mode==InputMode.Menu && MenuPointer.GameFocused &&
                 Player.Headset.pose.isTracked && MenuPointer.Hand.pose.isTracked && !MenuKeyboard.IsOpen;
             if(!shown) { opened=false; viewRecenter=false; current=null; window.Cancel(); interaction.Reset(); return; }

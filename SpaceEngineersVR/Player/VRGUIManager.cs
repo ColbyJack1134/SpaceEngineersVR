@@ -64,7 +64,7 @@ namespace SpaceEngineersVR.Player.Components
         public static void RequestRecenter() { anchorPending = true; FloatingMenu.RecenterView(); }
         public static void Draw()
         {
-            if ((Main.MenuOpen && !MenuKeyboard.Standalone) || Main.ShowDesktopPanel)
+            if ((Main.MenuOpen && !MenuKeyboard.HidesMenu) || Main.ShowDesktopPanel)
             {
                 // Anchor once in tracking space, not to the user's face on every frame.
                 var spatial=FloatingMenu.Current;

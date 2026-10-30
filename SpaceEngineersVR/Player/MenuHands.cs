@@ -223,7 +223,7 @@ float4 PS(P p):SV_TARGET {
                 var hands = new[] { Player.HandL, Player.HandR };
                 var meshes = new Mesh[2];
                 for (int h = 0; h < 2; h++) if (hands[h].renderPose.isTracked) meshes[h] = GetModel(hands[h]);
-                if(menu && !MenuKeyboard.Standalone) Components.VRGUIManager.DrawStereo(texture,eye,SpectatorView.Active ? null:NativeHandLayer.Depth);
+                if(menu && !MenuKeyboard.HidesMenu) Components.VRGUIManager.DrawStereo(texture,eye,SpectatorView.Active ? null:NativeHandLayer.Depth);
                 using (var target = new RenderTargetView(gpu, texture))
                     DrawEye(target, eye, size, hands, meshes, false,menu);
                 if(CameraRig.Detached && !NativeGloves.Shown(true))
