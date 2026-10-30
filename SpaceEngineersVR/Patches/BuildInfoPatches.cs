@@ -26,13 +26,11 @@ namespace SpaceEngineersVR.Patches
         private static object main;
         private static FieldInfo instanceField,maxRange,swapAt;
         private static Func<object,bool> isCubeBuilder,isBuildTool;
-        private static Func<object,IMySlimBlock> aimed,builderAimed;
-        private static Func<object,MyCubeBlockDefinition> picked;
         private static Func<object,string> overlayName;
         private static Func<object,int> textShow;
         private static Action<object,int> setTextShow;
-        private static object equipment,quickMenu,overlays,pickBlock,config,textShowSetting,commands,distance;
-        private static MethodInfo cycleOverlays,transparency,freeze,askToPick,saveConfig,executeCommand;
+        private static object equipment,quickMenu,overlays,config,textShowSetting,commands,distance;
+        private static MethodInfo cycleOverlays,transparency,freeze,saveConfig,executeCommand;
         private static ActionChoice[] actions;
         private static Func<double> textApiScale;
 
@@ -43,7 +41,6 @@ namespace SpaceEngineersVR.Patches
 #endif
         internal static bool CubeBuilder => Active && isCubeBuilder!=null && isCubeBuilder(equipment);
         internal static bool BuildTool => Active && isBuildTool!=null && isBuildTool(equipment);
-        internal static bool PickPending => Active && picked!=null && picked(pickBlock)!=null;
 
         // Each assembly is inspected once; without Build Info a refresh only walks the new ones.
         private static readonly HashSet<Assembly> scanned=new HashSet<Assembly>();
@@ -194,7 +191,7 @@ namespace SpaceEngineersVR.Patches
         internal static void Reset()
         {
             ReleaseToolbar();
-            fed=null; setBlock=null; pointed=null; closedUi=null; toolbarMonitor=null; setPage=null; monitorPage=null;
+            fed=null; setBlock=null; closedUi=null; toolbarMonitor=null; setPage=null; monitorPage=null;
             toolBar=null; toolBarShown=null; weaponModeShown=false; hideIcon=hideHud=null; gameConfig=null; CardAdditions.Reset();
             Rollback(0); attempted.Clear(); scanned.Clear(); candidates.Clear(); main=null; instanceField=null; actions=null; textApiScale=null; retry=DateTime.MinValue;
             multiTool=null; isEquipped=null; toolActions=null; instrumentName=null; refreshInstrument=null; aimDepth=headDepth=0; drawing=copyDepth=geometryDepth=0; labelText=null; BuildInfoPanel.Legend.Reset(); BuildInfoLabels.Reset();
@@ -430,18 +427,16 @@ namespace SpaceEngineersVR.Patches
         {
             equipment=ModReflection.Get(instance,"EquipmentMonitor"); closedUi=equipment==null ? null:AccessTools.Field(equipment.GetType(),"closedSomeUI"); if(closedUi?.FieldType!=typeof(bool)) closedUi=null;
             quickMenu=ModReflection.Get(instance,"QuickMenu"); overlays=ModReflection.Get(instance,"Overlays");
-            pickBlock=ModReflection.Get(instance,"PickBlock"); config=ModReflection.Get(instance,"Config"); commands=ModReflection.Get(instance,"ChatCommandHandler");
+            config=ModReflection.Get(instance,"Config"); commands=ModReflection.Get(instance,"ChatCommandHandler");
             textShowSetting=ModReflection.Get(config,"TextShow");
             isCubeBuilder=Getter<bool>(equipment,"IsCubeBuilder"); isBuildTool=Getter<bool>(equipment,"IsBuildTool");
-            aimed=Getter<IMySlimBlock>(equipment,"AimedBlock"); builderAimed=Getter<IMySlimBlock>(equipment,"BuilderAimedBlock");
-            picked=Getter<MyCubeBlockDefinition>(pickBlock,"PickedBlockDef"); overlayName=Getter<string>(overlays,"OverlayModeName");
+            overlayName=Getter<string>(overlays,"OverlayModeName");
             textShow=Getter<int>(textShowSetting,"Value");
             var set=textShowSetting==null ? null:AccessTools.Method(textShowSetting.GetType(),"SetValue",new[] {typeof(int)});
             setTextShow=set==null ? null:(Action<object,int>)((o,v) => set.Invoke(o,new object[] {v}));
             cycleOverlays=overlays==null ? null:AccessTools.Method(overlays.GetType(),"CycleMode",new[] {typeof(bool)});
             transparency=quickMenu==null ? null:AccessTools.Method(quickMenu.GetType(),"SetPlacementTransparency",new[] {typeof(bool),typeof(bool)});
             freeze=quickMenu==null ? null:AccessTools.Method(quickMenu.GetType(),"SetFreezePlacement",new[] {typeof(bool),typeof(bool)});
-            askToPick=pickBlock==null ? null:AccessTools.Method(pickBlock.GetType(),"AskToPick",new[] {typeof(MyCubeBlockDefinition)});
             saveConfig=config==null ? null:AccessTools.Method(config.GetType(),"Save",Type.EmptyTypes);
             setBlock=equipment==null ? null:AccessTools.Method(equipment.GetType(),"SetBlock");
             if(setBlock!=null && (setBlock.GetParameters().Length<2 || setBlock.GetParameters()[0].ParameterType!=typeof(MyCubeBlockDefinition) ||
@@ -449,7 +444,7 @@ namespace SpaceEngineersVR.Patches
             if(setBlock==null) Logger.Info("Build Info aimed block setter not found; its text shows only with a tool or a block in hand");
             var help=ModReflection.Get(commands,"CommandHelp"); var reload=ModReflection.Get(commands,"CommandReloadConfig");
             executeCommand=help==null ? null:AccessTools.Method(help.GetType(),"ExecuteNoArgs",Type.EmptyTypes);
-            if(new object[] {isCubeBuilder,isBuildTool,aimed,builderAimed,picked,overlayName,textShow,setTextShow,cycleOverlays,transparency,freeze,askToPick,saveConfig,executeCommand,help,reload}.Any(m=>m==null))
+            if(new object[] {isCubeBuilder,isBuildTool,overlayName,textShow,setTextShow,cycleOverlays,transparency,freeze,saveConfig,executeCommand,help,reload}.Any(m=>m==null))
             { isCubeBuilder=isBuildTool=null; return false; }
             actions=new[] {
                 new ActionChoice(()=>"Overlays: "+OverlayLabel(overlayName(overlays)),()=>cycleOverlays.Invoke(overlays,new object[] {false}),historyKey:"Build Info overlays",icon:()=>NativeSprites.Hud("SignalMode")),
@@ -459,20 +454,10 @@ namespace SpaceEngineersVR.Patches
                     ()=>freeze.Invoke(quickMenu,new object[] {MyCubeBuilder.Static.FreezeGizmo!=true,false}),
                     ()=>CubeBuilder && MyCubeBuilder.Static!=null && (MyCubeBuilder.Static.FreezeGizmo || !MyCubeBuilder.Static.DynamicMode),"Build Info freeze",icon:()=>NativeSprites.Hud("Handbrake")),
                 new ActionChoice(()=>"Text info: "+TextLabel(textShow(textShowSetting)),CycleText,historyKey:"Build Info text",icon:()=>NativeSprites.Hud("HelpScreen")),
-                new ActionChoice(()=>"Pick block",PickAimed,()=>Picked()?.BlockDefinition is MyCubeBlockDefinition,"Build Info pick block",icon:()=>NativeSprites.Hud("ColorPicker")),
+                new ActionChoice(()=>"Pick block",()=>GridSelection.Arm(GridSelection.PickBlock),()=>BlockPicker.Available,"Build Info pick block",icon:()=>NativeSprites.Hud("ColorPicker")),
                 new ActionChoice(()=>"Build Info help",()=>executeCommand.Invoke(help,null),historyKey:"Build Info help",opensMenu:true,icon:()=>NativeSprites.Hud("HelpScreen")),
                 new ActionChoice(()=>"Reload Build Info config",()=>executeCommand.Invoke(reload,null),historyKey:"Build Info reload",icon:()=>NativeSprites.Hud("ReloadGame")) };
             return true;
-        }
-        // The block under the pointing hand when the wheel opened stands in for Build Info's tool target.
-        private static IMySlimBlock pointed;
-        private static IMySlimBlock Picked() => aimed(equipment) ?? builderAimed(equipment) ?? pointed;
-        private static void PickAimed()
-        {
-            if(!(Picked()?.BlockDefinition is MyCubeBlockDefinition definition)) return;
-            askToPick.Invoke(pickBlock,new object[] {definition});
-            if(ModReflection.Get(pickBlock,"Notify") is VRage.Game.ModAPI.IMyHudNotification notify && picked(pickBlock)!=null)
-                notify.Text="Choose a toolbar wheel slot for "+definition.DisplayNameText+". The unequip slot cancels.";
         }
         internal static string OverlayLabel(string name) => string.IsNullOrEmpty(name) || name=="OFF" ? "off" : name;
         // Build Info's TextShowMode values; ShowOnPress needs a keyboard bind, so VR cycles past it.
@@ -487,7 +472,6 @@ namespace SpaceEngineersVR.Patches
         internal static ActionChoice[] Actions()
         {
             if(actions==null || !(CubeBuilder || BuildTool || MySession.Static?.ControlledEntity is Sandbox.Game.Entities.Character.MyCharacter)) return Array.Empty<ActionChoice>();
-            pointed=BlockInspection.Pointed();
             return toolActions!=null && MultiToolEquipped ? toolActions.Concat(actions).ToArray() : actions;
         }
 
@@ -830,15 +814,5 @@ namespace SpaceEngineersVR.Patches
         }
         // Its ship direction mark sits in front of the turret camera, which VR shows on a screen while the eyes stay in the seat.
         private static bool TurretIndicatorSkip() => !Main.VrActive;
-        private static readonly MyStringId[] SlotControls={MyControlsSpace.SLOT1,MyControlsSpace.SLOT2,MyControlsSpace.SLOT3,MyControlsSpace.SLOT4,
-            MyControlsSpace.SLOT5,MyControlsSpace.SLOT6,MyControlsSpace.SLOT7,MyControlsSpace.SLOT8,MyControlsSpace.SLOT9};
-        // Build Info waits for a slot control after Pick block; a direct activation would not reach it.
-        internal static bool TryPickSlot(int slot,int slotCount)
-        {
-            if(!PickPending || slot<0 || slot>slotCount) return false;
-            if(slot<slotCount && slot>=SlotControls.Length) return false;
-            NativeActions.Pulse(slot==slotCount ? MyControlsSpace.SLOT0 : SlotControls[slot]);
-            return true;
-        }
     }
 }

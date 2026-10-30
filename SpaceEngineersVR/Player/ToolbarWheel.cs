@@ -286,7 +286,7 @@ namespace SpaceEngineersVR.Player
         internal static SlotResult SelectSlot(MyToolbar target,int slot,bool assign,Action<int> configure)
         {
             if(target==null) return SlotResult.Ignored;
-            if(!assign && Patches.BuildInfoBridge.TryPickSlot(slot,target.SlotCount)) return SlotResult.Activated;
+            if(BlockPicker.TrySave(target,slot,assign)) return SlotResult.Assigned;
             if(Holster(target,slot))
             {
                 // Assignment opens the configuration screen with no slot; the holster cannot hold an action.

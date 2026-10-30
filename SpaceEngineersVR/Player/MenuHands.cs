@@ -305,8 +305,7 @@ float4 PS(P p):SV_TARGET {
             {
                 MatrixD finger=wristFinger ?? (MatrixD)mesh.PointFrame*CockpitHandPose.GripWrist(Matrix.Identity);
                 var hit=finger.Translation+finger.Forward*.35;
-                var feedback=new TargetFeedback.View(finger,hit,1,selected ? (MatrixD?)MatrixD.CreateTranslation(hit):null,
-                    new BoundingBoxD(new Vector3D(-.05),new Vector3D(.05)));
+                var feedback=new TargetFeedback.View(finger,hit,1,selected);
                 TargetFeedback.Draw(eyes[0],feedback,view,projection,Depth);
             }
             return eyes[0];

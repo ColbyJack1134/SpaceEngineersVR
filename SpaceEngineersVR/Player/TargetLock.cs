@@ -85,7 +85,7 @@ namespace SpaceEngineersVR.Player
             var grid=ShooterGrid();
             if(grid==null || !TryHandRay(hand,out var origin,out var direction,out bool feed)) return;
             Preview=Pick(grid,origin,direction,out var hit);
-            if(!feed) Feedback=new TargetFeedback.View(MatrixD.CreateTranslation(origin),hit,null,CameraRig.Current?.UnitsPerMeter ?? 1);
+            if(!feed) Feedback=new TargetFeedback.View(MatrixD.CreateTranslation(origin),hit,CameraRig.Current?.UnitsPerMeter ?? 1,false);
         }
 
         // Called on the seat's lock-on press; true when WeaponCore handled it. A hand on a physical stick has no pointer, so its

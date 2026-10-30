@@ -125,7 +125,6 @@ namespace SpaceEngineersVR.Player
             target.BlockIntegrity=.01f; target.MissingComponentIndex=0; target.ShowComponentLoss=false;
         }
         private static MySlimBlock Target(LineD ray) => Target(ray,out _);
-        internal static MySlimBlock Pointed() => HandInteraction.TryInteractionRay(out var ray) ? Target(ray) : null;
         internal static MySlimBlock Target(LineD ray,out Vector3D point)
         {
             var character=MySession.Static.LocalCharacter;

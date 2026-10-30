@@ -190,6 +190,20 @@ namespace SpaceEngineersVR.Diagnostics
             }
             log("PASS radial hotbar assignment: native Character/Ship toolbars, current-page empty slots, occupied/disabled override without activation or removal, neutral cancel and ordinary activation.");
 
+            var inHand=BlockPicker.InHand;
+            try
+            {
+                var picked=new MyCubeBlockDefinition { Id=new MyDefinitionId(typeof(MyObjectBuilder_CubeBlock),"PickedTest") };
+                var hotbar=new MyToolbar(MyToolbarType.Character,9,2);
+                var held=new Item(); hotbar.SetItemAtIndex(0,held);
+                BlockPicker.InHand=_=>true; BlockPicker.SetPending(picked);
+                Require(ToolbarWheel.SelectSlot(hotbar,0,false,_=>{})==ToolbarWheel.SlotResult.Activated && held.Count==1 &&
+                    ReferenceEquals(hotbar.GetItemAtSlot(0),held) && BlockPicker.Pending==null,"Picked block replaced an occupied slot on an ordinary select");
+            }
+            finally { BlockPicker.InHand=inHand; BlockPicker.SetPending(null); }
+            Require(BlockPicker.IsBlockEnabled?.ReturnType.IsEnum==true,"Build radial block check missing");
+            log("PASS block picker: ordinary select on an occupied slot activates it and ends the pending pick, radial block check present.");
+
             var onFoot=QuickToolbar.Store.Create(MyToolbarType.Character);
             Require(Enumerable.Range(0,QuickToolbar.Slots).All(i=>onFoot.GetItemAtIndex(i)==null),"On-foot quick toolbar kept the game's default blocks");
             var quickSlots=QuickToolbar.Store.Create(MyToolbarType.Ship);

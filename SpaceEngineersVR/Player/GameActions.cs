@@ -72,7 +72,7 @@ namespace SpaceEngineersVR.Player
                 case "Large / small": return "GridSize";
                 case "Previous variant": return "ValueDecrease";
                 case "Next variant": return "ValueIncrease";
-                case "Color / skin palette": case "Paint tool": case "Pick color": return "ColorPicker";
+                case "Color / skin palette": case "Paint tool": case "Pick color": case "Pick block": return "ColorPicker";
                 case "Symmetry on / off": return "Symmetry";
                 case "Symmetry planes": return "SymmetrySetup";
                 case "Cycle plane": return "SwitchSymmetryAxis";
@@ -242,6 +242,7 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice BuildShapeAction = new ActionChoice(()=>PlacementControls.ShapeLabel,PlacementControls.CycleShape,
             ()=>PlacementControls.Creative && MyCubeBuilder.Static?.IsActivated==true && MyCubeBuilder.Static.IsBuildToolActive(),historyKey:"Build shape");
         public static readonly ActionChoice BlueprintsAction = new ActionChoice("Blueprints", () => new MyActionBlueprintScreen().ExecuteAction(), true);
+        internal static readonly ActionChoice PickBlockAction=new ActionChoice(GridSelection.PickBlock,()=>GridSelection.Arm(GridSelection.PickBlock),enabled:()=>BlockPicker.Available,searchTerms:"block picker equip select copy");
 
         public static readonly ActionChoice[] Quick = {
             InventoryAction,
@@ -277,7 +278,8 @@ namespace SpaceEngineersVR.Player
             new ActionChoice("Performance",()=>MyGuiSandbox.AddScreen(new GUI.PerformanceOptions()),true),
             new ActionChoice("Chat",WristChat.Open),
             new ActionChoice("Hotkey keyboard",MenuKeyboard.OpenHotkeys),
-            SnapHeldGrid
+            SnapHeldGrid,
+            PickBlockAction
         };
         public static readonly ActionChoice[] Developer = {
             new ActionChoice("Developer options", () => MyGuiSandbox.AddScreen(new GUI.DeveloperOptions()), true),

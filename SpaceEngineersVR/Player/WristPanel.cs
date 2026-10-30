@@ -130,7 +130,7 @@ namespace SpaceEngineersVR.Player
                 action==GameActions.DetachBootsAction || action==GameActions.Dampeners || action==GameActions.RelativeDampeners || action==GameActions.Quick[3] || action==GameActions.CycleAmmoAction || action==GameActions.InventoryAction;
             if(value==2) return action==GameActions.PowerAction || action==GameActions.ParkAction || action==GameActions.Dampeners || action==GameActions.RelativeDampeners ||
                 action==GameActions.TerminalAction || action==GameActions.BroadcastAction || action==GameActions.CockpitBuild || action==GameActions.ExitFeed || action==GameActions.ResetFeed || action.Label.StartsWith("Toolbar ");
-            if(value==3) return GameActions.Building.Contains(action) || action==GameActions.BlueprintsAction || action==GameActions.CockpitBuild;
+            if(value==3) return GameActions.Building.Contains(action) || action==GameActions.BlueprintsAction || action==GameActions.CockpitBuild || action==GameActions.PickBlockAction;
             return action.Label.StartsWith("VR:") || action==GameActions.Options || action.Label==GameActions.Options.Label || action==GameActions.HudOptions || action==GameActions.Quick[10] ||
                 action==GameActions.RecenterAction || action==GameActions.ResetScreens || action==GameActions.PlayPosture || action==GameActions.DesktopFloating || action==GameActions.DesktopWrist;
         }

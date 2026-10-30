@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using SharpDX.Direct3D11;
-using VRage.Game.Entity;
 using VRageMath;
 
 namespace SpaceEngineersVR.Player
@@ -12,15 +11,8 @@ namespace SpaceEngineersVR.Player
             internal readonly MatrixD Finger;
             internal readonly Vector3D Hit;
             internal readonly double Scale;
-            internal readonly MatrixD? Grid;
-            internal readonly BoundingBoxD Bounds;
-            internal View(MatrixD finger,Vector3D hit,MyEntity entity,double scale)
-            {
-                Finger=finger; Hit=hit; Scale=scale;
-                if(entity!=null) { Grid=entity.WorldMatrix; Bounds=entity.PositionComp.LocalAABB; }
-            }
-            internal View(MatrixD finger,Vector3D hit,double scale,MatrixD? grid,BoundingBoxD bounds)
-            { Finger=finger; Hit=hit; Scale=scale; Grid=grid; Bounds=bounds; }
+            internal readonly bool Targeted;
+            internal View(MatrixD finger,Vector3D hit,double scale,bool targeted) { Finger=finger; Hit=hit; Scale=scale; Targeted=targeted; }
         }
         private static OverlayCanvas white;
         private static SharpDX.Direct3D11.Device device;
@@ -32,7 +24,7 @@ namespace SpaceEngineersVR.Player
             Prepare(target);
             sprites.Clear();
             var camera=MatrixD.Invert(view);
-            var color=state.Grid.HasValue ? new Vector4(.3f,1,.65f,.9f):new Vector4(.24f,.8f,1,.75f);
+            var color=state.Targeted ? new Vector4(.3f,1,.65f,.9f):new Vector4(.24f,.8f,1,.75f);
             double size=.004*state.Scale;
             var glow=camera.GetOrientation(); glow.Translation=state.Finger.Translation;
             foreach(float layer in new[] {2.2f,1.5f,1f})
@@ -43,17 +35,6 @@ namespace SpaceEngineersVR.Player
                 sprite.Rounded=new Vector2(.5f); sprite.IgnoreSceneDepth=true; sprites.Add(sprite);
             }
             AddLine(state.Finger.Translation,state.Hit,.0012*state.Scale,color,camera,view,projection);
-            if(state.Grid.HasValue)
-            {
-                var corners=new Vector3D[8];
-                unsafe { for(int i=0;i<8;i++) corners[i]=state.Bounds.GetCorner(i); }
-                for(int i=0;i<8;i++) for(int j=i+1;j<8;j++)
-                {
-                    int differences=(corners[i].X!=corners[j].X ? 1:0)+(corners[i].Y!=corners[j].Y ? 1:0)+(corners[i].Z!=corners[j].Z ? 1:0);
-                    if(differences==1) AddLine(Vector3D.Transform(corners[i],state.Grid.Value),Vector3D.Transform(corners[j],state.Grid.Value),
-                        .0015*state.Scale,color,camera,view,projection);
-                }
-            }
             NativeSprites.Draw(target,sprites,depth);
         }
         private static void Prepare(Texture2D target)
