@@ -26,7 +26,7 @@ namespace SpaceEngineersVR.GUI
             internal Topic(string title, params Diagram[] diagrams) { Title=title; Diagrams=diagrams; }
         }
         private static readonly Topic[] topics={
-            new Topic("Common Controls", new Diagram("start", 1600, 610), new Diagram("helmet", 1600, 520), new Diagram("radials", 1600, 1000), new Diagram("wrist-intro", 1600, 650)),
+            new Topic("Common Controls", new Diagram("start", 1600, 610), new Diagram("helmet", 1600, 520), new Diagram("radials", 1600, 1000), new Diagram("wrist-intro", 1600, 650), new Diagram("search", 1600, 650)),
             new Topic("On Foot & Tools", new Diagram("foot", 1600, 650), new Diagram("tools", 1600, 650)),
             new Topic("Jetpack", new Diagram("jetpack", 1600, 650)),
             new Topic("Flight & Driving", new Diagram("cockpit", 1600, 650), new Diagram("vehicles", 1600, 650)),

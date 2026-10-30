@@ -79,7 +79,15 @@ namespace SpaceEngineersVR.Diagnostics
                 WristPreview(device,canvas,keyboard,output,"keyboard-caret-preview");
                 keyboard.Text="/w Sam |"; keyboard.Keys=MenuKeyboard.MakeKeys(true,"SEND");
                 WristPreview(device,canvas,keyboard,output,"keyboard-chat-preview");
-                wrist.ChatView=null; WristPanel.Show(0);
+                wrist.ChatView=null;
+                WristPanel.Show(2);
+                foreach(string query in new[] {"","pick","blueprint"})
+                {
+                    WristPanel.SetQuery(query); WristPanel.StopEditing();
+                    wrist.Keys=WristPanel.Keys(null,false,false,false,true,wrist.Status);
+                    WristPreview(device,canvas,wrist,output,"wrist-search-"+(query.Length>0 ? query:"all"));
+                }
+                WristPanel.Reset(); WristPanel.Show(0);
                 SignalTests.Render(device,output,log,true);
             }
             log("PASS focused wrist menu renders and standing calibration checks.");
