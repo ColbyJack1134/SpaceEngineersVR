@@ -26,6 +26,13 @@ namespace SpaceEngineersVR.Player
         private static readonly object sync=new object();
         private static readonly Diorama view=new Diorama();
         private static readonly ObserverFollow follow=new ObserverFollow();
+        // Grips act after a delay, so a two-grip gesture can claim them first.
+        private static readonly GripDescent descent=new GripDescent(),slow=new GripDescent();
+        private static readonly TurnInput turn=new TurnInput();
+        // Vanilla spectator default, in room meters per second.
+        private const double FlySpeed=3.5,BoostFactor=3,SlowFactor=.3;
+        // Default MyCharacter.RotationSpeed; spectating may have no character.
+        private const float TurnSpeed=.13f;
         private static MyEntity followed;
         private static MySessionComponentSpectatorTools savedTools;
         private static double savedScale;
@@ -60,7 +67,6 @@ namespace SpaceEngineersVR.Player
             new ActionChoice("Move character here",Teleport,enabled:()=>CanTeleport,searchTerms:"Ctrl Space teleport"),
             new ActionChoice("Return to character",Exit,searchTerms:"F6 player control"),
             new ActionChoice("Bring view to character",Focus,searchTerms:"Ctrl F8 focus"),
-            new ActionChoice("Faster",()=>Speed(1.5f)),new ActionChoice("Slower",()=>Speed(1/1.5f)),
             new ActionChoice("Lights",()=>MySpectatorCameraController.Static.SwitchLight()),
             new ActionChoice(()=>MyAPIGateway.SpectatorTools?.GetTarget()!=null ? "Unlock target":"Select follow target",()=> {
                 if(MyAPIGateway.SpectatorTools?.GetTarget()!=null) MySession.Static.GetComponent<MySessionComponentSpectatorTools>()?.LockHitEntity();
@@ -99,12 +105,6 @@ namespace SpaceEngineersVR.Player
             MySpectatorCameraController.Static.Position=target.PositionComp.GetPosition()+MySpectatorCameraController.Static.ThirdPersonCameraDelta;
             MySpectatorCameraController.Static.SetTarget(target.PositionComp.GetPosition(),target.WorldMatrix.Up);
             ResetNavigation(); Publish();
-        }
-        private static void Speed(float factor)
-        {
-            if(!Active) return;
-            lock(sync) view.ChangeScale(factor,Vector3D.Zero);
-            Publish();
         }
         internal static void Teleport()
         {
@@ -205,6 +205,8 @@ namespace SpaceEngineersVR.Player
                 Player.Headset.pose.isTracked && Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;
             bool started;
             lock(sync) { started=view.Input(allowed,left,right); if(view.Held) consumed=true; }
+            descent.Update(allowed,c.SupportGripPressure.RawPosition.X,DateTime.UtcNow);
+            slow.Update(allowed,c.ActionGripPressure.RawPosition.X,DateTime.UtcNow);
             if(started)
             {
                 NativeActions.Reset();
@@ -242,7 +244,23 @@ namespace SpaceEngineersVR.Player
             if(c.CopyGrid.HasPressed) new Sandbox.Game.Screens.Helpers.RadialMenuActions.MyActionCopyGrid().ExecuteAction();
             if(c.CutGrid.HasPressed) new Sandbox.Game.Screens.Helpers.RadialMenuActions.MyActionCutGrid().ExecuteAction();
             if(c.PasteGrid.HasPressed) new Sandbox.Game.Screens.Helpers.RadialMenuActions.MyActionPasteGrid().ExecuteAction();
+            Fly(c);
             Publish();
+        }
+        private static void Fly(Controls c)
+        {
+            if(consumed || !Player.Headset.pose.isTracked) { descent.Cancel(); turn.Reset(); return; }
+            var head=VrMath.Affine(Player.Headset.pose.deviceToAbsolute.matrix*originInverse);
+            var stick=c.ThrustLRFB.Position;
+            float down=descent.Replay(c.ThrustDown.Position.X,DateTime.UtcNow);
+            // Target selection and grid placement keep the trigger.
+            float boost=GridSelection.Active || PlacementControls.ClipboardActive ? 0:MathHelper.Clamp(c.FirePressure.Position.X,0,1);
+            double speed=FlySpeed*MathHelper.Lerp(1,BoostFactor,boost)*(slow.Ready ? SlowFactor:1);
+            var delta=(Vector3D)(head.Forward*stick.Y+head.Right*stick.X+head.Up*(c.ThrustUp.Position.X-down))*speed*VRage.Game.MyEngineConstants.UPDATE_STEP_SIZE_IN_SECONDS;
+            float yaw=turn.Read(c.ThrustRotate.Position.X,Common.Config.SnapTurn,VRMovementComponent.RotationSpeed*Common.Config.TurnSensitivity,
+                Common.Config.SnapTurnAngle,TurnSpeed,DateTime.UtcNow)*TurnSpeed*.02f;
+            if(delta.LengthSquared()==0 && yaw==0) return;
+            lock(sync) { view.Fly(delta); if(yaw!=0) view.Turn(yaw,head.Translation); }
         }
         private static void CameraMode(VRage.Utils.MyStringId control)
         {
@@ -327,7 +345,7 @@ namespace SpaceEngineersVR.Player
         {
             lock(sync)
             {
-                Volatile.Write(ref frame,null); camera=null; followed=null; view.Cancel(); consumed=false; renderTime=0; epoch++;
+                Volatile.Write(ref frame,null); camera=null; followed=null; view.Cancel(); consumed=false; renderTime=0; epoch++; turn.Reset();
                 if(forgetTracked) { savedTools=null; savedScale=0; }
             }
         }

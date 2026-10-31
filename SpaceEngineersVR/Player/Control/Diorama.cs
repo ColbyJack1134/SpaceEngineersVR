@@ -16,7 +16,7 @@ namespace SpaceEngineersVR.Player.Control
             public Scene(Vector3D target,MatrixD reference,long timestamp,double limit=0)
             { Target=target; Reference=reference; Timestamp=timestamp; Limit=limit; }
         }
-        public const double MinScale=.1,MaxScale=100000;
+        public const double MinScale=.1,MaxScale=1000000;
         // 0 for none; outward motion eases to a stop over the last SoftBand.
         public double MaxDistance;
         private const double SoftBand=.15;
@@ -116,6 +116,14 @@ namespace SpaceEngineersVR.Player.Control
             if(after<=before || after<=MaxDistance*(1-SoftBand)) return;
             double allowed=Math.Min(MaxDistance,before+(after-before)*ease);
             Center=head+(Center-head)*(allowed/after);
+        }
+        // Moves the viewer by a tracking-space offset, so world speed follows the scale.
+        internal void Fly(Vector3D delta) => Center-=delta;
+        internal void Turn(double angle,Vector3D pivot)
+        {
+            var turn=MatrixD.CreateFromAxisAngle(Vector3D.Up,angle);
+            Center=Vector3D.TransformNormal(Center-pivot,turn)+pivot;
+            Orientation=VrMath.Rigid(MatrixD.Transpose(turn)*Orientation);
         }
         public void ChangeReference(MatrixD before,MatrixD after)
         {

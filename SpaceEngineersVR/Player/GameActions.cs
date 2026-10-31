@@ -82,8 +82,8 @@ namespace SpaceEngineersVR.Player
                 case "Return to character": return "PlayerHelmetOn";
                 case "Follow character": return "CameraSpectator";
                 case "Bring view to character": return "SwitchCamera";
-                case "Faster": case "Next player": return "ValueIncrease";
-                case "Slower": case "Previous player": return "ValueDecrease";
+                case "Next player": return "ValueIncrease";
+                case "Previous player": return "ValueDecrease";
                 case "Select follow target": case "Unlock target": case "Tracking mode": return "SignalMode";
                 case "Save tracked view 1": case "Recall tracked view 1": return "CameraSpectator";
                 case "Placement mode": return "PlacementMode";

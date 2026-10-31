@@ -36,7 +36,7 @@ namespace SpaceEngineersVR.Player.Components
         private static int zeroMoveTicks;
         private static System.DateTime nextStuckThrustReport;
 
-        public float RotationSpeed = 10;
+        public const float RotationSpeed = 10;
 
         public override void OnAddedToContainer()
         {

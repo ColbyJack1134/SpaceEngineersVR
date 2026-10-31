@@ -68,10 +68,35 @@ namespace SpaceEngineersVR.Diagnostics
             Require(Math.Abs(Eye(wide,target,head,0)-25)<1e-9 && Math.Abs(Eye(wide,target,head,10)-10)<1e-9 && Math.Abs(Eye(wide,target,new Vector3D(0,0,.2),10)-10)<1e-9,
                 "Published anchor did not hold the eye at the sweep limit");
         }
+        private static Vector3D World(Diorama view,Vector3D tracking)
+        {
+            var anchor=view.Anchor(Vector3D.Zero,MatrixD.Identity);
+            return anchor.Translation+Vector3D.TransformNormal(tracking*view.UnitsPerMeter,anchor);
+        }
+        private static Vector3D Tracking(Diorama view,Vector3D world)
+        {
+            var anchor=view.Anchor(Vector3D.Zero,MatrixD.Identity);
+            return Vector3D.TransformNormal(world-anchor.Translation,MatrixD.Transpose(anchor.GetOrientation()))/view.UnitsPerMeter;
+        }
+        private static void FlyAndTurn()
+        {
+            var view=new Diorama(); view.Fit(20,MatrixD.Identity,new Vector3D(0,-.1,-1));
+            var head=new Vector3D(.2,0,.1);
+            var before=World(view,head);
+            view.Fly(new Vector3D(0,0,-.1));
+            Near(World(view,head)-before,new Vector3D(0,0,-.1*view.UnitsPerMeter),"Flying forward did not move the viewer forward by the scaled distance",1e-6);
+            var right=World(view,head+Vector3D.Right);
+            before=World(view,head);
+            view.Turn(Math.PI/2,head);
+            Near(World(view,head),before,"Turning moved the viewer",1e-6);
+            Near(Tracking(view,right),head+Vector3D.Forward,"Turning right did not bring the right side to the front",1e-6);
+        }
         public static void Run(Action<string> log)
         {
             Bounds();
             log("PASS observer bounds: outward pan and zoom-out ease into the distance limit, large fits are capped, the anchor holds the eye at the sweep limit");
+            FlyAndTurn();
+            log("PASS observer flight: the stick moves the viewer by the scaled distance and turns about the head");
             double minPan=double.MaxValue,maxPan=0,minZoom=double.MaxValue,maxZoom=0;
             foreach(int hz in new[] {36,72,90})
             {
