@@ -144,6 +144,7 @@ namespace SpaceEngineersVR.Diagnostics
         private static bool rotationPreviewsSaved;
         private static bool remoteVisibilityChecked;
         private static readonly Vector3 neutralPaint=new Vector3(0,-.8f,-.13f);
+        private static readonly int[] ScrolledTopics={1,4,4,5,9};
         private static DateTime next,deadline;
         private static volatile string pending;
         private static volatile string captured;
@@ -500,11 +501,12 @@ namespace SpaceEngineersVR.Diagnostics
             }
             if(phase%2==0)
             {
-                if(index>0 && index<GUI.BindingHelp.TopicCount && options is GUI.BindingHelp guide)
+                // Gallery indexes from 9 hold other captures.
+                if(index>0 && index<Math.Min(9,GUI.BindingHelp.TopicCount) && options is GUI.BindingHelp guide)
                 { guide.SelectTopic(index);next=DateTime.UtcNow.AddSeconds(2);phase++;return; }
                 if((index==9 || index>=24 && index<29) && options is GUI.BindingHelp scrolledGuide)
                 {
-                    scrolledGuide.SelectTopic(index==9 ? 0:new[] {1,4,4,5,8}[index-24]);
+                    scrolledGuide.SelectTopic(index==9 ? 0:ScrolledTopics[index-24]);
                     scrolledGuide.ScrollTo(index==25 ? .45f:1);
                     next=DateTime.UtcNow.AddSeconds(2);phase++;return;
                 }
@@ -516,7 +518,7 @@ namespace SpaceEngineersVR.Diagnostics
                     index==10 ? (Sandbox.Graphics.GUI.MyGuiScreenBase)new GUI.HudStateOptions() : new GUI.MyPluginConfigDialog();
                 if(index>=24 && index<29)
                 {
-                    var scrolled=new GUI.BindingHelp(new[] {1,4,4,5,8}[index-24]);
+                    var scrolled=new GUI.BindingHelp(ScrolledTopics[index-24]);
                     options=scrolled; options.RecreateControls(true); scrolled.ScrollTo(index==25 ? .45f:1);
                 }
                 if(index>=12 && index<=16) options=new GUI.MyPluginConfigDialog(new[] {0,1,2,4,3}[index-12]);
