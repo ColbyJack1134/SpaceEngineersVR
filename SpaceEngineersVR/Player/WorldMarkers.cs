@@ -106,7 +106,7 @@ namespace SpaceEngineersVR.Player
         private static readonly MethodInfo colors=AccessTools.Method(point,"GetPOIColorAndFontInformation");
         private sealed class ProxyHistory { public Marker[] Markers=new Marker[0]; public DateTime Time; public long Serial; }
         private static readonly ConditionalWeakTable<MyHudMarkerRender,ProxyHistory> proxyHistory=new ConditionalWeakTable<MyHudMarkerRender,ProxyHistory>();
-        private sealed class GpsInfo { public string Id,Name,Description; public bool Encounter; }
+        private sealed class GpsInfo { public string Id,Name,Description; public bool Encounter; public long Entity; }
         private static readonly ConditionalWeakTable<object,GpsInfo> gpsInfo=new ConditionalWeakTable<object,GpsInfo>();
         internal static void CaptureGps(MyHudMarkerRender renderer,MyGps gps)
         {
@@ -116,7 +116,9 @@ namespace SpaceEngineersVR.Player
             object poi=list[list.Count-1];
             gpsInfo.Remove(poi);
             gpsInfo.Add(poi,new GpsInfo { Id="gps:"+gps.Hash,Name=string.IsNullOrEmpty(gps.DisplayName) ? gps.Name:gps.DisplayName,
-                Description=gps.Description,Encounter=gps.IsGlobalEncounterGPS || gps.IsContainerGPS });
+                Description=gps.Description,Encounter=gps.IsGlobalEncounterGPS || gps.IsContainerGPS,
+                // Container GPSs (respawn pods, drop containers) follow their entity, but the native POI does not record it.
+                Entity=gps.IsContainerGPS ? gps.EntityId:0 });
         }
         private static readonly Action<MyGuiScreenHudSpace,MyHudGpsMarkers> gpsMarkers=Collector<MyHudGpsMarkers>("DrawGpsMarkers"),buttonMarkers=Collector<MyHudGpsMarkers>("DrawButtonPanelMarkers");
         private static readonly Action<MyGuiScreenHudSpace,MyHudOreMarkers> oreMarkers=Collector<MyHudOreMarkers>("DrawOreMarkers");
@@ -222,7 +224,7 @@ namespace SpaceEngineersVR.Player
                     Remaining=remaining.GetValue(poi) as string,Encounter=info?.Encounter==true || type=="Scenario",
                     Pinned=pinned,Cluster=(bool)cluster.GetValue(poi),
                     Icon=type=="Ore" ? "ore" : @"Textures\HUD\marker_"+icon+".dds",
-                    Distance=(double)nativeDistance.GetValue(poi),Entity=item?.EntityId ?? 0,Lift=item is MyCharacter ? 1.3f:0 });
+                    Distance=(double)nativeDistance.GetValue(poi),Entity=item?.EntityId ?? info?.Entity ?? 0,Lift=item is MyCharacter ? 1.3f:0 });
             }
             IdentifyProxies(renderer,markers,now);
             ReadTarget(renderer,markers);
