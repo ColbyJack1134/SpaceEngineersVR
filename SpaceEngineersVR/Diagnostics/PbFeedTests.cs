@@ -38,7 +38,7 @@ namespace SpaceEngineersVR.Diagnostics
                 throw new Exception("VR data message layout: "+text);
             if(text.Length>600) throw new Exception("VR data message is "+text.Length+" characters");
             Joints(log);
-            // The example script stays local (ignored IngameScripts/); clean checkouts check the layout only.
+            // Builds without IngameScripts check the layout only.
             if(Assembly.GetEntryAssembly().GetManifestResourceInfo("SevrVrData.cs")==null)
             {
                 log("PASS programmable block VR data: invariant layout (example script not present, parse check skipped)");
