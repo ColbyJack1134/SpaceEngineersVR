@@ -44,7 +44,7 @@ namespace SpaceEngineersVR.Plugin
             arthurLcd=new Integration("Arthur's LCD",Player.ArthurLcdBridge.Reset,Player.ArthurLcdBridge.RefreshRegistrations,Player.ArthurLcdBridge.Update,Player.ArthurLcdBridge.Draw),
             weaponCore=new Integration("WeaponCore",Player.WeaponCoreIntegration.Reset,Player.WeaponCoreIntegration.Refresh,Player.WeaponCoreIntegration.Update),
             shields=new Integration("Defense Shields",Player.ShieldsIntegration.Reset,Player.ShieldsIntegration.Refresh,Player.ShieldsIntegration.Update),
-            pbFeed=new Integration("Programmable block VR data",PbFeed.Reset,PbFeed.Refresh,PbFeed.Update),
+            pbFeed=new Integration("Programmable block VR data",PbFeed.Reset,null,PbFeed.Update),
             paintGun=new Integration("Paint Gun",Patches.PaintGunPatches.Reset,Patches.PaintGunPatches.RefreshRegistrations,Player.PaintGun.Update),
             buildInfo=new Integration("Build Info",Patches.BuildInfoBridge.Reset,Patches.BuildInfoBridge.RefreshRegistrations,Patches.BuildInfoBridge.SyncPage);
         internal static readonly Integration[] Integrations={touchScreens,arthurLcd,weaponCore,shields,pbFeed,paintGun,

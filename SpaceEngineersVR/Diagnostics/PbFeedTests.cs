@@ -16,7 +16,7 @@ namespace SpaceEngineersVR.Diagnostics
     {
         public static void Run(Action<string> log)
         {
-            var message=new PbMessage {Controller=-1234567890123,Flags=PbMessage.Arms|PbMessage.Head|PbMessage.Left};
+            var message=new PbMessage {Controller=-1234567890123,Flags=PbMessage.Head|PbMessage.Left};
             message.HeadPose=Matrix.CreateFromYawPitchRoll(.4f,-.2f,.1f); message.HeadPose.Translation=new Vector3(.05f,-.1f,.02f);
             message.LeftHand.Pose=Matrix.CreateFromYawPitchRoll(-1.2f,.6f,2.5f); message.LeftHand.Pose.Translation=new Vector3(-.25f,-.35f,-.4f);
             message.LeftHand.Trigger=.5f; message.LeftHand.Grip=1; message.LeftHand.Stick=new Vector2(-.75f,.25f);
