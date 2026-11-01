@@ -442,6 +442,13 @@ namespace SpaceEngineersVR.Diagnostics
             var rig=rigs[rigIndex];
             Vector3 center=rig.Wheel!=null ? rig.Wheel.Pivot : rig.Left!=null && rig.Right!=null ? (rig.Left.Contact+rig.Right.Contact)*.5f : (rig.Left ?? rig.Right)?.Contact ?? rig.Handles[0].Center;
             Vector3D eye=center+new Vector3(.02f,.55f,.48f);
+            // Optional close-up "eye x,y,z;target x,y,z" in rig model space for inspecting individual controls.
+            string focus=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_FOCUS");
+            if(!string.IsNullOrEmpty(focus))
+            {
+                var v=focus.Split(';').Select(p=>p.Split(',').Select(x=>float.Parse(x,System.Globalization.CultureInfo.InvariantCulture)).ToArray()).ToArray();
+                eye=new Vector3D(v[0][0],v[0][1],v[0][2]); center=new Vector3(v[1][0],v[1][1],v[1][2]);
+            }
             var view=MatrixD.CreateLookAt(eye,center,Vector3D.Up);
             var size=Wrappers.MyRender11.Resolution; float aspect=(float)size.X/size.Y;
             // Match the culling frustum to the FOV used by SetupCameraMatrices.
@@ -455,8 +462,10 @@ namespace SpaceEngineersVR.Diagnostics
                 bool moved=rigStep==2;
                 Matrix left=moved && rig.Wheel!=null ? (rig.Wheel.ThrottleActor>=0 ? rig.Wheel.Visual(.7f,new Vector2(.05f,MathHelper.ToRadians(10))):rig.Wheel.YokeVisual(-.5f,1)) : moved && rig.Left!=null ? rig.Left.Visual(new Vector3(.5f,.4f,.6f)) : Matrix.Identity;
                 Matrix right=moved && rig.Right!=null ? rig.Right.Visual(new Vector3(-.5f,.4f,-.6f)) : Matrix.Identity;
+                bool lit=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_LIT")=="1";
                 CockpitRender.UpdateScene(rig,native,MatrixD.Identity,left,right,moved,moved,switchPreview:moved ? 1f:0f,coverPreview:moved ? 1f:0f,
-                    colorMask:neutralPaint,nativeRest:!moved,barPreview:moved ? 1f:0f,buttonPreview:moved,throttlePreview:moved ? 1f:0f);
+                    colorMask:neutralPaint,nativeRest:!moved,barPreview:moved ? 1f:0f,buttonPreview:moved && !lit,throttlePreview:moved ? 1f:0f,
+                    litPreview:moved && lit ? 1f:(float?)null);
                 foreach(string material in rig.Pieces.Select(p=>p.Material).Distinct().Where(m=>m.StartsWith("CockpitScreen_")))
                 {
                     CockpitRender.ScreenTexture(material,@"Textures\Models\default_online.dds");

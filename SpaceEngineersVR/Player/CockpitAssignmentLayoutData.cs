@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace SpaceEngineersVR.Player
 {
@@ -110,7 +111,8 @@ namespace SpaceEngineersVR.Player
 
         private static void Add(Dictionary<string,CockpitAssignmentLayout> result,string subtype,params Group[] groups)
         {
-            result.Add(subtype,new CockpitAssignmentLayout(CockpitRig.Find(subtype).Count,groups));
+            var rig=CockpitRig.Find(subtype);
+            result.Add(subtype,new CockpitAssignmentLayout(rig.Count,groups.Concat(rig.AddedGroups.Select(g=>new Group(g.Name,g.Slots))).ToArray()));
         }
     }
 }

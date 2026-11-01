@@ -48,7 +48,7 @@ namespace SpaceEngineersVR.Player
         {
             var result=new Dictionary<MyStringId,MyTextureChange>();
             if(changes!=null) foreach(string material in materials.Distinct())
-                if(changes.TryGetValue(MyStringId.GetOrCompute(material),out var change)) result.Add(MyStringId.GetOrCompute(Name(subtype,material)),change);
+                if(changes.TryGetValue(MyStringId.GetOrCompute(CockpitCaps.NativeMaterial(material)),out var change)) result.Add(MyStringId.GetOrCompute(Name(subtype,material)),change);
             return result;
         }
     }

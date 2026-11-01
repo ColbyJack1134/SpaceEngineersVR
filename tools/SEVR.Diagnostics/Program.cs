@@ -49,6 +49,7 @@ internal static class Program
             if(args.Length==3 && args[1]=="--face-feed") { FaceFeedGallery.Render(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==4 && args[1]=="--alignment-preview") { AlignmentPreview.Export(game,args[2],args[3],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--targeting-preview") { TargetingPreview.Export(game,args[2],Console.WriteLine); return 0; }
+            if(args.Length==3 && args[1]=="--added-controls-preview") { AddedControlsPreview.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--control-seat-preview") { ControlSeatPreview.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--compare-physical-rigs") { PhysicalImageComparison.VerifyRigs(args[2],Console.WriteLine); return 0; }
             if((args.Length==2 || args.Length==3) && args[1]=="--benchmark-geometry") { GeometryBenchmark.Run(game,Console.WriteLine,args.Length==3 ? args[2] : null); return 0; }

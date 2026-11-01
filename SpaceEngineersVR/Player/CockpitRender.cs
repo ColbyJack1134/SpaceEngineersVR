@@ -100,7 +100,7 @@ namespace SpaceEngineersVR.Player
             foreach(uint id in check.Actors) if(id!=uint.MaxValue) Set(id,false);
             Set(check.Exterior,true);
         }
-        internal static void UpdateScene(CockpitRig rig,uint interior,MatrixD world,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3),float? switchPreview=null,float? coverPreview=null,Vector3? colorMask=null,int previewHover=-1,int previewHeld=-1,bool previewCover=false,bool nativeRest=false,float? barPreview=null,bool? buttonPreview=null,float? throttlePreview=null)
+        internal static void UpdateScene(CockpitRig rig,uint interior,MatrixD world,Matrix left,Matrix right,bool leftHeld,bool rightHeld,Vector3 leftOffset=default(Vector3),Vector3 rightOffset=default(Vector3),float? switchPreview=null,float? coverPreview=null,Vector3? colorMask=null,int previewHover=-1,int previewHeld=-1,bool previewCover=false,bool nativeRest=false,float? barPreview=null,bool? buttonPreview=null,float? throttlePreview=null,float? litPreview=null)
         {
             if (failed) return;
             try
@@ -112,7 +112,7 @@ namespace SpaceEngineersVR.Player
                 if (verification==null)
                 {
                     activeRig=rig;
-                    foreach(string templateSubtype in activeRig.Buttons.Select(b=>b.TemplateSubtype).Where(s=>s!=null).Distinct())
+                    foreach(string templateSubtype in activeRig.TemplateSubtypes)
                         MyRenderProxy.PreloadModel(CockpitRig.Find(templateSubtype).Model,forceOldPipeline:true);
                     geometry=activeRig.Geometry(MyFileSystem.ContentPath);
                     verification=new Verification(interior,geometry,activeRig.Pieces.Select(p=>p.Material).Distinct().ToArray(),activeRig.Subtype);
@@ -168,6 +168,9 @@ namespace SpaceEngineersVR.Player
                     appliedColor=paint;
                 }
                 foreach(int actor in activeRig.StaticActors) UpdatePose(check,actor,world);
+                // Generated caps, surfaces and patches replace native decals; the native copies show only for the native-rest comparison.
+                if(activeRig.PatchActor>=0) SetVisible(check,activeRig.PatchActor,!nativeRest);
+                if(activeRig.NativeActor>=0) SetVisible(check,activeRig.NativeActor,nativeRest);
                 if(activeRig.Wheel!=null)
                 {
                     UpdatePose(check,activeRig.Wheel.Actor,(MatrixD)(nativeRest ? Matrix.Identity:left)*world);
@@ -193,8 +196,22 @@ namespace SpaceEngineersVR.Player
                     if(activeRig.ButtonAt(slot) is CockpitRig.Button button && button.Actor>=0)
                     {
                         int state=State(slot,false);
-                        UpdatePose(check,button.Actor,(MatrixD)(nativeRest ? Matrix.Identity:button.Visual(buttonPreview ?? state==2))*world);
+                        var pose=(MatrixD)(nativeRest ? Matrix.Identity:button.Visual(buttonPreview ?? state==2))*world;
+                        UpdatePose(check,button.Actor,pose);
                         SetRigFeedback(check,button.Actor,state);
+                        if(button.TemplateActor>=0 && slot>=activeRig.OriginalCount) SetVisible(check,button.Actor,!nativeRest);
+                        if(button.Cap!=null)
+                        {
+                            // Same state that moves switches: on while a toggle is on, briefly after a momentary action.
+                            bool lit=button.LitActor>=0 && !nativeRest && (litPreview ?? CockpitButtons.SwitchPosition(slot,subtype))>=.5f;
+                            SetVisible(check,button.Actor,!nativeRest && !lit);
+                            if(button.LitActor>=0)
+                            {
+                                SetVisible(check,button.LitActor,lit);
+                                UpdatePose(check,button.LitActor,pose);
+                                SetRigFeedback(check,button.LitActor,state);
+                            }
+                        }
                     }
                     else if(activeRig.LeverAt(slot) is CockpitRig.Lever lever)
                     {
@@ -207,6 +224,7 @@ namespace SpaceEngineersVR.Player
                     else if(activeRig.HandleAt(slot) is CockpitRig.Handle handle)
                     {
                         UpdatePose(check,handle.Actor,(MatrixD)(nativeRest ? Matrix.Identity : handle.Visual(switchPreview ?? CockpitButtons.SwitchPosition(slot,subtype)))*world);
+                        if(handle.TemplateActor>=0) SetVisible(check,handle.Actor,!nativeRest);
                         SetRigFeedback(check,handle.Actor,State(slot,false));
                     }
                     else if(activeRig.BarAt(slot) is CockpitRig.Bar bar)

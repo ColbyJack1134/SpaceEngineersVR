@@ -1,5 +1,6 @@
 #if SEVR_DIAGNOSTICS
 using System;
+using System.Linq;
 using SpaceEngineersVR.Player;
 using VRageMath;
 
@@ -81,9 +82,9 @@ namespace SpaceEngineersVR.Diagnostics
             Require(SegmentDisk.DistanceSquared(new Vector3D(double.NaN,0,0),Vector3D.Zero,bounds)==float.MaxValue,"Invalid segment enters round cap");
             int count=0;
             foreach(var rig in CockpitRig.All)
-            for(int slot=0;slot<rig.Buttons.Length;slot++)
+            foreach(int slot in Enumerable.Range(0,rig.Count).Where(i=>rig.ButtonAt(i)!=null))
             {
-                var button=rig.Buttons[slot]; if(!button.Round) continue;
+                var button=rig.ButtonAt(slot); if(!button.Round) continue;
                 count++;
                 var surface=CockpitButtons.Preview(rig.Subtype,slot);
                 Require(Math.Abs(surface.Width-surface.Height)<1e-7,"Round cap is not circular");
@@ -98,9 +99,9 @@ namespace SpaceEngineersVR.Diagnostics
                     Require(CockpitTouch.NearKey(surface,local,out float intended,out _)>=0,"Round cap misses centered/off-center approach: "+rig.Subtype+"/"+slot);
                     var world=local.Transform(surface.Pose);
                     Require(CockpitPanelGuard.NearSurface(surface,world),"Accepted round contact escapes input guard");
-                    for(int other=0;other<rig.Buttons.Length;other++)
+                    for(int other=0;other<rig.Count;other++)
                     {
-                        if(other==slot) continue;
+                        if(other==slot || rig.ButtonAt(other)==null) continue;
                         var neighbor=CockpitButtons.Preview(rig.Subtype,other);
                         if(Vector3D.Distance(surface.Pose.Translation,neighbor.Pose.Translation)>.12) continue;
                         int hit=CockpitTouch.NearKey(neighbor,world.Transform(MatrixD.Invert(neighbor.Pose)),out float distance,out _);
@@ -117,8 +118,8 @@ namespace SpaceEngineersVR.Diagnostics
             Require(held.Surface=="A" && !held.Pressed,"Round neighbor retargets or repeats held action");
             held.Sample(true,0,false,"B",0); held.Sample(true,1,true,"B",0);
             Require(held.Surface=="B" && held.Pressed,"Round neighbor cannot acquire after release");
-            Require(count==56,"Round-contact regression inventory changed");
-            log("PASS round contacts: 300 independent distances, all 56 caps at two travel states/depths/angles/both hands, guarded contact, neighbor ranking and held-action capture.");
+            Require(count==87,"Round-contact regression inventory changed");
+            log("PASS round contacts: 300 independent distances, all 87 caps at two travel states/depths/angles/both hands, guarded contact, neighbor ranking and held-action capture.");
         }
     }
 }

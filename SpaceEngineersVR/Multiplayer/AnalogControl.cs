@@ -17,25 +17,26 @@ namespace SpaceEngineersVR.Multiplayer
     {
         internal static bool IsHandle(string subtype,int slot)
         {
+            // Original handle slots, then sliders added after the original controls.
             switch(subtype)
             {
                 case "OpenCockpitLarge": return slot>=69 && slot<77;
                 case "SmallBlockCockpit": return slot>=35 && slot<37;
                 case "LargeBlockCockpitSeat": return slot>=115 && slot<117;
-                case "LargeBlockModularBridgeCockpit": return slot>=0 && slot<1;
+                case "LargeBlockModularBridgeCockpit": return slot>=0 && slot<1 || slot>=6 && slot<8;
                 case "RoverCockpit": return slot>=0 && slot<1;
-                case "SmallBlockFlushCockpit": return slot==18;
-                case "LargeBlockSuspendedControlSeat": return slot==11;
-                case "LargeBlockSuspendedControlSeatB": return slot==11;
-                case "SmallBlockSuspendedControlSeat": return slot==11;
-                case "SmallBlockSuspendedControlSeatB": return slot==11;
-                case "SmallBlockCapCockpit": return slot==15;
+                case "SmallBlockFlushCockpit": return slot==18 || slot>=42 && slot<52;
+                case "LargeBlockSuspendedControlSeat": return slot==11 || slot==19;
+                case "LargeBlockSuspendedControlSeatB": return slot==11 || slot==19;
+                case "SmallBlockSuspendedControlSeat": return slot==11 || slot==19;
+                case "SmallBlockSuspendedControlSeatB": return slot==11 || slot==19;
+                case "SmallBlockCapCockpit": return slot==15 || slot>=22 && slot<24;
                 case "SpeederCockpit": return slot==1;
                 case "SpeederCockpitCompact": return slot==1;
-                case "LargeBlockOpenSlopedCockpit": return slot>=23 && slot<26;
-                case "LargeBlockClosedSlopedCockpit": return slot>=23 && slot<26;
-                case "SmallBlockOpenSlopedCockpit": return slot>=8 && slot<11;
-                case "SmallBlockClosedSlopedCockpit": return slot>=8 && slot<11;
+                case "LargeBlockOpenSlopedCockpit": return slot>=23 && slot<26 || slot>=34 && slot<40;
+                case "LargeBlockClosedSlopedCockpit": return slot>=23 && slot<26 || slot>=34 && slot<40;
+                case "SmallBlockOpenSlopedCockpit": return slot>=8 && slot<11 || slot>=18 && slot<24;
+                case "SmallBlockClosedSlopedCockpit": return slot>=8 && slot<11 || slot>=18 && slot<24;
                 case "SmallBlockStandingCockpit": return slot>=13 && slot<18;
                 case "LargeBlockStandingCockpit": return slot>=13 && slot<18;
                 default: return false;

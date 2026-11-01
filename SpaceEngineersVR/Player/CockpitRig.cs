@@ -83,7 +83,11 @@ namespace SpaceEngineersVR.Player
         internal sealed class Handle
         {
             public readonly Vector3 Center;
-            public readonly int Actor;
+            public int Actor { get; internal set; }
+            // Knob copied from another rig's modeled slider; -1 for native knobs.
+            public readonly int TemplateActor=-1;
+            public readonly Matrix TemplateTransform=Matrix.Identity;
+            public readonly string TemplateSubtype;
             internal const float Rear=-.085f,Front=-.258f,Travel=Rear-Front;
             // Upper slot contour measured from the installed Control Seat housing.
             private static readonly Vector2[] track={new Vector2(-.0767212f,-.621582f),new Vector2(-.0938721f,-.6147461f),
@@ -99,9 +103,11 @@ namespace SpaceEngineersVR.Player
             private readonly float bottomAngle;
             private readonly bool rotateGrip;
             private readonly bool contour=true;
-            public Handle(Vector3 center,int actor,Vector3 shaft,Vector3 normal,Vector3 bottom,Vector3 top,float halfWidth,float radius,bool pinch=false)
+            public Handle(Vector3 center,int actor,Vector3 shaft,Vector3 normal,Vector3 bottom,Vector3 top,float halfWidth,float radius,bool pinch=false,
+                int templateActor=-1,Matrix? templateTransform=null,string templateSubtype=null)
             {
                 Center=center; Actor=actor; HalfWidth=halfWidth; Radius=radius;
+                TemplateActor=templateActor; TemplateTransform=templateTransform ?? Matrix.Identity; TemplateSubtype=templateSubtype;
                 frame=Frame(shaft,normal); this.bottom=bottom; this.top=top;
                 Axis=Vector3.Normalize(top-bottom); Range=Vector3.Distance(bottom,top); contour=false; Pinch=pinch;
             }
@@ -186,15 +192,18 @@ namespace SpaceEngineersVR.Player
         {
             public readonly Vector3 Center,Normal,Up;
             public readonly float Size;
-            public readonly int Actor;
+            public int Actor { get; internal set; }
+            // Shown instead of Actor while the assigned action is on; -1 without a lit tile.
+            public int LitActor { get; internal set; }=-1;
+            public readonly Face Cap;
             public readonly float Travel;
             public readonly bool Round;
             public readonly int TemplateActor;
             public readonly Matrix TemplateTransform;
             public readonly string TemplateMaterial,TemplateSubtype;
             public Button(Vector3 center,Vector3 normal,Vector3 up,float size,int actor=-1,float travel=0,bool round=false,
-                int templateActor=-1,Matrix? templateTransform=null,string templateMaterial=null,string templateSubtype=null)
-            { Center=center; Normal=normal; Up=up; Size=size; Actor=actor; Travel=travel; Round=round;
+                int templateActor=-1,Matrix? templateTransform=null,string templateMaterial=null,string templateSubtype=null,Face cap=null)
+            { Center=center; Normal=normal; Up=up; Size=size; Actor=actor; Travel=travel; Round=round; Cap=cap;
                 TemplateActor=templateActor; TemplateTransform=templateTransform ?? Matrix.Identity; TemplateMaterial=templateMaterial; TemplateSubtype=templateSubtype; }
             internal MatrixD TouchPose => MatrixD.CreateWorld(Center,-Normal,Up);
             internal Matrix Visual(bool pressed) => Matrix.CreateTranslation(pressed ? -Normal*Travel:Vector3.Zero);
@@ -236,6 +245,49 @@ namespace SpaceEngineersVR.Player
                 }
             }
         }
+        // A raised cap, or a flat patch when Height is 0, textured from a native atlas region.
+        internal sealed class Face
+        {
+            public readonly string Material;
+            public readonly Vector3 Normal;
+            public readonly Vector3[] Corners;
+            public readonly Vector2[] Uv;
+            public readonly Vector2 Inset;
+            public readonly float Height;
+            public readonly bool Round,Lit;
+            public Face(string material,Vector3 normal,Vector3[] corners,Vector2[] uv,Vector2 inset,float height,bool round=false,bool lit=false)
+            { Material=material; Normal=normal; Corners=corners; Uv=uv; Inset=inset; Height=height; Round=round; Lit=lit; }
+        }
+        // A native decal surface redrawn as solid triangles; the native copy is shown only for native-rest comparison.
+        internal sealed class Surface
+        {
+            public readonly string Material;
+            public readonly Vector3 Normal;
+            public readonly Vector3[] Positions;
+            public readonly Vector2[] Uv;
+            public readonly bool Unlit;
+            public Surface(string material,Vector3 normal,Vector3[] positions,Vector2[] uv,bool unlit=false)
+            { Material=material; Normal=normal; Positions=positions; Uv=uv; Unlit=unlit; }
+        }
+        private sealed class AddedGroup
+        {
+            public readonly string Name;
+            public readonly object[] Controls;
+            public AddedGroup(string name,params object[] controls) { Name=name; Controls=controls; }
+        }
+        private static Dictionary<string,Added> addedData;
+        // Built on first use: static initializers in partial files run in an unspecified order.
+        private static Dictionary<string,Added> AddedData => addedData ?? (addedData=CreateAdded());
+        private sealed class Added
+        {
+            public readonly Piece[] Pieces;
+            public readonly AddedGroup[] Groups;
+            public readonly Face[] Patches;
+            public readonly Piece[] Native;
+            public readonly Surface[] Surfaces;
+            public Added(Piece[] pieces,AddedGroup[] groups,Face[] patches,Piece[] native,Surface[] surfaces)
+            { Pieces=pieces; Groups=groups; Patches=patches; Native=native; Surfaces=surfaces; }
+        }
         internal sealed class Screen
         {
             public readonly Vector3 Center,Normal,Up;
@@ -255,6 +307,12 @@ namespace SpaceEngineersVR.Player
         public readonly Handle[] Handles;
         public readonly Bar[] Bars;
         public readonly Screen[] Screens;
+        // Slots after the original controls: Button, Handle or Bar.
+        private readonly object[] extra;
+        internal readonly (string Name,int[] Slots)[] AddedGroups;
+        internal readonly Face[] Patches;
+        internal readonly Surface[] Surfaces;
+        internal readonly int PatchActor=-1,NativeActor=-1;
         private readonly int[] coverIndices;
         public readonly int ActorCount;
         public readonly int[] StaticActors;
@@ -262,17 +320,37 @@ namespace SpaceEngineersVR.Player
         private CockpitRig(string subtype,string model,string geometryModel,Vector3 panel,Vector3 normal,Stick left,Stick right,Piece[] pieces,Lever[] levers,Handle[] handles=null,
             Button[] buttons=null,Bar[] bars=null,Screen[] screens=null,bool packedCovers=false,Steering steering=null,Vector3 defaultSeatOffset=default(Vector3),Vector3? mirrorRight=null,Vector3? mirrorLeft=null)
         {
-            Subtype=subtype; Model=model; this.geometryModel=geometryModel; Left=left; Right=right; Pieces=pieces; Wheel=steering; DefaultSeatOffset=defaultSeatOffset;
+            Subtype=subtype; Model=model; this.geometryModel=geometryModel; Left=left; Right=right; Wheel=steering; DefaultSeatOffset=defaultSeatOffset;
             Buttons=buttons ?? new Button[0]; Levers=levers; Handles=handles ?? new Handle[0]; Bars=bars ?? new Bar[0];
             Screens=screens ?? new Screen[0];
+            AddedData.TryGetValue(subtype,out var addition);
+            if(addition!=null) pieces=pieces.Concat(addition.Pieces).ToArray();
+            extra=addition?.Groups.SelectMany(g=>g.Controls).ToArray() ?? new object[0];
+            Patches=addition?.Patches ?? new Face[0];
+            Surfaces=addition?.Surfaces ?? new Surface[0];
+            int next=OriginalCount;
+            AddedGroups=addition?.Groups.Select(g=>(g.Name,g.Controls.Select(_=>next++).ToArray())).ToArray() ?? new (string,int[])[0];
             var up=Vector3.Normalize(Vector3.Cross(normal,Vector3.Right));
             SeatMount=MatrixD.CreateWorld(panel,-normal,up);
             ActorCount=pieces.Length==0 ? 0 : pieces.Max(p=>Math.Max(p.Actor,p.StaticActor))+1;
-            if(Buttons.Any(b=>b.TemplateActor>=0)) ActorCount=Math.Max(ActorCount,Buttons.Max(b=>b.Actor)+1);
+            if(AllButtons.Any(b=>b.TemplateActor>=0)) ActorCount=Math.Max(ActorCount,AllButtons.Where(b=>b.TemplateActor>=0).Max(b=>b.Actor)+1);
+            foreach(var button in AllButtons.Where(b=>b.Cap!=null))
+            {
+                button.Actor=ActorCount++;
+                if(button.Cap.Lit) button.LitActor=ActorCount++;
+            }
+            foreach(var handle in AllHandles.Where(h=>h.TemplateActor>=0)) handle.Actor=ActorCount++;
+            if(Patches.Length>0 || Surfaces.Length>0) PatchActor=ActorCount++;
+            if(addition?.Native.Length>0)
+            {
+                NativeActor=ActorCount++;
+                pieces=pieces.Concat(addition.Native.Select(p=>new Piece(p.Material,p.MaterialTriangles,p.Triangles,p.Center,NativeActor))).ToArray();
+            }
+            Pieces=pieces;
             // A seat with one stick gets a floating mirrored copy as its other stick, from the same installed mesh.
             if(mirrorRight.HasValue && left!=null && right==null) { Right=left.Mirror(mirrorRight.Value,ActorCount,ActorCount+1); ActorCount+=2; }
             if(mirrorLeft.HasValue && right!=null && left==null) { Left=right.Mirror(mirrorLeft.Value,ActorCount,ActorCount+1); ActorCount+=2; }
-            StaticActors=pieces.Select(p=>p.StaticActor).Distinct().ToArray();
+            StaticActors=pieces.Select(p=>p.StaticActor).Concat(new[] {PatchActor,NativeActor}.Where(a=>a>=0)).Distinct().ToArray();
             // Saved Fighter cover states predate slot-indexed storage and number covers consecutively.
             coverIndices=new int[Count];
             for(int slot=0,packed=0;slot<Count;slot++)
@@ -283,11 +361,17 @@ namespace SpaceEngineersVR.Player
         internal static CockpitRig Find(string subtype) => subtype!=null && rigs.TryGetValue(subtype,out var value) ? value:null;
         internal bool HasSticks => Left!=null || Right!=null;
         internal bool Matches(string model) => model!=null && model.Replace('\\','/').EndsWith(Model,StringComparison.OrdinalIgnoreCase);
-        internal int Count => Buttons.Length+Levers.Length+Handles.Length+Bars.Length;
-        internal Button ButtonAt(int slot) => At(Buttons,slot);
+        internal int Count => OriginalCount+extra.Length;
+        internal int OriginalCount => Buttons.Length+Levers.Length+Handles.Length+Bars.Length;
+        internal IEnumerable<Button> AllButtons => Buttons.Concat(extra.OfType<Button>());
+        internal IEnumerable<Handle> AllHandles => Handles.Concat(extra.OfType<Handle>());
+        internal IEnumerable<string> TemplateSubtypes => AllButtons.Select(b=>b.TemplateSubtype).Concat(AllHandles.Select(h=>h.TemplateSubtype)).Where(s=>s!=null).Distinct();
+        private object Extra(int slot) => At(extra,slot-OriginalCount);
+        internal Button ButtonAt(int slot) => At(Buttons,slot) ?? Extra(slot) as Button;
         internal Lever LeverAt(int slot) => At(Levers,slot-Buttons.Length);
-        internal Handle HandleAt(int slot) => At(Handles,slot-Buttons.Length-Levers.Length);
-        internal Bar BarAt(int slot) => At(Bars,slot-Buttons.Length-Levers.Length-Handles.Length);
+        internal Handle HandleAt(int slot) => At(Handles,slot-Buttons.Length-Levers.Length) ?? Extra(slot) as Handle;
+        internal Bar BarAt(int slot) => At(Bars,slot-Buttons.Length-Levers.Length-Handles.Length) ?? Extra(slot) as Bar;
+        internal IEnumerable<Bar> AllBars => Bars.Concat(extra.OfType<Bar>());
         private static T At<T>(T[] items,int index) where T:class => index>=0 && index<items.Length ? items[index]:null;
         internal int CoverIndex(int slot) => slot>=0 && slot<coverIndices.Length ? coverIndices[slot]:-1;
         internal CockpitGeometry Geometry(string content)
@@ -331,8 +415,8 @@ namespace SpaceEngineersVR.Player
                 if(part!=null)
                     AppendTransformed(actors[0],templateBases[part],lever.TemplateTransform);
             }
-            foreach(var bar in Bars) bar.ExtendStem(actors[bar.Actor]);
-            foreach(var button in Buttons.Where(b=>b.TemplateActor>=0))
+            foreach(var bar in AllBars) bar.ExtendStem(actors[bar.Actor]);
+            foreach(var button in AllButtons.Where(b=>b.TemplateActor>=0))
             {
                 var source=button.TemplateSubtype==null ? actors[button.TemplateActor] :
                     Find(button.TemplateSubtype).Geometry(content).Parts[button.TemplateActor];
@@ -344,6 +428,15 @@ namespace SpaceEngineersVR.Player
                         actors[button.Actor].Sections[i]=section;
                     }
             }
+            foreach(var button in AllButtons.Where(b=>b.Cap!=null))
+            {
+                CockpitCaps.Build(actors[button.Actor],button.Cap,false);
+                if(button.LitActor>=0) CockpitCaps.Build(actors[button.LitActor],button.Cap,true);
+            }
+            foreach(var handle in AllHandles.Where(h=>h.TemplateActor>=0))
+                AppendTransformed(actors[handle.Actor],Find(handle.TemplateSubtype).Geometry(content).Parts[handle.TemplateActor],handle.TemplateTransform);
+            foreach(var surface in Surfaces) CockpitCaps.Build(actors[PatchActor],surface);
+            foreach(var patch in Patches) CockpitCaps.Build(actors[PatchActor],patch,false);
             foreach(var stick in new[] {Left,Right}.Where(s=>s?.Source!=null))
             {
                 AppendTransformed(actors[stick.Actor],actors[stick.Source.Actor],stick.MirrorTransform);
@@ -354,8 +447,10 @@ namespace SpaceEngineersVR.Player
             if(actors.Any(a=>a.Positions.Count>ushort.MaxValue+1)) throw new InvalidDataException("Cockpit actor exceeds native index range: "+Subtype);
             var materials=((List<MyMeshPartInfo>)tags["MeshParts"]).Where(p=>p.m_MaterialDesc!=null)
                 .GroupBy(p=>p.m_MaterialDesc.MaterialName).ToDictionary(g=>g.Key,g=>g.First().m_MaterialDesc);
-            foreach(var button in Buttons.Where(b=>b.TemplateSubtype!=null))
-                foreach(var material in Find(button.TemplateSubtype).Geometry(content).Materials)
+            foreach(string material in AllButtons.Where(b=>b.Cap!=null).Select(b=>b.Cap.Material).Concat(Patches.Select(p=>p.Material)).Concat(Surfaces.Select(s=>s.Material)).Distinct())
+                materials[material+CockpitCaps.SolidSuffix]=CockpitCaps.Solid(materials[material]);
+            foreach(string template in TemplateSubtypes)
+                foreach(var material in Find(template).Geometry(content).Materials)
                     if(!materials.ContainsKey(material.Key)) materials.Add(material.Key,material.Value);
             return new CockpitGeometry(actors,triangles,materials);
         }

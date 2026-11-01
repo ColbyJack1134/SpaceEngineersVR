@@ -12,6 +12,50 @@ namespace SpaceEngineersVR.Diagnostics
 {
     internal static class CockpitRigTests
     {
+        // Returns the index count of generated geometry, which has no native counterpart.
+        private static int AddedControls(CockpitRig rig,CockpitGeometry mesh)
+        {
+            int original=rig.Buttons.Length+rig.Levers.Length+rig.Handles.Length+rig.Bars.Length;
+            if(rig.AddedGroups.SelectMany(g=>g.Slots).Any(s=>s<original) || rig.AddedGroups.Sum(g=>g.Slots.Length)!=rig.Count-original)
+                throw new Exception("Added controls do not follow the original slots: "+rig.Subtype);
+            int generated=0;
+            void Cap(int actor,bool? lit)
+            {
+                var part=mesh.Parts[actor];
+                if(part.Indices.Count==0) throw new Exception("Generated cap is empty: "+rig.Subtype+"/"+actor);
+                for(int t=0;t<part.Indices.Count;t+=3)
+                {
+                    Vector3 a=part.Positions[part.Indices[t]],b=part.Positions[part.Indices[t+1]],c=part.Positions[part.Indices[t+2]];
+                    if(Vector3.Dot(Vector3.Cross(b-a,c-a),part.Normals[part.Indices[t]])>=0) throw new Exception("Generated cap winding differs from the installed meshes: "+rig.Subtype+"/"+actor);
+                }
+                if(lit.HasValue && part.TexCoords.Any(uv=>Vector2.Distance(CockpitCaps.Retile(uv,lit.Value),uv)>.0005f))
+                    throw new Exception("Generated key face uses the wrong lit state: "+rig.Subtype+"/"+actor);
+                generated+=part.Indices.Count;
+            }
+            foreach(var button in rig.AllButtons.Where(b=>b.Cap!=null))
+            {
+                Cap(button.Actor,button.Cap.Lit ? false:(bool?)null);
+                if(button.LitActor>=0) Cap(button.LitActor,true);
+                if(button.Cap.Lit!=(button.LitActor>=0)) throw new Exception("Lit key has no lit actor: "+rig.Subtype);
+            }
+            foreach(var handle in rig.AllHandles.Where(h=>h.TemplateActor>=0))
+            {
+                if(mesh.Parts[handle.Actor].Indices.Count==0) throw new Exception("Added slider knob is empty: "+rig.Subtype);
+                generated+=mesh.Parts[handle.Actor].Indices.Count;
+                if(!handle.Pinch || handle.Range<.03f) throw new Exception("Added slider is too short or not a pinch slider: "+rig.Subtype);
+                var bounds=mesh.Parts[handle.Actor].AABB;
+                if(bounds.Contains(handle.Center)==ContainmentType.Disjoint) throw new Exception("Added slider knob is not at its handle: "+rig.Subtype);
+            }
+            if(rig.PatchActor>=0) generated+=mesh.Parts[rig.PatchActor].Indices.Count;
+            return generated;
+        }
+        // Repainted template caps must be lit from outside; returns the fraction of normals facing away from the cap centre.
+        internal static float OutwardNormals(VRageRender.Messages.MyModelData part)
+        {
+            var center=Vector3.Zero; foreach(var p in part.Positions) center+=p; center/=Math.Max(1,part.Positions.Count);
+            int outward=0; for(int i=0;i<part.Positions.Count;i++) if(Vector3.Dot(part.Normals[i],part.Positions[i]-center)>0) outward++;
+            return part.Positions.Count==0 ? 1:(float)outward/part.Positions.Count;
+        }
         internal static void Run(Action<string> log)
         {
             string content=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(MyModelImporter).Assembly.Location),"..","Content"));
@@ -29,7 +73,7 @@ namespace SpaceEngineersVR.Diagnostics
                 if(mesh.Parts.Length!=rig.ActorCount || !rig.Matches(rig.Model))
                     throw new Exception("Cockpit rig model or actor count mismatch: "+rig.Subtype);
                 int copied=rig.Levers.Where(l=>l.TemplateActor>=0).Sum(l=>mesh.Parts[l.Actor].Indices.Count+(l.TemplateBase?.Triangles ?? 0)*3)+
-                    rig.Buttons.Where(b=>b.TemplateActor>=0).Sum(b=>mesh.Parts[b.Actor].Indices.Count);
+                    rig.AllButtons.Where(b=>b.TemplateActor>=0).Sum(b=>mesh.Parts[b.Actor].Indices.Count)+AddedControls(rig,mesh);
                 foreach(var stick in new[] {rig.Left,rig.Right}.Where(s=>s?.Source!=null))
                 {
                     var copy=mesh.Parts[stick.Actor]; var source=mesh.Parts[stick.Source.Actor];
@@ -61,18 +105,20 @@ namespace SpaceEngineersVR.Diagnostics
                         throw new Exception("Cockpit runtime normal is not unit: "+rig.Subtype+"/"+actor);
                 }
                 // Installed tangents are passed through unchanged; only the extended bar stem is recomputed.
-                if(rig.Bars.Any(b=>!mesh.Parts[b.Actor].Tangents.All(v=>v.IsValid() && Math.Abs(v.Length()-1)<.001f)))
+                if(rig.AllBars.Any(b=>!mesh.Parts[b.Actor].Tangents.All(v=>v.IsValid() && Math.Abs(v.Length()-1)<.001f)))
                     throw new Exception("Extended bar stem has an invalid tangent: "+rig.Subtype);
                 Levers(rig,mesh);
-                foreach(var button in rig.Buttons.Where(b=>b.Actor>=0))
+                foreach(var button in rig.AllButtons.Where(b=>b.TemplateMaterial!=null))
+                    if(OutwardNormals(mesh.Parts[button.Actor])<.95f) throw new Exception("Repainted template cap has inward normals (renders dark): "+rig.Subtype+"/"+button.Actor);
+                foreach(var button in rig.AllButtons.Where(b=>b.Actor>=0))
                 {
                     var delta=Vector3.Transform(button.Center,button.Visual(true))-button.Center;
-                    if(Vector3.Distance(delta,-button.Normal*button.Travel)>.00001f || button.Travel<=0 ||
+                    if(Vector3.Distance(delta,-button.Normal*button.Travel)>.00001f || button.Travel<=0 || button.Cap==null &&
                         mesh.Parts[button.Actor].Indices.Count!=(button.TemplateActor>=0 ? (button.TemplateSubtype==null ? mesh : CockpitRig.Find(button.TemplateSubtype).Geometry(content)).Parts[button.TemplateActor].Indices.Count:
                             rig.Pieces.Where(p=>p.Actor==button.Actor).Sum(p=>p.MovingTriangles)*3))
                         throw new Exception("Pushbutton stroke or cap partition differs from installed model: "+rig.Subtype+"/"+button.Actor+"; delta="+delta+"; indices="+mesh.Parts[button.Actor].Indices.Count);
                 }
-                foreach(var bar in rig.Bars)
+                foreach(var bar in rig.AllBars)
                 {
                     var stem=mesh.Parts[bar.Actor].Positions.Select(p=>Vector3.Dot(p,bar.Normal)).ToArray();
                     if(!stem.Any(d=>d<bar.StemDepth-bar.Travel*.5f))
@@ -151,7 +197,7 @@ namespace SpaceEngineersVR.Diagnostics
                             throw new Exception("Bar grasp separates from the grip across hand/travel/offset");
                     }
                     int triangles=rig.Pieces.Where(p=>p.Actor==handle.Actor).Sum(p=>p.MovingTriangles);
-                    if(mesh.Parts[handle.Actor].Indices.Count!=triangles*3)
+                    if(handle.TemplateActor<0 && mesh.Parts[handle.Actor].Indices.Count!=triangles*3)
                         throw new Exception("Handle grip/stem partition differs from installed model");
                 }
                 log("PASS installed cockpit rig: "+rig.Subtype+"; "+mesh.Parts.Length+" actors, "+mesh.NativeTriangles+" conserved triangles");
