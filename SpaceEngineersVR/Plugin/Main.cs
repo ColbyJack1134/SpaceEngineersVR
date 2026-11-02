@@ -245,7 +245,7 @@ namespace SpaceEngineersVR.Plugin
                 catch (Exception ex) { Logger.Critical(ex, "VR failure cleanup"); }
                 ShutdownPending = shutdownRequested;
             }
-            if(OpenVrAlive && SteamVrQuit()) { shutdownRequested=true; Fail(new InvalidOperationException("SteamVR quit"),"SteamVR closed; continuing on the desktop"); return; }
+            if(OpenVrAlive && !shutdownRequested && SteamVrQuit()) { shutdownRequested=true; Fail(new InvalidOperationException("SteamVR quit"),"SteamVR closed; continuing on the desktop"); return; }
             if(menuFallback)
             {
                 try { UpdateFallbackMenu(); }
