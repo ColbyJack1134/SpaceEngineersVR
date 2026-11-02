@@ -25,7 +25,11 @@ namespace SpaceEngineersVR.Player
         [ThreadStatic] internal static string Redirect;
         [ThreadStatic] private static int markerMode;
         private static readonly FieldInfo signalMode=AccessTools.Field(typeof(Sandbox.Game.GUI.HudViewers.MyHudMarkerRender),"<SignalDisplayMode>k__BackingField");
-        internal static Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode GlobalSignalMode => (Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode)signalMode.GetValue(null);
+        internal static Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode GlobalSignalMode
+        {
+            get => (Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode)signalMode.GetValue(null);
+            set => signalMode.SetValue(null,value);
+        }
         private static readonly TextureCopy hud=new TextureCopy();
         private static long source;
         internal static RemoteView.View Fixture { get; set; }

@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Drawing;
 using Sandbox.Game.World;
 using Sandbox.Engine.Utils;
@@ -54,21 +55,34 @@ namespace SpaceEngineersVR.Player
             if(left) p.X=-p.X;
             return p.X>0.10f && InHeadZone(p);
         }
-        // The native marker pass feeds the VR markers, so it follows the VR setting while the headset renders; the desktop's own H mode returns when it sleeps.
-        private static void UpdateSignalMode()
+        private static readonly FieldInfo signalNotice=AccessTools.Field(typeof(MyHudMarkerRender),"m_signalModeNotification");
+        private static void UpdateSignalMode() =>
+            SyncSignals(VrSubmit.HeadsetAsleep,Mode>0 ? MyHudMarkerRender.SignalMode.NoNames:MyHudMarkerRender.SignalMode.Off);
+        // Native markers feed the VR HUD, so the mode is forced while the headset renders; H cycles the desktop mode underneath.
+        internal static void SyncSignals(bool asleep,MyHudMarkerRender.SignalMode vr)
         {
-            var native=MyHudMarkerRender.SignalDisplayMode;
-            if(!VrSubmit.HeadsetAsleep)
-            {
-                var vr=Mode>0 ? MyHudMarkerRender.SignalMode.NoNames:MyHudMarkerRender.SignalMode.Off;
-                if(native!=forcedSignals) desktopSignals=native;
-                if(native!=vr) SetSignalMode(vr);
-                forcedSignals=vr;
-            }
-            else if(forcedSignals!=null) { SetSignalMode(desktopSignals); forcedSignals=null; }
+            if(asleep) { RestoreSignals(); return; }
+            var native=RemoteHud.GlobalSignalMode;
+            if(forcedSignals==null) desktopSignals=native;
+            if(native!=vr) SetSignalMode(vr);
+            forcedSignals=vr;
         }
-        private static void SetSignalMode(MyHudMarkerRender.SignalMode mode) =>
-            AccessTools.Property(typeof(MyHudMarkerRender),nameof(MyHudMarkerRender.SignalDisplayMode)).SetValue(null,mode,null);
+        internal static void RestoreSignals()
+        {
+            if(forcedSignals==null) return;
+            SetSignalMode(desktopSignals);
+            forcedSignals=null;
+        }
+        internal static void BeforeSignalChange() { if(forcedSignals!=null) SetSignalMode(desktopSignals); }
+        // The H notice would show in VR, which keeps the forced mode.
+        internal static void AfterSignalChange()
+        {
+            if(forcedSignals==null) return;
+            desktopSignals=RemoteHud.GlobalSignalMode;
+            SetSignalMode(forcedSignals.Value);
+            if(signalNotice?.GetValue(null) is Sandbox.Game.Gui.MyHudNotification notice) { Sandbox.Game.Gui.MyHud.Notifications?.Remove(notice); signalNotice.SetValue(null,null); }
+        }
+        private static void SetSignalMode(MyHudMarkerRender.SignalMode mode) => RemoteHud.GlobalSignalMode=mode;
         internal static bool NearHead(Matrix hand,Matrix head)
         {
             Vector3 p=(hand*Matrix.Invert(head)).Translation;
@@ -217,5 +231,12 @@ namespace SpaceEngineersVR.Player
             }
             catch(Exception ex) { animationFailed=true; visor?.Hide(); Logger.Warning(ex,"Visor transition unavailable"); }
         }
+    }
+
+    [HarmonyPatch(typeof(MyHudMarkerRender),nameof(MyHudMarkerRender.ChangeSignalMode))]
+    internal static class SignalModePatch
+    {
+        private static void Prefix() => HelmetHud.BeforeSignalChange();
+        private static void Postfix() => HelmetHud.AfterSignalChange();
     }
 }

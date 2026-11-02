@@ -9,6 +9,39 @@ namespace SpaceEngineersVR.Diagnostics
     internal static class DesktopTests
     {
         private static void Require(bool value,string label) { if(!value) throw new Exception(label); }
+        // ChangeSignalMode needs a running game; h replays its increment between the patch prefix and postfix.
+        private static void DesktopSignals(Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode original)
+        {
+            Action<int> set=mode => RemoteHud.GlobalSignalMode=(Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode)mode;
+            Func<int> native=() => (int)RemoteHud.GlobalSignalMode;
+            Action h=() => { HelmetHud.BeforeSignalChange(); set(RemoteView.NextSignalMode(native())); HelmetHud.AfterSignalChange(); };
+            var noNames=Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode.NoNames;
+            try
+            {
+                HelmetHud.RestoreSignals();
+                set(1);
+                HelmetHud.SyncSignals(false,noNames);
+                Require(native()==2,"VR marker mode not forced");
+                var seen=new System.Collections.Generic.List<int>();
+                for(int i=0;i<4;i++)
+                {
+                    h();
+                    Require(native()==2,"H changed the forced VR marker mode");
+                    HelmetHud.SyncSignals(true,noNames); seen.Add(native()); HelmetHud.SyncSignals(false,noNames);
+                }
+                Require(seen.SequenceEqual(new[] {2,3,0,1}),"H did not cycle every desktop marker mode: "+string.Join(",",seen));
+                HelmetHud.SyncSignals(true,noNames);
+                h();
+                HelmetHud.SyncSignals(false,noNames); HelmetHud.SyncSignals(true,noNames);
+                Require(native()==2,"Desktop H while the headset slept was lost");
+                HelmetHud.SyncSignals(false,Sandbox.Game.GUI.HudViewers.MyHudMarkerRender.SignalMode.Off);
+                HelmetHud.RestoreSignals();
+                Require(native()==2,"VR stop did not restore the desktop marker mode");
+                set(0); HelmetHud.RestoreSignals(); h();
+                Require(native()==1,"Restored H no longer behaves natively");
+            }
+            finally { HelmetHud.RestoreSignals(); set((int)original); }
+        }
         public static void Run(Action<string> log)
         {
             var game=new IntPtr(11);
@@ -38,6 +71,7 @@ namespace SpaceEngineersVR.Diagnostics
                 }
             }
             finally { RemoteHud.Fixture=null; }
+            DesktopSignals(original);
             const float width=1.6f,height=.9f,bar=.035f;
             float y=-height/2-bar;
             Require(WindowFrame.Control(new Vector3(WindowFrame.ZoomX(width,false),y,0),width,height,bar,false,true,true)==WindowFrame.CloseHover,"Close button hit");

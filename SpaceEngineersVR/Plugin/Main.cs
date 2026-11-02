@@ -215,6 +215,7 @@ namespace SpaceEngineersVR.Plugin
                 try
                 {
                     Player.InputRouter.Reset();
+                    Player.HelmetHud.RestoreSignals();
                     Player.ToolbarWheel.Close(resume:false);
                     Player.MenuKeyboard.Close();
                     Player.BodyProximity.Reset();
