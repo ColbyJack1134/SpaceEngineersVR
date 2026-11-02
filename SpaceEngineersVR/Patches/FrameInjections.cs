@@ -114,6 +114,7 @@ namespace SpaceEngineersVR.Patches
             if (Main.VrPresent && !Standby) Player.VrSubmit.PostPresentHandoff();
             posesAcquired = drewStereo = false;
             standby = null;
+            if (Main.ShutdownPending && !Main.VrPresent) Main.ShutdownOpenVr();
         }
     }
 }

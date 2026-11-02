@@ -18,7 +18,7 @@ namespace SpaceEngineersVR.Player
                 float level=Math.Max(levels[0],levels[1]);
                 if(level==applied) return;
                 applied=level;
-                OpenVR.Compositor?.FadeToColor(seconds,0,0,0,level,false);
+                if(Plugin.Main.OpenVrAlive) OpenVR.Compositor?.FadeToColor(seconds,0,0,0,level,false);
             }
         }
     }

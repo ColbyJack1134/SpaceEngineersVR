@@ -117,7 +117,7 @@ namespace SpaceEngineersVR.Player
 
         public void Hide()
         {
-            if (visible) Check(OpenVR.Overlay.HideOverlay(handle));
+            if (visible && Plugin.Main.OpenVrAlive) Check(OpenVR.Overlay.HideOverlay(handle));
             visible = false;
         }
         private static void Check(EVROverlayError result)
@@ -126,7 +126,7 @@ namespace SpaceEngineersVR.Player
         }
         public void Dispose()
         {
-            if (handle != 0) OpenVR.Overlay.DestroyOverlay(handle);
+            if (handle != 0 && Plugin.Main.OpenVrAlive) OpenVR.Overlay.DestroyOverlay(handle);
             texture.Dispose(); Graphics.Dispose(); bitmap.Dispose();
         }
     }

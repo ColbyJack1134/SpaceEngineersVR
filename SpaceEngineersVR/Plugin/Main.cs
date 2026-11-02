@@ -73,7 +73,18 @@ namespace SpaceEngineersVR.Plugin
             Logger.Critical(error, context+"; VR menu remains available");
             MyLog.Default.WriteLine("SEVR: " + context + ": " + error);
         }
-        private bool openVrInitialized;
+        internal static volatile bool OpenVrAlive;
+        private static volatile bool shutdownRequested;
+        internal static volatile bool ShutdownPending;
+        // SteamVR kills a still-connected app about 60 s after its quit event; called on the render thread between frames so no submit is in flight.
+        internal static void ShutdownOpenVr()
+        {
+            ShutdownPending=shutdownRequested=false;
+            if(!OpenVrAlive) return;
+            OpenVrAlive=false;
+            try { OpenVR.Shutdown(); Logger.Info("OpenVR shut down; desktop only"); }
+            catch(Exception ex) { Logger.Warning(ex,"OpenVR shutdown failed"); }
+        }
 
 #if LINUX
         private static bool resolverSet;
@@ -178,17 +189,16 @@ namespace SpaceEngineersVR.Plugin
             Player.TrackedArms.Reset();
             Player.CockpitControls.Reset();
             config?.Dispose();
-            if (openVrInitialized)
+            if (Harmony != null || OpenVrAlive)
             {
                 try
                 {
-                    OpenVR.System?.AcknowledgeQuit_Exiting();
+                    if (OpenVrAlive) OpenVR.System?.AcknowledgeQuit_Exiting();
                     Logger.Info("Exiting OpenVR and closing threads");
                     MySession.AfterLoading -= AfterLoadedWorld;
                     MySession.OnUnloading -= UnloadingWorld;
                     Harmony?.UnpatchAll(Common.Name);
-                    OpenVR.Shutdown();
-                    openVrInitialized = false;
+                    if (OpenVrAlive) { OpenVrAlive = false; OpenVR.Shutdown(); }
                 }
                 catch (Exception ex)
                 {
@@ -233,8 +243,9 @@ namespace SpaceEngineersVR.Plugin
                     Player.QuickToolbar.Reset();
                 }
                 catch (Exception ex) { Logger.Critical(ex, "VR failure cleanup"); }
+                ShutdownPending = shutdownRequested;
             }
-            if(!failed && SteamVrQuit()) { Fail(new InvalidOperationException("SteamVR quit"),"SteamVR closed; continuing on the desktop"); return; }
+            if(OpenVrAlive && SteamVrQuit()) { shutdownRequested=true; Fail(new InvalidOperationException("SteamVR quit"),"SteamVR closed; continuing on the desktop"); return; }
             if(menuFallback)
             {
                 try { UpdateFallbackMenu(); }
@@ -318,7 +329,7 @@ namespace SpaceEngineersVR.Plugin
                 Logger.Critical("Failed to connect to SteamVR!");
                 return false;
             }
-            openVrInitialized = true;
+            OpenVrAlive = true;
             OpenVR.Compositor.SetTrackingSpace(ETrackingUniverseOrigin.TrackingUniverseStanding);
             // Set the manifest and acquire action handles before tracked devices or renderer callbacks exist.
             var controls = Player.Controls.Static;
@@ -369,7 +380,7 @@ namespace SpaceEngineersVR.Plugin
                 Multiplayer.MultiplayerRuntime.Enabled=false;
                 Harmony?.UnpatchAll(Common.Name);
                 Harmony = null;
-                if (openVrInitialized) { OpenVR.Shutdown(); openVrInitialized = false; }
+                if (OpenVrAlive) { OpenVrAlive = false; OpenVR.Shutdown(); }
                 MyLog.Default.WriteLine("SpaceEngineersVR: start failed; game patches and OpenVR were removed");
             }
             catch (Exception ex)

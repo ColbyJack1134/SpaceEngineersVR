@@ -137,7 +137,7 @@ namespace SpaceEngineersVR.Player.Components
         }
         public static void Hide()
         {
-            if (overlayHandle != 0 && visible) Check(OpenVR.Overlay.HideOverlay(overlayHandle));
+            if (overlayHandle != 0 && visible && Main.OpenVrAlive) Check(OpenVR.Overlay.HideOverlay(overlayHandle));
             visible=false;
             lock(panelLock) panelHeight=0;
         }
