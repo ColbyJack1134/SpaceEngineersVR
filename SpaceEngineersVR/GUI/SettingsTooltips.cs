@@ -83,11 +83,15 @@ namespace SpaceEngineersVR.GUI
             ["Dynamic resolution"]="Lowers resolution to hold frame rate",
             ["Target frame rate"]="Frame rate to hold",
             ["Performance panel"]="Frame timing overlay, not saved",
+            ["Lens mask"]="Skip pixels hidden by the headset lenses",
         };
+
+        internal static string Get(string label) => text.TryGetValue(label,out string tip) ? tip : "";
 
         internal static void Set(string label,params MyGuiControlBase[] controls)
         {
-            if(!text.TryGetValue(label,out string tip)) return;
+            string tip=Get(label);
+            if(tip.Length==0) return;
             foreach(var control in controls) control.SetToolTip(tip);
         }
     }

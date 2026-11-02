@@ -41,6 +41,11 @@ namespace SpaceEngineersVR.Diagnostics
                     Require(width==1600 && height>0 && height%4==0,"Help texture has invalid dimensions: "+path);
                 }
             }
+            var settingsIndex=GUI.SettingsSearch.Build(new[] {"Comfort & body","Flight & cockpit","View & cameras","HUD & navigation","Graphics"});
+            foreach(var expected in new[] {new[] {"lens","Graphics","Lens mask"},new[] {"snap","Character turning","Snap turning"},new[] {"vibration","Comfort & body","Haptics strength"},new[] {"pan glide","Release glide","Pan glide"}})
+                Require(GUI.SettingsSearch.Find(settingsIndex,expected[0]).Any(e=>e.Location==expected[1] && e.Label==expected[2]),"Settings search missed "+expected[1]+" > "+expected[2]);
+            Require(settingsIndex.All(e=>e.Label!="Undo" && e.Label!="Done" && !e.Label.EndsWith(" On") && !e.Label.EndsWith(" Off")),"Settings search indexed a dialog button or toggle state");
+            log("PASS settings search: "+settingsIndex.Count+" entries from the settings screens.");
             var menuScreens=Enumerable.Range(0,5).Select(i=>(MyGuiScreenBase)new GUI.MyPluginConfigDialog(i))
                 .Concat(Enumerable.Range(0,GUI.BindingHelp.TopicCount).Select(i=>(MyGuiScreenBase)new GUI.BindingHelp(i)))
                 .Concat(Enumerable.Range(0,2).Select(i=>(MyGuiScreenBase)new GUI.FirstRunSetup(i)))
@@ -56,7 +61,7 @@ namespace SpaceEngineersVR.Diagnostics
                     guidePanel.ScrollbarVPosition=1;
                     Require(guidePanel.ScrollbarVPosition>0 || guidePanel.ScrolledControl.Size.Y<=guidePanel.ScrolledAreaSize.Y,"Help cannot scroll to the remaining controls");
                 }
-                var buttons=menu.Controls.OfType<MyGuiControlButton>().ToArray();
+                var buttons=menu.Controls.OfType<MyGuiControlButton>().Where(b=>b.Visible).ToArray();
                 for(int i=0;i<buttons.Length;i++) for(int j=i+1;j<buttons.Length;j++)
                 {
                     var a=buttons[i];var b=buttons[j];var gap=new VRageMath.Vector2(Math.Abs(a.Position.X-b.Position.X),Math.Abs(a.Position.Y-b.Position.Y));var extent=(a.Size+b.Size)/2;

@@ -56,10 +56,12 @@ namespace SpaceEngineersVR.Player
                 owner=active; toolbar=bar; refresh=DateTime.UtcNow.AddSeconds(.5);
                 current=Entries().ToArray();
             }
-            var words=(query ?? "").Split(new[] {' '},StringSplitOptions.RemoveEmptyEntries);
+            var words=QueryWords(query);
             if(words.Length==0) return History.Order(current);
-            return current.Where(a=>words.All(word=>(a.Label+" "+a.SearchTerms).IndexOf(word,StringComparison.OrdinalIgnoreCase)>=0)).ToArray();
+            return current.Where(a=>Matches(a.Label+" "+a.SearchTerms,words)).ToArray();
         }
+        internal static string[] QueryWords(string query) => (query ?? "").Split(new[] {' '},StringSplitOptions.RemoveEmptyEntries);
+        internal static bool Matches(string text,string[] words) => words.All(word=>text.IndexOf(word,StringComparison.OrdinalIgnoreCase)>=0);
         internal static ActionChoice[] CommonEntries(bool spectator) => GameActions.Quick.Concat(GameActions.Building).Concat(GameActions.Developer)
                 .Concat(BuildPlannerActions.Shortcuts)
                 .Concat(new[] {GameActions.HudOptions,GameActions.UnequipAction,GameActions.RecenterAction,GameActions.ResetScreens,GameActions.DesktopFloating,GameActions.DesktopWrist,GameActions.CycleSymmetryAction,GameActions.ExitSymmetryAction,SpectatorView.EnterAction})

@@ -1,8 +1,10 @@
 using Sandbox;
+using Sandbox.Game.Screens.Helpers;
 using Sandbox.Graphics.GUI;
 using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Plugin;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Valve.VR;
@@ -15,10 +17,18 @@ namespace SpaceEngineersVR.GUI
         private int page;
         private readonly SettingsUndo undo;
         private static readonly string[] pages={"Comfort & body","Flight & cockpit","View & cameras","HUD & navigation","Graphics"};
+        private const int ResultRows=8;
+        private List<SettingsSearch.Entry> searchIndex;
+        private MyGuiControlSearchBox search;
+        private readonly List<MyGuiControlButton> results=new List<MyGuiControlButton>();
+        private List<MyGuiControlBase> pageControls,pager;
+        private MyGuiControlLabel resultPage;
+        private string query="";
+        private int resultOffset;
         public override string GetFriendlyName() => "SEVR options";
         public MyPluginConfigDialog(int page=0) : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.98f,.90f),false,null,MySandboxGame.Config.UIBkOpacity,MySandboxGame.Config.UIOpacity)
         {
-            this.page=Math.Max(0,Math.Min(4,page));
+            this.page=Math.Max(0,Math.Min(pages.Length-1,page));
             undo=new SettingsUndo(this);
             EnabledBackgroundFade=true; m_closeOnEsc=true; m_drawEvenWithoutFocus=true;
             CanHideOthers=true; CanBeHidden=true; CloseButtonEnabled=true;
@@ -40,16 +50,23 @@ namespace SpaceEngineersVR.GUI
         public override void RecreateControls(bool constructor)
         {
             base.RecreateControls(constructor); AddCaption("VR settings");
+            // A rebuilt box is a new control; the keyboard would keep typing into the detached one.
+            if(search!=null && MenuKeyboard.Targets(search.TextBox)) MenuKeyboard.Close();
+            search=new MyGuiControlSearchBox { Position=new Vector2(-.325f,-.265f),Size=new Vector2(.24f,.045f) };
+            search.TextBox.Text=query;
+            search.OnTextChanged+=text=> { query=text; resultOffset=0; ShowResults(); };
+            Controls.Add(search);
             for(int i=0;i<pages.Length;i++)
             {
                 int index=i;
-                var button=MenuLayout.Button(this,-.325f,-.255f+i*.093f,.24f,pages[i],()=>SelectPage(index),.075f);
+                var button=MenuLayout.Button(this,-.325f,-.195f+i*.078f,.24f,pages[i],()=>SelectPage(index),.066f);
                 button.Checked=page==i; if(page==i)FocusedControl=button;
             }
             MenuLayout.Button(this,-.325f,.192f,.24f,"Rebind on desktop",OpenBindingEditor,.05f).Enabled=OpenVR.Input!=null;
             MenuLayout.Button(this,-.325f,.26f,.24f,"Controls guide",()=>MyGuiSandbox.AddScreen(new BindingHelp()));
             MenuLayout.Button(this,-.325f,.33f,.24f,"First-time setup",()=>MyGuiSandbox.AddScreen(new FirstRunSetup()));
             MenuLayout.Label(this,-.445f,.395f,"v"+Common.Version.ToString(3),.6f);
+            int first=Controls.Count;
             MenuLayout.Label(this,-.14f,-.27f,pages[page],.9f);
             var c=Common.Config;
             switch(page)
@@ -99,17 +116,48 @@ namespace SpaceEngineersVR.GUI
                     Link(.265f,"HUD visibility & crosshair",()=>new SettingsPage("HUD visibility"));
                     break;
                 case 4:
-                    MenuLayout.Slider(this,-.17f,"Headset resolution",c.EyeRenderScale*100,50,150,5,"%",v=>c.EyeRenderScale=v/100,enabled:!c.DynamicResolution);
-                    MenuLayout.Slider(this,-.055f,"Camera feed resolution",c.RemoteFeedScale*100,50,150,5,"%",v=>c.RemoteFeedScale=v/100);
-                    MenuLayout.Slider(this,.06f,"Particle density",c.ParticleDensity*100,15,100,5,"%",v=>c.ParticleDensity=v/100);
-                    MenuLayout.Label(this,-.14f,.135f,"100% restores original continuous particles",.60f);
-                    Toggle(.19f,"Desktop mirror",c.MirrorDesktop,v=>c.MirrorDesktop=v);
-                    MenuLayout.Button(this,-.0075f,.27f,.265f,"Performance",()=>MyGuiSandbox.AddScreen(new PerformanceOptions()));
-                    MenuLayout.Button(this,.2775f,.27f,.265f,"Reset resolution",()=> {c.EyeRenderScale=1;c.RemoteFeedScale=5f/6;RecreateControls(false);});
+                    MenuLayout.Slider(this,-.20f,"Headset resolution",c.EyeRenderScale*100,50,150,5,"%",v=>c.EyeRenderScale=v/100,enabled:!c.DynamicResolution);
+                    MenuLayout.Slider(this,-.10f,"Camera feed resolution",c.RemoteFeedScale*100,50,150,5,"%",v=>c.RemoteFeedScale=v/100);
+                    MenuLayout.Slider(this,0f,"Particle density",c.ParticleDensity*100,15,100,5,"%",v=>c.ParticleDensity=v/100);
+                    MenuLayout.Label(this,-.14f,.08f,"100% restores original continuous particles",.60f);
+                    Toggle(.135f,"Desktop mirror",c.MirrorDesktop,v=>c.MirrorDesktop=v);
+                    Toggle(.20f,"Lens mask",c.HiddenAreaMask,v=>c.HiddenAreaMask=v);
+                    Link(-.0075f,.265f,.265f,"Performance",()=>new PerformanceOptions());
+                    MenuLayout.Button(this,.2775f,.265f,.265f,"Reset resolution",()=> {c.EyeRenderScale=1;c.RemoteFeedScale=5f/6;RecreateControls(false);});
                     break;
             }
+            pageControls=Controls.Skip(first).ToList();
+            first=Controls.Count;
+            resultPage=MenuLayout.Label(this,.105f,.27f,"",.65f);
+            MenuLayout.Button(this,-.035f,.27f,.12f,"Previous",()=> { resultOffset=Math.Max(0,resultOffset-ResultRows); ShowResults(); },.045f);
+            MenuLayout.Button(this,.305f,.27f,.12f,"Next",()=> { resultOffset+=ResultRows; ShowResults(); },.045f);
+            pager=Controls.Skip(first).ToList();
+            ShowResults();
             undo.Attach(MenuLayout.Button(this,.095f,.355f,.20f,"Undo",undo.Restore));
             MenuLayout.Button(this,.315f,.355f,.20f,"Close",()=>CloseScreen());
+        }
+        // Results replace the page content while the box has text; hiding instead of rebuilding keeps the VR keyboard on the box.
+        private void ShowResults()
+        {
+            foreach(var row in results) Controls.Remove(row);
+            results.Clear();
+            bool searching=!string.IsNullOrWhiteSpace(query);
+            foreach(var control in pageControls) control.Visible=!searching;
+            foreach(var control in pager) control.Visible=searching;
+            if(!searching) return;
+            if(searchIndex==null) searchIndex=SettingsSearch.Build(pages);
+            var found=SettingsSearch.Find(searchIndex,query).ToArray();
+            int count=Math.Max(1,(found.Length+ResultRows-1)/ResultRows);
+            resultOffset=Math.Min(resultOffset,(count-1)*ResultRows);
+            resultPage.Text=found.Length==0 ? "" : (resultOffset/ResultRows+1)+" / "+count;
+            for(int i=0;i<ResultRows && resultOffset+i<found.Length;i++)
+            {
+                var entry=found[resultOffset+i];
+                var row=MenuLayout.Button(this,.135f,-.25f+i*.062f,.55f,entry.Location+" > "+entry.Label,()=> {
+                    if(entry.Page>=0) { search.TextBox.Text=""; SelectPage(entry.Page); } else MyGuiSandbox.AddScreen(entry.Create());
+                },.055f);
+                SettingsTooltips.Set(entry.Label,row); results.Add(row);
+            }
         }
         // The Steam Frame dashboard ignores the in-headset binding request; the desktop editor works on every headset.
         private static void OpenBindingEditor()
@@ -118,7 +166,9 @@ namespace SpaceEngineersVR.GUI
             if(error!=EVRInputError.None)
                 MyGuiSandbox.AddScreen(MyGuiSandbox.CreateMessageBox(messageText:new StringBuilder("Open SteamVR > Controllers > Manage bindings."),messageCaption:new StringBuilder("Controller bindings")));
         }
-        private void Link(float y,string title,Func<MyGuiScreenBase> create) => MenuLayout.Button(this,.135f,y,.55f,title,()=>MyGuiSandbox.AddScreen(create()));
+        private void Link(float y,string title,Func<MyGuiScreenBase> create) => Link(.135f,y,.55f,title,create);
+        // UserData lets the settings search follow links into sub-screens.
+        private void Link(float x,float y,float width,string title,Func<MyGuiScreenBase> create) => MenuLayout.Button(this,x,y,width,title,()=>MyGuiSandbox.AddScreen(create())).UserData=create;
         private void Toggle(float y,string title,bool value,Action<bool> save) => MenuLayout.Toggle(this,y,title,value,save);
     }
 }

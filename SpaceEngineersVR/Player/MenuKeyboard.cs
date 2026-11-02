@@ -24,6 +24,7 @@ namespace SpaceEngineersVR.Player
         // Wrist chat and search have no native screen to show behind the keyboard; store and ATM fields keep theirs.
         public static bool HidesMenu => Standalone && screen==null;
         public static bool IsOpen => target != null;
+        internal static bool Targets(MyGuiControlBase control) => target!=null && target==control;
         private static int page;
         // Declared before Keys, whose initialiser reads these labels.
         internal static readonly string[] PageLabels={"⇧ #@","⇧ #+=","⇧ 123"};

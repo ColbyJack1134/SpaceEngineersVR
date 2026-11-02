@@ -44,7 +44,7 @@ namespace SpaceEngineersVR.GUI
             }));
             var restore=new MyGuiControlButton(new Vector2(-0.095f,0.32f),size:new Vector2(0.18f,0.055f),text:new StringBuilder("Undo"),onButtonClick:b=>undo.Restore());
             Controls.Add(restore); undo.Attach(restore);
-            Controls.Add(new MyGuiControlButton(new Vector2(0.095f,0.32f),size:new Vector2(0.18f,0.055f),text:new StringBuilder("Physical sticks"),onButtonClick:b=>MyGuiSandbox.AddScreen(new PhysicalFlightOptions())));
+            Controls.Add(new MyGuiControlButton(new Vector2(0.095f,0.32f),size:new Vector2(0.18f,0.055f),text:new StringBuilder("Physical sticks"),onButtonClick:b=>MyGuiSandbox.AddScreen(new PhysicalFlightOptions())) { UserData=(Func<MyGuiScreenBase>)(()=>new PhysicalFlightOptions()) });
             Controls.Add(new MyGuiControlButton(new Vector2(0.285f,0.32f),size:new Vector2(0.18f,0.055f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
         }
         private void AddSensitivity(float y,string title,float value,float defaultValue,Action<float> store,float percent,float min,float max)

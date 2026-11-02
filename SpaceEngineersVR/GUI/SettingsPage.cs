@@ -97,7 +97,7 @@ namespace SpaceEngineersVR.GUI
                     Toggle(.07f,"GPS and objectives",c.ShowGps,v=>c.ShowGps=v);
                     Toggle(.15f,"Contacts",c.ShowContacts,v=>c.ShowContacts=v);
                     Toggle(.23f,"Ore and hacking",c.ShowResources,v=>c.ShowResources=v);
-                    Controls.Add(new MyGuiControlButton(new Vector2(-.18f,.34f),text:new StringBuilder("Ranges"),onButtonClick:b=>MyGuiSandbox.AddScreen(new SettingsPage("Signal ranges"))));
+                    Controls.Add(new MyGuiControlButton(new Vector2(-.18f,.34f),text:new StringBuilder("Ranges"),onButtonClick:b=>MyGuiSandbox.AddScreen(new SettingsPage("Signal ranges"))) { UserData=(Func<MyGuiScreenBase>)(()=>new SettingsPage("Signal ranges")) });
                     break;
                 case "Weapon & shield warnings":
                     Toggle(-.23f,"Warning pulse",c.WarningPulse,v=>c.WarningPulse=v);
@@ -154,7 +154,7 @@ namespace SpaceEngineersVR.GUI
             slider.ValueChanged+=v=>store(v.Value/100); Controls.Add(slider);
             SettingsTooltips.Set(text,label,slider);
         }
-        private void Link(float y,string text,Func<MyGuiScreenBase> screen) => Controls.Add(new MyGuiControlButton(new Vector2(0,y),text:new StringBuilder(text),onButtonClick:b=>MyGuiSandbox.AddScreen(screen())));
+        private void Link(float y,string text,Func<MyGuiScreenBase> screen) => Controls.Add(new MyGuiControlButton(new Vector2(0,y),text:new StringBuilder(text),onButtonClick:b=>MyGuiSandbox.AddScreen(screen())) { UserData=screen });
         private void Reset(Action reset) => Controls.Add(new MyGuiControlButton(new Vector2(-.18f,.34f),text:new StringBuilder("Reset group"),onButtonClick:b=> { reset(); RecreateControls(false); }));
     }
 }
