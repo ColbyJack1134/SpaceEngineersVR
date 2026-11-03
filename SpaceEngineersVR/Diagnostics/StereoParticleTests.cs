@@ -109,7 +109,7 @@ namespace SpaceEngineersVR.Diagnostics
                     Require(Enumerable.SequenceEqual(Read(particle),left),"Right eye changed simulation state");
                     Require(ReferenceEquals(leftAlive,AccessTools.Field(native,"m_aliveIndexBuffer2").GetValue(null)),"Right eye swapped alive lists");
                     Require(probeState.All(s=>Equals(s.Value,s.Key.GetValue(probe))),"Right eye advanced reflection probes");
-                    using(var remote=new RemoteScene())
+                    using(var remote=new RemoteScene(FeedShadows.Camera))
                     {
                         camera.CameraPosition+=new Vector3D(1000,0,0); Draw(target);
                         Require(Enumerable.SequenceEqual(Read(particle),left),"Remote camera changed physical particles");

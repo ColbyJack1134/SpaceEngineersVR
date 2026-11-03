@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using HarmonyLib;
@@ -13,10 +14,23 @@ namespace SpaceEngineersVR.Player
     [HarmonyPatch(typeof(MyTextSurfaceScriptFactory),nameof(MyTextSurfaceScriptFactory.LoadScripts))]
     internal static class TouchAppRegistration
     {
+        private static readonly FieldInfo scripts=AccessTools.Field(typeof(MyTextSurfaceScriptFactory),"m_scripts");
+        // Runs during world load, so a failure must only disable the scripts.
         private static void Postfix()
         {
-            if(Plugin.Common.Config?.DeveloperTools==true)
-                MyTextSurfaceScriptFactory.Instance.RegisterFromAssembly(typeof(TouchAppRegistration).Assembly);
+            try
+            {
+                var registered=(Dictionary<string,MyTextSurfaceScriptFactory.ScriptInfo>)scripts.GetValue(MyTextSurfaceScriptFactory.Instance);
+                if(Plugin.Common.Config?.DeveloperTools==true) { Register(registered,typeof(VrTouchTest)); Register(registered,typeof(VrStopwatch)); }
+                // The factory keeps the last registration of an id, so the Camera LCD plugin's own script must stay alone.
+                if(!LcdCameras.OtherPlugin && LcdCameras.Available) Register(registered,typeof(CameraDisplay));
+            }
+            catch(Exception ex) { Plugin.Logger.Warning(ex,"LCD scripts unavailable; touch apps and camera displays disabled"); }
+        }
+        private static void Register(Dictionary<string,MyTextSurfaceScriptFactory.ScriptInfo> registered,Type type)
+        {
+            var attribute=type.GetCustomAttribute<MyTextSurfaceScriptAttribute>();
+            registered[attribute.Id]=new MyTextSurfaceScriptFactory.ScriptInfo {Id=attribute.Id,DisplayName=VRage.Utils.MyStringId.GetOrCompute(attribute.DisplayName),Type=type};
         }
     }
 

@@ -63,10 +63,14 @@ namespace SpaceEngineersVR.GUI
                     Toggle(.24f,"VR data to [SEVR] programmable blocks",c.ProgrammableBlockData,v=>c.ProgrammableBlockData=v);
                     break;
                 case "Turrets and cameras":
-                    Slider(-.24f,"Turret aim sensitivity",c.TurretAimSensitivity,.25f,v=>c.TurretAimSensitivity=v,400);
-                    Slider(-.10f,"Camera zoom sensitivity",c.CameraZoomSensitivity,.25f,v=>c.CameraZoomSensitivity=v,400);
-                    Label(.20f,"Camera zoom: right thumbstick while holding right cockpit stick.",.55f);
-                    Reset(()=> { c.TurretAimSensitivity=c.CameraZoomSensitivity=2; });
+                    Slider(-.31f,"Turret aim sensitivity",c.TurretAimSensitivity,.25f,v=>c.TurretAimSensitivity=v,400);
+                    Slider(-.19f,"Camera zoom sensitivity",c.CameraZoomSensitivity,.25f,v=>c.CameraZoomSensitivity=v,400);
+                    Steps(-.07f,"Camera feed refresh",Config.PluginConfig.RemoteFeedIntervals,c.RemoteFeedInterval,v=>c.RemoteFeedInterval=v);
+                    Slider(.05f,"LCD camera resolution",c.LcdCameraScale,.25f,v=>c.LcdCameraScale=v,150,Config.PluginConfig.DefaultLcdCameraScale);
+                    Steps(.17f,"LCD camera refresh",Config.PluginConfig.LcdCameraIntervals,c.LcdCameraInterval,v=>c.LcdCameraInterval=v);
+                    Label(.28f,"Camera zoom: right thumbstick while holding right cockpit stick.",.55f);
+                    Reset(()=> { c.TurretAimSensitivity=c.CameraZoomSensitivity=2; c.RemoteFeedInterval=Config.PluginConfig.DefaultRemoteFeedInterval;
+                        c.LcdCameraScale=Config.PluginConfig.DefaultLcdCameraScale; c.LcdCameraInterval=Config.PluginConfig.DefaultLcdCameraInterval; });
                     break;
                 case "Third person":
                     Slider(-.24f,"Pan sensitivity",c.ThirdPersonPanSensitivity,.25f,v=>c.ThirdPersonPanSensitivity=v);
@@ -153,6 +157,20 @@ namespace SpaceEngineersVR.GUI
             var slider=new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:min*100,maxValue:max,width:.53f,defaultValue:fallback*100,labelText:"{0}%",labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=value*100 };
             slider.ValueChanged+=v=>store(v.Value/100); Controls.Add(slider);
             SettingsTooltips.Set(text,label,slider);
+        }
+        private void Steps(float y,string text,int[] steps,int value,Action<int> store)
+        {
+            var label=Label(y,text+": "+Frames(value));
+            var slider=new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:0,maxValue:steps.Length-1,width:.53f,labelSpaceWidth:.08f,intValue:true,showLabel:false) { Value=Math.Max(0,Array.IndexOf(steps,value)) };
+            slider.ValueChanged+=v=> { int frames=steps[(int)Math.Round(v.Value)]; store(frames); label.Text=text+": "+Frames(frames); };
+            Controls.Add(slider);
+            SettingsTooltips.Set(text,label,slider);
+        }
+        private static string Frames(int frames)
+        {
+            string every=frames==1 ? "every frame" : "every "+frames+(frames==2 ? "nd" : frames==3 ? "rd" : "th")+" frame";
+            double hz=Player.RenderPerformance.RefreshHz;
+            return double.IsNaN(hz) || hz<=0 ? every : every+" · "+Math.Round(hz/frames)+" fps at "+Math.Round(hz)+" Hz";
         }
         private void Link(float y,string text,Func<MyGuiScreenBase> screen) => Controls.Add(new MyGuiControlButton(new Vector2(0,y),text:new StringBuilder(text),onButtonClick:b=>MyGuiSandbox.AddScreen(screen())) { UserData=screen });
         private void Reset(Action reset) => Controls.Add(new MyGuiControlButton(new Vector2(-.18f,.34f),text:new StringBuilder("Reset group"),onButtonClick:b=> { reset(); RecreateControls(false); }));

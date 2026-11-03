@@ -31,12 +31,14 @@ namespace SpaceEngineersVR.Player
         public bool Premultiplied;
         public bool Sharpen;
         public bool NativeGui;
+        // Writes the tinted texel, alpha included, without blending.
+        public bool Replace;
         public Vector4 TopLeft, TopRight, BottomLeft, BottomRight;
         public Vector4 Clip0,Clip1,Clip2,Clip3;
         public NativeSprite(string path, RectangleF bounds, Vector4 tint)
         {
             Path=path; Bounds=bounds; Tint=tint; Texture=null; UV=new Vector4(0,0,1,1);
-            EncodeSrgb=false; Opaque=false; Premultiplied=false; Sharpen=false; NativeGui=false; Projected=IgnoreSceneDepth=false; TopLeft=TopRight=BottomLeft=BottomRight=Vector4.Zero;
+            EncodeSrgb=false; Opaque=false; Replace=false; Premultiplied=false; Sharpen=false; NativeGui=false; Projected=IgnoreSceneDepth=false; TopLeft=TopRight=BottomLeft=BottomRight=Vector4.Zero;
             Clip0=Clip1=Clip2=Clip3=Vector4.Zero; Rounded=Vector2.Zero;
         }
     }
@@ -59,7 +61,7 @@ namespace SpaceEngineersVR.Player
         private static VertexShader vertex;
         private static PixelShader pixel;
         private static Buffer constants;
-        private static BlendState blend;
+        private static BlendState blend,replace;
         private static RasterizerState rasterizer;
         private static DepthStencilState depth;
         private static SamplerState sampler;
@@ -117,6 +119,8 @@ float4 PS(P p):SV_TARGET {
                 BlendOperation=BlendOperation.Add, SourceAlphaBlend=BlendOption.One, DestinationAlphaBlend=BlendOption.InverseSourceAlpha,
                 AlphaBlendOperation=BlendOperation.Add, RenderTargetWriteMask=ColorWriteMaskFlags.All };
             blend=new BlendState(device,blending);
+            blending.RenderTarget[0].IsBlendEnabled=false;
+            replace=new BlendState(device,blending);
             rasterizer=new RasterizerState(device,new RasterizerStateDescription { FillMode=FillMode.Solid,CullMode=CullMode.None,IsDepthClipEnabled=true });
             depth=new DepthStencilState(device,new DepthStencilStateDescription { IsDepthEnabled=false });
             sampler=new SamplerState(device,new SamplerStateDescription {
@@ -245,7 +249,6 @@ float4 PS(P p):SV_TARGET {
             using (var rtv=new RenderTargetView(device,target))
             {
                 context.OutputMerger.SetRenderTargets(rtv);
-                context.OutputMerger.SetBlendState(blend);
                 context.OutputMerger.SetDepthStencilState(depth);
                 context.Rasterizer.State=rasterizer;
                 var size=target.Description;
@@ -261,6 +264,7 @@ float4 PS(P p):SV_TARGET {
                 {
                     var texture=sprite.Texture ?? Get(sprite.Path,sprite.NativeGui);
                     if (texture==null) continue;
+                    context.OutputMerger.SetBlendState(sprite.Replace ? replace:blend);
                     var data=new Parameters { Clip0=sprite.Clip0,Clip1=sprite.Clip1,Clip2=sprite.Clip2,Clip3=sprite.Clip3,Tint=Faded(target,sprite),UV=sprite.UV,DepthTest=new Vector4(sceneDepth==null || sprite.IgnoreSceneDepth ? 0 : 1,sprite.Rounded.X,sprite.Rounded.Y,(sprite.EncodeSrgb ? 1 : 0)+(sprite.Opaque ? 2 : 0)+(handDepth!=null ? 4:0)+(sprite.Premultiplied ? 8:0)+(sprite.Sharpen ? 16:0)) };
                     if(sprite.NativeGui && sprite.Texture==null)
                     {

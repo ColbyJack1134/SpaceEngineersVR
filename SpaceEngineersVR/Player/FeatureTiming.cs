@@ -7,7 +7,7 @@ namespace SpaceEngineersVR.Player
 {
     internal static class FeatureTiming
     {
-        internal enum Area { Touch,TouchQuery,HudSample,HudPaint,Visor,Cockpit,CockpitTouch,CockpitButtons,Arms,CockpitGeometry,CockpitActors,CockpitAction,WaitPoses,SceneLeft,SceneRight,DesktopPresent,RemoteFeed }
+        internal enum Area { Touch,TouchQuery,HudSample,HudPaint,Visor,Cockpit,CockpitTouch,CockpitButtons,Arms,CockpitGeometry,CockpitActors,CockpitAction,WaitPoses,SceneLeft,SceneRight,DesktopPresent,RemoteFeed,LcdCamera }
         internal sealed class Measurement
         {
             public double Mean,P95,Peak;

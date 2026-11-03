@@ -71,7 +71,7 @@ namespace SpaceEngineersVR.Diagnostics
                 StereoRenderState.View=1; Draw(target);
                 Require(Count(pool)==initial,"Right eye accumulated flare geometry");
                 for(int i=0;i<4;i++) Require(Vector3D.Distance(left[i],corners[i])<1e-7,"Eye flare world corners disagree");
-                using(var remote=new RemoteScene())
+                using(var remote=new RemoteScene(FeedShadows.Camera))
                 {
                     camera.CameraPosition+=new Vector3D(30,0,0); Draw(target);
                     Require(Count(pool)==initial,"Remote flare leaked into physical scene");

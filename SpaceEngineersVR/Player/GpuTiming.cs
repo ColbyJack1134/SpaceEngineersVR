@@ -8,10 +8,10 @@ namespace SpaceEngineersVR.Player
     // Render-thread only. With developer tools on, sample one frame every two seconds without waiting for the GPU.
     internal static class GpuTiming
     {
-        internal enum Area { SceneLeft,WorldUiLeft,SceneRight,WorldUiRight,Companion,Hud,RemoteFeed }
+        internal enum Area { SceneLeft,WorldUiLeft,SceneRight,WorldUiRight,Companion,Hud,RemoteFeed,LcdCamera }
         // Native steps inside each eye's scene; geometry includes shadow maps and the G-buffer.
         internal enum Pass { Prepare,Geometry,Occlusion,Lighting,Transparent,Adaptation,Bloom,ToneMap }
-        private const int Count=7,PassCount=8,PassBase=Count*2;
+        private const int Count=8,PassCount=8,PassBase=Count*2;
         private static readonly Query[] stamps=new Query[Count*2+PassCount*4];
         private static readonly bool[] written=new bool[stamps.Length];
         private static readonly ulong[] ticks=new ulong[stamps.Length];
@@ -87,7 +87,7 @@ namespace SpaceEngineersVR.Player
                 text.Append("post ").Append((written[tone] && written[end] && ticks[end]>=ticks[tone] ? (ticks[end]-ticks[tone])*1000.0/clock.Frequency : double.NaN).ToString("F3"));
                 return text.ToString();
             }
-            Logger.Info($"VR GPU sample: eyes {size.X}x{size.Y}; cockpit {cockpit}; third person {thirdPerson}; particle density {particleDensity*100:F0}%; native scene L/R {Ms(Area.SceneLeft):F3}/{Ms(Area.SceneRight):F3} ms; world UI L/R {Ms(Area.WorldUiLeft):F3}/{Ms(Area.WorldUiRight):F3} ms; companion {Ms(Area.Companion):F3} ms; remote feed {Ms(Area.RemoteFeed):F3} ms; HUD upload/draw {Ms(Area.Hud):F3} ms");
+            Logger.Info($"VR GPU sample: eyes {size.X}x{size.Y}; cockpit {cockpit}; third person {thirdPerson}; particle density {particleDensity*100:F0}%; native scene L/R {Ms(Area.SceneLeft):F3}/{Ms(Area.SceneRight):F3} ms; world UI L/R {Ms(Area.WorldUiLeft):F3}/{Ms(Area.WorldUiRight):F3} ms; companion {Ms(Area.Companion):F3} ms; remote feed {Ms(Area.RemoteFeed):F3} ms; LCD cameras {Ms(Area.LcdCamera):F3} ms; HUD upload/draw {Ms(Area.Hud):F3} ms");
             Logger.Info($"VR GPU passes left: {Passes(0,Area.SceneLeft)} ms");
             Logger.Info($"VR GPU passes right: {Passes(1,Area.SceneRight)} ms");
         }

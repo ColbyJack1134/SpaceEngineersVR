@@ -42,6 +42,27 @@ namespace SpaceEngineersVR.Wrappers
             foreach (var pair in snapshot) pair.Key.SetValue(instance, pair.Value);
         }
 
+        // Tangents follow OpenVR GetProjectionRaw: left and top are negative. The scene camera position is the caller's.
+        internal MatrixD SetCamera(MatrixD view, MatrixD world, float left, float right, float top, float bottom, double near)
+        {
+            MatrixD projection = Player.VrMath.Projection(left,right,top,bottom,near);
+            MatrixD atZero = view; atZero.Translation = Vector3D.Zero;
+            CameraPosition = world.Translation;
+            ViewD = view; InvViewD = world;
+            ViewAt0 = atZero; InvViewAt0 = MatrixD.Invert(atZero);
+            Projection = projection; ProjectionForSkybox = projection;
+            InvProjection = MatrixD.Invert(projection);
+            ViewProjectionD = view * projection; InvViewProjectionD = MatrixD.Invert(ViewProjectionD);
+            ViewProjectionAt0 = atZero * projection; InvViewProjectionAt0 = MatrixD.Invert(ViewProjectionAt0);
+            FovH = (float)(Math.Atan(right) - Math.Atan(left));
+            FovV = (float)(Math.Atan(bottom) - Math.Atan(top));
+            OriginalProjection = Player.VrMath.Projection(left,right,top,bottom,near,Math.Max(FarClipping,near+1));
+            OriginalProjectionFar = Player.VrMath.Projection(left,right,top,bottom,near,Math.Max(LargeDistanceFarClipping,near+1));
+            ViewFrustumClippedD = new BoundingFrustumD(view * OriginalProjection);
+            ViewFrustumClippedFarD = new BoundingFrustumD(view * OriginalProjectionFar);
+            return projection;
+        }
+
         private static readonly AccessTools.FieldRef<object, Vector3D> cameraPosition = Ref<Vector3D>("CameraPosition");
         internal Vector3D CameraPosition { get => cameraPosition(instance); set => cameraPosition(instance) = value; }
         private static readonly AccessTools.FieldRef<object, Matrix> viewAt0 = Ref<Matrix>("ViewAt0");

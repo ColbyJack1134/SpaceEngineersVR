@@ -56,6 +56,7 @@ namespace SpaceEngineersVR.Player
                 if(RenderFrameBridge.Remote!=null) NativeGloves.Prepare(null);
                 DesktopCapture.Update(MyRender11.DeviceInstance);
                 RemoteFeed.Render(RenderFrameBridge.Remote);
+                LcdFeed.Render(RenderFrameBridge.Lcds);
                 NativeGloves.Prepare(rig,matrices.FarClipping);
                 resources=new EyeResolution.Scene(size);
                 StereoRenderState.Begin(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale),
@@ -129,21 +130,7 @@ namespace SpaceEngineersVR.Player
             float l=0,r=0,t=0,b=0;
             OpenVR.System.GetProjectionRaw(eye, ref l, ref r, ref t, ref b);
             double near = rig?.ThirdPerson==true ? .005*rig.UnitsPerMeter : Math.Max(0.03, env.NearClipping);
-            MatrixD projection = VrMath.Projection(l,r,t,b,near);
-            MatrixD atZero = view; atZero.Translation = Vector3D.Zero;
-            env.CameraPosition = world.Translation;
-            env.ViewD = view; env.InvViewD = world;
-            env.ViewAt0 = atZero; env.InvViewAt0 = MatrixD.Invert(atZero);
-            env.Projection = projection; env.ProjectionForSkybox = projection;
-            env.InvProjection = MatrixD.Invert(projection);
-            env.ViewProjectionD = view * projection; env.InvViewProjectionD = MatrixD.Invert(env.ViewProjectionD);
-            env.ViewProjectionAt0 = atZero * projection; env.InvViewProjectionAt0 = MatrixD.Invert(env.ViewProjectionAt0);
-            env.FovH = (float)(Math.Atan(r) - Math.Atan(l));
-            env.FovV = (float)(Math.Atan(b) - Math.Atan(t));
-            env.OriginalProjection = VrMath.Projection(l,r,t,b,near,Math.Max(env.FarClipping,near+1));
-            env.OriginalProjectionFar = VrMath.Projection(l,r,t,b,near,Math.Max(env.LargeDistanceFarClipping,near+1));
-            env.ViewFrustumClippedD = new BoundingFrustumD(view * env.OriginalProjection);
-            env.ViewFrustumClippedFarD = new BoundingFrustumD(view * env.OriginalProjectionFar);
+            MatrixD projection = env.SetCamera(view,world,l,r,t,b,near);
             sceneCamera.Position = world.Translation;
             var sceneArea=eye==EVREye.Eye_Left ? GpuTiming.Area.SceneLeft : GpuTiming.Area.SceneRight;
             var uiArea=eye==EVREye.Eye_Left ? GpuTiming.Area.WorldUiLeft : GpuTiming.Area.WorldUiRight;

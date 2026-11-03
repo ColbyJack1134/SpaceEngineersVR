@@ -44,11 +44,11 @@ namespace SpaceEngineersVR.Player
         {
             object saved=Read(owner,name); restore.Add(()=>Write(owner,name,saved)); Write(owner,name,value);
         }
-        public RemoteScene(RemoteView.View view=null)
+        public RemoteScene(FeedShadows shadows,uint character=uint.MaxValue,string[] materials=null)
         {
             try
             {
-                if(!FeedShadows.Use(restore))
+                if(!shadows.Use(restore))
                 {
                     // Without a feed cascade set, keep the eyes' cascades fitted to the eyes.
                     var settings=MyRender11.Settings;
@@ -66,7 +66,7 @@ namespace SpaceEngineersVR.Player
                 if(changed==null) changed=AccessTools.Method(factory.GetType(),"OnLoddingSettingChanged");
                 restore.Insert(0,()=>changed.Invoke(factory,null)); changed.Invoke(factory,null);
                 CockpitRender.RemoteVisibility(restore);
-                if(view!=null) ShowFirstPerson(view.Character,view.FirstPersonMaterials,restore);
+                ShowFirstPerson(character,materials,restore);
                 Active=true;
             }
             catch { Dispose(); throw; }

@@ -498,7 +498,7 @@ namespace SpaceEngineersVR.Diagnostics
             int index=(phase-100)/2;
             bool menusOnly=!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY"));
             bool setupOnly=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="setup";
-            if(index>=(setupOnly ? 20:menusOnly ? 43:12))
+            if(index>=(setupOnly ? 20:menusOnly ? 44:12))
             {
                 if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions" && (!symmetryPreviewsSaved || !rotationPreviewsSaved))
                     throw new InvalidOperationException("Native gameplay gizmo and placement indicator fixtures were not rendered");
@@ -559,6 +559,7 @@ namespace SpaceEngineersVR.Diagnostics
                 if(index==32) options=new GUI.SettingsPage("HUD visibility");
                 if(index==33) options=new GUI.SettingsPage("Signals");
                 if(index==34) options=new GUI.SettingsPage("Advanced controls");
+                if(index==43) options=new GUI.SettingsPage("Turrets and cameras");
                 if(index==35) options=new AssignmentPreview(quickToolbar:true);
                 if(index==36) options=new GUI.PerformanceOptions();
                 if(index==37) options=new GUI.BodyOptions();
@@ -589,7 +590,7 @@ namespace SpaceEngineersVR.Diagnostics
             else
             {
                 if(index>=24 && index<29 && options is GUI.BindingHelp scrolled) scrolled.ScrollTo(index==25 ? .45f:1);
-                string name=index==42 ? "settings-search-native":index==41 ? "settings-tooltip-native":index==40 ? "settings-undo-native":index==39 ? "physical-flight-options-native":index==38 ? "flight-options-native":index==37 ? "body-options-native":
+                string name=index==43 ? "settings-turrets-cameras-native":index==42 ? "settings-search-native":index==41 ? "settings-tooltip-native":index==40 ? "settings-undo-native":index==39 ? "physical-flight-options-native":index==38 ? "flight-options-native":index==37 ? "body-options-native":
                     index==36 ? "performance-options-native":index==35 ? "quick-toolbar-assignment-native":index==34 ? "settings-advanced-native":index==33 ? "settings-signals-native":index==32 ? "settings-hud-visibility-native":index==31 ? "settings-turning-native":index==30 ? "settings-character-native":index==29 ? "hand-alignment-native":index>=24 ? "guide-scrolled-"+index:index==9 ? "guide-common-bottom":index==22 ? "actions-recent-native":index==23 ? "actions-filtered-native":index<12 ? "menu-gallery-"+index : index<20 ? "settings-native-"+(index+25) : index==20 ? "main-vr-options":"pause-vr-options";
                 MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,name+".png"),false,false,false);
                 next=DateTime.UtcNow.AddSeconds(1);
@@ -681,9 +682,9 @@ namespace SpaceEngineersVR.Diagnostics
                         {
                             if(!ReferenceEquals(FeedShadows.Eyes,eyeCascades) || !arrays.Select(p=>p.GetValue(eyeCascades,null)).SequenceEqual(eyeArrays))
                                 throw new InvalidOperationException("Camera feed changed the eyes' shadow cascades");
-                            if(FeedShadows.Instance==null || ReferenceEquals(FeedShadows.Instance,eyeCascades)) throw new InvalidOperationException("Camera feed did not use its own shadow cascades");
+                            if(FeedShadows.Camera.Instance==null || ReferenceEquals(FeedShadows.Camera.Instance,eyeCascades)) throw new InvalidOperationException("Camera feed did not use its own shadow cascades");
                             var resolution=AccessTools.Property(eyeCascades.GetType(),"CascadeResolution");
-                            object feedSize=resolution.GetValue(FeedShadows.Instance,null),eyeSize=resolution.GetValue(eyeCascades,null);
+                            object feedSize=resolution.GetValue(FeedShadows.Camera.Instance,null),eyeSize=resolution.GetValue(eyeCascades,null);
                             if(!Equals(feedSize,eyeSize)) throw new InvalidOperationException("Feed shadow cascades are "+feedSize+" px; the engine renders them at "+eyeSize);
                             Logger.Info("PASS native feed shadows: own cascade set at the eyes' "+feedSize+" px, eyes' cascade instance and depth arrays unchanged");
                         }
@@ -694,7 +695,7 @@ namespace SpaceEngineersVR.Diagnostics
                         RemoteFeed.Draw(physicalTarget,remote,camera.ViewMatrix,Wrappers.MyRender11.Environment_Matrices.Projection,MatrixD.Invert(camera.ViewMatrix));
                         UiTests.Save(physicalTarget,Path.Combine(output,"remote-feed-native.png"));
                         RemoteFeed.Reset();
-                        if(FeedShadows.Instance!=null) throw new InvalidOperationException("Feed shadow cascades survived the feed reset");
+                        if(FeedShadows.Camera.Instance!=null) throw new InvalidOperationException("Feed shadow cascades survived the feed reset");
                         int retained=RemoteHud.SpriteCount;
                         for(int i=0;i<120;i++) RemoteHud.CollectFrame(int.MinValue+i,remote,new Vector2(size.X,size.Y));
                         if(RemoteHud.SpriteCount!=retained) throw new InvalidOperationException("Camera-only frames cleared the native HUD");

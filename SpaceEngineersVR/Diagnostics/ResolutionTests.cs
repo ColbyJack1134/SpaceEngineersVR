@@ -126,7 +126,7 @@ namespace SpaceEngineersVR.Diagnostics
                         throw new Exception("Eye rendering did not restore desktop resources");
                     if(pass<2)
                     {
-                        using(new EyeResolution.Scene(RemoteFeed.Resolution,true))
+                        using(new EyeResolution.Scene(RemoteFeed.Resolution,EyeResolution.Scene.Camera))
                         {
                             var cameraBuffer=bufferField.GetValue(null);
                             if(ReferenceEquals(cameraBuffer,previousEye) || (pass==1 && !ReferenceEquals(cameraBuffer,previousCamera)))

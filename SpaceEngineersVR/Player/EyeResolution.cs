@@ -71,7 +71,8 @@ namespace SpaceEngineersVR.Player
                 internal Vector2I Size;
                 internal MyAntialiasingMode Antialiasing;
             }
-            private static readonly Resources[] retained=new Resources[2];
+            internal const int Eyes=0,Camera=1,Lcd=2;
+            private static readonly Resources[] retained=new Resources[3];
             public static int Allocations { get; private set; }
             private sealed class DesktopViewport
             {
@@ -97,9 +98,9 @@ namespace SpaceEngineersVR.Player
             {
                 for(int i=0;i<fields.Length;i++) fields[i].SetValue(null,values[i]);
             }
-            public Scene(Vector2I size,bool camera=false)
+            public Scene(Vector2I size,int slot=Eyes)
             {
-                slot=camera ? 1:0;
+                this.slot=slot;
                 resolution=MyRender11.Resolution;
                 oldViewport=viewport.GetValue(null); oldFullViewport=fullViewport.GetValue(null);
                 previous=Capture();
@@ -138,7 +139,7 @@ namespace SpaceEngineersVR.Player
                 if(publishesDesktop) desktopViewport=null;
                 var settings=MyRender11.Settings; settings.User.DRScaling=drs; MyRender11.Settings=settings;
             }
-            public static void RestoreNative() { Release(0); Release(1); }
+            public static void RestoreNative() { for(int i=0;i<retained.Length;i++) Release(i); }
             private static void Release(int index)
             {
                 var resources=retained[index];

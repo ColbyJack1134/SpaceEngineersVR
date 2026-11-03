@@ -12,7 +12,7 @@ namespace SpaceEngineersVR.Player
     {
         private static readonly TextureCopy image=new TextureCopy();
         private static long source;
-        private static bool skip;
+        private static int wait;
         internal static Vector2I Resolution => Size(Common.Config?.RemoteFeedScale ?? 5f/6);
         // A width in 16-pixel steps keeps the height an exact 16:9 integer.
         internal static Vector2I Size(float scale)
@@ -22,9 +22,10 @@ namespace SpaceEngineersVR.Player
         }
         public static void Render(RemoteView.View view)
         {
-            if(view==null) { image.Dispose(); source=0; FeedCamera.Reset(); FeedShadows.Release(); return; }
-            // Refresh every second headset frame; a new camera renders immediately.
-            if(source==view.Source && (skip=!skip)) return;
+            if(view==null) { image.Dispose(); source=0; FeedCamera.Reset(); FeedShadows.Camera.Release(); return; }
+            // A new camera renders immediately.
+            if(source==view.Source && --wait>0) return;
+            wait=Common.Config?.RemoteFeedInterval ?? 2;
             source=0;
             var size=Resolution;
             var feed=MyManagers.RwTexturesPool.BorrowRtv("SEVR.Remote",size.X,size.Y,Format.R8G8B8A8_UNorm_SRgb);
@@ -33,9 +34,9 @@ namespace SpaceEngineersVR.Player
             GpuTiming.Begin(GpuTiming.Area.RemoteFeed);
             try
             {
-                using(var resources=MyRender11.Resolution==size ? null:new EyeResolution.Scene(size,true))
+                using(var resources=MyRender11.Resolution==size ? null:new EyeResolution.Scene(size,EyeResolution.Scene.Camera))
                 using(var exposure=new RemoteExposure())
-                using(var isolated=new RemoteScene(view))
+                using(var isolated=new RemoteScene(FeedShadows.Camera,view.Character,view.FirstPersonMaterials))
                 {
                     MyRender11.DrawGameScene(feed,out ambient);
                     FeedCamera.Capture(view.Source);
@@ -56,8 +57,8 @@ namespace SpaceEngineersVR.Player
         }
         public static void Reset()
         {
-            image.Dispose(); source=0; skip=false; FeedShadows.Release();
-            WindowFrame.Reset("Remote"); RemoteExposure.Reset();
+            image.Dispose(); source=0; wait=0; FeedShadows.Camera.Release();
+            WindowFrame.Reset("Remote"); RemoteExposure.Reset(RemoteExposure.Camera);
         }
         internal static void Paint(OverlayCanvas canvas,RemoteView.View view) => WindowFrame.Paint(canvas,Frame(view));
         private static WindowFrame.Snapshot Frame(RemoteView.View view) => new WindowFrame.Snapshot {Pose=(Matrix)view.Pose,Width=view.Width,Height=view.Height,

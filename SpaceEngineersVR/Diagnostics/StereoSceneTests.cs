@@ -134,7 +134,7 @@ namespace SpaceEngineersVR.Diagnostics
                     board.CustomViewProjection=0;
                     Require((Vector3D)direction.Invoke(null,new object[] {raw,board})==raw,"Custom-view line fade changed");
                     board.CustomViewProjection=-1;
-                    using(var remote=new RemoteScene())
+                    using(var remote=new RemoteScene(FeedShadows.Camera))
                     {
                         Require(!StereoRenderState.PhysicalEye,"Remote scene inherited physical-eye facing");
                         Require((Vector3D)direction.Invoke(null,new object[] {raw,board})==raw,"Remote line fade borrowed the headset camera");

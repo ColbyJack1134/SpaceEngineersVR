@@ -103,11 +103,8 @@ namespace SpaceEngineersVR.Patches
     internal static class FeedShadowFramePatch
     {
         private static MethodBase TargetMethod() => AccessTools.Method(AccessTools.TypeByName("VRageRender.MyShadowCascades"),"PrepareQueries");
-        private static void Prefix(object __instance,ref long? __state)
-        {
-            if(__instance!=null && ReferenceEquals(__instance,FeedShadows.Instance)) __state=FeedShadows.BeginFrame();
-        }
-        private static void Finalizer(long? __state) { if(__state.HasValue) FeedShadows.EndFrame(__state.Value); }
+        private static void Prefix(object __instance,ref Action __state) => __state=FeedShadows.For(__instance)?.BeginFrame();
+        private static void Finalizer(Action __state) => __state?.Invoke();
     }
 
     [HarmonyPatch]

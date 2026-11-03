@@ -91,6 +91,15 @@ namespace SpaceEngineersVR.Config
         public float TargetFrameRate { get => targetFrameRate; set => SetValue(ref targetFrameRate,(float)Math.Round(Bound(value,30,144,60))); }
         private float remoteFeedScale=5f/6;
         public float RemoteFeedScale { get => remoteFeedScale; set => SetValue(ref remoteFeedScale,Bound(value,.5f,1.5f,5f/6)); }
+        internal static readonly int[] RemoteFeedIntervals={1,2,3,4},LcdCameraIntervals={1,2,3,4,6,8,12};
+        internal const int DefaultRemoteFeedInterval=2,DefaultLcdCameraInterval=2;
+        internal const float DefaultLcdCameraScale=.5f;
+        private int remoteFeedInterval=DefaultRemoteFeedInterval;
+        public int RemoteFeedInterval { get => remoteFeedInterval; set => SetValue(ref remoteFeedInterval,Step(value,RemoteFeedIntervals,DefaultRemoteFeedInterval)); }
+        private float lcdCameraScale=DefaultLcdCameraScale;
+        public float LcdCameraScale { get => lcdCameraScale; set => SetValue(ref lcdCameraScale,Bound(value,.25f,1.5f,DefaultLcdCameraScale)); }
+        private int lcdCameraInterval=DefaultLcdCameraInterval;
+        public int LcdCameraInterval { get => lcdCameraInterval; set => SetValue(ref lcdCameraInterval,Step(value,LcdCameraIntervals,DefaultLcdCameraInterval)); }
         private float particleDensity=.5f;
         public float ParticleDensity { get => particleDensity; set => SetValue(ref particleDensity,Bound(value,.15f,1,.5f)); }
         private bool invertShipPitch,invertJetpackPitch,hudWithVisorOpen;
@@ -226,6 +235,7 @@ namespace SpaceEngineersVR.Config
         }
         private static float Bound(float value,float min,float max,float fallback) => float.IsNaN(value) || float.IsInfinity(value)
             ? fallback : Math.Max(min,Math.Min(max,value));
+        private static int Step(int value,int[] steps,int fallback) => Array.IndexOf(steps,value)>=0 ? value:fallback;
         public bool TrackedArms { get => trackedArms; set => SetValue(ref trackedArms,value); }
         private bool tapHoldSticks,tapHoldLevers;
         public bool TapHoldSticks { get => tapHoldSticks; set => SetValue(ref tapHoldSticks,value); }
