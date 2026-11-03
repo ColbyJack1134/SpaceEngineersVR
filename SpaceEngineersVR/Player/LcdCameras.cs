@@ -61,8 +61,12 @@ namespace SpaceEngineersVR.Player
                 var camera=display.Camera;
                 if(camera==null || !display.Visible || !display.Terminal.IsWorking || !camera.IsWorking ||
                     Vector3D.DistanceSquared(main.Position,display.Terminal.WorldMatrix.Translation)>Range*Range) continue;
+                string texture;
+                // The panel's render component is null while its block is removed or rebuilt.
+                try { texture=display.Panel.GetRenderTextureName(); }
+                catch(NullReferenceException) { continue; }
                 if(views==null) views=new List<View>();
-                views.Add(new View {Texture=display.Panel.GetRenderTextureName(),SurfaceSize=display.Panel.SurfaceSize,
+                views.Add(new View {Texture=texture,SurfaceSize=display.Panel.SurfaceSize,
                     Camera=camera.GetViewMatrix(),Fov=(float)fov.GetValue(camera),Alpha=display.Panel.BackgroundAlpha/255f,Character=id,FirstPersonMaterials=materials});
             }
             return views?.ToArray();
