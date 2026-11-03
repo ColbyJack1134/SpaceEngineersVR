@@ -14,6 +14,7 @@ namespace SpaceEngineersVR.Patches
         private static bool Standby => standby ?? (standby=Player.VrSubmit.HeadsetAsleep).Value;
         private static bool reportedCameraFrame;
         private static long presentStart;
+        private static bool inScene;
         public static void Install(Harmony harmony)
         {
             Player.RemoteHud.Install(harmony);
@@ -22,15 +23,20 @@ namespace SpaceEngineersVR.Patches
             Type type = AccessTools.TypeByName("VRageRender.MyRender11");
             harmony.Patch(AccessTools.Method(type,"SetupCameraMatrices"), new HarmonyMethod(typeof(FrameInjections),nameof(CameraFrame)));
             harmony.Patch(AccessTools.Method(type,"DrawScene"), new HarmonyMethod(typeof(FrameInjections),nameof(BeforeScene)));
+            harmony.Patch(AccessTools.Method(type,"DrawScene"), new HarmonyMethod(typeof(FrameInjections),nameof(EnterScene)) { priority=Priority.First },
+                finalizer:new HarmonyMethod(typeof(FrameInjections),nameof(LeaveScene)));
             harmony.Patch(AccessTools.Method(type,"ConsumeMainSprites"), new HarmonyMethod(typeof(FrameInjections),nameof(BeforeSprites)));
             harmony.Patch(AccessTools.Method(type,"Present"),
                 new HarmonyMethod(typeof(FrameInjections),nameof(BeforePresent)), new HarmonyMethod(typeof(FrameInjections),nameof(AfterPresent)));
             try { PassTimingPatch.Install(harmony); }
             catch(Exception ex) { Logger.Warning(ex,"GPU pass timing unavailable; rendering retained"); }
         }
+        // Only the message queue sets the camera, before DrawScene; calls inside it are other plugins' views.
+        private static void EnterScene() => inScene=true;
+        private static void LeaveScene() => inScene=false;
         private static void CameraFrame(VRageRender.Messages.MyRenderMessageSetCameraViewMatrix message)
         {
-            if (!Main.VrActive) return;
+            if (!Main.VrActive || inScene) return;
             Player.RenderFrameBridge.Consume(message);
             if (!reportedCameraFrame && Player.RenderFrameBridge.Current != null)
             {
