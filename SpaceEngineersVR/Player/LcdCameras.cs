@@ -89,7 +89,7 @@ namespace SpaceEngineersVR.Player
         }
     }
 
-    [MyTextSurfaceScript(LcdCameras.ScriptId,"Camera Display")]
+    [MyTextSurfaceScript(LcdCameras.ScriptId,"Camera Display (VR)")]
     public sealed class CameraDisplay : MyTSSCommon
     {
         internal readonly MyTextPanelComponent Panel;
