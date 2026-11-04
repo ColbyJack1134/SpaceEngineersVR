@@ -79,11 +79,15 @@ namespace SpaceEngineersVR.Plugin
         // SteamVR kills a still-connected app about 60 s after its quit event; called on the render thread between frames so no submit is in flight.
         internal static void ShutdownOpenVr()
         {
-            ShutdownPending=shutdownRequested=false;
-            if(!OpenVrAlive) return;
-            OpenVrAlive=false;
-            try { OpenVR.Shutdown(); Logger.Info("OpenVR shut down; desktop only"); }
-            catch(Exception ex) { Logger.Warning(ex,"OpenVR shutdown failed"); }
+            ShutdownPending=false;
+            if(OpenVrAlive)
+            {
+                OpenVrAlive=false;
+                try { OpenVR.Shutdown(); Logger.Info("OpenVR shut down; desktop only"); }
+                catch(Exception ex) { Logger.Warning(ex,"OpenVR shutdown failed"); }
+            }
+            // Cleared last so the update thread cannot poll SteamVR while Shutdown runs.
+            shutdownRequested=false;
         }
 
 #if LINUX
