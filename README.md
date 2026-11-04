@@ -19,7 +19,8 @@ Other features:
 - Third-person diorama build mode
 - Left-handed mode
 - Wrist tablet, radial menus and VR keyboard
-- [Mod API](MOD-API.md) and programmable block API
+- [Mod API](MOD-API.md) and [programmable block API](https://github.com/ColbyJack1134/SpaceEngineersVR/blob/main/MECH-SCRIPTS.md)
+- CameraLCD implementation
 - Stereo 3D, 6DOF and roomscale (obviously)
 
 With the 1.0 release, I consider this experience to be practically complete and stable. Of course there will always be bugs, polish, and new ideas to work on. I plan on maintaining this project until at least past the Warfare 3 update. If you run into any bugs or problems feel free to create a new [issue](https://github.com/ColbyJack1134/SpaceEngineersVR/issues) on GitHub.
@@ -45,9 +46,9 @@ Set **Model Quality** to **High** to avoid artifacts with your in-game hand mode
 
 To install from a GitHub release or the optional flatscreen multiplayer companion, see [Installing manually from a release](INSTALL-MANUAL.md).
 
-### Linux (experimental)
+### Native Linux
 
-Use Pulsar's `Interim.exe` and install your distribution's `libgdiplus` package. Untested.
+Use Pulsar's `Interim.dll` and install your distribution's `libgdiplus` package. Has been tested in [Issue #16](https://github.com/ColbyJack1134/SpaceEngineersVR/issues/16).
 
 ## Controls
 
@@ -76,9 +77,7 @@ Supported:
   - [Controls guide](CONTROLS.md) and guide in game with mod enabled show the relevant controls.
 - [Paint Gun](https://steamcommunity.com/sharedfiles/filedetails/?id=500818376)
 - [Build Info](https://steamcommunity.com/sharedfiles/filedetails/?id=514062285)
-
-Planned (at some point):
-- BuildVision
+- [Build Vision 3.0](https://steamcommunity.com/workshop/filedetails/?id=1697184408)
 
 If you want to see specific mods, feel free to reach out! Mod developers can add VR support with the [Mod API](MOD-API.md).
 
