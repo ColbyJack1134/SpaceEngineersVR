@@ -5,6 +5,7 @@ namespace SpaceEngineersVR.Player
 {
     public static class VrMath
     {
+        internal static readonly Valve.VR.EVREye[] Eyes={Valve.VR.EVREye.Eye_Left,Valve.VR.EVREye.Eye_Right};
         // Let the tracked head move freely inside this radius. Move the capsule only
         // by the excess, so crossing the boundary never consumes a whole head offset.
         public const float RoomscaleBodyRadius = 0.025f;

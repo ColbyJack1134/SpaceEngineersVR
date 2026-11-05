@@ -100,6 +100,9 @@ namespace SpaceEngineersVR.Config
         public float LcdCameraScale { get => lcdCameraScale; set => SetValue(ref lcdCameraScale,Bound(value,.25f,1.5f,DefaultLcdCameraScale)); }
         private int lcdCameraInterval=DefaultLcdCameraInterval;
         public int LcdCameraInterval { get => lcdCameraInterval; set => SetValue(ref lcdCameraInterval,Step(value,LcdCameraIntervals,DefaultLcdCameraInterval)); }
+        internal const float DefaultLcdCameraRange=40;
+        private float lcdCameraRange=DefaultLcdCameraRange;
+        public float LcdCameraRange { get => lcdCameraRange; set => SetValue(ref lcdCameraRange,(float)Math.Round(Bound(value,10,200,DefaultLcdCameraRange))); }
         private float particleDensity=.5f;
         public float ParticleDensity { get => particleDensity; set => SetValue(ref particleDensity,Bound(value,.15f,1,.5f)); }
         private bool invertShipPitch,invertJetpackPitch,hudWithVisorOpen;

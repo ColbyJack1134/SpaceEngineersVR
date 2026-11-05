@@ -63,14 +63,16 @@ namespace SpaceEngineersVR.GUI
                     Toggle(.24f,"VR data to [SEVR] programmable blocks",c.ProgrammableBlockData,v=>c.ProgrammableBlockData=v);
                     break;
                 case "Turrets and cameras":
-                    Slider(-.31f,"Turret aim sensitivity",c.TurretAimSensitivity,.25f,v=>c.TurretAimSensitivity=v,400);
-                    Slider(-.19f,"Camera zoom sensitivity",c.CameraZoomSensitivity,.25f,v=>c.CameraZoomSensitivity=v,400);
-                    Steps(-.07f,"Camera feed refresh",Config.PluginConfig.RemoteFeedIntervals,c.RemoteFeedInterval,v=>c.RemoteFeedInterval=v);
-                    Slider(.05f,"LCD camera resolution",c.LcdCameraScale,.25f,v=>c.LcdCameraScale=v,150,Config.PluginConfig.DefaultLcdCameraScale);
-                    Steps(.17f,"LCD camera refresh",Config.PluginConfig.LcdCameraIntervals,c.LcdCameraInterval,v=>c.LcdCameraInterval=v);
+                    Slider(-.33f,"Turret aim sensitivity",c.TurretAimSensitivity,.25f,v=>c.TurretAimSensitivity=v,400);
+                    Slider(-.23f,"Camera zoom sensitivity",c.CameraZoomSensitivity,.25f,v=>c.CameraZoomSensitivity=v,400);
+                    Steps(-.13f,"Camera feed refresh",Config.PluginConfig.RemoteFeedIntervals,c.RemoteFeedInterval,v=>c.RemoteFeedInterval=v);
+                    Slider(-.03f,"LCD camera resolution",c.LcdCameraScale,.25f,v=>c.LcdCameraScale=v,150,Config.PluginConfig.DefaultLcdCameraScale);
+                    Steps(.07f,"LCD camera refresh",Config.PluginConfig.LcdCameraIntervals,c.LcdCameraInterval,v=>c.LcdCameraInterval=v);
+                    Value(.17f,"LCD camera range",c.LcdCameraRange,10,200,Config.PluginConfig.DefaultLcdCameraRange,"{0} m",v=>c.LcdCameraRange=v);
                     Label(.28f,"Camera zoom: right thumbstick while holding right cockpit stick.",.55f);
                     Reset(()=> { c.TurretAimSensitivity=c.CameraZoomSensitivity=2; c.RemoteFeedInterval=Config.PluginConfig.DefaultRemoteFeedInterval;
-                        c.LcdCameraScale=Config.PluginConfig.DefaultLcdCameraScale; c.LcdCameraInterval=Config.PluginConfig.DefaultLcdCameraInterval; });
+                        c.LcdCameraScale=Config.PluginConfig.DefaultLcdCameraScale; c.LcdCameraInterval=Config.PluginConfig.DefaultLcdCameraInterval;
+                        c.LcdCameraRange=Config.PluginConfig.DefaultLcdCameraRange; });
                     break;
                 case "Third person":
                     Slider(-.24f,"Pan sensitivity",c.ThirdPersonPanSensitivity,.25f,v=>c.ThirdPersonPanSensitivity=v);
@@ -151,11 +153,13 @@ namespace SpaceEngineersVR.GUI
             slider.ValueChanged+=v=> { store(v.Value); caption(v.Value); }; Controls.Add(slider);
             SettingsTooltips.Set(text,label,slider);
         }
-        private void Slider(float y,string text,float value,float min,Action<float> store,float max=200,float fallback=1)
+        private void Slider(float y,string text,float value,float min,Action<float> store,float max=200,float fallback=1) =>
+            Value(y,text,value*100,min*100,max,fallback*100,"{0}%",v=>store(v/100));
+        private void Value(float y,string text,float value,float min,float max,float fallback,string format,Action<float> store)
         {
             var label=Label(y,text);
-            var slider=new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:min*100,maxValue:max,width:.53f,defaultValue:fallback*100,labelText:"{0}%",labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=value*100 };
-            slider.ValueChanged+=v=>store(v.Value/100); Controls.Add(slider);
+            var slider=new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:min,maxValue:max,width:.53f,defaultValue:fallback,labelText:format,labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=value };
+            slider.ValueChanged+=v=>store(v.Value); Controls.Add(slider);
             SettingsTooltips.Set(text,label,slider);
         }
         private void Steps(float y,string text,int[] steps,int value,Action<int> store)

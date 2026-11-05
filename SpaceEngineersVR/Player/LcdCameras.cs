@@ -17,12 +17,14 @@ namespace SpaceEngineersVR.Player
     internal static class LcdCameras
     {
         internal const string ScriptId="TSS_CameraDisplay";
-        internal const double Range=40;
         internal sealed class View
         {
             public string Texture;
+            public BoundingBoxD Bounds;
             public Vector2 SurfaceSize;
-            public MatrixD Camera;
+            // The grid's render actor gets late matrix updates, so the view is built from it on the render thread.
+            public uint GridActor;
+            public MatrixD CameraInGrid;
             public float Fov;
             public float Alpha;
             public uint Character=uint.MaxValue;
@@ -55,19 +57,21 @@ namespace SpaceEngineersVR.Player
             var character=MySession.Static?.LocalCharacter;
             uint id=character?.Render.GetRenderObjectID() ?? uint.MaxValue;
             var materials=RemoteView.FirstPersonMaterials(character?.Definition);
+            double range=Plugin.Common.Config?.LcdCameraRange ?? Config.PluginConfig.DefaultLcdCameraRange;
             List<View> views=null;
             foreach(var display in displays)
             {
                 var camera=display.Camera;
                 if(camera==null || !display.Visible || !display.Terminal.IsWorking || !camera.IsWorking ||
-                    Vector3D.DistanceSquared(main.Position,display.Terminal.WorldMatrix.Translation)>Range*Range) continue;
+                    Vector3D.DistanceSquared(main.Position,display.Terminal.WorldMatrix.Translation)>range*range) continue;
                 string texture;
                 // The panel's render component is null while its block is removed or rebuilt.
                 try { texture=display.Panel.GetRenderTextureName(); }
                 catch(NullReferenceException) { continue; }
                 if(views==null) views=new List<View>();
-                views.Add(new View {Texture=texture,SurfaceSize=display.Panel.SurfaceSize,
-                    Camera=camera.GetViewMatrix(),Fov=(float)fov.GetValue(camera),Alpha=display.Panel.BackgroundAlpha/255f,Character=id,FirstPersonMaterials=materials});
+                views.Add(new View {Texture=texture,Bounds=display.Terminal.PositionComp.WorldAABB,SurfaceSize=display.Panel.SurfaceSize,
+                    GridActor=camera.CubeGrid.Render.GetRenderObjectID(),
+                    CameraInGrid=MatrixD.Invert(camera.GetViewMatrix())*camera.CubeGrid.PositionComp.WorldMatrixInvScaled,Fov=(float)fov.GetValue(camera),Alpha=display.Panel.BackgroundAlpha/255f,Character=id,FirstPersonMaterials=materials});
             }
             return views?.ToArray();
         }
@@ -79,13 +83,18 @@ namespace SpaceEngineersVR.Player
             for(int i=0;i<value.Length;i++) if(text[i]!=value[i]) return false;
             return true;
         }
-        internal static string CameraName(string customData,int area)
+        // A "<surface>:<name>" line for this surface wins; otherwise each line is a candidate name, first match first.
+        internal static List<string> CameraNames(string customData,int area)
         {
             string prefix=area+":";
+            var lines=new List<string>();
             using(var reader=new StringReader(customData))
                 for(string line=reader.ReadLine();line!=null;line=reader.ReadLine())
-                    if(line.StartsWith(prefix,StringComparison.Ordinal) && line.Length>prefix.Length) return line.Substring(prefix.Length);
-            return customData;
+                {
+                    if(line.StartsWith(prefix,StringComparison.Ordinal) && line.Length>prefix.Length) return new List<string> {line.Substring(prefix.Length)};
+                    if(!string.IsNullOrWhiteSpace(line)) lines.Add(line);
+                }
+            return lines;
         }
     }
 
@@ -125,9 +134,12 @@ namespace SpaceEngineersVR.Player
         private void Resolve(MyTerminalBlock block)
         {
             var terminal=string.IsNullOrWhiteSpace(Terminal.CustomData) ? null : Terminal.CubeGrid.GridSystems?.TerminalSystem;
-            string name=terminal==null ? null : LcdCameras.CameraName(Terminal.CustomData,Panel.Area);
-            if(Camera!=null && !Camera.Closed && name!=null && Camera.CubeGrid.GridSystems?.TerminalSystem==terminal && LcdCameras.Same(Camera.CustomName,name)) return;
-            var camera=terminal?.Blocks.OfType<MyCameraBlock>().FirstOrDefault(b=>b.CustomName.ToString()==name);
+            var names=terminal==null ? null : LcdCameras.CameraNames(Terminal.CustomData,Panel.Area);
+            if(Camera!=null && !Camera.Closed && names?.Count>0 && Camera.CubeGrid.GridSystems?.TerminalSystem==terminal && LcdCameras.Same(Camera.CustomName,names[0])) return;
+            MyCameraBlock camera=null;
+            if(names!=null)
+                foreach(string name in names)
+                    if((camera=terminal.Blocks.OfType<MyCameraBlock>().FirstOrDefault(b=>LcdCameras.Same(b.CustomName,name)))!=null) break;
             if(camera==Camera) return;
             bool shown=Camera!=null;
             Unregister();

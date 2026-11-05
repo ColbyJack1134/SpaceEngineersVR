@@ -82,9 +82,22 @@ namespace SpaceEngineersVR.Diagnostics
             }
             RemoteFeed.Reset();
         }
+        private static void LcdFrustum(Action<string> log)
+        {
+            var eye=new Vector3D(1e6,-2e5,3e5);
+            var view=MatrixD.CreateLookAt(eye,eye+Vector3D.Right,Vector3D.Up);
+            var frustum=LcdFeed.Frustum(view,-1.4f,1.2f,-1.3f,1.1f,40);
+            Func<Vector3D,bool> seen=offset=>frustum.Contains(new BoundingBoxD(eye+offset-.5,eye+offset+.5))!=ContainmentType.Disjoint;
+            Require(seen(new Vector3D(10,0,0)) && seen(new Vector3D(70,0,0)) && seen(new Vector3D(10,0,-12)) && seen(new Vector3D(10,-10,0)),
+                "LCD frustum skips a screen in view");
+            Require(!seen(new Vector3D(-10,0,0)) && !seen(new Vector3D(0,0,10)) && !seen(new Vector3D(0,10,0)) && !seen(new Vector3D(90,0,0)) &&
+                !seen(new Vector3D(10,0,-20)),"LCD frustum keeps a screen out of view");
+            log("PASS LCD camera frustum: screens ahead, off-centre and up to twice the range are kept; behind, beside, above and beyond twice the range are skipped.");
+        }
         public static void Run(Action<string> log)
         {
             Ammo(log);
+            LcdFrustum(log);
             var transfer=new RemoteView.CameraSwitch();
             object from=new object(),to=new object();
             var now=DateTime.UtcNow; int opened=0;

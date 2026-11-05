@@ -27,6 +27,7 @@ namespace SpaceEngineersVR.GUI
             ["Camera feed refresh"]="How often the camera and turret view updates",
             ["LCD camera resolution"]="Detail of camera views on LCD screens",
             ["LCD camera refresh"]="How often an LCD camera view updates; screens take turns",
+            ["LCD camera range"]="Furthest screen distance that shows a camera view",
             ["Particle density"]="Share of particles drawn",
             ["Desktop mirror"]="Show the left eye on the monitor",
             ["Left-handed"]="Swap hands on foot and building",

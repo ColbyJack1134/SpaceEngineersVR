@@ -56,21 +56,22 @@ namespace SpaceEngineersVR.Player
                 if(RenderFrameBridge.Remote!=null) NativeGloves.Prepare(null);
                 DesktopCapture.Update(MyRender11.DeviceInstance);
                 RemoteFeed.Render(RenderFrameBridge.Remote);
-                LcdFeed.Render(RenderFrameBridge.Lcds);
+                MatrixD headView=VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale);
+                LcdFeed.Render(RenderFrameBridge.Lcds,headView);
                 NativeGloves.Prepare(rig,matrices.FarClipping);
                 resources=new EyeResolution.Scene(size);
-                StereoRenderState.Begin(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale),
+                StereoRenderState.Begin(headView,
                     rig?.ThirdPerson==true ? .005*scale : Math.Max(.03,matrices.NearClipping),matrices.LargeDistanceFarClipping);
                 ThirdPersonView.RecordTrace(rig);
                 StereoExposure.Begin();
                 float left=0,right=0,top=0,bottom=0;
                 var signalLimits=new Vector2(float.MaxValue);
-                foreach(var eye in new[] {EVREye.Eye_Left,EVREye.Eye_Right})
+                foreach(var eye in VrMath.Eyes)
                 {
                     OpenVR.System.GetProjectionRaw(eye,ref left,ref right,ref top,ref bottom);
                     signalLimits=Vector2.Min(signalLimits,new Vector2(Math.Min(-left,right),Math.Min(-top,bottom))*.96f);
                 }
-                WorldMarkers.BeginFrame(MatrixD.Invert(VrMath.EyeView(gameView,renderPose.deviceToAbsolute.matrix,originInverse,Matrix.Identity,scale)),markers,signalLimits,rig?.TrackingToWorld,crosshair,EyeResolution.HudWidth(size.X));
+                WorldMarkers.BeginFrame(MatrixD.Invert(headView),markers,signalLimits,rig?.TrackingToWorld,crosshair,EyeResolution.HudWidth(size.X));
                 RenderEye(EVREye.Eye_Left, leftTexture, matrices, gameView, sceneCamera, originInverse,rig,out leftAmbient);
                 if(leftAmbient!=null) { new BorrowedRtvTexture(leftAmbient).Release(); leftAmbient=null; }
                 RenderEye(EVREye.Eye_Right, rightTexture, matrices, gameView, sceneCamera, originInverse,rig,out rightAmbient);

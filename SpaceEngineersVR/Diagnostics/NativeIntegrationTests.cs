@@ -263,10 +263,10 @@ namespace SpaceEngineersVR.Diagnostics
                 AccessTools.Method(typeof(TouchAppRegistration),"Postfix").Invoke(null,null);
                 Require(factory.Scripts.TryGetValue(LcdCameras.ScriptId,out var camera) && camera.Type==typeof(CameraDisplay) && camera.DisplayName.String=="Camera Display (VR)",
                     "Camera Display script is not registered under the Camera LCD id");
-                Require(LcdCameras.CameraName("Front",0)=="Front" && LcdCameras.CameraName("0:Left\n1:Right",1)=="Right" &&
-                    LcdCameras.CameraName("0:Left\n1:Right",2)=="0:Left\n1:Right" && LcdCameras.CameraName("1:",1)=="1:",
+                Require(string.Join("|",LcdCameras.CameraNames("Front",0))=="Front" && string.Join("|",LcdCameras.CameraNames("0:Left\n1:Right",1))=="Right" &&
+                    string.Join("|",LcdCameras.CameraNames("0:Left\n\n1:Right",2))=="0:Left|1:Right" && string.Join("|",LcdCameras.CameraNames("1:",1))=="1:",
                     "Camera Display Custom Data does not follow the Camera LCD format");
-                log("PASS camera displays: TSS_CameraDisplay registers as Camera Display (VR); Custom Data reads per-surface lines and falls back to the whole text.");
+                log("PASS camera displays: TSS_CameraDisplay registers as Camera Display (VR); Custom Data reads per-surface lines and otherwise tries each line.");
             }
             finally { factoryField.SetValue(null,previous); }
 

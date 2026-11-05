@@ -4,8 +4,10 @@ using System.Reflection;
 using HarmonyLib;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
+using Valve.VR;
 using SpaceEngineersVR.Plugin;
 using SpaceEngineersVR.Wrappers;
+using VRage.Render.Scene;
 using VRageMath;
 
 namespace SpaceEngineersVR.Player
@@ -26,14 +28,27 @@ namespace SpaceEngineersVR.Player
             int side=Math.Max(64,(int)Math.Round(1024*scale/16)*16);
             return new Vector2I(side,side);
         }
-        public static void Render(LcdCameras.View[] displays)
+        public static void Render(LcdCameras.View[] displays,MatrixD headView)
         {
             if(displays==null || displays.Length==0) { Reset(); return; }
             // Screens keep their last picture behind menus, the terminal included.
             if(Main.MenuOpen || --wait>0) return;
             wait=Common.Config?.LcdCameraInterval ?? Config.PluginConfig.DefaultLcdCameraInterval;
-            next=(next+1)%displays.Length;
-            var display=displays[next];
+            var visible=HeadFrustum(headView);
+            LcdCameras.View display=null;
+            MatrixD world=default;
+            // Screens outside the head view keep their last picture.
+            for(int i=0;i<displays.Length && display==null;i++)
+            {
+                next=(next+1)%displays.Length;
+                var candidate=displays[next];
+                if(visible.Contains(candidate.Bounds)==ContainmentType.Disjoint) continue;
+                var grid=candidate.GridActor==uint.MaxValue ? null:MyIDTracker<MyActor>.FindByID(candidate.GridActor);
+                if(grid==null) continue;
+                world=candidate.CameraInGrid*grid.WorldMatrix;
+                display=candidate;
+            }
+            if(display==null) return;
             if(!TryTarget(display.Texture,out var target,out var mips)) return;
             var size=Resolution;
             var rendered=MyManagers.RwTexturesPool.BorrowRtv("SEVR.Lcd",size.X,size.Y,Format.R8G8B8A8_UNorm_SRgb);
@@ -50,9 +65,8 @@ namespace SpaceEngineersVR.Player
                 using(var exposure=new RemoteExposure(RemoteExposure.Lcd))
                 using(var isolated=new RemoteScene(FeedShadows.Lcd,display.Character,display.FirstPersonMaterials))
                 {
-                    var world=MatrixD.Invert(display.Camera);
                     float aspect=display.SurfaceSize.Y>0 ? display.SurfaceSize.X/display.SurfaceSize.Y : 1,tangent=(float)Math.Tan(display.Fov/2);
-                    matrices.SetCamera(display.Camera,world,-tangent*aspect,tangent*aspect,-tangent,tangent,Math.Max(.03,matrices.NearClipping));
+                    matrices.SetCamera(MatrixD.Invert(world),world,-tangent*aspect,tangent*aspect,-tangent,tangent,Math.Max(.03,matrices.NearClipping));
                     scene.Position=world.Translation;
                     MyRender11.DrawGameScene(rendered,out ambient);
                 }
@@ -68,6 +82,18 @@ namespace SpaceEngineersVR.Player
                 GpuTiming.End(GpuTiming.Area.LcdCamera);
             }
         }
+        private static BoundingFrustumD HeadFrustum(MatrixD view)
+        {
+            float left=0,right=0,top=0,bottom=0,l=0,r=0,t=0,b=0;
+            foreach(var eye in VrMath.Eyes)
+            {
+                OpenVR.System.GetProjectionRaw(eye,ref l,ref r,ref t,ref b);
+                left=Math.Min(left,l); right=Math.Max(right,r); top=Math.Min(top,t); bottom=Math.Max(bottom,b);
+            }
+            return Frustum(view,left,right,top,bottom,Common.Config?.LcdCameraRange ?? Config.PluginConfig.DefaultLcdCameraRange);
+        }
+        internal static BoundingFrustumD Frustum(MatrixD view,float left,float right,float top,float bottom,double range) =>
+            new BoundingFrustumD(view*VrMath.Projection(left,right,top,bottom,.03,range*2));
         // Alpha stays at the panel's background alpha like native content: screen materials read it as metalness.
         private static void Copy(Texture2D source,Texture2D target,ShaderResourceView mips,LcdCameras.View display)
         {
