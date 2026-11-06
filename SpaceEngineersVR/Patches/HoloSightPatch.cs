@@ -7,6 +7,7 @@ using SpaceEngineersVR.Plugin;
 namespace SpaceEngineersVR.Patches
 {
     // Weapon entities read their model from the item definition when created, so the copy must be in place before the world spawns them.
+    [HarmonyPatchCategory("WeaponModels")]
     [HarmonyPatch(typeof(MyDefinitionManager),nameof(MyDefinitionManager.LoadData))]
     internal static class HoloSightPatch
     {

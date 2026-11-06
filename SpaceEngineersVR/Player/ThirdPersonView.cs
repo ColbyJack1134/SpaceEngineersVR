@@ -67,6 +67,7 @@ namespace SpaceEngineersVR.Player
         }
         public static void Toggle()
         {
+            if(!Plugin.PatchGroups.ThirdPerson.Enabled) { EssentialHud.Notify("Third person is off"); return; }
             var candidate=Candidate;
             if(candidate==null) { EssentialHud.Notify("Third person is unavailable here"); return; }
             Fade(()=> {

@@ -4,6 +4,7 @@ using VRageRender;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("ScreenEffects")]
     [HarmonyPatch(typeof(MyPostprocessSettingsWrapper),nameof(MyPostprocessSettingsWrapper.ReloadSettingsFrom))]
     internal static class ScreenEffectsPatch
     {

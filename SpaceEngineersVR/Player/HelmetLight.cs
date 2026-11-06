@@ -9,6 +9,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
+    [HarmonyPatchCategory("CharacterBody")]
     [HarmonyPatch(typeof(MyRenderComponentCharacter),nameof(MyRenderComponentCharacter.UpdateLightPosition))]
     internal static class HelmetLight
     {

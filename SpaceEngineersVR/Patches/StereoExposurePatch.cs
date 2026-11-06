@@ -7,6 +7,7 @@ using SpaceEngineersVR.Player;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("SharedExposure")]
     [HarmonyPatch]
     internal static class StereoExposurePatch
     {
@@ -36,6 +37,7 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("SharedExposure")]
     [HarmonyPatch]
     internal static class StereoExposureReadPatch
     {

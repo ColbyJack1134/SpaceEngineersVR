@@ -9,6 +9,7 @@ using SpaceEngineersVR.Wrappers;
 namespace SpaceEngineersVR.Player
 {
     // Reuse the native glove and sleeve draws, including their skinning and material alpha, for UI occlusion.
+    [HarmonyPatchCategory("HandOcclusion")]
     [HarmonyPatch]
     internal static class NativeHandLayer
     {
@@ -21,14 +22,18 @@ namespace SpaceEngineersVR.Player
         private static volatile bool active;
         private static volatile bool leftDrawn,rightDrawn,observerOnly;
         internal static bool Drawn(bool left) => left ? leftDrawn:rightDrawn;
-        private static readonly AccessTools.FieldRef<object,VRage.Render.Scene.Components.MyActorComponent> parentField=
-            AccessTools.FieldRefAccess<object,VRage.Render.Scene.Components.MyActorComponent>(AccessTools.Field(AccessTools.TypeByName("VRageRender.MyRenderableProxy"),"Parent"));
-        private static MethodBase TargetMethod() => AccessTools.Method(AccessTools.TypeByName("VRageRender.MyGBufferPass"),"RecordCommandsInternal",new[] {AccessTools.TypeByName("VRageRender.MyRenderableProxy")});
+        private static AccessTools.FieldRef<object,VRage.Render.Scene.Components.MyActorComponent> parentField;
+        private static MethodBase TargetMethod()
+        {
+            var proxy=PatchGroup.Type("VRageRender.MyRenderableProxy");
+            parentField=AccessTools.FieldRefAccess<object,VRage.Render.Scene.Components.MyActorComponent>(AccessTools.Field(proxy,"Parent") ?? throw new MissingFieldException("MyRenderableProxy.Parent"));
+            return PatchGroup.Method(PatchGroup.Type("VRageRender.MyGBufferPass"),"RecordCommandsInternal",new[] {proxy});
+        }
         // In third person only the tracked observer gloves are hands, not the character's own.
         internal static void Begin(int width,int height,bool enabled,bool observer=false)
         {
             active=ready=leftDrawn=rightDrawn=false; observerOnly=observer;
-            if(!enabled || Actor==uint.MaxValue && !NativeGloves.Visible) return;
+            if(!enabled || !Plugin.PatchGroups.HandOcclusion.Enabled || Actor==uint.MaxValue && !NativeGloves.Visible) return;
             if(texture==null || texture.Description.Width!=width || texture.Description.Height!=height)
             {
                 Reset();

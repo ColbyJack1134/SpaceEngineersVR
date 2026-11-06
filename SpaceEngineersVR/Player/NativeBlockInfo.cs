@@ -43,16 +43,15 @@ namespace SpaceEngineersVR.Player
         private sealed class Request { public Vector2 Area; public string Target; }
         internal static void Install(Harmony harmony)
         {
-            var renderer=AccessTools.TypeByName("VRageRender.MyRender11");
+            var renderer=PatchGroup.Type("VRageRender.MyRender11");
             // Viewport-scaled overload: desktop GUI sprites fill a larger target.
-            offscreen=renderer.GetMethods(BindingFlags.Static|BindingFlags.Public).Single(m=>m.Name=="DrawSpritesOffscreen" && m.GetParameters().Length==6);
-            style=AccessTools.Method(typeof(MyGuiScreenHudSpace),"GetDefaultStyle") ?? throw new MissingMethodException("MyGuiScreenHudSpace.GetDefaultStyle");
+            offscreen=PatchGroup.Method(renderer,"DrawSpritesOffscreen",6);
+            style=PatchGroup.Method(typeof(MyGuiScreenHudSpace),"GetDefaultStyle");
             lossShown=AccessTools.Field(typeof(MyHudBlockInfo),"m_componentLossNotificationAdded") ?? throw new MissingFieldException("MyHudBlockInfo.m_componentLossNotificationAdded");
             // The style comes from an uninitialized screen; fail at install rather than in the HUD draw.
             Style();
-            harmony.Patch(AccessTools.Method(typeof(MyGuiScreenHudSpace),"Draw"),new HarmonyMethod(typeof(NativeBlockInfo),nameof(Draw)));
-            var main=renderer.GetMethods(BindingFlags.Static|BindingFlags.NonPublic).Single(m=>m.Name=="RenderMainSprites" && m.GetParameters().Length==5);
-            harmony.Patch(main,new HarmonyMethod(typeof(NativeBlockInfo),nameof(Collect)));
+            harmony.Patch(PatchGroup.Method(typeof(MyGuiScreenHudSpace),"Draw"),new HarmonyMethod(typeof(NativeBlockInfo),nameof(Draw)));
+            harmony.Patch(PatchGroup.Method(renderer,"RenderMainSprites",5),new HarmonyMethod(typeof(NativeBlockInfo),nameof(Collect)));
             Available=true;
         }
         internal static MyGuiControlBlockInfo.MyControlBlockInfoStyle Style() =>

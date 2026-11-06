@@ -17,6 +17,7 @@ namespace SpaceEngineersVR.Patches
         private static MethodBase TargetMethod() => AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),"ProcessMessageInternal");
         private static void Prefix(MyRenderMessageBase __0) => CockpitMaterials.Register(__0);
     }
+    [HarmonyPatchCategory("CameraFeeds")]
     [HarmonyPatch(typeof(MyCockpit),nameof(MyCockpit.UpdateCockpitModel))]
     internal static class RemoteCockpitModelPatch
     {

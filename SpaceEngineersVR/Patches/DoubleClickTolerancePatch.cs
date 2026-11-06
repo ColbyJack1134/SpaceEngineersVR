@@ -13,15 +13,12 @@ namespace SpaceEngineersVR.Patches
     internal static class DoubleClickTolerancePatch
     {
         internal const float Native=.005f,Tolerance=.015f;
-        private static bool installed;
         internal static IEnumerable<MethodBase> Targets =>
             new[] {"MyGuiControlGrid","MyGuiControlListbox","MyGuiControlTable","MyGuiControlMultiSelectTable","MyGuiControlResearchGraph"}
                 .Select(name => AccessTools.DeclaredMethod(AccessTools.TypeByName("Sandbox.Graphics.GUI."+name),"HandleNewMousePress"));
         // Patching runs these controls' class constructors, which need the game's renderer, so install after startup.
         internal static void Install(Harmony harmony)
         {
-            if(installed) return;
-            installed=true;
             foreach(var method in Targets) harmony.Patch(method,transpiler:new HarmonyMethod(typeof(DoubleClickTolerancePatch),nameof(Transpiler)));
         }
         internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions,MethodBase __originalMethod)

@@ -23,8 +23,8 @@ namespace SpaceEngineersVR.Patches
         [ThreadStatic] private static int drawing;
         [ThreadStatic] private static int suppressing;
         private static readonly Dictionary<MethodBase,Func<bool>> suppressWhile=new Dictionary<MethodBase,Func<bool>>();
-        private static readonly List<MethodBase> patched=new List<MethodBase>();
         private static readonly HashSet<Type> attempted=new HashSet<Type>();
+        private static PatchGroup part;
         private static readonly Dictionary<Type,RichPool> richPools=new Dictionary<Type,RichPool>();
         private static DateTime retry;
         private sealed class RichPool
@@ -114,67 +114,44 @@ namespace SpaceEngineersVR.Patches
             }
         }
         private const BindingFlags Declared=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.DeclaredOnly;
-        private static void Patch(MethodBase method,string prefix=null,string postfix=null,string finalizer=null)
-        {
-            Common.Plugin.Harmony.Patch(method,prefix==null ? null:new HarmonyMethod(typeof(ModHud),prefix),
-                postfix==null ? null:new HarmonyMethod(typeof(ModHud),postfix),
-                finalizer:finalizer==null ? null:new HarmonyMethod(typeof(ModHud),finalizer));
-            patched.Add(method);
-        }
+        private static MethodInfo Hook(string name) => name==null ? null:AccessTools.Method(typeof(ModHud),name);
+        private static void Patch(MethodBase method,string prefix=null,string postfix=null,string finalizer=null) =>
+            part.Patch(method,Hook(prefix),Hook(postfix),null,Hook(finalizer));
         private static void AttachText(Assembly assembly,Type root)
         {
             if(!attempted.Add(root)) return;
-            int start=patched.Count;
-            try
-            {
-                var methods=new[] {"ModHUDMessage","ModBillboardHUDMessage","ModBillboardTriHUDMessage"}
-                    .Select(name=>assembly.GetType("UIFun.Messagesv2."+name,false)?.GetMethod("Draw",BindingFlags.Public|BindingFlags.Instance|BindingFlags.DeclaredOnly,null,Type.EmptyTypes,null)).ToArray();
-                if(methods.Any(method=>method==null)) return;
-                foreach(var method in methods) Patch(method,nameof(Begin),finalizer:nameof(End));
+            var methods=new[] {"ModHUDMessage","ModBillboardHUDMessage","ModBillboardTriHUDMessage"}
+                .Select(name=>assembly.GetType("UIFun.Messagesv2."+name,false)?.GetMethod("Draw",BindingFlags.Public|BindingFlags.Instance|BindingFlags.DeclaredOnly,null,Type.EmptyTypes,null)).ToArray();
+            if(methods.Any(method=>method==null)) return;
+            part=PatchGroups.ModHud.Part("Text HUD API");
+            if(part.Apply(attach:h=> { foreach(var method in methods) Patch(method,nameof(Begin),finalizer:nameof(End)); }))
                 Logger.Info("Text HUD API VR billboard adapter attached to "+assembly.GetName().Name);
-            }
-            catch(Exception ex) { Rollback(start); Logger.Warning(ex,"Text HUD API VR adapter unavailable"); }
         }
         // WeaponCore and Defense Shields draw their HUD 10 cm in front of the camera, which cannot be right in both eyes. The
         // headset hides it once the mod's API answered and the VR markers and wrist pages replace it; camera feeds keep it.
         private static void Suppress(string mod,Func<bool> ready,Type session,params MethodBase[] methods)
         {
             if(!attempted.Add(session)) return;
-            int start=patched.Count;
-            try
-            {
-                if(methods.Any(method=>method==null)) { Logger.Info(mod+" HUD draw methods not found; its HUD is left unchanged in VR"); return; }
-                foreach(var method in methods) { Patch(method,nameof(BeginSuppressed),finalizer:nameof(EndSuppressed)); suppressWhile[method]=ready; }
+            if(methods.Any(method=>method==null)) { Logger.Info(mod+" HUD draw methods not found; its HUD is left unchanged in VR"); return; }
+            part=PatchGroups.ModHud.Part(mod+" HUD");
+            if(part.Apply(attach:h=> { foreach(var method in methods) { Patch(method,nameof(BeginSuppressed),finalizer:nameof(EndSuppressed)); suppressWhile[method]=ready; } }))
                 Logger.Info(mod+" HUD hidden in the headset");
-            }
-            catch(Exception ex) { Rollback(start); Logger.Warning(ex,mod+" VR HUD adapter unavailable"); }
         }
         private static void AttachRich(Type type)
         {
             if(!attempted.Add(type)) return;
-            int start=patched.Count;
-            try
-            {
-                var method=type.GetMethod("UpdateBillboards",BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.DeclaredOnly,null,Type.EmptyTypes,null);
-                if(method==null) return;
-                var pools=new RichPool(type);
-                if(!pools.Valid) return;
-                richPools.Add(type,pools);
-                Patch(method,postfix:nameof(RichUpdated));
+            var method=type.GetMethod("UpdateBillboards",BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.DeclaredOnly,null,Type.EmptyTypes,null);
+            if(method==null) return;
+            var pools=new RichPool(type);
+            if(!pools.Valid) return;
+            part=PatchGroups.ModHud.Part("Rich HUD Framework");
+            if(part.Apply(attach:h=> { richPools.Add(type,pools); Patch(method,postfix:nameof(RichUpdated)); }))
                 Logger.Info("Rich HUD Framework VR billboard adapter attached to "+type.Assembly.GetName().Name);
-            }
-            catch(Exception ex) { richPools.Remove(type); Rollback(start); Logger.Warning(ex,"Rich HUD Framework VR adapter unavailable"); }
-        }
-        private static void Rollback(int start)
-        {
-            foreach(var method in patched.Skip(start).ToArray())
-                foreach(string name in new[] {nameof(Begin),nameof(BeginSuppressed),nameof(End),nameof(EndSuppressed),nameof(RichUpdated)})
-                    Common.Plugin.Harmony.Unpatch(method,AccessTools.Method(typeof(ModHud),name));
-            patched.RemoveRange(start,patched.Count-start);
+            else richPools.Remove(type);
         }
         internal static void Reset()
         {
-            Rollback(0); attempted.Clear(); richPools.Clear(); suppressWhile.Clear(); drawing=0; suppressing=0; retry=DateTime.MinValue;
+            PatchGroups.ModHud.RemoveParts(); attempted.Clear(); richPools.Clear(); suppressWhile.Clear(); drawing=0; suppressing=0; retry=DateTime.MinValue;
             MenuHudLayer.Reset();
         }
         private static void Begin(out int __state) { __state=drawing; if(Main.VrActive) drawing++; }
@@ -235,6 +212,7 @@ namespace SpaceEngineersVR.Patches
             return true;
         }
     }
+    [HarmonyPatchCategory("ModHud")]
     [HarmonyPatch(typeof(MyRenderProxy),nameof(MyRenderProxy.AddBillboard))]
     internal static class ModHudBillboardPatch
     {

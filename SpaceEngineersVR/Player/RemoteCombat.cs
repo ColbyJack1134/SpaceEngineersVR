@@ -119,11 +119,13 @@ namespace SpaceEngineersVR.Player
             Hit=null; HitControl=null; hitOwner=0; hitImpact=null; lastImpactTime=default(DateTime);
         }
     }
+    [HarmonyPatchCategory("HudMarkers")]
     [HarmonyPatch(typeof(MyHudWeaponHitIndicator),"Hit")]
     internal static class HitFeedbackPatch
     {
         private static void Prefix() => RemoteCombat.BeginHit();
     }
+    [HarmonyPatchCategory("HudMarkers")]
     [HarmonyPatch(typeof(MyProjectile),nameof(MyProjectile.OnHit))]
     internal static class ProjectileImpactPatch
     {
@@ -132,6 +134,7 @@ namespace SpaceEngineersVR.Player
             if(entity!=null) RemoteCombat.RecordImpact(__instance.OwningPlayer,hitInfo.Position);
         }
     }
+    [HarmonyPatchCategory("HudMarkers")]
     [HarmonyPatch(typeof(MyHudWeaponHitIndicator),"Update")]
     internal static class HitFeedbackUpdatePatch
     {

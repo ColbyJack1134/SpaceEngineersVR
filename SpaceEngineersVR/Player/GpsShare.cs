@@ -9,6 +9,7 @@ using VRageMath;
 namespace SpaceEngineersVR.Player
 {
     // The VR keyboard cannot paste, so the GPS tab sends the selected GPS to chat; receiving games add it from the text.
+    [HarmonyPatchCategory("MenuExtras")]
     [HarmonyPatch]
     internal static class GpsShare
     {

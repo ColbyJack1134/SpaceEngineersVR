@@ -8,6 +8,7 @@ using VRageRender.Lights;
 namespace SpaceEngineersVR.Patches
 {
     // Keep a live comparison switch while testing stereo occlusion changes.
+    [HarmonyPatchCategory("StereoFlares")]
     [HarmonyPatch]
     internal static class DistantFlarePatch
     {

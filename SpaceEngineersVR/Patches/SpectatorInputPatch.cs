@@ -7,6 +7,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("Spectator")]
     [HarmonyPatch(typeof(MyInputExtensions),nameof(MyInputExtensions.GetPositionDelta),new[] {typeof(IMyInput)})]
     internal static class SpectatorTranslationPatch
     {
@@ -17,6 +18,7 @@ namespace SpaceEngineersVR.Patches
             return false;
         }
     }
+    [HarmonyPatchCategory("Spectator")]
     [HarmonyPatch(typeof(MyInputExtensions),nameof(MyInputExtensions.GetRotation),new[] {typeof(IMyInput)})]
     internal static class SpectatorRotationPatch
     {
@@ -27,6 +29,7 @@ namespace SpaceEngineersVR.Patches
             return false;
         }
     }
+    [HarmonyPatchCategory("Spectator")]
     [HarmonyPatch]
     internal static class SpectatorRollPatch
     {

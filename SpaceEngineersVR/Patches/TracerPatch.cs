@@ -16,6 +16,7 @@ using VRageRender;
 namespace SpaceEngineersVR.Patches
 {
     // Native trails are a few millimetres thick and scaled by the desktop zoom level, which VR never changes.
+    [HarmonyPatchCategory("Tracers")]
     [HarmonyPatch]
     internal static class TracerPatch
     {

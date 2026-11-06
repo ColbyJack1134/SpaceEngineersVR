@@ -35,32 +35,33 @@ namespace SpaceEngineersVR.Player
         internal static RemoteView.View Fixture { get; set; }
         internal static int SpriteCount { get; private set; }
         internal static string FixtureSprites;
-        private static readonly Type renderer=AccessTools.TypeByName("VRageRender.MyRender11");
-        private static readonly FieldInfo frameCounter=AccessTools.Field(renderer,"m_messageFrameCounter");
+        private static FieldInfo frameCounter,manager;
         private static int collectedFrame=int.MinValue;
-        private static readonly Type managerType=AccessTools.TypeByName("VRage.Render11.Sprites.MySpritesManager");
-        private static readonly FieldInfo manager=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Common.MyManagers"),"SpritesManager");
-        private static readonly MethodInfo acquire=AccessTools.Method(managerType,"AcquireDrawMessages"),dispose=AccessTools.Method(managerType,"DisposeDrawMessages");
-        private static readonly MethodInfo draw=renderer.GetMethods(BindingFlags.Static|BindingFlags.Public).Single(m=>m.Name=="DrawSpritesOffscreen" && m.GetParameters().Length==7);
+        private static MethodInfo acquire,dispose,draw;
         internal static void Install(Harmony harmony)
         {
-            harmony.Patch(AccessTools.Method(typeof(Sandbox.Game.Gui.MyGuiScreenHudBase),"Draw"),new HarmonyMethod(typeof(RemoteHud),nameof(HudFrame)));
+            var renderer=PatchGroup.Type("VRageRender.MyRender11");
+            frameCounter=AccessTools.Field(renderer,"m_messageFrameCounter") ?? throw new MissingFieldException("MyRender11.m_messageFrameCounter");
+            var managerType=PatchGroup.Type("VRage.Render11.Sprites.MySpritesManager");
+            manager=AccessTools.Field(PatchGroup.Type("VRage.Render11.Common.MyManagers"),"SpritesManager") ?? throw new MissingFieldException("MyManagers.SpritesManager");
+            acquire=PatchGroup.Method(managerType,"AcquireDrawMessages"); dispose=PatchGroup.Method(managerType,"DisposeDrawMessages");
+            draw=PatchGroup.Method(renderer,"DrawSpritesOffscreen",7);
+            harmony.Patch(PatchGroup.Method(typeof(Sandbox.Game.Gui.MyGuiScreenHudBase),"Draw"),new HarmonyMethod(typeof(RemoteHud),nameof(HudFrame)));
             foreach(string method in new[] {"DrawSprite","DrawSpriteExt","DrawSpriteAtlas","SpriteScissorPop","SpriteScissorPush","DrawString","DrawStringAligned"})
-                harmony.Patch(AccessTools.Method(typeof(MyRenderProxy),method),new HarmonyMethod(typeof(RemoteHud),nameof(Route)));
+                harmony.Patch(PatchGroup.Method(typeof(MyRenderProxy),method),new HarmonyMethod(typeof(RemoteHud),nameof(Route)));
             foreach(string type in new[] {"Sandbox.Game.GUI.MyHudCameraOverlay","Sandbox.Game.Gui.MyHudCrosshair","Sandbox.Game.Gui.MyHudTargetingMarkers"})
-                harmony.Patch(AccessTools.Method(AccessTools.TypeByName(type),"Draw"),new HarmonyMethod(typeof(RemoteHud),nameof(Begin)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(End)));
+                harmony.Patch(PatchGroup.Method(PatchGroup.Type(type),"Draw"),new HarmonyMethod(typeof(RemoteHud),nameof(Begin)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(End)));
             var marker=typeof(Sandbox.Game.GUI.HudViewers.MyHudMarkerRender);
-            harmony.Patch(AccessTools.Method(typeof(Sandbox.Game.Gui.MyGuiScreenHudBase),"DrawTexts"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginMarkers)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(EndMarkers)));
-            harmony.Patch(AccessTools.PropertyGetter(marker,"SignalDisplayMode"),postfix:new HarmonyMethod(typeof(RemoteHud),nameof(SignalMode)));
-            harmony.Patch(AccessTools.Method(typeof(Sandbox.Game.Gui.MyGuiScreenHudSpace),"AsyncUpdate"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginCollection)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(EndCollection)));
-            harmony.Patch(AccessTools.Method(typeof(Sandbox.Game.Gui.MyGuiScreenHudSpace),"DrawAsync"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginCollection)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(EndCollection)));
+            harmony.Patch(PatchGroup.Method(typeof(Sandbox.Game.Gui.MyGuiScreenHudBase),"DrawTexts"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginMarkers)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(EndMarkers)));
+            harmony.Patch(PatchGroup.Getter(marker,"SignalDisplayMode"),postfix:new HarmonyMethod(typeof(RemoteHud),nameof(SignalMode)));
+            harmony.Patch(PatchGroup.Method(typeof(Sandbox.Game.Gui.MyGuiScreenHudSpace),"AsyncUpdate"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginCollection)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(EndCollection)));
+            harmony.Patch(PatchGroup.Method(typeof(Sandbox.Game.Gui.MyGuiScreenHudSpace),"DrawAsync"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginCollection)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(EndCollection)));
             foreach(string property in new[] {"MinimalHud","IsHudMinimal"})
-                harmony.Patch(AccessTools.PropertyGetter(typeof(Sandbox.Game.Gui.MyHud),property),postfix:new HarmonyMethod(typeof(RemoteHud),nameof(MinimalHud)));
-            harmony.Patch(AccessTools.Method(marker,"Draw"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginMarkers)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(EndMarkers)));
-            harmony.Patch(AccessTools.Method(marker,"DrawTargetIndicatorRender"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(Begin)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(End)));
-            harmony.Patch(AccessTools.Method(typeof(Sandbox.Graphics.GUI.MyGuiControlImage),"Draw"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginHit)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(End)));
-            var main=renderer.GetMethods(BindingFlags.Static|BindingFlags.NonPublic).Single(m=>m.Name=="RenderMainSprites" && m.GetParameters().Length==5);
-            harmony.Patch(main,new HarmonyMethod(typeof(RemoteHud),nameof(Collect)));
+                harmony.Patch(PatchGroup.Getter(typeof(Sandbox.Game.Gui.MyHud),property),postfix:new HarmonyMethod(typeof(RemoteHud),nameof(MinimalHud)));
+            harmony.Patch(PatchGroup.Method(marker,"Draw"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginMarkers)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(EndMarkers)));
+            harmony.Patch(PatchGroup.Method(marker,"DrawTargetIndicatorRender"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(Begin)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(End)));
+            harmony.Patch(PatchGroup.Method(typeof(Sandbox.Graphics.GUI.MyGuiControlImage),"Draw"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginHit)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(End)));
+            harmony.Patch(PatchGroup.Method(renderer,"RenderMainSprites",5),new HarmonyMethod(typeof(RemoteHud),nameof(Collect)));
         }
         private static bool CameraActive => Fixture!=null || Main.VrActive && !Main.MenuOpen && RemoteView.Current!=null;
         private static void BeginHit(Sandbox.Graphics.GUI.MyGuiControlImage __instance,out bool __state)

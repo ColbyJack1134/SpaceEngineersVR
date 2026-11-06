@@ -7,6 +7,7 @@ using VRage.Utils;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("Targeting")]
     [HarmonyPatch(typeof(Sandbox.Game.Screens.Helpers.RadialMenuActions.MyActionToggleDampeners),"ExecuteAction")]
     internal static class DampenerTogglePatch
     {

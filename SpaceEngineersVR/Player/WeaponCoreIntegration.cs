@@ -23,11 +23,11 @@ namespace SpaceEngineersVR.Player
             var session=WeaponCoreInternals.SessionType;
             if(session==null) return;
             attached=true;
-            // Each hook is optional: a WeaponCore change that breaks one leaves the rest running.
-            try { WeaponCoreScope.Attach(session); }
-            catch(Exception ex) { WeaponCoreScope.Detach(); Logger.Warning(ex,"WeaponCore VR input scope unavailable; VR fire and reload will not reach WeaponCore"); }
-            try { WeaponCoreAim.Attach(session.Assembly.GetType("WeaponCore.Data.Scripts.CoreSystems.Ui.Targeting.TargetUi",false)); }
-            catch(Exception ex) { WeaponCoreAim.Detach(); Logger.Warning(ex,"WeaponCore VR manual aim and painting unavailable"); }
+            // Each part is optional: a WeaponCore change that breaks one leaves the rest running.
+            var scope=PatchGroups.WeaponCore.Part("input scope");
+            if(!scope.Apply(attach:h=>WeaponCoreScope.Attach(session,scope))) WeaponCoreScope.Detach();
+            var aim=PatchGroups.WeaponCore.Part("manual aim");
+            if(!aim.Apply(attach:h=>WeaponCoreAim.Attach(session.Assembly.GetType("WeaponCore.Data.Scripts.CoreSystems.Ui.Targeting.TargetUi",false),aim))) WeaponCoreAim.Detach();
         }
 
         // Main thread, after controls are polled.
@@ -45,7 +45,7 @@ namespace SpaceEngineersVR.Player
             attached=false;
             // Armed actions hold off vanilla fire, so they clear before anything that can throw.
             HandLock.Reset(); TargetLock.Reset();
-            WeaponCoreScope.Detach(); WeaponCoreAim.Detach(); VirtualMouse.Reset(); WeaponCoreReload.Reset(); FeedCamera.Reset();
+            WeaponCoreScope.Detach(); WeaponCoreAim.Detach(); PatchGroups.WeaponCore.RemoveParts(); VirtualMouse.Reset(); WeaponCoreReload.Reset(); FeedCamera.Reset();
             WeaponCoreStatus.Reset(); WeaponCoreMarkers.Reset(); WeaponCoreAlerts.Reset();
             WeaponCoreBridge.Unload(); WeaponCoreInternals.Reset();
         }

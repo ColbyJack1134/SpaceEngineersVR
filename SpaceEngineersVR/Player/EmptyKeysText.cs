@@ -47,6 +47,7 @@ namespace SpaceEngineersVR.Player
     }
 
     // Vanilla multiplies the step only for gamepad shoulders; the VR pointer's other hand stands in for them.
+    [HarmonyPatchCategory("MenuExtras")]
     [HarmonyPatch(typeof(NumericTextBox),"ChangeValue")]
     internal static class NumericStepPatch
     {

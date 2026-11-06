@@ -10,6 +10,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("StereoScene")]
     [HarmonyPatch]
     internal static class StereoProbePatch
     {
@@ -22,6 +23,7 @@ namespace SpaceEngineersVR.Patches
         private static bool Prefix() => StereoRenderState.AdvanceScene;
     }
 
+    [HarmonyPatchCategory("StereoScene")]
     [HarmonyPatch]
     internal static class StereoAmbientOcclusionPatch
     {
@@ -51,6 +53,7 @@ namespace SpaceEngineersVR.Patches
             (projection.M31-1)/Math.Abs(projection.M11),(projection.M32+1)/Math.Abs(projection.M22));
     }
 
+    [HarmonyPatchCategory("StereoScene")]
     [HarmonyPatch]
     internal static class StereoBillboardPatch
     {
@@ -88,6 +91,7 @@ namespace SpaceEngineersVR.Patches
             MatrixD.Invert(StereoRenderState.CenterView).Translation : eye;
     }
 
+    [HarmonyPatchCategory("StereoFlares")]
     [HarmonyPatch]
     internal static class SceneFlarePoolPatch
     {
@@ -115,6 +119,7 @@ namespace SpaceEngineersVR.Patches
             return __exception;
         }
     }
+    [HarmonyPatchCategory("StereoFlares")]
     [HarmonyPatch]
     internal static class SceneFlareDrawPatch
     {

@@ -9,6 +9,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("CreativePlacement")]
     [HarmonyPatch(typeof(MyBlockBuilderBase),nameof(MyBlockBuilderBase.FindClosestPlacementObject))]
     internal static class CreativeGridPatch
     {
@@ -21,6 +22,7 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("CreativePlacement")]
     [HarmonyPatch(typeof(MyCubeBuilder),nameof(MyCubeBuilder.GetAddAndRemovePositions))]
     internal static class CreativeCellPatch
     {
@@ -45,12 +47,14 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("CreativePlacement")]
     [HarmonyPatch(typeof(MyCubeBuilder),"StartRemoving",new Type[0])]
     internal static class CreativeRemoveStrokePatch
     {
         private static bool Prefix(MyCubeBuilder __instance) => !CreativePlacement.Active || __instance.HitInfo.HasValue;
     }
 
+    [HarmonyPatchCategory("CreativePlacement")]
     [HarmonyPatch(typeof(MyCubeBuilderGizmo),nameof(MyCubeBuilderGizmo.EnableGizmoSpaces))]
     internal static class CreativeSymmetryPatch
     {

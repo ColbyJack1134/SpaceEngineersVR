@@ -20,7 +20,7 @@ namespace SpaceEngineersVR.Patches
     // Binds to Build Info (workshop 514062285) when its scripts load. Each part fails closed on its own.
     internal static class BuildInfoBridge
     {
-        private static readonly List<MethodBase> patched=new List<MethodBase>();
+        private static PatchGroup part;
         private static readonly HashSet<Type> attempted=new HashSet<Type>();
         private static DateTime retry;
         private static object main;
@@ -157,43 +157,21 @@ namespace SpaceEngineersVR.Patches
             if(setPage!=null && monitorPage!=null) parts.Add("toolbar page"); else { setPage=null; Logger.Info("Build Info toolbar page tracking not found; its toolbar list follows its own page keys"); }
             Logger.Info("Build Info adapter attached to "+assembly.GetName().Name+": "+(parts.Count>0 ? string.Join(", ",parts):"nothing"));
         }
-        private static bool Try(string part,bool found,Action attach)
+        private static bool Try(string name,bool found,Action attach)
         {
-            if(!found) { Logger.Info("Build Info "+part+" not found; left unchanged in VR"); return false; }
-            int start=patched.Count;
-            try { attach?.Invoke(); return true; }
-            catch(Exception ex) { Rollback(start); Logger.Warning(ex,"Build Info "+part+" adapter unavailable"); return false; }
+            if(!found) { Logger.Info("Build Info "+name+" not found; left unchanged in VR"); return false; }
+            part=PatchGroups.BuildInfo.Part(name);
+            return part.Apply(attach:h=>attach?.Invoke());
         }
-        private static void Patch(MethodBase method,string prefix=null,string postfix=null,string finalizer=null) =>
-            Patch(method,prefix==null ? null:AccessTools.Method(typeof(BuildInfoBridge),prefix),postfix==null ? null:AccessTools.Method(typeof(BuildInfoBridge),postfix),
-                finalizer==null ? null:AccessTools.Method(typeof(BuildInfoBridge),finalizer));
-        private static void Patch(MethodBase method,MethodInfo prefix,MethodInfo postfix=null,MethodInfo finalizer=null)
-        {
-            patched.Add(method);
-            Common.Plugin.Harmony.Patch(method,prefix==null ? null:new HarmonyMethod(prefix),postfix==null ? null:new HarmonyMethod(postfix),
-                finalizer:finalizer==null ? null:new HarmonyMethod(finalizer));
-        }
-        private static readonly MethodInfo[] Patches=new[] {nameof(DistanceInput),nameof(DistanceBegin),nameof(DistanceEnd),nameof(EquippedMatrix),nameof(TextBegin),nameof(TextEnd),nameof(AdditionsBegin),nameof(AdditionsEnd),
-                nameof(ToolbarVisible),nameof(ToolbarHidden),nameof(ToolbarDraw),nameof(SingleList),nameof(RestoreStyle),nameof(MenuToolbarDraw),nameof(BarDrawBegin),nameof(BarDrawEnd),nameof(ModeShown),nameof(TurretSkip),nameof(TurretIndicatorSkip),
-                nameof(ControlPressed),nameof(ControlJustPressed),nameof(AimBegin),nameof(AimEnd),nameof(HeadBegin),nameof(HeadEnd),nameof(HandCamera),nameof(ToolDrawBegin),
-                nameof(InstrumentDrawBegin),nameof(InstrumentDrawEnd),nameof(DrawBegin),nameof(DrawEnd),nameof(SeeThroughBatch),nameof(LegendBegin),nameof(LegendEnd),
-                nameof(LabelScopeBegin),nameof(LabelScopeEnd),nameof(LabelAnchor),nameof(LabelBegin),nameof(LabelEnd),
-                nameof(HandView),nameof(CopiesBegin),nameof(CopiesEnd),nameof(GeometryBegin),nameof(GeometryEnd)}
-            .Select(name=>AccessTools.Method(typeof(BuildInfoBridge),name)).Concat(new[] {AccessTools.Method(typeof(ModHud),"Begin"),AccessTools.Method(typeof(ModHud),"End")}).ToArray();
-        private static void Rollback(int start)
-        {
-            // A method an earlier part also patched keeps that part's patches.
-            foreach(var method in patched.Skip(start).Except(patched.Take(start)).ToArray())
-                foreach(var patch in Patches)
-                    Common.Plugin.Harmony.Unpatch(method,patch);
-            patched.RemoveRange(start,patched.Count-start);
-        }
+        private static MethodInfo Hook(string name) => name==null ? null:AccessTools.Method(typeof(BuildInfoBridge),name);
+        private static void Patch(MethodBase method,string prefix=null,string postfix=null,string finalizer=null) => Patch(method,Hook(prefix),Hook(postfix),Hook(finalizer));
+        private static void Patch(MethodBase method,MethodInfo prefix,MethodInfo postfix=null,MethodInfo finalizer=null) => part.Patch(method,prefix,postfix,null,finalizer);
         internal static void Reset()
         {
             ReleaseToolbar();
             fed=null; setBlock=null; closedUi=null; toolbarMonitor=null; setPage=null; monitorPage=null;
             toolBar=null; toolBarShown=null; weaponModeShown=false; hideIcon=hideHud=null; gameConfig=null; CardAdditions.Reset();
-            Rollback(0); attempted.Clear(); scanned.Clear(); candidates.Clear(); main=null; instanceField=null; actions=null; textApiScale=null; retry=DateTime.MinValue;
+            PatchGroups.BuildInfo.RemoveParts(); attempted.Clear(); scanned.Clear(); candidates.Clear(); main=null; instanceField=null; actions=null; textApiScale=null; retry=DateTime.MinValue;
             multiTool=null; isEquipped=null; toolActions=null; instrumentName=null; refreshInstrument=null; aimDepth=headDepth=0; drawing=copyDepth=geometryDepth=0; labelText=null; BuildInfoPanel.Legend.Reset(); BuildInfoLabels.Reset();
             maxRange=swapAt=null; distance=null; toolbarLabels=null; toolbarBackgrounds=null; BuildInfoPanel.Text.Reset(); BuildInfoPanel.Toolbar.Reset();
         }

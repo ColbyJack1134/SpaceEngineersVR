@@ -6,6 +6,7 @@ using SpaceEngineersVR.Player;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("LensMask")]
     [HarmonyPatch]
     internal static class HiddenAreaMarkPatch
     {
@@ -18,6 +19,7 @@ namespace SpaceEngineersVR.Patches
     }
 
     // Occlusion queries consume first after all geometry; lighting follows.
+    [HarmonyPatchCategory("LensMask")]
     [HarmonyPatch]
     internal static class HiddenAreaRestorePatch
     {
@@ -25,6 +27,7 @@ namespace SpaceEngineersVR.Patches
         private static void Prefix() => HiddenAreaMask.Restore();
     }
 
+    [HarmonyPatchCategory("LensMask")]
     [HarmonyPatch]
     internal static class HiddenAreaExposurePatch
     {
@@ -33,6 +36,7 @@ namespace SpaceEngineersVR.Patches
         private static Exception Finalizer(Exception __exception) { HiddenAreaMask.EndExposure(); return __exception; }
     }
 
+    [HarmonyPatchCategory("LensMask")]
     [HarmonyPatch]
     internal static class HiddenAreaDispatchPatch
     {

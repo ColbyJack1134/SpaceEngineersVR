@@ -436,20 +436,22 @@ namespace SpaceEngineersVR.Diagnostics
             AnalogControlTests.Run(log);
             CockpitProbeTests.Run(log);
 
-            var harmony=new Harmony("SpaceEngineersVR.BootstrapTests");
+            PatchGroupTests.Run(log);
             try
             {
-                harmony.PatchAll(typeof(Plugin.Main).Assembly);
-                int count=harmony.GetPatchedMethods().Count();
-                Patches.FrameInjections.Install(harmony);
+                // The deferred double-click group needs the renderer; NativeIntegrationTests checks it in-game.
+                Plugin.PatchGroups.Apply(typeof(Plugin.Main).Assembly);
+                int count=Plugin.PatchGroups.PatchedMethods;
+                var off=Plugin.PatchGroups.Off.Select(g=>g.Name+": "+g.Failure).ToArray();
+                if(off.Length>0) throw new Exception("Patch groups off: "+string.Join("; ",off));
                 if(count<3) throw new Exception("Expected input, weapon and aiming patches; found "+count);
-                log("PASS installed "+count+" gameplay Harmony patches (no game/VR execution); render patching is tested in-game");
+                log("PASS installed "+count+" gameplay Harmony patches in "+Plugin.PatchGroups.All.Length+" groups (no game/VR execution); render patching is tested in-game");
                 if(!NativeNotices.Available) throw new Exception("Native HUD notification fields changed");
                 log("PASS native notices: installed native notification fields resolved");
                 NoticeTakeoverCheck();
                 log("PASS notice takeover: 3 s per new notice, extended up to 6 s, 2 s break, held notices resume, disabled immediately");
             }
-            finally { harmony.UnpatchAll(harmony.Id); }
+            finally { Plugin.PatchGroups.Remove(); }
         }
         // Loaded from bytes so the identical assembly identity does not resolve to this one.
         public static void PatchTest(string assemblyPath,Action<string> log)
@@ -466,14 +468,16 @@ namespace SpaceEngineersVR.Diagnostics
         }
         private static int Attach(System.Reflection.Assembly assembly,string id)
         {
-            var harmony=new Harmony(id);
+            var groups=assembly.GetType("SpaceEngineersVR.Plugin.PatchGroups",true);
+            var flags=BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public;
             try
             {
-                harmony.PatchAll(assembly);
-                assembly.GetType("SpaceEngineersVR.Patches.FrameInjections",true).GetMethod("Install").Invoke(null,new object[] {harmony});
-                return harmony.GetPatchedMethods().Count();
+                groups.GetMethod("Apply",flags).Invoke(null,new object[] {assembly});
+                var off=(System.Collections.IEnumerable)groups.GetProperty("Off",flags).GetValue(null);
+                if(off.Cast<object>().Any()) throw new Exception(id+" left patch groups off");
+                return (int)groups.GetProperty("PatchedMethods",flags).GetValue(null);
             }
-            finally { harmony.UnpatchAll(id); }
+            finally { groups.GetMethod("Remove",flags).Invoke(null,null); }
         }
     }
 }

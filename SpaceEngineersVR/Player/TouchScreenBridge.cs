@@ -29,7 +29,6 @@ namespace SpaceEngineersVR.Player
         private static object session,manager,selected,owner;
         private static FieldInfo listField,currentField;
         private static PropertyInfo enabledProperty;
-        private static MethodInfo updateManager,updateButtons;
         private static bool failed,registered,down,secondaryDown;
         private static DateTime retry;
         private static Vector3D hitPoint,rayOrigin;
@@ -148,7 +147,7 @@ namespace SpaceEngineersVR.Player
             CancelInput(); rightPose.Reset(); leftPose.Reset(); OwnsInput=Pointing=down=secondaryDown=false;
             selected=owner=null; screens.Clear(); manager=session=null; api=null;
             if(registered && MyAPIGateway.Utilities!=null) MyAPIGateway.Utilities.UnregisterMessageHandler(Channel,Message);
-            Unpatch(); registered=false; failed=false; retry=DateTime.MinValue;
+            PatchGroups.TouchScreens.RemoveParts(); registered=false; failed=false; retry=DateTime.MinValue;
         }
         private static void Discover()
         {
@@ -176,30 +175,19 @@ namespace SpaceEngineersVR.Player
             var managerType=Field(t,"TouchMan").FieldType;
             var managerMethod=Method(managerType,"UpdateAtSimulation");
             var buttonMethod=Method(screen,"UpdateMouseButtons");
-            Unpatch();
-            try
-            {
-                updateManager=managerMethod; updateButtons=buttonMethod;
-                Common.Plugin.Harmony.Patch(updateManager,prefix:new HarmonyMethod(typeof(TouchScreenBridge),nameof(ManagerPrefix)));
-                Common.Plugin.Harmony.Patch(updateButtons,prefix:new HarmonyMethod(typeof(TouchScreenBridge),nameof(ButtonsPrefix)));
+            PatchGroups.TouchScreens.RemoveParts();
+            var part=PatchGroups.TouchScreens.Part("session");
+            if(part.Apply(attach:h=> {
+                part.Patch(managerMethod,prefix:AccessTools.Method(typeof(TouchScreenBridge),nameof(ManagerPrefix)));
+                part.Patch(buttonMethod,prefix:AccessTools.Method(typeof(TouchScreenBridge),nameof(ButtonsPrefix)));
                 OptionalLcdContract.Method(input,"SetPlayerUseBlacklistState",typeof(bool)).Invoke(null,new object[] { false });
                 manager=nextManager; enabledProperty=Property(t,"ModEnabled");
                 listField=Field(managerType,"Screens"); currentField=Field(managerType,"CurrentScreen");
                 session=next; selected=null; screens.Clear(); CancelInput();
                 Logger.Info("TouchScreenAPI VR adapter attached to "+t.Assembly.GetName().Name);
-                return true;
-            }
-            catch
-            {
-                Unpatch(); manager=session=selected=null; screens.Clear(); CancelInput();
-                throw;
-            }
-        }
-        private static void Unpatch()
-        {
-            if(updateManager!=null) Common.Plugin.Harmony.Unpatch(updateManager,AccessTools.Method(typeof(TouchScreenBridge),nameof(ManagerPrefix)));
-            if(updateButtons!=null) Common.Plugin.Harmony.Unpatch(updateButtons,AccessTools.Method(typeof(TouchScreenBridge),nameof(ButtonsPrefix)));
-            updateManager=updateButtons=null;
+            })) return true;
+            manager=session=selected=null; screens.Clear(); CancelInput(); failed=true;
+            return false;
         }
         internal static void RefreshRegistrations()
         {

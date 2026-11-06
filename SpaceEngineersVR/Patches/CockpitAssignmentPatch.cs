@@ -7,33 +7,39 @@ using VRage.Game;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("CockpitControls")]
     [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),nameof(MyGuiScreenToolbarConfigBase.Update))]
     internal static class ToolbarAssignmentUpdatePatch
     {
         private static void Postfix(MyGuiScreenToolbarConfigBase __instance) => GUI.CockpitAssignment.Update(__instance);
     }
+    [HarmonyPatchCategory("CockpitControls")]
     [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),"OnDragAndDropOnDrop")]
     internal static class CockpitAssignmentPatch
     {
         private static bool Prefix(MyGuiScreenToolbarConfigBase __instance,MyDragAndDropEventArgs eventArgs) =>
             !GUI.CockpitAssignment.HandleDrop(__instance,eventArgs);
     }
+    [HarmonyPatchCategory("CockpitControls")]
     [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),"OnGridItemDoubleClicked",new[] {typeof(MyGuiControlGrid),typeof(MyGuiControlGrid.EventArgs),typeof(bool)})]
     internal static class ToolbarAssignmentDoubleClickPatch
     {
         private static bool Prefix(MyGuiScreenToolbarConfigBase __instance,MyGuiControlGrid sender,MyGuiControlGrid.EventArgs eventArgs) =>
             !GUI.CockpitAssignment.HandleDoubleClick(__instance,sender,eventArgs);
     }
+    [HarmonyPatchCategory("CockpitControls")]
     [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),nameof(MyGuiScreenToolbarConfigBase.DropGridItemToToolbar))]
     internal static class GroupedToolbarDropPatch
     {
         private static bool Prefix(MyToolbarItem item,int slot) => !GUI.CockpitAssignment.Assign(item,slot);
     }
+    [HarmonyPatchCategory("CockpitControls")]
     [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),nameof(MyGuiScreenToolbarConfigBase.UpdateGridItemByRightClick))]
     internal static class GroupedToolbarActionPatch
     {
         private static bool Prefix(MyToolbarItem item,int slot,string selectedAction) => !GUI.CockpitAssignment.Assign(item,slot,selectedAction);
     }
+    [HarmonyPatchCategory("CockpitControls")]
     [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),"UpdateContextMenu")]
     internal static class SwitchActionRankPatch
     {
@@ -43,6 +49,7 @@ namespace SpaceEngineersVR.Patches
             __result=filled; return false;
         }
     }
+    [HarmonyPatchCategory("CockpitControls")]
     [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),nameof(MyGuiScreenToolbarConfigBase.RequestItemParameters))]
     internal static class HandleParameterPatch
     {
@@ -52,6 +59,7 @@ namespace SpaceEngineersVR.Patches
             callback(true); return false;
         }
     }
+    [HarmonyPatchCategory("CockpitControls")]
     [HarmonyPatch(typeof(MyGuiScreenToolbarConfigBase),nameof(MyGuiScreenToolbarConfigBase.HandleInput))]
     internal static class ToolbarAssignmentInputPatch
     {
@@ -59,6 +67,7 @@ namespace SpaceEngineersVR.Patches
         // Native grid clicks can replace the assignment selection after Update.
         internal static void Postfix(MyGuiScreenToolbarConfigBase __instance) => GUI.CockpitAssignment.Update(__instance);
     }
+    [HarmonyPatchCategory("CockpitControls")]
     [HarmonyPatch(typeof(MyToolbarItemTerminalBlock),nameof(MyToolbarItemTerminalBlock.PossibleActions))]
     internal static class CockpitViewAssignmentPatch
     {

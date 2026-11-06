@@ -9,6 +9,7 @@ using VRage.ModAPI;
 
 namespace SpaceEngineersVR.Multiplayer
 {
+    [HarmonyPatchCategory("CockpitMemory")]
     [HarmonyPatch(typeof(MyModStorageComponent),nameof(MyModStorageComponent.Serialize))]
     internal static class CockpitStoragePatch
     {
@@ -18,12 +19,14 @@ namespace SpaceEngineersVR.Multiplayer
             if(__instance.TryGetValue(CockpitMemory.Key,out _)) ___m_cachedGuids.Add(CockpitMemory.Key);
         }
     }
+    [HarmonyPatchCategory("CockpitMemory")]
     [HarmonyPatch(typeof(MyObjectBuilder_CubeBlock),nameof(MyObjectBuilder_CubeBlock.Remap))]
     internal static class CockpitRemapPatch
     {
         private static void Postfix(MyObjectBuilder_CubeBlock __instance,IMyRemapHelper remapHelper)
             => CockpitMemory.Remap(__instance,remapHelper);
     }
+    [HarmonyPatchCategory("CockpitMemory")]
     [HarmonyPatch]
     internal static class AnalogSavePatch
     {
@@ -35,11 +38,13 @@ namespace SpaceEngineersVR.Multiplayer
         private static void Postfix(Sandbox.Game.Entities.MyCubeBlock __instance,MyObjectBuilder_CubeBlock __result)
             => AnalogControl.SavedVelocity(__instance.EntityId,__result);
     }
+    [HarmonyPatchCategory("MultiplayerArms")]
     [HarmonyPatch(typeof(MyCharacter),nameof(MyCharacter.UpdateBeforeSimulation))]
     internal static class RemoteArmsRestorePatch
     {
         private static void Prefix(MyCharacter __instance) => MultiplayerRuntime.Restore(__instance);
     }
+    [HarmonyPatchCategory("MultiplayerArms")]
     [HarmonyPatch(typeof(MyCharacter),nameof(MyCharacter.UpdateAfterSimulation))]
     internal static class RemoteArmsUpdatePatch
     {

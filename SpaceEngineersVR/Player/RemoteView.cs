@@ -166,7 +166,7 @@ namespace SpaceEngineersVR.Player
             var session=MySession.Static;
             var character=session?.LocalCharacter;
             object next=Owner(session?.ControlledEntity,session?.CameraController);
-            if(character==null || character.IsDead || !Main.WorldAvailable || next is VRage.Game.Entity.MyEntity entity && (entity.Closed || entity.MarkedForClose)) next=null;
+            if(character==null || character.IsDead || !Main.WorldAvailable || !Plugin.PatchGroups.CameraFeeds.Enabled || next is VRage.Game.Entity.MyEntity entity && (entity.Closed || entity.MarkedForClose)) next=null;
             var home=next==null ? null:SeatFor(session.ControlledEntity,character);
             if(home!=null && (home.Closed || home.MarkedForClose || home.Pilot!=character)) next=null;
             if(next==null) { if(Active) { ReleaseInput(); Reset(); } return; }

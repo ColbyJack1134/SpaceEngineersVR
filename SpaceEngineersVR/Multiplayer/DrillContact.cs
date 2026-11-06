@@ -94,6 +94,7 @@ namespace SpaceEngineersVR.Multiplayer
             at=local; direction=HeldItemPose.Working(model,profile).Forward; return true;
         }
     }
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch(typeof(MyDrillBase),"DrillVoxel")]
     internal static class DrillMaterialRayPatch
     {
@@ -120,6 +121,7 @@ namespace SpaceEngineersVR.Multiplayer
             MyPhysics.CastRay(line.From,line.To,hits,layer);
         }
     }
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch(typeof(MyDrillBase),"TryDrillBlocks")]
     internal static class HeldDrillBlockPatch
     {
@@ -139,11 +141,13 @@ namespace SpaceEngineersVR.Multiplayer
             center.SetValue(__instance.Sensor,__state[0]); front.SetValue(__instance.Sensor,__state[1]);
         }
     }
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch(typeof(MyDrillSensorBase),"get_CachedEntitiesInRange")]
     internal static class HeldDrillContactPatch
     {
         private static void Postfix(MyDrillSensorBase __instance,ref Dictionary<long,MyDrillSensorBase.DetectionInfo> __result) => DrillContact.Read(__instance,ref __result);
     }
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch(typeof(MyWelder),"GetEffectMatrix")]
     internal static class WelderContactEffectPatch
     {

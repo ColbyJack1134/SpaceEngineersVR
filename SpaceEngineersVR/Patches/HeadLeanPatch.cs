@@ -11,6 +11,7 @@ using VRageMath;
 namespace SpaceEngineersVR.Patches
 {
     // The engine bends the upper body with head pitch on foot only, since a desktop jetpack pitches the whole body; a VR head pitches on its own.
+    [HarmonyPatchCategory("CharacterBody")]
     [HarmonyPatch(typeof(MyCharacter),"UpdateFallAndSpine")]
     internal static class HeadLeanPatch
     {

@@ -7,6 +7,7 @@ using SpaceEngineersVR.Player;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("StereoParticles")]
     [HarmonyPatch]
     internal static class StereoParticleUpdatePatch
     {
@@ -18,6 +19,7 @@ namespace SpaceEngineersVR.Patches
             __result=(int)count.GetValue(null); return false;
         }
     }
+    [HarmonyPatchCategory("StereoParticles")]
     [HarmonyPatch]
     internal static class StereoParticleRunPatch
     {
@@ -68,6 +70,7 @@ namespace SpaceEngineersVR.Patches
             if(frames!=1) throw new InvalidOperationException("Particle frame constants layout changed");
         }
     }
+    [HarmonyPatchCategory("StereoParticles")]
     [HarmonyPatch]
     internal static class StereoParticleVertexPatch
     {
@@ -88,6 +91,7 @@ namespace SpaceEngineersVR.Patches
             if(found!=1) throw new InvalidOperationException("Particle vertex shader binding layout changed");
         }
     }
+    [HarmonyPatchCategory("StereoParticles")]
     [HarmonyPatch]
     internal static class StereoParticleResetPatch
     {

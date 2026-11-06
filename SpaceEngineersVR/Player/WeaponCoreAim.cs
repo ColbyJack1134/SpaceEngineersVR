@@ -34,18 +34,18 @@ namespace SpaceEngineersVR.Player
         internal static string ModeName => names[(int)Current];
         internal static void CycleMode() => Common.Config.WeaponCoreAim=((int)Current+1)%names.Length;
 
-        internal static void Attach(Type targetUi)
+        internal static void Attach(Type targetUi,PatchGroup part)
         {
             if(patched!=null) return;
             if(targetUi==null) { Logger.Info("WeaponCore TargetUi not found; VR manual aim and painting disabled"); return; }
             var method=AccessTools.Method(targetUi,"SelectTarget",new[] {typeof(bool),typeof(bool),typeof(bool)});
             if(method==null) { Logger.Info("WeaponCore SelectTarget not found; VR manual aim disabled"); return; }
-            Common.Plugin.Harmony.Patch(method,postfix:new HarmonyMethod(typeof(WeaponCoreAim),nameof(AfterSelect)));
+            part.Patch(method,postfix:AccessTools.Method(typeof(WeaponCoreAim),nameof(AfterSelect)));
             patched=method;
             aimPositionField=AccessTools.Field(targetUi,"AimPosition"); aimDirectionField=AccessTools.Field(targetUi,"AimDirection");
             var session=targetUi.Assembly.GetType("CoreSystems.Session",false);
             var handle=session==null ? null:AccessTools.Method(session,"HandleInput",Type.EmptyTypes);
-            if(handle!=null) { Common.Plugin.Harmony.Patch(handle,prefix:new HarmonyMethod(typeof(WeaponCoreAim),nameof(BeforeInput))); input=handle; }
+            if(handle!=null) { part.Patch(handle,prefix:AccessTools.Method(typeof(WeaponCoreAim),nameof(BeforeInput))); input=handle; }
             else Logger.Info("WeaponCore HandleInput not found; VR aim only updates while WeaponCore updates its own");
             Logger.Info("WeaponCore VR manual aim attached");
         }
@@ -53,8 +53,6 @@ namespace SpaceEngineersVR.Player
         internal static void Detach()
         {
             paintArm.Disarm(); PaintPreview=null;
-            if(patched!=null) Common.Plugin.Harmony.Unpatch(patched,AccessTools.Method(typeof(WeaponCoreAim),nameof(AfterSelect)));
-            if(input!=null) Common.Plugin.Harmony.Unpatch(input,AccessTools.Method(typeof(WeaponCoreAim),nameof(BeforeInput)));
             patched=input=null; aimPositionField=aimDirectionField=null; AimPoint=null; paintRequest=PaintRequest.None;
         }
 

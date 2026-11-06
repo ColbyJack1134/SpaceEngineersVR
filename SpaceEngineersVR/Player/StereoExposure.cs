@@ -45,6 +45,7 @@ void CS(uint index : SV_GroupIndex)
         internal static void Begin()
         {
             End();
+            if(!Plugin.PatchGroups.SharedExposure.Enabled) return;
             var current = ((Array)history.GetValue(null)).GetValue(0);
             var source = (Texture2D)CockpitRender.Member(current, "Resource");
             exposure = MyManagers.RwTexturesPool.BorrowRtv("SEVR.StereoExposure", 1, 1, Format.R32G32_Float);

@@ -6,6 +6,7 @@ using VRageMath;
 namespace SpaceEngineersVR.Patches
 {
     // Native view/render packets, controller conversion and interaction share one anchor.
+    [HarmonyPatchCategory("SeatFit")]
     [HarmonyPatch(typeof(MyCockpit),nameof(MyCockpit.GetHeadMatrix))]
     internal static class SeatFitPatch
     {

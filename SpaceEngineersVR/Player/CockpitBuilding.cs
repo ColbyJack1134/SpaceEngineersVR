@@ -20,6 +20,7 @@ namespace SpaceEngineersVR.Player
         internal static void Toggle()
         {
             if(!(MySession.Static?.ControlledEntity is MyCockpit cockpit) || RemoteView.Active) return;
+            if(!Plugin.PatchGroups.CockpitBuilding.Enabled) { EssentialHud.Notify("Cockpit building is off"); return; }
             if(cockpit.BuildingMode) { Exit(cockpit); InputRouter.Update(); return; }
             if(!MySandboxGame.Config.ExperimentalMode) { EssentialHud.Notify("Cockpit building requires native Experimental mode"); return; }
             NativeActions.Reset(); Controls.Static.BlockUntilRelease(); Components.VRMovementComponent.StopActive();

@@ -15,6 +15,8 @@ namespace SpaceEngineersVR.Multiplayer
 {
     internal static class HeldItemPose
     {
+        // Cleared when the VR plugin's held tool patches are off, so tools keep their native pose.
+        internal static bool Enabled=true;
         internal static Func<MyCharacter,MatrixD?> Local { get; set; }
         internal static Func<MyCharacter,MatrixD?> LocalToolRay { get; set; }
         internal static Func<MyCharacter,bool?> LocalSupported { get; set; }
@@ -32,7 +34,7 @@ namespace SpaceEngineersVR.Multiplayer
         internal static bool TryGet(MyCharacter character,out MatrixD model,out WeaponProfile profile)
         {
             model=MatrixD.Identity; profile=Profile(character);
-            if(profile==null || character==null || character.IsDead || character.IsSitting || character.IsOnLadder) return false;
+            if(!Enabled || profile==null || character==null || character.IsDead || character.IsSitting || character.IsOnLadder) return false;
             var local=Local?.Invoke(character);
             if(local.HasValue) model=local.Value;
             else if(!MultiplayerRuntime.ItemPose(character,out model)) return false;
@@ -111,6 +113,7 @@ namespace SpaceEngineersVR.Multiplayer
             return Clear(character,character.GetHeadMatrix(true,true).Translation,grip) && Clear(character,grip,muzzle);
         }
     }
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch(typeof(MyAutomaticRifleGun),nameof(MyAutomaticRifleGun.Shoot),new[] {typeof(MyShootActionEnum),typeof(Vector3),typeof(Vector3D?),typeof(string)})]
     internal static class HeldWeaponShotPatch
     {
@@ -127,6 +130,7 @@ namespace SpaceEngineersVR.Multiplayer
         private static void Postfix(MyAutomaticRifleGun __instance,bool __state)
         { if(__state) HeldItemPose.Feedback?.Invoke(__instance.Owner,HeldItemPose.Profile(__instance.Owner).Kind); }
     }
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch(typeof(MyProjectile),nameof(MyProjectile.Start))]
     internal static class HeldProjectileStartPatch
     {
@@ -137,6 +141,7 @@ namespace SpaceEngineersVR.Multiplayer
                 origin-=.1*(Vector3D)directionNormalized;
         }
     }
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch]
     internal static class HeldDirectionPatch
     {
@@ -152,6 +157,7 @@ namespace SpaceEngineersVR.Multiplayer
                 __result=(Vector3)(profile.Tool ? HeldItemPose.ToolAim(owner,model,profile).Forward:HeldItemPose.Working(model,profile).Forward);
         }
     }
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch(typeof(MyCharacter),nameof(MyCharacter.UpdateShootDirection))]
     internal static class HeldStraightAimPatch
     {

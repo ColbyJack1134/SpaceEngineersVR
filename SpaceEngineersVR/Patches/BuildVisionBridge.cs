@@ -23,7 +23,6 @@ namespace SpaceEngineersVR.Patches
     {
         internal const string Title="Build Vision";
         private const double OpenRange=10;
-        private static readonly List<(MethodBase method,MethodInfo patch)> patched=new List<(MethodBase,MethodInfo)>();
         private static readonly HashSet<Assembly> scanned=new HashSet<Assembly>();
         private static readonly List<Type> spaces=new List<Type>(),binds=new List<Type>();
         private static DateTime retry;
@@ -132,27 +131,21 @@ namespace SpaceEngineersVR.Patches
             menuField=menu; wheelField=wheelMenu; activeField=active;
             Logger.Info("Build Vision adapter attached to "+hud.Assembly.GetName().Name);
         }
-        private static bool Attach(Action attach,string part)
+        private static PatchGroup part;
+        private static bool Attach(Action attach,string name)
         {
-            int start=patched.Count;
-            try { attach(); return true; }
-            catch(Exception ex) { Rollback(start); Logger.Warning(ex,part+" VR adapter unavailable"); return false; }
+            part=PatchGroups.BuildVision.Part(name);
+            return part.Apply(attach:h=>attach());
         }
         private static void Patch(MethodBase method,string prefix,string postfix)
         {
             var patch=AccessTools.Method(typeof(BuildVisionBridge),prefix ?? postfix);
-            patched.Add((method,patch));
-            Common.Plugin.Harmony.Patch(method,prefix==null ? null:new HarmonyMethod(patch),postfix==null ? null:new HarmonyMethod(patch));
-        }
-        private static void Rollback(int start)
-        {
-            foreach(var (method,patch) in patched.Skip(start).ToArray()) Common.Plugin.Harmony.Unpatch(method,patch);
-            patched.RemoveRange(start,patched.Count-start);
+            part.Patch(method,prefix==null ? null:patch,postfix==null ? null:patch);
         }
         internal static void Reset()
         {
             Release(); ray=null; target=null;
-            Rollback(0); scanned.Clear(); spaces.Clear(); binds.Clear(); retry=DateTime.MinValue; ticking=false;
+            PatchGroups.BuildVision.RemoveParts(); scanned.Clear(); spaces.Clear(); binds.Clear(); retry=DateTime.MinValue; ticking=false;
             space=null; instance=targetTick=null; menuState=null; tryOpen=closeMenu=tryTarget=null; menuField=wheelField=activeField=null;
         }
 

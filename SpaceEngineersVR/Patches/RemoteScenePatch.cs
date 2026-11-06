@@ -5,6 +5,7 @@ using SpaceEngineersVR.Player;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("CameraFeeds")]
     [HarmonyPatch]
     internal static class RemoteScenePatch
     {
@@ -15,6 +16,7 @@ namespace SpaceEngineersVR.Patches
         }
         private static bool Prefix() => !RemoteScene.Active;
     }
+    [HarmonyPatchCategory("CameraFeeds")]
     [HarmonyPatch]
     internal static class RemoteOcclusionPatch
     {

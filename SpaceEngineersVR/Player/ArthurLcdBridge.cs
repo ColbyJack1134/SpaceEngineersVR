@@ -20,7 +20,7 @@ namespace SpaceEngineersVR.Player
         private static readonly LcdPointing rightPose=new LcdPointing(),leftPose=new LcdPointing();
         internal static bool PoseFor(Controller controller) => Allowed && controller.pose.isTracked && (controller==Player.HandR ? rightPose:leftPose).Active(DateTime.UtcNow);
         private static readonly LcdInput rightInput=new LcdInput(),leftInput=new LcdInput();
-        private static readonly List<MethodBase> patched=new List<MethodBase>();
+        private static PatchGroup part;
         private static Type moduleType;
         private static MethodInfo intersection,localMatrix,clickState,inputBlocked,mouseScroll;
         private static FieldInfo modules,pendingModules;
@@ -65,14 +65,9 @@ namespace SpaceEngineersVR.Player
                 OptionalLcdContract.Calls(type,"UpdateScrollState",typeof(void),true,eye) && OptionalLcdContract.Calls(eye,"MouseScroll",typeof(void),false,typeof(int)) &&
                 OptionalLcdContract.Calls(inputBlock,"Update",typeof(void),false) && OptionalLcdContract.Calls(inputBlock,"SetInputBlocked",typeof(void),false,typeof(bool));
         }
-        private static void Patch(MethodBase method,string prefix=null,string postfix=null,string transpiler=null,string finalizer=null)
-        {
-            patched.Add(method);
-            Common.Plugin.Harmony.Patch(method,prefix==null ? null:new HarmonyMethod(typeof(ArthurLcdBridge),prefix),
-                postfix==null ? null:new HarmonyMethod(typeof(ArthurLcdBridge),postfix),
-                transpiler==null ? null:new HarmonyMethod(typeof(ArthurLcdBridge),transpiler),
-                finalizer==null ? null:new HarmonyMethod(typeof(ArthurLcdBridge),finalizer));
-        }
+        private static MethodInfo Hook(string name) => name==null ? null:AccessTools.Method(typeof(ArthurLcdBridge),name);
+        private static void Patch(MethodBase method,string prefix=null,string postfix=null,string transpiler=null,string finalizer=null) =>
+            part.Patch(method,Hook(prefix),Hook(postfix),Hook(transpiler),Hook(finalizer));
         internal static void RefreshRegistrations()
         {
             if(failed || moduleType!=null || DateTime.UtcNow<retry || MySession.Static==null) return;
@@ -85,15 +80,15 @@ namespace SpaceEngineersVR.Player
         }
         internal static void Attach(Type type)
         {
-            try
-            {
-                var assembly=type.Assembly;
-                var script=assembly.GetType("LcdMod.Client.SurfaceScripts.Abstract.SurfaceScriptBase",false);
-                var geometry=assembly.GetType("LcdMod.Client.ScreenAreas.ScreenAreaGeometry",false);
-                var inputBlock=assembly.GetType("LcdMod.Client.Modules.InputBlock.InputBlockModule",false);
-                var eye=assembly.GetType("LcdMod.Client.Utility.IEyeTracking",false);
-                var control=assembly.GetType("LcdMod.Client.Gui.ControlsTemplates.ControlTemplate",false);
-                if(!ContractSupported(type,script,geometry,inputBlock,eye,control)) return;
+            var assembly=type.Assembly;
+            var script=assembly.GetType("LcdMod.Client.SurfaceScripts.Abstract.SurfaceScriptBase",false);
+            var geometry=assembly.GetType("LcdMod.Client.ScreenAreas.ScreenAreaGeometry",false);
+            var inputBlock=assembly.GetType("LcdMod.Client.Modules.InputBlock.InputBlockModule",false);
+            var eye=assembly.GetType("LcdMod.Client.Utility.IEyeTracking",false);
+            var control=assembly.GetType("LcdMod.Client.Gui.ControlsTemplates.ControlTemplate",false);
+            if(!ContractSupported(type,script,geometry,inputBlock,eye,control)) return;
+            part=PatchGroups.ArthurLcd.Part("module");
+            if(part.Apply(attach:h=> {
                 intersection=Method(geometry,"TryGetScreenPointIntersection",script,typeof(Vector3D),typeof(Vector3D),typeof(Vector2).MakeByRefType());
                 localMatrix=Method(geometry,"TryGetScreenLocalMatrix",script,typeof(Matrix).MakeByRefType());
                 modules=OptionalLcdContract.Field(type,"_modules"); pendingModules=OptionalLcdContract.Field(type,"_pendingModules");
@@ -108,14 +103,8 @@ namespace SpaceEngineersVR.Player
                 Patch(Method(inputBlock,"Update"),nameof(InputBlockPrefix));
                 moduleType=type;
                 ResetInput();
-                Logger.Info("Arthur LCD VR adapter attached to "+assembly.GetName().Name);
-            }
-            catch(Exception ex)
-            {
-                foreach(var method in patched) Common.Plugin.Harmony.Unpatch(method,HarmonyPatchType.All,Common.Plugin.Harmony.Id);
-                patched.Clear(); failed=true;
-                Logger.Warning(ex,"Arthur LCD VR adapter unavailable; LCD rendering retained");
-            }
+            })) Logger.Info("Arthur LCD VR adapter attached to "+assembly.GetName().Name);
+            else failed=true;
         }
         private static void ResetInput()
         {
@@ -133,8 +122,7 @@ namespace SpaceEngineersVR.Player
         internal static void Reset()
         {
             ResetInput(); rightPose.Reset(); leftPose.Reset(); nativeModule=null; dispatch=querying=false;
-            foreach(var method in patched) Common.Plugin.Harmony.Unpatch(method,HarmonyPatchType.All,Common.Plugin.Harmony.Id);
-            patched.Clear(); moduleType=null; failed=false; retry=DateTime.MinValue;
+            PatchGroups.ArthurLcd.RemoveParts(); moduleType=null; failed=false; retry=DateTime.MinValue;
             prepared=dispatched=0;
         }
         private static bool Allowed => Main.VrActive && !failed && InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Active &&

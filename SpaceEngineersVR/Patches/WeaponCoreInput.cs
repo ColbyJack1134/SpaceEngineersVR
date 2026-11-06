@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using Sandbox.Game.World;
@@ -14,15 +13,17 @@ namespace SpaceEngineersVR.Patches
     internal static class WeaponCoreScope
     {
         [ThreadStatic] private static int depth;
-        private static readonly List<KeyValuePair<MethodBase,MethodInfo>> patched=new List<KeyValuePair<MethodBase,MethodInfo>>();
+        private static PatchGroup part;
         internal static bool Inside => depth>0;
 
-        internal static void Attach(Type session)
+        internal static void Attach(Type session,PatchGroup owner)
         {
-            if(patched.Count>0 || session==null) return;
+            if(part!=null || session==null) return;
+            part=owner;
+            int sessionHooks=0;
             foreach(string name in new[] {"HandleInput","UpdateBeforeSimulation","Simulate","UpdateAfterSimulation","Draw"})
-                Patch(AccessTools.DeclaredMethod(session,name,Type.EmptyTypes),nameof(Enter),nameof(Leave));
-            if(patched.Count==0) { Logger.Info("WeaponCore session updates not found; VR fire and reload will not reach WeaponCore"); return; }
+                if(Patch(AccessTools.DeclaredMethod(session,name,Type.EmptyTypes),nameof(Enter),nameof(Leave))) sessionHooks++;
+            if(sessionHooks==0) { Logger.Info("WeaponCore session updates not found; VR fire and reload will not reach WeaponCore"); return; }
             var input=AccessTools.TypeByName("VRage.Input.MyVRageInput");
             Patch(AccessTools.Method(input,"IsMousePressed",new[] {typeof(MyMouseButtonsEnum)}),postfix:nameof(MousePressed));
             foreach(string name in new[] {"IsAnyMousePressed","IsNewLeftMousePressed","IsNewLeftMouseReleased"})
@@ -31,20 +32,16 @@ namespace SpaceEngineersVR.Patches
                 Patch(AccessTools.Method(input,name,new[] {typeof(MyKeys)}),postfix:nameof(Key));
         }
 
-        private static void Patch(MethodBase method,string prefix=null,string finalizer=null,string postfix=null)
+        private static bool Patch(MethodBase method,string prefix=null,string finalizer=null,string postfix=null)
         {
-            if(method==null) return;
-            HarmonyMethod Hook(string name) => name==null ? null:new HarmonyMethod(typeof(WeaponCoreScope),name);
-            Common.Plugin.Harmony.Patch(method,Hook(prefix),Hook(postfix),finalizer:Hook(finalizer));
-            foreach(string name in new[] {prefix,finalizer,postfix})
-                if(name!=null) patched.Add(new KeyValuePair<MethodBase,MethodInfo>(method,AccessTools.Method(typeof(WeaponCoreScope),name)));
+            if(method==null) return false;
+            MethodInfo Hook(string name) => name==null ? null:AccessTools.Method(typeof(WeaponCoreScope),name);
+            part.Patch(method,Hook(prefix),Hook(postfix),null,Hook(finalizer));
+            return true;
         }
 
-        internal static void Detach()
-        {
-            foreach(var pair in patched) Common.Plugin.Harmony.Unpatch(pair.Key,pair.Value);
-            patched.Clear(); depth=0;
-        }
+        // The patches themselves leave with the WeaponCore group's parts at world unload.
+        internal static void Detach() { part=null; depth=0; }
 
         // __state stays false when another prefix skips ours, so the depth only drops for an Enter that ran.
         private static void Enter(out bool __state) { depth++; __state=true; }

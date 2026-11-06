@@ -9,6 +9,7 @@ using VRageMath;
 namespace SpaceEngineersVR.Patches
 {
     // Native paste velocity is the preview's last movement, which the hand ray turns into a throw.
+    [HarmonyPatchCategory("HandPlacement")]
     [HarmonyPatch]
     internal static class PasteVelocityPatch
     {

@@ -5,6 +5,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("Spectator")]
     [HarmonyPatch(typeof(MyMultiplayer),nameof(MyMultiplayer.TeleportControlledEntity))]
     internal static class SpectatorTeleportPatch
     {

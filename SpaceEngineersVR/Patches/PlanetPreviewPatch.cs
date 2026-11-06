@@ -8,6 +8,7 @@ using VRageRender.Messages;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("BuildHints")]
     [HarmonyPatch]
     internal static class PlanetPreviewFramePatch
     {
@@ -20,6 +21,7 @@ namespace SpaceEngineersVR.Patches
         private static void Postfix() => PlanetPreview.Commit();
         private static void Finalizer(bool __state) => PlanetPreview.Capturing=__state;
     }
+    [HarmonyPatchCategory("BuildHints")]
     [HarmonyPatch(typeof(MyRenderProxy),nameof(MyRenderProxy.DebugDrawSphere),new[] {typeof(Vector3D),typeof(float),typeof(Color),typeof(float),typeof(bool),typeof(bool),typeof(bool),typeof(bool)})]
     internal static class PlanetPreviewSpherePatch
     {

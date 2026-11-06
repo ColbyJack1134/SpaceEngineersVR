@@ -79,11 +79,13 @@ namespace SpaceEngineersVR.Multiplayer
             if(pose.IsValid()) state.Gun.SetMagazinePosition(pose);
         }
     }
+    [HarmonyPatchCategory("MultiplayerArms")]
     [HarmonyPatch(typeof(MyCharacter),"RealignMagazineWithHand")]
     internal static class HeldMagazineAlignmentPatch
     {
         private static void Postfix(MyCharacter __instance) => ReloadAnimation.Apply(__instance);
     }
+    [HarmonyPatchCategory("MultiplayerArms")]
     [HarmonyPatch(typeof(MyCharacter),"UpdateHandBones")]
     internal static class HeldReloadAnimationPatch
     {

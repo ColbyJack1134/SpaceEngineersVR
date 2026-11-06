@@ -106,7 +106,7 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 var harmony=new Harmony("SpaceEngineersVR.PaintGunTests");
                 harmony.CreateClassProcessor(typeof(PaintGunDeepPatch)).Patch();
-                PaintGunPatches.Attach(typeof(Mod),Layout,harmony);
+                PaintGunPatches.Attach(typeof(Mod),Layout);
                 Require(PaintGun.Bound,"Paint gun adapter did not bind to the mod layout");
                 var tool=new LocalToolHandler();
                 var selection=new SelectionGUI();

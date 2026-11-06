@@ -33,6 +33,7 @@ namespace SpaceEngineersVR.Player
         internal static bool Arm(string name,bool single=false,bool magnetic=false,Controller pointer=null)
         {
             if(!InputRouter.Gameplay || MySession.Static?.LocalCharacter?.IsDead!=false) return false;
+            if(!Plugin.PatchGroups.GridSelection.Enabled) { EssentialHud.Notify("Grid selection is off"); return false; }
             if(name==PickBlock && MySession.Static.ControlledEntity!=MySession.Static.LocalCharacter) { EssentialHud.Notify("Pick block works on foot"); return false; }
             if(PlacementControls.ClipboardActive || MyCubeBuilder.Static!=null && building(MyCubeBuilder.Static))
             { EssentialHud.Notify("Finish or cancel the current preview"); return false; }

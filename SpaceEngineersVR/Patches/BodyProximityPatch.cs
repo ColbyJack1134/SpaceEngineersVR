@@ -7,6 +7,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("BodyFade")]
     [HarmonyPatch]
     internal static class BodyProximityPatch
     {

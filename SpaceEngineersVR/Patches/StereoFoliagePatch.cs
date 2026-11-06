@@ -4,12 +4,14 @@ using SpaceEngineersVR.Player;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("StereoFoliage")]
     [HarmonyPatch]
     internal static class StereoFoliageBeginPatch
     {
         private static MethodBase TargetMethod() => AccessTools.DeclaredMethod(AccessTools.TypeByName("VRageRender.MyFoliageRenderingPass"),"Begin");
         private static void Postfix(object __instance) => StereoFoliage.Begin(__instance);
     }
+    [HarmonyPatchCategory("StereoFoliage")]
     [HarmonyPatch]
     internal static class StereoFoliageEndPatch
     {

@@ -8,6 +8,7 @@ using VRage.Game.ModAPI;
 namespace SpaceEngineersVR.Patches
 {
     // Mouse and VR double-taps both set this flag; EndShoot reads it to keep the tool running.
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch(typeof(MyCharacter),nameof(MyCharacter.EndShoot))]
     internal static class ToolLockPatch
     {

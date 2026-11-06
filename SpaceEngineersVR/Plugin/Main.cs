@@ -40,17 +40,17 @@ namespace SpaceEngineersVR.Plugin
         private static volatile bool menuFallback;
         private static object failedSession,failedCharacter,failedControl;
         private static bool fallbackSawDialog;
-        private static readonly Integration touchScreens=new Integration("TouchScreenAPI",Player.TouchScreenBridge.Reset,Player.TouchScreenBridge.RefreshRegistrations,Player.TouchScreenBridge.Update,Player.TouchScreenBridge.Draw),
-            arthurLcd=new Integration("Arthur's LCD",Player.ArthurLcdBridge.Reset,Player.ArthurLcdBridge.RefreshRegistrations,Player.ArthurLcdBridge.Update,Player.ArthurLcdBridge.Draw),
-            weaponCore=new Integration("WeaponCore",Player.WeaponCoreIntegration.Reset,Player.WeaponCoreIntegration.Refresh,Player.WeaponCoreIntegration.Update),
+        private static readonly Integration touchScreens=new Integration("TouchScreenAPI",Player.TouchScreenBridge.Reset,Player.TouchScreenBridge.RefreshRegistrations,Player.TouchScreenBridge.Update,Player.TouchScreenBridge.Draw,PatchGroups.TouchScreens),
+            arthurLcd=new Integration("Arthur's LCD",Player.ArthurLcdBridge.Reset,Player.ArthurLcdBridge.RefreshRegistrations,Player.ArthurLcdBridge.Update,Player.ArthurLcdBridge.Draw,PatchGroups.ArthurLcd),
+            weaponCore=new Integration("WeaponCore",Player.WeaponCoreIntegration.Reset,Player.WeaponCoreIntegration.Refresh,Player.WeaponCoreIntegration.Update,group:PatchGroups.WeaponCore),
             shields=new Integration("Defense Shields",Player.ShieldsIntegration.Reset,Player.ShieldsIntegration.Refresh,Player.ShieldsIntegration.Update),
             pbFeed=new Integration("Programmable block VR data",PbFeed.Reset,null,PbFeed.Update),
-            paintGun=new Integration("Paint Gun",Patches.PaintGunPatches.Reset,Patches.PaintGunPatches.RefreshRegistrations,Player.PaintGun.Update),
-            buildInfo=new Integration("Build Info",Patches.BuildInfoBridge.Reset,Patches.BuildInfoBridge.RefreshRegistrations,Patches.BuildInfoBridge.SyncPage);
+            paintGun=new Integration("Paint Gun",Patches.PaintGunPatches.Reset,Patches.PaintGunPatches.RefreshRegistrations,Player.PaintGun.Update,group:PatchGroups.PaintGun),
+            buildInfo=new Integration("Build Info",Patches.BuildInfoBridge.Reset,Patches.BuildInfoBridge.RefreshRegistrations,Patches.BuildInfoBridge.SyncPage,group:PatchGroups.BuildInfo);
         internal static readonly Integration[] Integrations={touchScreens,arthurLcd,weaponCore,shields,pbFeed,paintGun,
-            new Integration("Mod HUD",Patches.ModHud.Reset,Patches.ModHud.RefreshRegistrations),
-            new Integration("Voxel tool mods",Patches.DigiTools.Reset,Patches.DigiTools.RefreshRegistrations),
-            new Integration("Build Vision",Patches.BuildVisionBridge.Reset,Patches.BuildVisionBridge.RefreshRegistrations),
+            new Integration("Mod HUD",Patches.ModHud.Reset,Patches.ModHud.RefreshRegistrations,group:PatchGroups.ModHud),
+            new Integration("Voxel tool mods",Patches.DigiTools.Reset,Patches.DigiTools.RefreshRegistrations,group:PatchGroups.DigiTools),
+            new Integration("Build Vision",Patches.BuildVisionBridge.Reset,Patches.BuildVisionBridge.RefreshRegistrations,group:PatchGroups.BuildVision),
             buildInfo,
             new Integration("Mod API",ModApi.Reset,ModApi.Refresh)};
         private static int recoveryAttempts;
@@ -139,24 +139,25 @@ namespace SpaceEngineersVR.Plugin
                 bool compatible = CompatibilityProbe.Run(line => Logger.Info(line));
 #if SEVR_DIAGNOSTICS
                 string mode=Environment.GetEnvironmentVariable("SEVR_MODE")?.Trim().ToLowerInvariant();
+                foreach(string name in (Environment.GetEnvironmentVariable("SEVR_BREAK_GROUP") ?? "").Split(','))
+                    if(name.Trim().Length>0) PatchGroups.Broken.Add(name.Trim());
                 if (mode == "physicaltest")
                 {
-                    Harmony=new Harmony(Common.Name);
-                    Harmony.PatchAll(Assembly.GetExecutingAssembly());
-                    Player.StereoFoliage.Warm();
+                    PatchGroups.Apply(Assembly.GetExecutingAssembly());
+                    Harmony=PatchGroups.Core.Harmony;
                     PhysicalRendererProbe.Start(Harmony);
                     return;
                 }
                 if (mode == "patchtest")
                 {
-                    Harmony = new Harmony(Common.Name);
                     try
                     {
-                        Harmony.PatchAll(Assembly.GetExecutingAssembly());
-                        Patches.FrameInjections.Install(Harmony);
+                        PatchGroups.Apply(Assembly.GetExecutingAssembly());
+                        Harmony=PatchGroups.Core.Harmony;
+                        PatchGroups.ApplyLater(Assembly.GetExecutingAssembly());
                         Logger.Info("PATCH SMOKE TEST PASSED: render, presentation, input and motion-tool hooks attached in-game; VR execution remained disabled.");
                     }
-                    finally { Harmony.UnpatchAll(Common.Name); }
+                    finally { PatchGroups.Remove(); Harmony=null; }
                     return;
                 }
                 if (mode == "diagnostics")
@@ -201,7 +202,7 @@ namespace SpaceEngineersVR.Plugin
                     Logger.Info("Exiting OpenVR and closing threads");
                     MySession.AfterLoading -= AfterLoadedWorld;
                     MySession.OnUnloading -= UnloadingWorld;
-                    Harmony?.UnpatchAll(Common.Name);
+                    PatchGroups.Remove();
                     if (OpenVrAlive) { OpenVrAlive = false; OpenVR.Shutdown(); }
                 }
                 catch (Exception ex)
@@ -213,9 +214,7 @@ namespace SpaceEngineersVR.Plugin
 
         public void Update()
         {
-            if (Harmony != null)
-                try { Patches.DoubleClickTolerancePatch.Install(Harmony); }
-                catch (Exception ex) { Logger.Warning(ex, "Double-click tolerance patch skipped; native double clicks keep the default radius"); }
+            if (Harmony != null) PatchGroups.ApplyLater(Assembly.GetExecutingAssembly());
 #if !LINUX
             if (Harmony != null) Patches.CursorClipPatch.Update();
 #endif
@@ -346,11 +345,8 @@ namespace SpaceEngineersVR.Plugin
             Logger.Info("Patching game");
             try
             {
-                Harmony = new Harmony(Common.Name);
-                Harmony.PatchAll(Assembly.GetExecutingAssembly());
-
-                Patches.FrameInjections.Install(Harmony);
-                Player.StereoFoliage.Warm();
+                PatchGroups.Apply(Assembly.GetExecutingAssembly());
+                Harmony=PatchGroups.Core.Harmony;
                 Multiplayer.MultiplayerRuntime.Capture=seq=>VrActive ? Player.TrackedArms.CapturePose(seq):null;
                 Multiplayer.MultiplayerRuntime.Notify=message=> { if(VrActive) Player.EssentialHud.Notify(message); };
                 Multiplayer.MultiplayerRuntime.ControlCount=seat=>Player.CockpitLayout.Count(seat.BlockDefinition.Id.SubtypeName);
@@ -366,7 +362,7 @@ namespace SpaceEngineersVR.Plugin
             }
             catch
             {
-                // Transpilers throw when the game's IL changes; leave the game unpatched rather than partly patched.
+                // A core patch failure leaves the game unpatched rather than partly patched; optional groups fail on their own.
                 Rollback();
                 throw;
             }
@@ -382,7 +378,7 @@ namespace SpaceEngineersVR.Plugin
                 MySession.AfterLoading -= AfterLoadedWorld;
                 MySession.OnUnloading -= UnloadingWorld;
                 Multiplayer.MultiplayerRuntime.Enabled=false;
-                Harmony?.UnpatchAll(Common.Name);
+                PatchGroups.Remove();
                 Harmony = null;
                 if (OpenVrAlive) { OpenVrAlive = false; OpenVR.Shutdown(); }
                 MyLog.Default.WriteLine("SpaceEngineersVR: start failed; game patches and OpenVR were removed");
@@ -518,6 +514,7 @@ namespace SpaceEngineersVR.Plugin
         {
             recoveryAttempts=0;
             ResetWorldState();
+            PatchGroups.NotifyPlayer();
             Logger.Info("Loading SE game");
             Player.Player.Headset.RequestRecenter();
             Player.Player.Headset.CreatePopup("Loaded Game");

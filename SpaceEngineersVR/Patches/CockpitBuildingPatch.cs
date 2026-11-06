@@ -10,6 +10,7 @@ using SpaceEngineersVR.Player;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("CockpitBuilding")]
     [HarmonyPatch(typeof(MyShipController),"HandleBuildingMode")]
     internal static class CockpitBuildingPatch
     {
@@ -32,6 +33,7 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("CockpitBuilding")]
     [HarmonyPatch(typeof(MyCockpit),"OnControlReleased")]
     internal static class CockpitBuildingExitPatch
     {
@@ -42,6 +44,7 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("CockpitBuilding")]
     [HarmonyPatch(typeof(MyCubeBuilder),"HandleAdminAndCreativeInput")]
     internal static class CockpitBuildDistancePatch
     {

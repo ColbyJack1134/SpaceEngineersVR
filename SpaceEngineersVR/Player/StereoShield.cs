@@ -9,6 +9,7 @@ using VRageRender.Import;
 namespace SpaceEngineersVR.Player
 {
     // Native refraction offsets by the whole projected view direction, which swims with the head and splits the eyes; the copies offset by the bend only.
+    [HarmonyPatchCategory("StereoShields")]
     [HarmonyPatch]
     internal static class StereoShield
     {

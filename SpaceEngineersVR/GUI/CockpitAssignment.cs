@@ -44,6 +44,7 @@ namespace SpaceEngineersVR.GUI
         private DateTime nextSpring;
         private bool updatingSprings;
         internal static string MarkerIcon => System.IO.Path.Combine(Plugin.Common.AssetFolder,"Icons","vr.dds");
+        [HarmonyPatchCategory("CockpitControls")]
         [HarmonyPatch(typeof(MyToolbarComponent),nameof(MyToolbarComponent.GetSlotControlText))]
         private static class PageLabel
         {

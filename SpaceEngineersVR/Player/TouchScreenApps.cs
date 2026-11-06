@@ -11,6 +11,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Player
 {
+    [HarmonyPatchCategory("CameraDisplays")]
     [HarmonyPatch(typeof(MyTextSurfaceScriptFactory),nameof(MyTextSurfaceScriptFactory.LoadScripts))]
     internal static class TouchAppRegistration
     {

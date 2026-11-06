@@ -17,19 +17,14 @@ namespace SpaceEngineersVR.Patches
         private static bool inScene;
         public static void Install(Harmony harmony)
         {
-            Player.RemoteHud.Install(harmony);
-            try { Player.NativeBlockInfo.Install(harmony); }
-            catch(Exception ex) { Logger.Warning(ex,"Native block info unavailable; grip block inspection disabled"); }
-            Type type = AccessTools.TypeByName("VRageRender.MyRender11");
-            harmony.Patch(AccessTools.Method(type,"SetupCameraMatrices"), new HarmonyMethod(typeof(FrameInjections),nameof(CameraFrame)));
-            harmony.Patch(AccessTools.Method(type,"DrawScene"), new HarmonyMethod(typeof(FrameInjections),nameof(BeforeScene)));
-            harmony.Patch(AccessTools.Method(type,"DrawScene"), new HarmonyMethod(typeof(FrameInjections),nameof(EnterScene)) { priority=Priority.First },
+            Type type = PatchGroup.Type("VRageRender.MyRender11");
+            harmony.Patch(PatchGroup.Method(type,"SetupCameraMatrices"), new HarmonyMethod(typeof(FrameInjections),nameof(CameraFrame)));
+            harmony.Patch(PatchGroup.Method(type,"DrawScene"), new HarmonyMethod(typeof(FrameInjections),nameof(BeforeScene)));
+            harmony.Patch(PatchGroup.Method(type,"DrawScene"), new HarmonyMethod(typeof(FrameInjections),nameof(EnterScene)) { priority=Priority.First },
                 finalizer:new HarmonyMethod(typeof(FrameInjections),nameof(LeaveScene)));
-            harmony.Patch(AccessTools.Method(type,"ConsumeMainSprites"), new HarmonyMethod(typeof(FrameInjections),nameof(BeforeSprites)));
-            harmony.Patch(AccessTools.Method(type,"Present"),
+            harmony.Patch(PatchGroup.Method(type,"ConsumeMainSprites"), new HarmonyMethod(typeof(FrameInjections),nameof(BeforeSprites)));
+            harmony.Patch(PatchGroup.Method(type,"Present"),
                 new HarmonyMethod(typeof(FrameInjections),nameof(BeforePresent)), new HarmonyMethod(typeof(FrameInjections),nameof(AfterPresent)));
-            try { PassTimingPatch.Install(harmony); }
-            catch(Exception ex) { Logger.Warning(ex,"GPU pass timing unavailable; rendering retained"); }
         }
         // Only the message queue sets the camera, before DrawScene; calls inside it are other plugins' views.
         private static void EnterScene() => inScene=true;

@@ -11,6 +11,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("HandPlacement")]
     [HarmonyPatch(typeof(MyDefaultPlacementProvider))]
     internal static class PlacementRayPatch
     {
@@ -30,6 +31,7 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("HandPlacement")]
     [HarmonyPatch]
     internal static class ObserverBuildDistancePatch
     {
@@ -41,6 +43,7 @@ namespace SpaceEngineersVR.Patches
         private static void Postfix(ref float __result) => __result=PlacementControls.BuildDistance(__result);
     }
 
+    [HarmonyPatchCategory("HandPlacement")]
     [HarmonyPatch(typeof(MyCubeBuilderGizmo),nameof(MyCubeBuilderGizmo.DefaultGizmoCloseEnough))]
     internal static class ObserverBuildReachPatch
     {
@@ -55,6 +58,7 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("HandPlacement")]
     [HarmonyPatch(typeof(MyCubeBuilder),"CalculateCubePlacement")]
     internal static class ObserverFreePlacementPatch
     {
@@ -71,6 +75,7 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("HandPlacement")]
     [HarmonyPatch(typeof(MyDefaultPlacementProvider),nameof(MyDefaultPlacementProvider.UpdatePlacement))]
     internal static class ObserverVoxelReachPatch
     {
@@ -81,6 +86,7 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("HandPlacement")]
     [HarmonyPatch(typeof(MyCubeBuilder),"CaluclateDynamicModePos")]
     internal static class ObserverDynamicPlacementPatch
     {
@@ -90,6 +96,7 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("HandPlacement")]
     [HarmonyPatch(typeof(MyCubeBuilder),"Change")]
     internal static class PaintReachPatch
     {
@@ -106,12 +113,14 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("HandPlacement")]
     [HarmonyPatch(typeof(MyCubeBuilder),nameof(MyCubeBuilder.ColorPickerOk))]
     internal static class PaletteSelectionPatch
     {
         private static bool Prefix(MyCubeBuilder __instance) => !Plugin.Main.VrActive || !__instance.IsBuildToolActive();
     }
 
+    [HarmonyPatchCategory("HandPlacement")]
     [HarmonyPatch]
     internal static class ClipboardPosePatch
     {

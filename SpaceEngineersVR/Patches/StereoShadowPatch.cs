@@ -10,6 +10,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("SharedShadows")]
     [HarmonyPatch]
     internal static class StereoShadowPatch
     {
@@ -99,6 +100,7 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("CameraFeeds")]
     [HarmonyPatch]
     internal static class FeedShadowFramePatch
     {
@@ -107,6 +109,7 @@ namespace SpaceEngineersVR.Patches
         private static void Finalizer(Action __state) => __state?.Invoke();
     }
 
+    [HarmonyPatchCategory("SharedShadows")]
     [HarmonyPatch]
     internal static class StereoShadowStatsPatch
     {

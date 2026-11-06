@@ -7,6 +7,7 @@ using VRageRender;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("BuildHints")]
     [HarmonyPatch(typeof(MyBlockBuilderRotationHints),nameof(MyBlockBuilderRotationHints.CalculateRotationHints))]
     internal static class BuildOrientationPatch
     {
@@ -22,6 +23,7 @@ namespace SpaceEngineersVR.Patches
         private static Exception Finalizer(Exception __exception,BuildOrientationHud.Capture __state)
         { __state?.Dispose(); return __exception; }
     }
+    [HarmonyPatchCategory("BuildHints")]
     [HarmonyPatch]
     internal static class PlanetRotationHintPatch
     {
@@ -42,6 +44,7 @@ namespace SpaceEngineersVR.Patches
             hints.CalculateRotationHints(matrix,draw,rotating);
         }
     }
+    [HarmonyPatchCategory("BuildHints")]
     [HarmonyPatch(typeof(MyRenderProxy),nameof(MyRenderProxy.AddBillboard))]
     internal static class BuildHintBillboardPatch
     {
@@ -52,12 +55,14 @@ namespace SpaceEngineersVR.Patches
             capture.Add(billboard); return false;
         }
     }
+    [HarmonyPatchCategory("BuildHints")]
     [HarmonyPatch(typeof(MyRenderProxy),nameof(MyRenderProxy.AddBillboardViewProjection))]
     internal static class BuildHintProjectionPatch
     {
         // Keep the native entry: CreateBillboard reads its camera position.
         private static void Prefix(MyBillboardViewProjection billboardViewProjection) => BuildOrientationHud.Capturing?.Projection(billboardViewProjection);
     }
+    [HarmonyPatchCategory("BuildHints")]
     [HarmonyPatch(typeof(MyBlockBuilderRotationHints),"ShouldDrawText")]
     internal static class BuildHintTextPatch
     {

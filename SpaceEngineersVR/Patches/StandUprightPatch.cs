@@ -14,6 +14,7 @@ using VRageMath;
 namespace SpaceEngineersVR.Patches
 {
     // Finishes the engine's 0.04 rad-a-step stand-up at once about the same pivot; an overlapping capsule keeps the slow turn, as it disables client prediction.
+    [HarmonyPatchCategory("CharacterBody")]
     [HarmonyPatch(typeof(MyCharacter),"UpdateStandup")]
     internal static class StandUprightPatch
     {

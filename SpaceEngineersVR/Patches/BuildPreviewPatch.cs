@@ -9,6 +9,7 @@ using SpaceEngineersVR.Player;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("HandPlacement")]
     [HarmonyPatch]
     internal static class BuildPreviewPatch
     {

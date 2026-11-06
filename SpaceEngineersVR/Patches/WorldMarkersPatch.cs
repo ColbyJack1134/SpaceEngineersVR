@@ -4,12 +4,14 @@ using SpaceEngineersVR.Player;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("HudMarkers")]
     [HarmonyPatch(typeof(MyHudMarkerRender),nameof(MyHudMarkerRender.AddGPS))]
     internal static class GpsMarkerPatch
     {
         private static void Postfix(MyHudMarkerRender __instance,Sandbox.Game.Screens.Helpers.MyGps gps) => WorldMarkers.CaptureGps(__instance,gps);
     }
     // AsyncUpdate ends by starting the parallel HUD draw, so the capture must run before it.
+    [HarmonyPatchCategory("HudMarkers")]
     [HarmonyPatch(typeof(Sandbox.Game.Gui.MyGuiScreenHudSpace),"AsyncUpdate")]
     internal static class HiddenHudMarkersPatch
     {
@@ -20,6 +22,7 @@ namespace SpaceEngineersVR.Patches
             WorldMarkers.UpdateTargetingStats();
         }
     }
+    [HarmonyPatchCategory("HudMarkers")]
     [HarmonyPatch(typeof(MyHudMarkerRender), nameof(MyHudMarkerRender.Draw))]
     internal static class WorldMarkersPatch
     {

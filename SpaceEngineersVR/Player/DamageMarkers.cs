@@ -78,6 +78,7 @@ namespace SpaceEngineersVR.Player
         }
     }
 
+    [HarmonyPatchCategory("HudMarkers")]
     [HarmonyPatch(typeof(MyGuiScreenHudSpace),nameof(MyGuiScreenHudSpace.AddDamageIndicator))]
     internal static class DamageIndicatorPatch
     {

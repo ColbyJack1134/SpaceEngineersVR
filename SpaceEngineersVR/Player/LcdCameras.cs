@@ -51,7 +51,7 @@ namespace SpaceEngineersVR.Player
         // Called on the simulation thread for each render packet.
         internal static View[] Capture()
         {
-            if(displays.Count==0) return null;
+            if(displays.Count==0 || !Plugin.PatchGroups.CameraDisplays.Enabled) return null;
             var main=MySector.MainCamera;
             if(main==null) return null;
             var character=MySession.Static?.LocalCharacter;

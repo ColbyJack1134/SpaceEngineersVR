@@ -13,6 +13,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("ThirdPerson")]
     [HarmonyPatch(typeof(MyGuiScreenGamePlay),nameof(MyGuiScreenGamePlay.SwitchCamera))]
     internal static class ThirdPersonTogglePatch
     {
@@ -22,6 +23,7 @@ namespace SpaceEngineersVR.Patches
             ThirdPersonView.Toggle(); return false;
         }
     }
+    [HarmonyPatchCategory("ThirdPerson")]
     [HarmonyPatch]
     internal static class ThirdPersonCameraPatch
     {
@@ -46,6 +48,7 @@ namespace SpaceEngineersVR.Patches
             currentCamera.CameraShake.ShakeEnabled=false;
         }
     }
+    [HarmonyPatchCategory("ThirdPerson")]
     [HarmonyPatch]
     internal static class ThirdPersonCollisionPatch
     {

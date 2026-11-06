@@ -7,6 +7,7 @@ using SpaceEngineersVR.Plugin;
 namespace SpaceEngineersVR.Patches
 {
     // The lock cone is cast along m_aimMatrix; in a head-aimed turret it follows the head ray.
+    [HarmonyPatchCategory("Targeting")]
     [HarmonyPatch(typeof(MyTargetFocusComponent),nameof(MyTargetFocusComponent.UpdateAimVector))]
     internal static class TargetFocusPatch
     {

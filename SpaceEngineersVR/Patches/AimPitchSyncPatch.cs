@@ -11,6 +11,7 @@ namespace SpaceEngineersVR.Patches
 {
     // A host without SEVR rebuilds shots and tool sensors from the sent body rotation and head pitch, not the VR hand.
     // Only the sent state faces the held item; the local body keeps following the head.
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch(typeof(MyCharacter),nameof(MyCharacter.GetNetState))]
     internal static class AimPitchSyncPatch
     {

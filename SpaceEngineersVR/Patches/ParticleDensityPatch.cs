@@ -8,6 +8,7 @@ using SpaceEngineersVR.Plugin;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("StereoParticles")]
     [HarmonyPatch]
     internal static class ParticleDensityPatch
     {

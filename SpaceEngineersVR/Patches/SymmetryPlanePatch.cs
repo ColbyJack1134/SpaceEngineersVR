@@ -8,12 +8,14 @@ using VRageRender;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("BuildHints")]
     [HarmonyPatch(typeof(MyCubeBuilder),nameof(MyCubeBuilder.Draw))]
     internal static class SymmetryFramePatch
     {
         private static void Prefix() => SymmetryPlanes.Begin();
         private static void Postfix() => SymmetryPlanes.Commit();
     }
+    [HarmonyPatchCategory("BuildHints")]
     [HarmonyPatch(typeof(MyCubeBuilder),"DrawSymmetryPlane")]
     internal static class SymmetryPlanePatch
     {
@@ -24,6 +26,7 @@ namespace SpaceEngineersVR.Patches
         }
         private static void Finalizer(bool __state) => SymmetryPlanes.Capturing=__state;
     }
+    [HarmonyPatchCategory("BuildHints")]
     [HarmonyPatch(typeof(MyRenderProxy),nameof(MyRenderProxy.DebugDrawTriangle))]
     internal static class SymmetryTrianglePatch
     {

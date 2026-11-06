@@ -17,11 +17,9 @@ namespace SpaceEngineersVR.Patches
 {
     internal static class PaintGunPatches
     {
-        private static readonly List<MethodBase> patched=new List<MethodBase>();
         private static readonly HashSet<Type> attempted=new HashSet<Type>();
         private static readonly FieldInfo placementFrame=AccessTools.Field(typeof(MyDefaultPlacementProvider),"m_lastUpdate");
         private static DateTime retry;
-        private static Harmony owner;
         private static FieldInfo gamepad;
         internal static void RefreshRegistrations()
         {
@@ -30,7 +28,7 @@ namespace SpaceEngineersVR.Patches
             var type=ModReflection.LiveType("Digi.PaintGun.PaintGunMod","Instance");
             if(type!=null && attempted.Add(type)) Attach(type);
         }
-        internal static void Attach(Type mod,Func<string,Type> types=null,Harmony harmony=null)
+        internal static void Attach(Type mod,Func<string,Type> types=null)
         {
             Type Mod(string name) => types!=null ? types(name):mod.Assembly.GetType("Digi.PaintGun."+name,false);
             MethodInfo Find(string type,string name,params Type[] parameters) { var t=Mod(type); return t==null ? null:AccessTools.Method(t,name,parameters); }
@@ -47,31 +45,17 @@ namespace SpaceEngineersVR.Patches
             gamepad=config==null ? null:AccessTools.Field(config,"UsingGamepad");
             if(targets.Any(t=>t.method==null) || material==null || gamepad?.FieldType!=typeof(bool) || placementFrame==null)
             { Logger.Info("Paint Gun members not found; the mod keeps its desktop controls in VR"); return; }
-            int start=patched.Count;
-            try
-            {
-                owner=harmony ?? Common.Plugin.Harmony;
-                foreach(var (method,prefix,postfix,finalizer) in targets)
-                {
-                    owner.Patch(method,Hook(prefix),Hook(postfix),finalizer:Hook(finalizer));
-                    patched.Add(method);
-                }
+            var part=PatchGroups.PaintGun.Part("adapter");
+            if(part.Apply(attach:h=> {
+                foreach(var (method,prefix,postfix,finalizer) in targets) part.Patch(method,Hook(prefix),Hook(postfix),null,Hook(finalizer));
                 PaintGun.Bind(ModReflection.StaticReader(mod,"Instance"),material);
-                Logger.Info("Paint Gun adapter attached to "+mod.Assembly.GetName().Name);
-            }
-            catch(Exception ex) { Rollback(start); PaintGun.Bind(null,null); Logger.Warning(ex,"Paint Gun adapter unavailable"); }
+            })) Logger.Info("Paint Gun adapter attached to "+mod.Assembly.GetName().Name);
+            else PaintGun.Bind(null,null);
         }
-        private static HarmonyMethod Hook(string name) => name==null ? null:new HarmonyMethod(typeof(PaintGunPatches),name);
-        private static void Rollback(int start)
-        {
-            foreach(var method in patched.Skip(start).ToArray())
-                foreach(string name in new[] {nameof(BeginAim),nameof(EndAim),nameof(KeyboardReads),nameof(Hidden),nameof(HidePanel),nameof(Notice),nameof(BeginOutline),nameof(EndOutline)})
-                    owner.Unpatch(method,AccessTools.Method(typeof(PaintGunPatches),name));
-            patched.RemoveRange(start,patched.Count-start);
-        }
+        private static MethodInfo Hook(string name) => name==null ? null:AccessTools.Method(typeof(PaintGunPatches),name);
         internal static void Reset()
         {
-            Rollback(0); attempted.Clear(); retry=DateTime.MinValue; PaintGun.Bind(null,null);
+            PatchGroups.PaintGun.RemoveParts(); attempted.Clear(); retry=DateTime.MinValue; PaintGun.Bind(null,null);
         }
 
         // The placement ray is cached per frame.
@@ -122,6 +106,7 @@ namespace SpaceEngineersVR.Patches
     }
 
     // Deep paint; patched at load so the mod's scripts cannot inline past it.
+    [HarmonyPatchCategory("PaintGun")]
     [HarmonyPatch(typeof(MyCharacterWeaponPositionComponent),nameof(MyCharacterWeaponPositionComponent.IsInIronSight),MethodType.Getter)]
     internal static class PaintGunDeepPatch
     {

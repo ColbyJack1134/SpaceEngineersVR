@@ -12,6 +12,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch(typeof(Sandbox.Game.Components.MyRenderComponentSkinnedEntity),"Draw")]
     internal static class HeldItemRenderPosePatch
     {
@@ -26,6 +27,7 @@ namespace SpaceEngineersVR.Patches
             SpatialUi.Publish();
         }
     }
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch(typeof(MyCharacterWeaponPositionComponent), nameof(MyCharacterWeaponPositionComponent.Update))]
     public static class MotionToolPatch
     {

@@ -233,6 +233,7 @@ namespace SpaceEngineersVR.Player
         }
     }
 
+    [HarmonyPatchCategory("HudMarkers")]
     [HarmonyPatch(typeof(MyHudMarkerRender),nameof(MyHudMarkerRender.ChangeSignalMode))]
     internal static class SignalModePatch
     {

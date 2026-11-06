@@ -8,6 +8,7 @@ using System.Reflection;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("GridSelection")]
     [HarmonyPatch]
     internal static class GridSelectionPatch
     {
@@ -24,6 +25,7 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("GridSelection")]
     [HarmonyPatch(typeof(MyCubeGrid),nameof(MyCubeGrid.GetTargetEntity))]
     internal static class SelectedEntityPatch
     {
@@ -35,6 +37,7 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("GridSelection")]
     [HarmonyPatch(typeof(MyCubeGrid),nameof(MyCubeGrid.GetTargetGrid))]
     internal static class SelectedGridPatch
     {

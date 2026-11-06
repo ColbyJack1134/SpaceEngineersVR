@@ -56,7 +56,7 @@ namespace SpaceEngineersVR.Player
         internal static float Roll => 0;
         private static int epoch=1000000;
         internal static MatrixD? CapturePose { get; private set; }
-        internal static bool Active => Main.VrActive && MySession.Static?.CameraController is MySpectatorCameraController;
+        internal static bool Active => Main.VrActive && Plugin.PatchGroups.Spectator.Enabled && MySession.Static?.CameraController is MySpectatorCameraController;
         internal static CameraRig.Frame Current => Active ? Volatile.Read(ref frame):null;
         internal static bool Available => MySession.Static?.LocalHumanPlayer!=null &&
             MySession.Static.HasPlayerSpectatorRights(Sync.MyId) && MyGuiScreenGamePlay.SpectatorEnabled;

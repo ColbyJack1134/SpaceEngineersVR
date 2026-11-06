@@ -9,6 +9,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("Spectator")]
     [HarmonyPatch(typeof(MySessionComponentSpectatorTools),nameof(MySessionComponentSpectatorTools.LockHitEntity))]
     internal static class SpectatorLockPatch
     {
@@ -19,12 +20,14 @@ namespace SpaceEngineersVR.Patches
             return false;
         }
     }
+    [HarmonyPatchCategory("Spectator")]
     [HarmonyPatch(typeof(MySessionComponentSpectatorTools),nameof(MySessionComponentSpectatorTools.UpdateAfterSimulation))]
     internal static class SpectatorFollowPatch
     {
         // VR follow uses the same reference and gesture engine as third person; native movement would compete with it.
         private static bool Prefix() => !SpectatorView.Following || SpectatorView.RestoringTrackedView;
     }
+    [HarmonyPatchCategory("Spectator")]
     [HarmonyPatch(typeof(MySpectatorCameraController),"VRage.Game.ModAPI.Interfaces.IMyCameraController.ControlCamera")]
     internal static class SpectatorCameraPatch
     {
@@ -38,12 +41,14 @@ namespace SpaceEngineersVR.Patches
             return false;
         }
     }
+    [HarmonyPatchCategory("Spectator")]
     [HarmonyPatch(typeof(MySpectatorCameraController),"MoveAndRotate_UserControlled")]
     internal static class SpectatorGravityCameraPatch
     {
         // Zero movement still runs native gravity alignment, which competes with VR orientation.
         private static bool Prefix() => !SpectatorView.Active;
     }
+    [HarmonyPatchCategory("Spectator")]
     [HarmonyPatch(typeof(MySessionComponentSpectatorTools),"UpdateLockEntity")]
     internal static class SpectatorTargetPosePatch
     {

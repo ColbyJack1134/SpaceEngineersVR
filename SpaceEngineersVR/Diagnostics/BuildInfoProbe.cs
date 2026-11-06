@@ -361,7 +361,7 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 var method=AccessTools.Method(mod,name);
                 var info=Harmony.GetPatchInfo(method);
-                Require(info!=null && info.Prefixes.Any(p=>p.owner==Common.Plugin.Harmony.Id) && info.Finalizers.Any(p=>p.owner==Common.Plugin.Harmony.Id),"PlacementDistance."+name+" is not wrapped");
+                Require(info!=null && info.Prefixes.Any(p=>p.owner.StartsWith(PatchGroups.BuildInfo.Harmony.Id)) && info.Finalizers.Any(p=>p.owner.StartsWith(PatchGroups.BuildInfo.Harmony.Id)),"PlacementDistance."+name+" is not wrapped");
             }
             Common.Plugin.Harmony.Patch(AccessTools.Method(mod,"UpdateInput"),new HarmonyMethod(typeof(BuildInfoProbe),nameof(RawProbe)) {priority=Priority.Last});
             // Every Build Info method that reads and writes the stored distance must run in the raw scope.

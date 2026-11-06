@@ -132,7 +132,7 @@ namespace SpaceEngineersVR.Diagnostics
                 ArthurLcdBridge.Attach(type);
                 Require(ArthurLcdBridge.Ready,"Arthur source-built adapter did not attach");
                 foreach(string name in new[] {"Update","TryGetCameraRay","UpdateScrollState"})
-                    Require(Harmony.GetPatchInfo(AccessTools.Method(type,name))?.Owners.Contains(Common.Plugin.Harmony.Id)==true,"Arthur interaction patch missing: "+name);
+                    Require(Harmony.GetPatchInfo(AccessTools.Method(type,name))?.Owners.Any(o=>o.StartsWith(PatchGroups.ArthurLcd.Harmony.Id))==true,"Arthur interaction patch missing: "+name);
                 failed.SetValue(null,false);
                 object[] ray={Vector3D.One,Vector3D.One};
                 Require(!(bool)AccessTools.Method(type,"TryGetCameraRay").Invoke(null,ray),"Arthur supplied a camera ray without a selected interactive LCD");

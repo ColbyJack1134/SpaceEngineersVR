@@ -11,6 +11,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("StereoFlares")]
     [HarmonyPatch]
     internal static class StereoFlareQueries
     {
@@ -49,6 +50,7 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("StereoFlares")]
     [HarmonyPatch]
     internal static class StereoFlareVisibility
     {
@@ -84,6 +86,7 @@ namespace SpaceEngineersVR.Patches
         }
     }
 
+    [HarmonyPatchCategory("StereoFlares")]
     [HarmonyPatch]
     internal static class StereoFlareGeometry
     {

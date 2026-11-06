@@ -231,6 +231,7 @@ namespace SpaceEngineersVR.Multiplayer
             foreach(var field in otherHits) field.SetValue(sensor,null);
         }
     }
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch(typeof(MyCasterComponent),nameof(MyCasterComponent.OnWorldPosChanged))]
     internal static class ToolSensorPatch
     {
@@ -245,6 +246,7 @@ namespace SpaceEngineersVR.Multiplayer
                 ToolContact.Apply(tool,__instance,HeldItemPose.Working(model,profile),profile);
         }
     }
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch(typeof(MyWelder),nameof(MyWelder.FindProjectedBlock))]
     internal static class ToolProjectionReachPatch
     {
@@ -256,6 +258,7 @@ namespace SpaceEngineersVR.Multiplayer
             if(scaled>0) distanceMultiplier=scaled;
         }
     }
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch(typeof(MyHandDrill),"WorldPositionChanged")]
     internal static class HeldDrillPosePatch
     {
@@ -268,6 +271,7 @@ namespace SpaceEngineersVR.Multiplayer
             return false;
         }
     }
+    [HarmonyPatchCategory("HeldTools")]
     [HarmonyPatch]
     internal static class ToolFeedbackPatch
     {

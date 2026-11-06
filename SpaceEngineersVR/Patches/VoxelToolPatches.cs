@@ -25,19 +25,21 @@ namespace SpaceEngineersVR.Patches
             // TryBuilderPose keeps the last pose while the wheel or a menu is open, like the building preview.
             // Mod tools act at the aim origin on the server without a reach check, so in third person they keep the head aim
             // instead of the observer hand, which can be far from the character.
-            return Scope!=null && Main.VrActive && !SpectatorView.Active && !(Scope is DigiTool && ThirdPersonView.Active) &&
+            return Scope!=null && Plugin.PatchGroups.VoxelTools.Enabled && Main.VrActive && !SpectatorView.Active && !(Scope is DigiTool && ThirdPersonView.Active) &&
                 ReferenceEquals(VoxelTools.Current,Scope) && PlacementControls.TryBuilderPose(out pose);
         }
         internal static Vector3 Forward(MyCamera camera) => TryPose(out var pose) ? (Vector3)Vector3D.Normalize(pose.Forward) : camera.ForwardVector;
         internal static MatrixD View(MyCamera camera) => TryPose(out var pose) ? MatrixD.Invert(VrMath.Rigid(pose)) : camera.ViewMatrix;
     }
 
+    [HarmonyPatchCategory("VoxelTools")]
     [HarmonyPatch(typeof(MyCharacter),nameof(MyCharacter.GetHeadMatrix))]
     internal static class VoxelAimHeadPatch
     {
         private static void Postfix(ref MatrixD __result) { if(VoxelAim.TryPose(out var pose) || PaintGun.TryAim(out pose)) __result=pose; }
     }
 
+    [HarmonyPatchCategory("VoxelTools")]
     [HarmonyPatch(typeof(MySessionComponentVoxelHand),nameof(MySessionComponentVoxelHand.UpdateBeforeSimulation))]
     internal static class VoxelHandAimPatch
     {
@@ -75,6 +77,7 @@ namespace SpaceEngineersVR.Patches
     }
 
     // Mods read controls through IMyControl as well as the game control methods.
+    [HarmonyPatchCategory("VoxelTools")]
     [HarmonyPatch]
     internal static class NativeControlPatch
     {
@@ -93,6 +96,7 @@ namespace SpaceEngineersVR.Patches
     }
 
     // Digi tools read modifier keys through the mod API; the shared controls supply them while the tool updates.
+    [HarmonyPatchCategory("VoxelTools")]
     [HarmonyPatch]
     internal static class DigiModifierPatch
     {
@@ -119,7 +123,6 @@ namespace SpaceEngineersVR.Patches
     // Binds to Digi's Concrete Tool and its forks when their scripts load.
     internal static class DigiTools
     {
-        private static readonly List<MethodBase> patched=new List<MethodBase>();
         private static readonly HashSet<Type> attempted=new HashSet<Type>();
         private static DateTime retry;
         private static readonly HashSet<Assembly> scanned=new HashSet<Assembly>();
@@ -160,31 +163,17 @@ namespace SpaceEngineersVR.Patches
             var paint=input==null ? null:AccessTools.Method(input,"IsControlPressedIgnoreBlock",new[] {typeof(MyStringId),typeof(bool)});
             var tool=holding==null || paint==null ? null:DigiTool.TryCreate(type);
             if(tool==null) return;
-            int start=patched.Count;
-            try
-            {
-                Patch(holding,new HarmonyMethod(typeof(DigiTools),nameof(Begin)),finalizer:new HarmonyMethod(typeof(DigiTools),nameof(End)));
-                Patch(paint,postfix:new HarmonyMethod(typeof(DigiTools),nameof(Paint)));
+            var part=PatchGroups.DigiTools.Part(type.Name);
+            if(part.Apply(attach:h=> {
+                part.Patch(holding,Hook(nameof(Begin)),null,null,Hook(nameof(End)));
+                part.Patch(paint,null,Hook(nameof(Paint)));
                 VoxelTools.Mods.Add(tool);
-                Logger.Info("Voxel tool adapter attached to "+type.FullName+" in "+type.Assembly.GetName().Name);
-            }
-            catch(Exception ex) { Rollback(start); Logger.Warning(ex,"Voxel tool adapter unavailable for "+type.FullName); }
+            })) Logger.Info("Voxel tool adapter attached to "+type.FullName+" in "+type.Assembly.GetName().Name);
         }
-        private static void Patch(MethodBase method,HarmonyMethod prefix=null,HarmonyMethod postfix=null,HarmonyMethod finalizer=null)
-        {
-            Common.Plugin.Harmony.Patch(method,prefix,postfix,finalizer:finalizer);
-            patched.Add(method);
-        }
-        private static void Rollback(int start)
-        {
-            foreach(var method in patched.Skip(start).ToArray())
-                foreach(string name in new[] {nameof(Begin),nameof(End),nameof(Paint)})
-                    Common.Plugin.Harmony.Unpatch(method,AccessTools.Method(typeof(DigiTools),name));
-            patched.RemoveRange(start,patched.Count-start);
-        }
+        private static MethodInfo Hook(string name) => AccessTools.Method(typeof(DigiTools),name);
         internal static void Reset()
         {
-            Rollback(0); attempted.Clear(); scanned.Clear(); VoxelTools.Mods.Clear(); retry=DateTime.MinValue;
+            PatchGroups.DigiTools.RemoveParts(); attempted.Clear(); scanned.Clear(); VoxelTools.Mods.Clear(); retry=DateTime.MinValue;
         }
         private static void Begin(object __instance,out VoxelTool __state)
         {

@@ -7,6 +7,7 @@ using SpaceEngineersVR.Player;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("HandPlacement")]
     [HarmonyPatch(typeof(MyCubeBuilder),"HandleBlockCreationMovement")]
     internal static class BuildDistancePatch
     {
@@ -31,6 +32,7 @@ namespace SpaceEngineersVR.Patches
             if(count!=expected) throw new InvalidOperationException("Native "+context+" distance factors changed");
         }
     }
+    [HarmonyPatchCategory("HandPlacement")]
     [HarmonyPatch]
     internal static class BlueprintDistancePatch
     {

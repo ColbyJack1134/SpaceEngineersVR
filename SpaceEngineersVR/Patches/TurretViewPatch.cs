@@ -8,6 +8,7 @@ using SpaceEngineersVR.Player;
 namespace SpaceEngineersVR.Patches
 {
     // Head-aimed turret views are rolled to the player's up, so the picture and its native HUD stay upright on a turret mounted at any roll.
+    [HarmonyPatchCategory("Targeting")]
     [HarmonyPatch]
     internal static class TurretViewPatch
     {

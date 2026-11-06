@@ -15,6 +15,7 @@ namespace SpaceEngineersVR.Patches
     // Replace only the ray's origin/direction, before the native endpoint calculation.
     // Keep geometry ordering, model use-detectors, occlusion, selection lifecycle,
     // interaction distance and action dispatch in the game's implementation.
+    [HarmonyPatchCategory("HandInteraction")]
     [HarmonyPatch]
     internal static class InteractionRayPatch
     {

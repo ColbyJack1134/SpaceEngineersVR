@@ -68,7 +68,7 @@ namespace SpaceEngineersVR.Diagnostics
             var blacklist=AccessTools.Method(input,"SetPlayerUseBlacklistState");
             var update=AccessTools.Method(managerField.FieldType,"UpdateAtSimulation"); var buttons=AccessTools.Method(screen,"UpdateMouseButtons");
             var harmony=new Harmony("SEVR.OptionalLcd.Tests");
-            bool Owned(MethodBase method) => Harmony.GetPatchInfo(method)?.Owners.Contains(Common.Plugin.Harmony.Id)==true;
+            bool Owned(MethodBase method) => Harmony.GetPatchInfo(method)?.Owners.Any(o=>o.StartsWith(PatchGroups.TouchScreens.Harmony.Id))==true;
             Require(!TouchScreenBridge.Ready,"Touchscreen fixture requires an idle adapter");
             try
             {
@@ -78,10 +78,7 @@ namespace SpaceEngineersVR.Diagnostics
                 TouchScreenBridge.Reset();
                 Require(!Owned(update) && !Owned(buttons),"Touchscreen reset left adapter patches");
                 failBlacklist=true;
-                bool failed=false;
-                try { TouchScreenBridge.Attach(session); }
-                catch(TargetInvocationException ex) when(ex.InnerException is InvalidOperationException) { failed=true; }
-                Require(failed && !TouchScreenBridge.Ready && !Owned(update) && !Owned(buttons),"Failed touchscreen initialization retained partial patches");
+                Require(!TouchScreenBridge.Attach(session) && !TouchScreenBridge.Ready && !Owned(update) && !Owned(buttons),"Failed touchscreen initialization retained partial patches");
             }
             finally
             {

@@ -62,7 +62,7 @@ float4 PS() : SV_Target { return Depth.y; }";
         private static int Resolve(bool exposure)
         {
             int eye=StereoRenderState.Active ? StereoRenderState.View : -1;
-            if(eye<0 || eye>1 || failed || Common.Config?.HiddenAreaMask!=true) return -1;
+            if(eye<0 || eye>1 || failed || !Plugin.PatchGroups.LensMask.Enabled || Common.Config?.HiddenAreaMask!=true) return -1;
             if(!initialized) Initialize();
             return failed || counts[eye]==0 || exposureOnly && !exposure ? -1 : eye;
         }

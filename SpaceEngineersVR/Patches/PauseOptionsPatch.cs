@@ -8,6 +8,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("MenuExtras")]
     [HarmonyPatch(typeof(MyGuiScreenMainMenu),nameof(MyGuiScreenMainMenu.RecreateControls))]
     internal static class PauseOptionsPatch
     {
