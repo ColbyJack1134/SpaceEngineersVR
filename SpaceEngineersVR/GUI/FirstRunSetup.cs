@@ -63,8 +63,8 @@ namespace SpaceEngineersVR.GUI
                 }).Enabled=!measuring;
                 if(manual)
                 {
-                    var slider=new MyGuiControlSlider(new Vector2(0,.13f),minValue:100,maxValue:240,width:.56f,
-                        defaultValue:180,labelText:"{0} cm",labelDecimalPlaces:1,labelSpaceWidth:.08f,showLabel:true) {Value=height};
+                    var slider=MenuLayout.Typed(new MyGuiControlSlider(new Vector2(0,.13f),minValue:100,maxValue:240,width:.56f,
+                        defaultValue:180,labelText:"{0} cm",labelDecimalPlaces:1,labelSpaceWidth:.08f,showLabel:true) {Value=height},"Standing height (cm)");
                     slider.ValueChanged+=v=>height=v.Value;Controls.Add(slider);
                 }
                 MenuLayout.Button(this,0,.225f,.58f,c.SeatedPlay ? "Recapture seated position":"Capture seated position (optional)",()=> {

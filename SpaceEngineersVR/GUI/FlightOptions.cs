@@ -53,9 +53,9 @@ namespace SpaceEngineersVR.GUI
         {
             Controls.Add(new MyGuiControlLabel(new Vector2(-0.3f,y),text:title,
                 originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER));
-            var slider=new MyGuiControlSlider(new Vector2(-0.035f,y+0.05f),minValue:min*percent,
+            var slider=MenuLayout.Typed(new MyGuiControlSlider(new Vector2(-0.035f,y+0.05f),minValue:min*percent,
                 maxValue:max*percent,width:0.53f,defaultValue:defaultValue*percent,
-                labelText:"{0}%",labelDecimalPlaces:0,labelSpaceWidth:0.08f,intValue:true,showLabel:true) { Value=value*percent };
+                labelText:"{0}%",labelDecimalPlaces:0,labelSpaceWidth:0.08f,intValue:true,showLabel:true) { Value=value*percent },title);
             SettingsTooltips.Set(title,slider);
             slider.ValueChanged+=s=>store(s.Value/percent);
             Controls.Add(slider);

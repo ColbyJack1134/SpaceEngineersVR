@@ -37,8 +37,8 @@ namespace SpaceEngineersVR.GUI
                     Toggle(-.23f,"Snap turning",c.SnapTurn,v=>c.SnapTurn=v);
                     Slider(-.12f,"Smooth turn speed",c.TurnSensitivity,.25f,v=>c.TurnSensitivity=v,400);
                     Label(.04f,"Snap angle");
-                    var angle=new MyGuiControlSlider(new Vector2(-.035f,.09f),minValue:15,maxValue:90,width:.53f,defaultValue:30,
-                        labelText:"{0}°",labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=c.SnapTurnAngle };
+                    var angle=MenuLayout.Typed(new MyGuiControlSlider(new Vector2(-.035f,.09f),minValue:15,maxValue:90,width:.53f,defaultValue:30,
+                        labelText:"{0}°",labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=c.SnapTurnAngle },"Snap angle");
                     angle.ValueChanged+=v=>c.SnapTurnAngle=v.Value;
                     Controls.Add(angle);
                     Reset(()=> { c.SnapTurn=false;c.TurnSensitivity=1.5f;c.SnapTurnAngle=30; });
@@ -108,8 +108,8 @@ namespace SpaceEngineersVR.GUI
                 case "Weapon & shield warnings":
                     Toggle(-.23f,"Warning pulse",c.WarningPulse,v=>c.WarningPulse=v);
                     var repeat=Label(-.12f,"Repeat pulse every");
-                    var interval=new MyGuiControlSlider(new Vector2(-.035f,-.07f),minValue:0,maxValue:Config.PluginConfig.MaxWarningPulseInterval,width:.53f,
-                        defaultValue:Config.PluginConfig.DefaultWarningPulseInterval,labelText:"{0} s",labelDecimalPlaces:1,labelSpaceWidth:.08f,showLabel:true) { Value=c.WarningPulseInterval };
+                    var interval=MenuLayout.Typed(new MyGuiControlSlider(new Vector2(-.035f,-.07f),minValue:0,maxValue:Config.PluginConfig.MaxWarningPulseInterval,width:.53f,
+                        defaultValue:Config.PluginConfig.DefaultWarningPulseInterval,labelText:"{0} s",labelDecimalPlaces:1,labelSpaceWidth:.08f,showLabel:true) { Value=c.WarningPulseInterval },"Repeat pulse every");
                     interval.ValueChanged+=v=>c.WarningPulseInterval=v.Value;
                     Controls.Add(interval); SettingsTooltips.Set("Repeat pulse every",repeat,interval);
                     Label(.06f,"0 s: pulse only when a warning starts.",.6f);
@@ -158,7 +158,7 @@ namespace SpaceEngineersVR.GUI
         private void Value(float y,string text,float value,float min,float max,float fallback,string format,Action<float> store)
         {
             var label=Label(y,text);
-            var slider=new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:min,maxValue:max,width:.53f,defaultValue:fallback,labelText:format,labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=value };
+            var slider=MenuLayout.Typed(new MyGuiControlSlider(new Vector2(-.035f,y+.05f),minValue:min,maxValue:max,width:.53f,defaultValue:fallback,labelText:format,labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=value },text);
             slider.ValueChanged+=v=>store(v.Value); Controls.Add(slider);
             SettingsTooltips.Set(text,label,slider);
         }

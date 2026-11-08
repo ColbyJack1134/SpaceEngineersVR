@@ -33,8 +33,8 @@ namespace SpaceEngineersVR.GUI
             base.RecreateControls(constructor); AddCaption("Body and seated play");
             var config=Common.Config;
             Label(-.25f,"Standing height (cm)");
-            height=new MyGuiControlSlider(new Vector2(-.035f,-.20f),minValue:100,maxValue:240,width:.53f,defaultValue:180,
-                labelText:"{0} cm",labelDecimalPlaces:1,labelSpaceWidth:.09f,showLabel:true) { Value=config.PlayerHeight*100 };
+            height=MenuLayout.Typed(new MyGuiControlSlider(new Vector2(-.035f,-.20f),minValue:100,maxValue:240,width:.53f,defaultValue:180,
+                labelText:"{0} cm",labelDecimalPlaces:1,labelSpaceWidth:.09f,showLabel:true) { Value=config.PlayerHeight*100 },"Standing height (cm)");
             height.ValueChanged+=s=>BodyFit.SetHeight(s.Value/100); Controls.Add(height); SettingsTooltips.Set("Standing height (cm)",height);
             measure=new MyGuiControlButton(new Vector2(0,-.115f),text:new StringBuilder("Measure headset height"),onButtonClick:b=> {
                 if(Player.Player.IsCalibrating) Player.Player.CancelCalibration(); else Player.Player.StartCalibration();

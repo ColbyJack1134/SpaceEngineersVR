@@ -25,15 +25,15 @@ namespace SpaceEngineersVR.GUI
                 var size=recommended.X>0 ? EyeResolution.Size(recommended,scale) : Vector2I.Zero;
                 target.Text=size.X>0 ? $"{size.X} × {size.Y} per eye · {scale*scale*100:F0}% pixels" : "100% uses SteamVR's recommended eye resolution";
             }
-            Slider(-.23f,100,config.EyeRenderScale,v=> { config.EyeRenderScale=v; Refresh(v); });
+            Slider(-.23f,"Headset resolution",100,config.EyeRenderScale,v=> { config.EyeRenderScale=v; Refresh(v); });
             Refresh(config.EyeRenderScale);
             Label(-.09f,"Turret and camera feed resolution");
             var feed=Label(.03f,"");
             void RefreshFeed(float scale) { var size=RemoteFeed.Size(scale); feed.Text=$"{size.X} × {size.Y} · 100% is 1920 × 1080"; }
-            Slider(-.03f,83,config.RemoteFeedScale,v=> { config.RemoteFeedScale=v; RefreshFeed(v); });
+            Slider(-.03f,"Camera feed resolution",83,config.RemoteFeedScale,v=> { config.RemoteFeedScale=v; RefreshFeed(v); });
             RefreshFeed(config.RemoteFeedScale);
             Label(.075f,"Particle density (100% restores original)");
-            Slider(.135f,50,config.ParticleDensity,v=>config.ParticleDensity=v,15,100);
+            Slider(.135f,"Particle density",50,config.ParticleDensity,v=>config.ParticleDensity=v,15,100);
             Label(.205f,"Mirror headset on desktop");
             var mirror=new MyGuiControlCheckbox(new Vector2(.28f,.205f)) { IsChecked=config.MirrorDesktop };
             mirror.IsCheckedChanged+=c=>config.MirrorDesktop=c.IsChecked; Controls.Add(mirror);
@@ -42,10 +42,10 @@ namespace SpaceEngineersVR.GUI
                 config.EyeRenderScale=1; config.RemoteFeedScale=5f/6; config.ParticleDensity=.5f; RecreateControls(false); }));
             Controls.Add(new MyGuiControlButton(new Vector2(.16f,.36f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
         }
-        private void Slider(float y,float defaultPercent,float value,System.Action<float> changed,float min=50,float max=150)
+        private void Slider(float y,string caption,float defaultPercent,float value,System.Action<float> changed,float min=50,float max=150)
         {
-            var slider=new MyGuiControlSlider(new Vector2(-.025f,y),minValue:min,maxValue:max,width:.55f,defaultValue:defaultPercent,
-                labelText:"{0}%",labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=value*100 };
+            var slider=MenuLayout.Typed(new MyGuiControlSlider(new Vector2(-.025f,y),minValue:min,maxValue:max,width:.55f,defaultValue:defaultPercent,
+                labelText:"{0}%",labelDecimalPlaces:0,labelSpaceWidth:.08f,intValue:true,showLabel:true) { Value=value*100 },caption);
             slider.ValueChanged+=s=>changed(s.Value/100);
             Controls.Add(slider);
         }

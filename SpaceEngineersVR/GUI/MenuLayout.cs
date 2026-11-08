@@ -38,11 +38,25 @@ namespace SpaceEngineersVR.GUI
         {
             SettingsTooltips.Set(label,Button(screen,center,y,.55f,label+"    "+(value ? "On":"Off"),()=> {save(!value); screen.RecreateControls(false);}));
         }
+        // Ctrl+click or gamepad A enters a value, as on terminal sliders.
+        internal static MyGuiControlSlider Typed(MyGuiControlSlider slider,string caption)
+        {
+            slider.SliderSetValueManual=s=> {
+                string format=s.IntValue ? "0":"0.##";
+                var dialog=new MyGuiScreenDialogAmount(s.MinValue,s.MaxValue,MyStringId.GetOrCompute(caption),s.IntValue ? 0:2,s.IntValue,s.Value,
+                    Sandbox.MySandboxGame.Config.UIBkOpacity,Sandbox.MySandboxGame.Config.UIOpacity,writer:(text,v)=>text.Clear().Append(v.ToString(format)));
+                dialog.OnConfirmed+=v=>s.Value=v;
+                MyGuiSandbox.AddScreen(dialog);
+                return true;
+            };
+            return slider;
+        }
         internal static void Slider(MyGuiScreenBase screen,float y,string label,float value,float min,float max,float step,string unit,Action<float> save,float center=.135f,bool enabled=true)
         {
             var title=Label(screen,center-.275f,y,label); title.Enabled=enabled;
-            var caption=Label(screen,center+.145f,y,value.ToString("0.#")+unit,.68f); caption.Enabled=enabled;
-            var slider=new MyGuiControlSlider(new Vector2(center,y+.044f),minValue:min,maxValue:max,width:.40f,defaultValue:value) {Value=value,Enabled=enabled};
+            var slider=Typed(new MyGuiControlSlider(new Vector2(center,y+.044f),minValue:min,maxValue:max,width:.40f,defaultValue:value,
+                intValue:step%1==0 && min%1==0) {Value=value,Enabled=enabled},label);
+            var caption=Label(screen,center+.145f,y,slider.Value.ToString("0.#")+unit,.68f); caption.Enabled=enabled;
             slider.ValueChanged+=s=> {save(s.Value); caption.Text=s.Value.ToString("0.#")+unit;}; screen.Controls.Add(slider);
             SettingsTooltips.Set(label,title,slider);
             Button(screen,center-.25f,y+.044f,.06f,"−",()=>slider.Value=Math.Max(min,slider.Value-step),.042f).Enabled=enabled;
