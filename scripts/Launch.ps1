@@ -29,8 +29,13 @@ $pulsar = Join-Path $PrototypeRoot 'Pulsar'
 # Test harnesses watch the Legacy DLL build. Interim compiles Source and needs the hub for DotNetCompat, so no -bare.
 $flavour = if ($Legacy -or $mode -ne 'render') { 'Legacy' } else { 'Interim' }
 $arguments = @('-bin64', ('"' + $settings.GameBinPath + '"'), '-noUpdate', '-noStats', '-noDiscord', '-sources',
-    '-profile', ('"' + (Join-Path $pulsar "$flavour\Profiles\sevr.xml") + '"'),
     '-appdata', ('"' + (Join-Path $PrototypeRoot 'GameData') + '"'))
+$profiles = Join-Path $pulsar "$flavour\Profiles"
+if ($flavour -eq 'Interim') {
+    # -profile locks Pulsar's plugin list, so the headset launch uses Pulsar's own editable Current profile.
+    $current = Join-Path $profiles 'Current.xml'
+    if (!(Test-Path $current)) { (Get-Content (Join-Path $profiles 'sevr.xml') -Raw) -replace '<Name>[^<]*</Name>', '<Name>Current</Name>' | Set-Content $current -Encoding UTF8 }
+} else { $arguments += @('-profile', ('"' + (Join-Path $profiles 'sevr.xml') + '"')) }
 if ($flavour -eq 'Legacy') { $arguments += '-bare' }
 $launched = Start-Process (Join-Path $pulsar "$flavour.exe") -WorkingDirectory $pulsar -ArgumentList $arguments -PassThru
 Write-Host "Started SEVR on Pulsar $flavour in $mode mode. Logs and test saves: $PrototypeRoot\GameData"

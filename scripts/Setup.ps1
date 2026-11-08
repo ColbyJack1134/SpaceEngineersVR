@@ -64,6 +64,8 @@ New-Item -ItemType Directory -Force (Join-Path $pulsar 'Interim\Sources'), (Join
 <?xml version="1.0"?>
 <Profile><Name>SEVR Prototype</Name><GitHub /><DevFolder><LocalFolderConfig><Id>SpaceEngineersVR-source</Id><DebugBuild>false</DebugBuild></LocalFolderConfig></DevFolder><Local /><Mods /></Profile>
 '@ | Set-Content (Join-Path $pulsar 'Interim\Profiles\sevr.xml') -Encoding UTF8
+# The headset launch uses Pulsar's editable Current profile; Launch.ps1 reseeds it from sevr.xml.
+Remove-Item (Join-Path $pulsar 'Interim\Profiles\Current.xml*') -ErrorAction SilentlyContinue
 $interimConfig = Join-Path $pulsar 'Interim\config.xml'
 if (!(Test-Path $interimConfig)) {
     @'
