@@ -110,6 +110,15 @@ namespace SpaceEngineersVR.Player
             return new Vector3(TowardZero(value.X,step),TowardZero(value.Y,step),TowardZero(value.Z,step));
         }
         private static float TowardZero(float v,float step) => Math.Sign(v)*Math.Max(0,Math.Abs(v)-step);
+        // Pointing direction gives pitch and yaw, wrist roll gives roll, all relative to the hand at grip; signs match the stick's Rotation.
+        internal static Vector3 HandSteering(Matrix delta,Multiplayer.FlightTuning tuning,bool invertPitch)
+        {
+            var forward=delta.Forward;
+            var aim=new Vector2(-(float)Math.Atan2(forward.Y,-forward.Z),(float)Math.Atan2(forward.X,-forward.Z));
+            Vector2 tilt=Tilt(aim*tuning.Rotation/TiltRange,tuning.TiltDeadzone);
+            float roll=Axis((float)Math.Atan2(delta.Up.X,delta.Up.Y)*tuning.Rotation/TwistRange,tuning.TwistDeadzone);
+            return Response(new Vector3(invertPitch ? -tilt.X:tilt.X,tilt.Y,roll),tuning.RotationCurve);
+        }
         internal static Vector2 Tilt(Vector2 value,float deadzone)
         {
             float length=value.Length();

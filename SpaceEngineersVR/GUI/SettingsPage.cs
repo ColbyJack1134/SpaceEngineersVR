@@ -51,12 +51,12 @@ namespace SpaceEngineersVR.GUI
                     break;
                 case "Advanced controls":
                     Toggle(-.32f,"Controller menu pointer",c.ControllerMenuPointer,v=>c.ControllerMenuPointer=v);
+                    Toggle(-.25f,"Show laser on interactables",c.InteractableLaser,v=>c.InteractableLaser=v);
                     Action<bool> lockMouse=null;
-                    Toggle(-.25f,"Keyboard / mouse gameplay",c.EnableKeyboardAndMouseControls,v=> { c.EnableKeyboardAndMouseControls=v; lockMouse(v); });
-                    lockMouse=Toggle(-.18f,"Lock mouse to game window",c.LockMouseToWindow,v=>c.LockMouseToWindow=v,.03f);
+                    Toggle(-.18f,"Keyboard / mouse gameplay",c.EnableKeyboardAndMouseControls,v=> { c.EnableKeyboardAndMouseControls=v; lockMouse(v); });
+                    lockMouse=Toggle(-.11f,"Lock mouse to game window",c.LockMouseToWindow,v=>c.LockMouseToWindow=v,.03f);
                     lockMouse(c.EnableKeyboardAndMouseControls);
-                    Toggle(-.11f,"Tracked arms",c.TrackedArms,v=>c.TrackedArms=v);
-                    Toggle(-.04f,"Legacy hand-tilt ship steering",c.LegacyShipTilt,v=>c.LegacyShipTilt=v);
+                    Toggle(-.04f,"Tracked arms",c.TrackedArms,v=>c.TrackedArms=v);
                     Toggle(.03f,"Double-tap to keep tools running",c.DoubleTapToolLock,v=>c.DoubleTapToolLock=v);
                     Toggle(.10f,"Clear terrain toggle",c.ClearTerrainToggle,v=>c.ClearTerrainToggle=v);
                     Toggle(.17f,"Right stick up jumps",c.StickJump,v=>c.StickJump=v);

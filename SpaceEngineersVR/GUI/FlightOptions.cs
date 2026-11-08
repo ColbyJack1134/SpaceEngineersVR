@@ -28,15 +28,9 @@ namespace SpaceEngineersVR.GUI
             var config=Common.Config;
             AddSensitivity(-0.23f,"Jetpack roll",config.JetpackRoll,PluginConfig.DefaultJetpackRoll,v=>config.JetpackRoll=v,PluginConfig.JetpackRollPercent,PluginConfig.MinJetpackRoll,PluginConfig.MaxJetpackRoll);
             AddSensitivity(-0.09f,"Ship roll",config.ShipRollSensitivity,PluginConfig.DefaultShipRollSensitivity,v=>config.ShipRollSensitivity=v,100,PluginConfig.MinRollSensitivity,PluginConfig.MaxRollSensitivity);
-            Controls.Add(new MyGuiControlLabel(new Vector2(-.3f,.055f),text:"Invert ship thumbstick pitch",originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER));
-            var invert=new MyGuiControlCheckbox(new Vector2(.29f,.055f)) { IsChecked=config.InvertShipPitch };
-            invert.IsCheckedChanged+=v=>config.InvertShipPitch=v.IsChecked; Controls.Add(invert);
-            Controls.Add(new MyGuiControlLabel(new Vector2(-.3f,.13f),text:"Physical ship sticks only (first person)",textScale:.75f,originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER));
-            var physicalOnly=new MyGuiControlCheckbox(new Vector2(.29f,.13f)) { IsChecked=config.PhysicalShipControlsOnly };
-            physicalOnly.IsCheckedChanged+=v=>config.PhysicalShipControlsOnly=v.IsChecked; Controls.Add(physicalOnly);
-            SettingsTooltips.Set("Physical ship sticks only (first person)",physicalOnly);
-            Controls.Add(new MyGuiControlLabel(new Vector2(-0.3f,0.21f),text:"Third-person controller flight stays available.",textScale:0.65f,
-                originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER));
+            AddToggle(.055f,"Invert ship pitch",config.InvertShipPitch,v=>config.InvertShipPitch=v);
+            AddToggle(.13f,"Physical ship sticks only (first person)",config.PhysicalShipControlsOnly,v=>config.PhysicalShipControlsOnly=v);
+            AddToggle(.205f,"Hand-relative ship steering",config.HandRelativeShipSteering,v=>config.HandRelativeShipSteering=v);
             Controls.Add(new MyGuiControlButton(new Vector2(-0.285f,0.32f),size:new Vector2(0.18f,0.055f),text:new StringBuilder("Reset roll"),onButtonClick:b=> {
                 config.JetpackRoll=PluginConfig.DefaultJetpackRoll;
                 config.ShipRollSensitivity=PluginConfig.DefaultShipRollSensitivity;
@@ -46,6 +40,14 @@ namespace SpaceEngineersVR.GUI
             Controls.Add(restore); undo.Attach(restore);
             Controls.Add(new MyGuiControlButton(new Vector2(0.095f,0.32f),size:new Vector2(0.18f,0.055f),text:new StringBuilder("Physical sticks"),onButtonClick:b=>MyGuiSandbox.AddScreen(new PhysicalFlightOptions())) { UserData=(Func<MyGuiScreenBase>)(()=>new PhysicalFlightOptions()) });
             Controls.Add(new MyGuiControlButton(new Vector2(0.285f,0.32f),size:new Vector2(0.18f,0.055f),text:new StringBuilder("Done"),onButtonClick:b=>CloseScreen()));
+        }
+        private void AddToggle(float y,string text,bool value,Action<bool> store)
+        {
+            var label=new MyGuiControlLabel(new Vector2(-.3f,y),text:text,textScale:.75f,originAlign:MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_CENTER);
+            var check=new MyGuiControlCheckbox(new Vector2(.29f,y)) { IsChecked=value };
+            check.IsCheckedChanged+=v=>store(v.IsChecked);
+            Controls.Add(label); Controls.Add(check);
+            SettingsTooltips.Set(text,label,check);
         }
         private void AddSensitivity(float y,string title,float value,float defaultValue,Action<float> store,float percent,float min,float max)
         {

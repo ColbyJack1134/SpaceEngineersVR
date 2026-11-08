@@ -214,17 +214,14 @@ namespace SpaceEngineersVR.Player.Components
                 FlightAxes.MissingStickAxes(controllerFlight,CockpitControls.NeedsControllerTranslation,CockpitControls.NeedsControllerRotation,ref move,ref rotate,ref roll);
             }
 
-            if (controllerFlight && !ThirdPersonView.Active && !CockpitControls.RotationOwned && !CockpitControls.IsSteering && Common.Config.LegacyShipTilt && controls.ThrustRoll.IsPressed && Player.HandR.pose.isTracked)
+            if (controllerFlight && !ThirdPersonView.Active && !CockpitControls.RotationOwned && !CockpitControls.IsSteering && Common.Config.HandRelativeShipSteering && controls.ThrustRoll.IsPressed && Player.HandR.pose.isTracked)
             {
                 Matrix hand = Player.HandR.deviceToPlayer;
                 hand.Translation = Vector3.Zero;
                 if (!virtualStickHeld) virtualStickOrigin = hand;
-                Matrix delta = hand * Matrix.Invert(virtualStickOrigin);
-                var f = delta.Forward;
-                rotate.X = -MathHelper.Clamp((float)System.Math.Atan2(f.Y, -f.Z) / 0.5f, -1, 1) * RotationSpeed;
-                rotate.Y = MathHelper.Clamp((float)System.Math.Atan2(f.X, -f.Z) / 0.5f, -1, 1) * RotationSpeed;
-                float handRoll = -MathHelper.Clamp((float)System.Math.Atan2(delta.Up.X, delta.Up.Y) / 0.5f, -1, 1);
-                roll = FlightAxes.Roll(handRoll, true, RotationSpeed, Common.Config.ShipRollSensitivity);
+                var command = CockpitStickMath.HandSteering(hand * Matrix.Invert(virtualStickOrigin), SeatTuning, Common.Config.InvertShipPitch);
+                rotate = new Vector2(command.X, command.Y) * RotationSpeed;
+                roll = FlightAxes.Roll(command.Z, true, RotationSpeed, Common.Config.ShipRollSensitivity);
                 virtualStickHeld = true;
             }
             else virtualStickHeld = false;

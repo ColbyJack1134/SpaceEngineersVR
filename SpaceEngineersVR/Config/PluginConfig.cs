@@ -48,7 +48,7 @@ namespace SpaceEngineersVR.Config
         private bool trackedArms = true;
         private bool adaptiveArms = true;
         public bool AdaptiveArms { get => adaptiveArms; set => SetValue(ref adaptiveArms,value); }
-        private bool legacyShipTilt,physicalShipControlsOnly,holdGripRotation;
+        private bool handRelativeShipSteering,physicalShipControlsOnly,holdGripRotation;
         public bool PhysicalShipControlsOnly { get => physicalShipControlsOnly; set => SetValue(ref physicalShipControlsOnly,value); }
         private bool bodyCalibrated,seatedPlay,fitBodyOnFoot,setupCompleted;
         public bool SetupCompleted { get => setupCompleted; set => SetValue(ref setupCompleted,value); }
@@ -168,7 +168,9 @@ namespace SpaceEngineersVR.Config
         public int ThirdPersonMode { get => thirdPersonMode; set => SetValue(ref thirdPersonMode,value>=0 && value<=2 ? value : 0); }
         private AnchorOffsetSetting[] anchorOffsets=new AnchorOffsetSetting[0];
         public AnchorOffsetSetting[] AnchorOffsets { get => anchorOffsets; set => SetValue(ref anchorOffsets,value ?? new AnchorOffsetSetting[0]); }
-        public bool LegacyShipTilt { get => legacyShipTilt; set => SetValue(ref legacyShipTilt, value); }
+        // Saved under its earlier name so existing profiles keep the setting.
+        [System.Xml.Serialization.XmlElement("LegacyShipTilt")]
+        public bool HandRelativeShipSteering { get => handRelativeShipSteering; set => SetValue(ref handRelativeShipSteering, value); }
         public bool HoldGripRotation { get => holdGripRotation; set => SetValue(ref holdGripRotation, value); }
         private bool clearTerrainToggle;
         public bool ClearTerrainToggle { get => clearTerrainToggle; set => SetValue(ref clearTerrainToggle,value); }
@@ -255,6 +257,8 @@ namespace SpaceEngineersVR.Config
         public bool RoomscaleMovement { get => roomscaleMovement; set => SetValue(ref roomscaleMovement, value); }
         public bool ControllerRelativeMovement { get => controllerRelativeMovement; set => SetValue(ref controllerRelativeMovement, value); }
         public bool ControllerMenuPointer { get => controllerMenuPointer; set => SetValue(ref controllerMenuPointer, value); }
+        private bool interactableLaser;
+        public bool InteractableLaser { get => interactableLaser; set => SetValue(ref interactableLaser, value); }
 
 
         private float playerHeight = 1.69f;

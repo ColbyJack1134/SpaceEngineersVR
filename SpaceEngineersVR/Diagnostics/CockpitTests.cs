@@ -52,6 +52,22 @@ namespace SpaceEngineersVR.Diagnostics
                 Near(CockpitStickMath.Rotation(neutral,current,deadzone,true),expected,"Tilted yaw must follow projected heading");
             }
             log("PASS stick axes: grabbed shaft lean, compound tilt/twist isolation, translation mapping and projected yaw.");
+            {
+                var tuning=new Multiplayer.FlightTuning();
+                Near(CockpitStickMath.HandSteering(Matrix.Identity,tuning,false),Vector3.Zero,"Hand steering kicks at grip");
+                Require(CockpitStickMath.HandSteering(Matrix.CreateRotationX(.03f),tuning,false)==Vector3.Zero,"Hand steering ignores its deadzone");
+                foreach(var turn in new[] {Matrix.CreateRotationX(CockpitStickMath.TiltRange),Matrix.CreateRotationY(CockpitStickMath.TiltRange),Matrix.CreateRotationZ(CockpitStickMath.TwistRange)})
+                foreach(int sign in new[] {-1,1})
+                {
+                    var delta=sign>0 ? turn:Matrix.Transpose(turn);
+                    var normal=CockpitStickMath.HandSteering(delta,tuning,false);
+                    Near(normal,CockpitStickMath.Rotation(Matrix.Identity,delta,0,true),"Hand steering sign differs from the stick");
+                    Near(CockpitStickMath.HandSteering(delta,tuning,true),new Vector3(-normal.X,normal.Y,normal.Z),"Invert pitch changes another axis");
+                }
+                tuning.Rotation=2;
+                Near(CockpitStickMath.HandSteering(Matrix.CreateRotationX(CockpitStickMath.TiltRange/2),tuning,false),-Vector3.Right,"Hand steering ignores rotation sensitivity");
+            }
+            log("PASS hand-relative steering: stick signs, deadzone, sensitivity and invert pitch.");
             foreach(var move in new[] {new Vector3(.4f,0,0),new Vector3(0,.4f,0),new Vector3(0,0,-.4f)})
                 Near(CockpitStickMath.Translation(Matrix.Identity,CockpitStickMath.Visual(Vector3.Zero,HotasHands.LeftAngles(move)),0,true),move,"HOTAS left stick lean does not command its axes");
             foreach(var turn in new[] {new Vector3(.4f,0,0),new Vector3(0,.4f,0),new Vector3(0,0,.4f)})

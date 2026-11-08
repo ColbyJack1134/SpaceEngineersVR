@@ -362,6 +362,9 @@ namespace SpaceEngineersVR.Player
             var action=Handedness.ActionHand;
             rayVisible=InputRouter.Gameplay && action.pose.isTracked &&
                 (ShowRay(Controls.Static.FirePressure.RawPosition.X,rayVisible) || Controls.Static.Fire.RawPressed);
+            // Empty-handed, the trigger uses what the native detector highlights along this ray.
+            var character=MySession.Static?.LocalCharacter;
+            bool interactable=Common.Config.InteractableLaser && character?.CurrentWeapon==null && character?.GetDetectorComponent()?.UseObject!=null;
             try
             {
                 foreach (var hand in new[] { Player.HandL, Player.HandR })
@@ -376,7 +379,7 @@ namespace SpaceEngineersVR.Player
                     if(Common.Config.DeveloperTools && !SpatialUi.Pointing && !SpatialUi.OwnsRight && !SpatialUi.RayTargeted) MySimpleObjectDraw.DrawLine(grip.Translation-grip.Up*0.035,grip.Translation+grip.Up*0.035,
                         MyStringId.GetOrCompute("Square"),ref lineColor,0.025f);
                     bool show = hand != action ? SupportAiming :
-                        !SupportAiming && rayVisible && !(hand == Player.HandR && SpatialUi.RayTargeted) && !SpatialUi.Owns(hand) && !CockpitTouch.Owns(hand) &&
+                        !SupportAiming && (rayVisible || interactable) && !(hand == Player.HandR && SpatialUi.RayTargeted) && !SpatialUi.Owns(hand) && !CockpitTouch.Owns(hand) &&
                         !Holding(hand) && !HandGrab.Holding(hand) && !TouchScreenBridge.Pointing && !ArthurLcdBridge.PointingFor(hand);
                     if (show && !GridSelection.Owns(hand) && !WeaponHandling.HideUseRay && TryInteractionRay(out LineD ray))
                     {
