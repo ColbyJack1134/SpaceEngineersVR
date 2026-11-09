@@ -17,6 +17,7 @@ namespace SpaceEngineersVR.Wrappers
             copyResource = AccessTools.Method(t, "CopyResource", new Type[] { tIResource, typeof(Resource) });
             mapSubresource = AccessTools.Method(t, "MapSubresource", new Type[] { typeof(Texture2D), typeof(int), typeof(int), typeof(MapMode), typeof(MapFlags), typeof(DataStream).MakeByRefType() });
             unmapSubresource = AccessTools.Method(t, "UnmapSubresource", new Type[] { typeof(Resource), typeof(int) });
+            clearState = AccessTools.Method(t, "ClearState");
 
 
         }
@@ -54,5 +55,9 @@ namespace SpaceEngineersVR.Wrappers
         {
             unmapSubresource.Invoke(instance, new object[] { resourceRef, subresource });
         }
+
+        // Native passes bypass the context's state cache; this resets both.
+        private static readonly MethodInfo clearState;
+        public void ClearState() => clearState.Invoke(instance, null);
     }
 }

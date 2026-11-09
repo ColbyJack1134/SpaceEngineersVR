@@ -141,7 +141,7 @@ namespace SpaceEngineersVR.Diagnostics
         private static readonly System.Collections.Generic.List<string> rigFailures=new System.Collections.Generic.List<string>();
         private static AssignmentPreview assignment;
         private static Sandbox.Graphics.GUI.MyGuiScreenBase options;
-        private static bool rotationPreviewsSaved;
+        private static bool rotationPreviewsSaved,dlssProbed;
         private static bool remoteVisibilityChecked;
         private static readonly Vector3 neutralPaint=new Vector3(0,-.8f,-.13f);
         private static readonly int[] ScrolledTopics={1,4,4,5,9};
@@ -158,6 +158,10 @@ namespace SpaceEngineersVR.Diagnostics
             harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),LeadIndicatorTests.Enabled ||
                 Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions" || Environment.GetEnvironmentVariable("SEVR_BUILD_PREVIEW_PROBE")=="1" ?
                 "Present":"DrawScene"),new HarmonyMethod(typeof(PhysicalRendererProbe),nameof(Render)));
+#if !LINUX
+            if(Environment.GetEnvironmentVariable("SEVR_DLSS_PROBE")=="1")
+                harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VRageRender.MyRender11"),"Present"),new HarmonyMethod(typeof(PhysicalRendererProbe),nameof(ProbeDlss)));
+#endif
             Active=true; phase=0; next=DateTime.UtcNow.AddSeconds(10); deadline=DateTime.UtcNow.AddSeconds(520);
             Directory.CreateDirectory(output);
             foreach (string file in new[] {"native-left.png","rest-left.png","rest-right.png","articulated-left.png","articulated-right.png","restored-left.png","regrab-left.png"})
@@ -200,7 +204,8 @@ namespace SpaceEngineersVR.Diagnostics
                     {
                         MenuTests.Run(line=>Logger.Info(line));
                         if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions") BuildOrientationTests.RunNative(line=>Logger.Info(line));
-                        phase=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="actions" ? 144:Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="setup" ? 134:100; return;
+                        string menus=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY");
+                        phase=menus=="actions" ? 144:menus=="performance" ? 138:menus=="setup" ? 134:100; return;
                     }
                     if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_CAMERA_HUD_ONLY")=="1")
                     {
@@ -592,9 +597,20 @@ namespace SpaceEngineersVR.Diagnostics
                     index==36 ? "performance-options-native":index==35 ? "quick-toolbar-assignment-native":index==34 ? "settings-advanced-native":index==33 ? "settings-signals-native":index==32 ? "settings-hud-visibility-native":index==31 ? "settings-turning-native":index==30 ? "settings-character-native":index==29 ? "hand-alignment-native":index>=24 ? "guide-scrolled-"+index:index==9 ? "guide-common-bottom":index==22 ? "actions-recent-native":index==23 ? "actions-filtered-native":index<12 ? "menu-gallery-"+index : index<20 ? "settings-native-"+(index+25) : index==20 ? "main-vr-options":"pause-vr-options";
                 MyRenderProxy.TakeScreenshot(Vector2.One,Path.Combine(output,name+".png"),false,false,false);
                 next=DateTime.UtcNow.AddSeconds(1);
+                if(Environment.GetEnvironmentVariable("SEVR_PHYSICAL_MENUS_ONLY")=="performance") { phase=index==19 ? 172:200; return; }
             }
             phase++;
         }
+#if !LINUX
+        // The main menu presents without drawing a scene, so the NGX probe hooks Present.
+        public static void ProbeDlss()
+        {
+            if(!Active || dlssProbed) return;
+            dlssProbed=true;
+            try { DlssProbe.Run(line=>Logger.Info(line)); }
+            catch(Exception ex) { renderError=ex.ToString(); }
+        }
+#endif
         public static void Render()
         {
             if(Active && phase==200 && Environment.GetEnvironmentVariable("SEVR_BUILD_PREVIEW_PROBE")=="1")

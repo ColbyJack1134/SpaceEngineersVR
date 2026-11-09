@@ -34,9 +34,16 @@ namespace SpaceEngineersVR.GUI
         {
             screen.Controls.Add(new MyGuiControlImage(new Vector2(x,y),new Vector2(size*.75f,size),textures:new[] {path}));
         }
-        internal static void Toggle(MyGuiScreenBase screen,float y,string label,bool value,Action<bool> save,float center=.135f)
+        private static readonly string[] OnOff={"Off","On"};
+        internal static MyGuiControlButton Toggle(MyGuiScreenBase screen,float y,string label,bool value,Action<bool> save,float center=.135f,bool enabled=true) =>
+            Choice(screen,y,label,OnOff,value ? 1:0,v=>save(v==1),center,enabled);
+        internal static MyGuiControlButton Choice(MyGuiScreenBase screen,float y,string label,string[] options,int value,Action<int> save,float center=.135f,bool enabled=true)
         {
-            SettingsTooltips.Set(label,Button(screen,center,y,.55f,label+"    "+(value ? "On":"Off"),()=> {save(!value); screen.RecreateControls(false);}));
+            int current=MathHelper.Clamp(value,0,options.Length-1);
+            var button=Button(screen,center,y,.55f,label+"    "+options[current],()=> {save((current+1)%options.Length); screen.RecreateControls(false);});
+            button.Enabled=enabled;
+            SettingsTooltips.Set(label,button);
+            return button;
         }
         // Ctrl+click or gamepad A enters a value, as on terminal sliders.
         internal static MyGuiControlSlider Typed(MyGuiControlSlider slider,string caption)

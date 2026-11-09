@@ -34,8 +34,6 @@ namespace SpaceEngineersVR.Player
             Vector2I size = EyeResolution.Update();
             if (size.X < 1 || size.Y < 1) return false;
             ReleaseTextures();
-            leftTexture = MyManagers.RwTexturesPool.BorrowRtv("SEVR.Left", size.X, size.Y, Format.R8G8B8A8_UNorm_SRgb);
-            rightTexture = MyManagers.RwTexturesPool.BorrowRtv("SEVR.Right", size.X, size.Y, Format.R8G8B8A8_UNorm_SRgb);
             var matrices = MyRender11.Environment_Matrices;
             var snapshot = matrices.Capture();
             MatrixD gameView = matrices.ViewD;
@@ -60,6 +58,10 @@ namespace SpaceEngineersVR.Player
                 LcdFeed.Render(RenderFrameBridge.Lcds,headView);
                 NativeGloves.Prepare(rig,matrices.FarClipping);
                 resources=new EyeResolution.Scene(size);
+                Dlss.BeginFrame(size,rig);
+                var output=Dlss.Output(size);
+                leftTexture = MyManagers.RwTexturesPool.BorrowRtv("SEVR.Left", output.X, output.Y, Format.R8G8B8A8_UNorm_SRgb);
+                rightTexture = MyManagers.RwTexturesPool.BorrowRtv("SEVR.Right", output.X, output.Y, Format.R8G8B8A8_UNorm_SRgb);
                 StereoRenderState.Begin(headView,
                     rig?.ThirdPerson==true ? .005*scale : Math.Max(.03,matrices.NearClipping),matrices.LargeDistanceFarClipping);
                 ThirdPersonView.RecordTrace(rig);
@@ -131,15 +133,17 @@ namespace SpaceEngineersVR.Player
             float l=0,r=0,t=0,b=0;
             OpenVR.System.GetProjectionRaw(eye, ref l, ref r, ref t, ref b);
             double near = rig?.ThirdPerson==true ? .005*rig.UnitsPerMeter : Math.Max(0.03, env.NearClipping);
-            MatrixD projection = env.SetCamera(view,world,l,r,t,b,near);
+            MatrixD projection = env.SetCamera(view,world,l,r,t,b,near,Dlss.Jitter((int)eye));
+            Dlss.Capture((int)eye,env,projection);
             sceneCamera.Position = world.Translation;
             var sceneArea=eye==EVREye.Eye_Left ? GpuTiming.Area.SceneLeft : GpuTiming.Area.SceneRight;
             var uiArea=eye==EVREye.Eye_Left ? GpuTiming.Area.WorldUiLeft : GpuTiming.Area.WorldUiRight;
             GpuTiming.Begin(sceneArea);
             long sceneStart=FeatureTiming.Start();
-            var targetSize=((SharpDX.Direct3D11.Texture2D)target.GetResource()).Description;
             bool handLayer=RenderFrameBridge.Remote!=null || DesktopWindow.Current!=null || (RenderFrameBridge.Surfaces!=null && System.Linq.Enumerable.Any(RenderFrameBridge.Surfaces,s=>s.WindowPose.HasValue)) || Main.MenuOpen || Main.ShowDesktopPanel || MenuKeyboard.IsOpen;
-            NativeHandLayer.Begin(targetSize.Width,targetSize.Height,handLayer,rig?.ThirdPerson==true);
+            // The hand layer shares the scene's rasterization; DLSS resamples it with the scene depth.
+            var sceneSize=MyRender11.Resolution;
+            NativeHandLayer.Begin(sceneSize.X,sceneSize.Y,handLayer,rig?.ThirdPerson==true);
             try { MyRender11.DrawGameScene(target, out ambientOcclusion); }
             finally { NativeHandLayer.End(); }
             FeatureTiming.End(eye==EVREye.Eye_Left ? FeatureTiming.Area.SceneLeft : FeatureTiming.Area.SceneRight,sceneStart);

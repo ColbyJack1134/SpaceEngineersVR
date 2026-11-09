@@ -122,6 +122,13 @@ namespace SpaceEngineersVR.Plugin
             Common.SetAssetPath(folder);
         }
 
+        // Pulsar resolves named assets, downloaded or local, to paths.
+        public void LoadAssets(System.Collections.Generic.IReadOnlyDictionary<string,string> assets)
+        {
+            string path;
+            if(assets!=null && assets.TryGetValue("NvngxDlss",out path)) Player.Dlss.SetRuntimePath(path);
+        }
+
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
         public void Init(object gameInstance)
         {
@@ -184,6 +191,7 @@ namespace SpaceEngineersVR.Plugin
         {
             Player.StereoExposure.Reset();
             Player.StereoParticles.Dispose();
+            Player.Dlss.Dispose();
             Multiplayer.MultiplayerSupport.Stop();
             Player.ThirdPersonView.Reset();
             Player.NativeGloves.Reset();

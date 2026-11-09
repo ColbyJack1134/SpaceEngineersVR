@@ -42,6 +42,18 @@ $source = Join-Path $PrototypeRoot 'Source'
 robocopy (Join-Path $repo 'SpaceEngineersVR') (Join-Path $source 'SpaceEngineersVR') /MIR /XD bin obj /NFL /NDL /NJH /NJS /NP | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "Source copy failed (robocopy $LASTEXITCODE)." }
 Copy-Item -LiteralPath (Join-Path $repo 'SpaceEngineersVR.xml') -Destination $source -Force
+# NVIDIA DLSS runtime: not in Git. PluginHub installs it as a Bin asset; local builds look beside the plugin and in the assets folder.
+$runtime = Join-Path $repo '.tools\dlss\runtime\nvngx_dlss.dll'
+$runtimeHash = 'BE6E434A94CA32499515EB62CA0E6C274526055D568D0426E4C652DCDFB6EE6E'
+if (Test-Path -LiteralPath $runtime) {
+    if ((Get-FileHash -LiteralPath $runtime).Hash -ne $runtimeHash) { throw 'nvngx_dlss.dll in .tools/dlss/runtime does not match the expected SHA256.' }
+    foreach ($destination in @((Join-Path $targets[0].Target 'nvngx_dlss.dll'), (Join-Path $source 'SpaceEngineersVR\Assets\nvngx_dlss.dll'))) {
+        if (!(Test-Path -LiteralPath $destination) -or (Get-FileHash -LiteralPath $destination).Hash -ne $runtimeHash) { Copy-Item -LiteralPath $runtime -Destination $destination -Force }
+    }
+    Write-Host 'DLSS runtime: nvngx_dlss.dll installed (plugin folder and Source assets)'
+} else {
+    Write-Host 'DLSS runtime: .tools\dlss\runtime\nvngx_dlss.dll missing; DLSS stays unavailable in this install'
+}
 Write-Host ('Source: mirrored ' + @(Get-ChildItem -LiteralPath $source -Recurse -File).Count + ' files')
 $controls = Join-Path $repo 'docs\CONTROLS.md'
 if (Test-Path $controls) {

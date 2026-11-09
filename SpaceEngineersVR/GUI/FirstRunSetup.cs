@@ -17,6 +17,7 @@ namespace SpaceEngineersVR.GUI
         private MyGuiControlLabel status;
         private MyGuiControlButton next;
         private MyGuiControlLabel resolution;
+        private int shownMode;
         private const int Steps=3;
         internal static void Offer()
         {
@@ -35,6 +36,7 @@ namespace SpaceEngineersVR.GUI
             if(measuring && !Player.Player.IsCalibrating){calibrationResult=Player.Player.CalibrationStatus;measuring=false;RecreateControls(false);}
             if(next!=null)next.Enabled=!measuring;
             if(resolution!=null)resolution.Text=PerformanceOptions.Detail();
+            if(resolution!=null && shownMode!=Common.Config.Dlss)RecreateControls(false);
             return result;
         }
         public override bool CloseScreen(bool isUnloading=false)
@@ -82,9 +84,10 @@ namespace SpaceEngineersVR.GUI
             }
             else
             {
-                MenuLayout.Icon(this,0,-.235f,NativeSprites.Hud("Speedometer"),.08f);
-                MenuLayout.Label(this,-.31f,-.165f,"Performance",.85f);
-                resolution=PerformanceOptions.Add(this,-.115f);
+                MenuLayout.Icon(this,0,-.32f,NativeSprites.Hud("Speedometer"),.08f);
+                MenuLayout.Label(this,-.31f,-.255f,"Performance",.85f);
+                shownMode=Common.Config.Dlss;
+                resolution=PerformanceOptions.Add(this,-.205f);
                 PerformanceOptions.Tips(this,.19f,.024f);
             }
             MenuLayout.Button(this,-.23f,.325f,.22f,step==0 ? "Skip":"Back",()=> {

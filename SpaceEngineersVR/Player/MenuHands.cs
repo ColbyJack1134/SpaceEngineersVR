@@ -219,7 +219,7 @@ float4 PS(P p):SV_TARGET {
             if (failed) return;
             try
             {
-                Init(); var size = MyRender11.Resolution; Resize(size);
+                Init(); var size = new Vector2I(texture.Description.Width,texture.Description.Height); Resize(size);
                 var hands = new[] { Player.HandL, Player.HandR };
                 var meshes = new Mesh[2];
                 for (int h = 0; h < 2; h++) if (hands[h].renderPose.isTracked) meshes[h] = GetModel(hands[h]);
@@ -460,7 +460,7 @@ float4 PS(P p):SV_TARGET {
             if(failed || !Player.Headset.renderPose.isTracked) return false;
             try
             {
-                Init(); var size=EyeResolution.Update(); Resize(size);
+                Init(); EyeResolution.Update(); var size=EyeResolution.Hud; Resize(size);
                 var hands=new[] { Player.HandL,Player.HandR };
                 var meshes=new Mesh[2];
                 for(int h=0;h<2;h++) if(hands[h].renderPose.isTracked) meshes[h]=GetModel(hands[h]);

@@ -13,20 +13,24 @@ namespace SpaceEngineersVR.Plugin
         internal readonly string Name,Category;
         internal readonly Harmony Harmony;
         private readonly PatchGroup[] requires;
+        private readonly Func<bool?> when;
         private readonly Action<Harmony> install;
         private readonly Action off;
         private readonly List<PatchGroup> parts=new List<PatchGroup>();
         internal bool Enabled { get; private set; }
         internal bool Attempted { get; private set; }
+        // Declined by its condition (for example the GPU vendor): never patched, not a failure.
+        internal bool Skipped { get; private set; }
         internal string Failure { get; private set; }
         internal Exception Error { get; private set; }
         internal IEnumerable<PatchGroup> Requires => requires;
         // Failed, or missing a requirement: nothing attaches or runs for it.
         internal bool Blocked => Failure!=null || requires.Any(r=>!r.Enabled);
 
-        internal PatchGroup(string name,string category,Action<Harmony> install=null,Action off=null,PatchGroup[] requires=null)
+        // when: null means not decidable yet (a later group asks again next update), false skips the group for the session.
+        internal PatchGroup(string name,string category,Action<Harmony> install=null,Action off=null,PatchGroup[] requires=null,Func<bool?> when=null)
         {
-            Name=name; Category=category; this.install=install; this.off=off; this.requires=requires ?? new PatchGroup[0];
+            Name=name; Category=category; this.install=install; this.off=off; this.requires=requires ?? new PatchGroup[0]; this.when=when;
             Harmony=new Harmony(category==null ? Common.Name:Common.Name+"."+category);
         }
 
@@ -34,6 +38,11 @@ namespace SpaceEngineersVR.Plugin
         internal bool Apply(IEnumerable<Type> classes=null,Action<Harmony> attach=null)
         {
             if(Enabled) return true;
+            if(when!=null)
+            {
+                bool? ready=when();
+                if(ready!=true) { if(ready==false) { Attempted=true; Skipped=true; } return false; }
+            }
             Attempted=true;
             var missing=requires.FirstOrDefault(r=>!r.Enabled);
             if(missing!=null) { Disable("requires "+missing.Name,null); return false; }
@@ -52,7 +61,7 @@ namespace SpaceEngineersVR.Plugin
             }
             catch(Exception ex)
             {
-                Harmony.UnpatchAll(Harmony.Id);
+                UnpatchOwn();
                 Disable((current==null ? "":current.FullName+": ")+Describe(ex),ex);
                 return false;
             }
@@ -75,11 +84,17 @@ namespace SpaceEngineersVR.Plugin
             return part;
         }
 
+        // Only methods carrying this group's patches are rewritten.
+        private void UnpatchOwn()
+        {
+            foreach(var method in Harmony.GetPatchedMethods().ToArray()) Harmony.Unpatch(method,HarmonyPatchType.All,Harmony.Id);
+        }
+
         internal void Remove()
         {
             RemoveParts();
-            Harmony.UnpatchAll(Harmony.Id);
-            Enabled=false; Attempted=false; Failure=null; Error=null;
+            UnpatchOwn();
+            Enabled=false; Attempted=false; Skipped=false; Failure=null; Error=null;
         }
 
         // World unload: parts attached in the world go, the group's own patches stay.

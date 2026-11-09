@@ -135,6 +135,7 @@ namespace SpaceEngineersVR.Diagnostics
             RemoteViewTests.Run(log);
             ResolutionTests.Run(log);
             DynamicResolutionTests.Run(log);
+            DlssTests.Run(log);
             HiddenAreaTests.Run(log);
             StereoExposureTests.Run(log);
             StereoSceneTests.Run(log);

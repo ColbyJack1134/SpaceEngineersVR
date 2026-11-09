@@ -19,6 +19,7 @@ namespace SpaceEngineersVR.Plugin
         internal static readonly PatchGroup StereoParticles=new PatchGroup("Stereo particles","StereoParticles");
         internal static readonly PatchGroup StereoScene=new PatchGroup("Stereo scene","StereoScene");
         internal static readonly PatchGroup SharedShadows=new PatchGroup("Shared shadows","SharedShadows");
+        internal static readonly PatchGroup Dlss=new PatchGroup("DLSS","Dlss",when:()=>Player.Dlss.NvidiaAdapter);
         internal static readonly PatchGroup StereoShields=new PatchGroup("Stereo shields","StereoShields");
         internal static readonly PatchGroup HandOcclusion=new PatchGroup("Hand occlusion","HandOcclusion");
         internal static readonly PatchGroup BodyFade=new PatchGroup("Body fade","BodyFade");
@@ -64,7 +65,7 @@ namespace SpaceEngineersVR.Plugin
             HandOcclusion,BodyFade,CharacterBody,SeatFit,ScreenEffects,Tracers,HudRouting,HudMarkers,CameraFeeds,CameraDisplays,BlockInspection,GpuTiming,
             HandPlacement,CreativePlacement,BuildHints,GridSelection,HandInteraction,Spectator,ThirdPerson,Targeting,CockpitControls,CockpitBuilding,CockpitMemory,
             HeldTools,WeaponModels,VoxelTools,MultiplayerArms,MenuExtras,CursorClip,ModHud,BuildInfo,BuildVision,TouchScreens,ArthurLcd,WeaponCore,PaintGun,DigiTools};
-        private static readonly PatchGroup[] later={DoubleClick};
+        private static readonly PatchGroup[] later={DoubleClick,Dlss};
 #if SEVR_DIAGNOSTICS
         internal static readonly HashSet<string> Broken=new HashSet<string>();
         internal static Action<string> Sink;
@@ -72,7 +73,7 @@ namespace SpaceEngineersVR.Plugin
         private static bool notified;
 
         internal static int PatchedMethods => All.Concat(later).SelectMany(g=>g.Harmony.GetPatchedMethods()).Distinct().Count();
-        internal static IEnumerable<PatchGroup> Off => All.Concat(later).Where(g=>g.Attempted && !g.Enabled);
+        internal static IEnumerable<PatchGroup> Off => All.Concat(later).Where(g=>g.Attempted && !g.Enabled && !g.Skipped);
 
         // Core applies first and throws on failure after taking everything back out; the other groups fail on their own.
         internal static void Apply(Assembly assembly)
@@ -87,15 +88,21 @@ namespace SpaceEngineersVR.Plugin
         }
 
         // Called every update; a group applies once, whether it succeeded or not.
+        private static bool laterDone;
         internal static void ApplyLater(Assembly assembly)
         {
-            if(later.All(g=>g.Attempted)) return;
+            if(laterDone) return;
+            laterDone=later.All(g=>g.Attempted);
+            if(laterDone) return;
             var classes=Classes(assembly);
-            foreach(var group in later) if(!group.Attempted) group.Apply(classes.TryGetValue(group.Category,out var list) ? list:null);
+            foreach(var group in later)
+                if(!group.Attempted && group.Apply(classes.TryGetValue(group.Category,out var list) ? list:null))
+                    Log("SEVR patch group on: "+group.Name+"; "+group.Harmony.GetPatchedMethods().Count()+" patched methods",null);
         }
 
         internal static void Remove()
         {
+            laterDone=false;
             foreach(var group in Enumerable.Reverse(All.Concat(later))) group.Remove();
         }
 
@@ -130,8 +137,8 @@ namespace SpaceEngineersVR.Plugin
         {
             if(notified) return;
             notified=true;
-            foreach(var group in Off)
-                Sandbox.ModAPI.MyAPIGateway.Utilities?.ShowNotification("VR: "+group.Name+" is off, a game hook failed (see the log)",10000,"Red");
+            var off=Off.Select(g=>g.Name).ToArray();
+            if(off.Length>0) Sandbox.ModAPI.MyAPIGateway.Utilities?.ShowNotification("VR: a game hook failed, off: "+string.Join(", ",off)+" (see the log)",10000,"Red");
         }
 
         internal static void Log(string line,Exception error)

@@ -14,7 +14,8 @@ namespace SpaceEngineersVR.Player
     internal static class NativeHandLayer
     {
         internal static volatile uint Actor=uint.MaxValue;
-        internal static ShaderResourceView Depth => ready ? view:null;
+        internal static ShaderResourceView Depth => Dlss.HandDepth(Raw);
+        internal static ShaderResourceView Raw => ready ? view:null;
         private static ShaderResourceView view;
         private static bool ready;
         private static Texture2D texture;

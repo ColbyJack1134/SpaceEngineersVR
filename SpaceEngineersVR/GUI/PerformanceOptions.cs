@@ -9,6 +9,7 @@ namespace SpaceEngineersVR.GUI
     {
         private static readonly string[] Costly={"Game settings that cost the most in VR:","•  Grass density and draw distance","•  Shadow quality","•  Tree view distance"};
         private MyGuiControlLabel detail,live;
+        private int shownMode;
         private readonly SettingsUndo undo;
         public override string GetFriendlyName() => "SEVR performance";
         public PerformanceOptions() : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.8f,.88f))
@@ -19,26 +20,32 @@ namespace SpaceEngineersVR.GUI
             bool result=base.Update(hasFocus);
             if(detail!=null) detail.Text=Detail();
             if(live!=null) live.Text=Status();
+            // DLSS turning itself off resets the setting from the render thread.
+            if(shownMode!=Common.Config.Dlss) RecreateControls(false);
             return result;
         }
         public override void RecreateControls(bool constructor)
         {
             base.RecreateControls(constructor); AddCaption("Performance");
-            detail=Add(this,-.26f);
-            live=MenuLayout.Label(this,-.275f,.07f,Status(),.62f);
-            MenuLayout.Toggle(this,.135f,"Performance panel",PerformanceHud.Enabled,v=>PerformanceHud.Enabled=v,0);
-            Tips(this,.2f,.027f);
-            undo.Attach(MenuLayout.Button(this,-.14f,.36f,.26f,"Undo",undo.Restore));
-            MenuLayout.Button(this,.14f,.36f,.26f,"Done",()=>CloseScreen());
+            shownMode=Common.Config.Dlss;
+            detail=Add(this,-.325f,true);
+            live=MenuLayout.Label(this,-.275f,.15f,Status(),.62f);
+            MenuLayout.Toggle(this,.21f,"Performance panel",PerformanceHud.Enabled,v=>PerformanceHud.Enabled=v,0);
+            Tips(this,.27f,.025f);
+            undo.Attach(MenuLayout.Button(this,-.14f,.4f,.26f,"Undo",undo.Restore));
+            MenuLayout.Button(this,.14f,.4f,.26f,"Done",()=>CloseScreen());
         }
 
-        internal static MyGuiControlLabel Add(MyGuiScreenBase screen,float top)
+        internal static MyGuiControlLabel Add(MyGuiScreenBase screen,float top,bool fastModelToggle=false)
         {
             var c=Common.Config;
             MenuLayout.Toggle(screen,top,"Dynamic resolution",c.DynamicResolution,v=>c.DynamicResolution=v,0);
             MenuLayout.Slider(screen,top+.075f,"Target frame rate",c.TargetFrameRate,30,144,5," FPS",v=>c.TargetFrameRate=v,0,c.DynamicResolution);
             MenuLayout.Slider(screen,top+.18f,"Headset resolution",c.EyeRenderScale*100,50,150,5,"%",v=>c.EyeRenderScale=v/100,0,!c.DynamicResolution);
-            return MenuLayout.Label(screen,-.275f,top+.275f,Detail(),.6f);
+            bool dlss=Dlss.Available || c.Dlss>0;
+            MenuLayout.Choice(screen,top+.3f,"Anti-aliasing",Dlss.Modes,c.Dlss,v=>c.Dlss=v,0,dlss);
+            if(fastModelToggle) MenuLayout.Toggle(screen,top+.365f,"DLSS fast model",c.DlssFastModel,v=>c.DlssFastModel=v,0,dlss && c.Dlss>0);
+            return MenuLayout.Label(screen,-.275f,top+(fastModelToggle ? .425f:.36f),Detail(),.6f);
         }
         internal static void Tips(MyGuiScreenBase screen,float top,float spacing)
         {
@@ -51,9 +58,14 @@ namespace SpaceEngineersVR.GUI
             var recommended=EyeResolution.Recommended;
             if(recommended.X<=0) return "";
             var top=EyeResolution.Size(recommended,EyeResolution.BaseScale);
-            if(!c.DynamicResolution) return $"{top.X}x{top.Y} per eye";
-            var low=EyeResolution.Size(recommended,DynamicResolution.Floor);
-            return $"{top.X}x{top.Y} per eye, down to {low.X}x{low.Y}";
+            float scale=Dlss.ModeScales[Dlss.ClampMode(c.Dlss)];
+            var render=Dlss.Scaled(top,scale);
+            var low=Dlss.Clamp(EyeResolution.Size(recommended,DynamicResolution.Floor),top,scale,true);
+            string size=$"{top.X}x{top.Y} per eye";
+            if(c.DynamicResolution) size+=scale<1 ? $", DLSS renders {render.X}x{render.Y} down to {low.X}x{low.Y}" : $", down to {low.X}x{low.Y}";
+            else if(scale<1) size+=$", DLSS renders {render.X}x{render.Y}";
+            string status=Dlss.Status;
+            return size+(status.Length>0 ? " · "+status : "");
         }
         private static string Status()
         {

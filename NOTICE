@@ -2,3 +2,12 @@ Based on SpaceEngineersVR by Math0424 and contributors.
 https://github.com/Math0424/SpaceEngineersVR
 
 Original project license: GNU GPL version 2. See LICENSE.
+
+The DLSS integration adapts the NVIDIA NGX D3D11 binding and the depth camera
+motion vector shader from SE-DLSS by PhoenixTheSage, MIT License.
+https://github.com/PhoenixTheSage/SE-DLSS
+See licenses/SE-DLSS-LICENSE.
+
+nvngx_dlss.dll is NVIDIA redistributable software and is not part of this
+repository. It is governed by the NVIDIA RTX SDKs license in
+licenses/NVIDIA-RTX-SDKs-LICENSE.txt.

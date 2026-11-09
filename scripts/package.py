@@ -63,7 +63,9 @@ def main():
             files["SpaceEngineersVR/" + relative] = build / relative
     for name in ("LICENSE", "NOTICE"):
         files[name] = ROOT / name
-    files["licenses/OpenVR-LICENSE"] = ROOT / "licenses/OpenVR-LICENSE"
+    for license_file in sorted((ROOT / "licenses").iterdir()):
+        if license_file.is_file():
+            files["licenses/" + license_file.name] = license_file
     assets = json.loads((ROOT / "SpaceEngineersVR/obj/project.assets.json").read_text())
     for package, names in LICENSES.items():
         library = next(value for key, value in assets["libraries"].items() if key.split("/")[0] == package)

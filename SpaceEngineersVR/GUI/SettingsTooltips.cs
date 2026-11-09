@@ -23,6 +23,8 @@ namespace SpaceEngineersVR.GUI
             ["Vitals"]="Suit and ship gauges",
             ["Markers"]="None, icons only, or with names",
             ["Headset resolution"]="Per-eye render scale",
+            ["Anti-aliasing"]="FXAA, or NVIDIA DLAA and DLSS upscaling on RTX GPUs",
+            ["DLSS fast model"]="Older DLSS model: about half the GPU cost, slightly softer",
             ["Camera feed resolution"]="Camera and turret view detail",
             ["Camera feed refresh"]="How often the camera and turret view updates",
             ["LCD camera resolution"]="Detail of camera views on LCD screens",

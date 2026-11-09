@@ -106,11 +106,9 @@ namespace SpaceEngineersVR.Player
         private static readonly StringFormat centered=new StringFormat { Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center };
         private static readonly List<NativeSprite> sprites=new List<NativeSprite>();
         private static readonly System.Reflection.FieldInfo gbuffer=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Resources.MyGBuffer"),"Main");
-        internal static ShaderResourceView SceneDepth()
-        {
-            object depth=CockpitRender.Member(gbuffer.GetValue(null),"ResolvedDepthStencil");
-            return (ShaderResourceView)CockpitRender.Member(CockpitRender.Member(depth,"SrvDepth"),"Srv");
-        }
+        internal static object ResolvedDepth() => CockpitRender.Member(gbuffer.GetValue(null),"ResolvedDepthStencil");
+        internal static ShaderResourceView SceneDepth(object resolvedDepth=null) =>
+            (resolvedDepth==null ? Dlss.OverlayDepth : null) ?? (ShaderResourceView)CockpitRender.Member(CockpitRender.Member(resolvedDepth ?? ResolvedDepth(),"SrvDepth"),"Srv");
         internal static Vector3 Point(SurfaceView surface,Vector3D world)
         { return (Vector3)Vector3D.Transform(world,MatrixD.Invert(surface.Pose)); }
         internal static Vector2 UV(SurfaceView s,Vector3 local) => new Vector2(local.X/s.Width+0.5f,0.5f-local.Y/s.Height);

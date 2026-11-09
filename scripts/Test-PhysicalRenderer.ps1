@@ -1,4 +1,4 @@
-param([string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype'),[switch]$CockpitsOnly,[string]$Cockpit,[switch]$InterfaceOnly,[switch]$CameraHudOnly,[switch]$NativeSignals,[switch]$NativeLead,[switch]$NativeBlockInfo,[switch]$MenusOnly,[switch]$SetupOnly,[switch]$ActionsOnly)
+param([string]$PrototypeRoot = (Join-Path $env:LOCALAPPDATA 'SEVRPrototype'),[switch]$CockpitsOnly,[string]$Cockpit,[switch]$InterfaceOnly,[switch]$CameraHudOnly,[switch]$NativeSignals,[switch]$NativeLead,[switch]$NativeBlockInfo,[switch]$MenusOnly,[switch]$SetupOnly,[switch]$ActionsOnly,[switch]$PerformanceOnly,[switch]$DlssProbe,[int]$DlssSize = 0)
 $ErrorActionPreference = 'Stop'
 if (Get-Process Legacy,Interim,SpaceEngineers -ErrorAction SilentlyContinue) {
     throw 'A game is already running. Physical renderer test did not launch or stop anything.'
@@ -12,6 +12,8 @@ $previousSignals = $env:SEVR_NATIVE_SIGNALS
 $previousLead = $env:SEVR_NATIVE_LEAD
 $previousBlockInfo = $env:SEVR_NATIVE_BLOCK_INFO
 $previousMenus = $env:SEVR_PHYSICAL_MENUS_ONLY
+$previousDlss = $env:SEVR_DLSS_PROBE
+$previousDlssSize = $env:SEVR_DLSS_PROBE_SIZE
 try {
     $env:SEVR_PHYSICAL_COCKPITS_ONLY = if ($CockpitsOnly -or $Cockpit) { '1' } else { $null }
     $env:SEVR_PHYSICAL_COCKPIT = $Cockpit
@@ -20,7 +22,9 @@ try {
     $env:SEVR_NATIVE_SIGNALS = if ($NativeSignals -or $NativeLead -or $NativeBlockInfo) { '1' } else { $null }
     $env:SEVR_NATIVE_LEAD = if ($NativeLead) { '1' } else { $null }
     $env:SEVR_NATIVE_BLOCK_INFO = if ($NativeBlockInfo) { '1' } else { $null }
-    $env:SEVR_PHYSICAL_MENUS_ONLY = if ($ActionsOnly) { 'actions' } elseif ($SetupOnly) { 'setup' } elseif ($MenusOnly) { '1' } else { $null }
+    $env:SEVR_PHYSICAL_MENUS_ONLY = if ($ActionsOnly) { 'actions' } elseif ($PerformanceOnly) { 'performance' } elseif ($SetupOnly -or $DlssProbe) { 'setup' } elseif ($MenusOnly) { '1' } else { $null }
+    $env:SEVR_DLSS_PROBE = if ($DlssProbe) { '1' } else { $null }
+    $env:SEVR_DLSS_PROBE_SIZE = if ($DlssProbe -and $DlssSize -gt 0) { "$DlssSize" } else { $null }
     $process = & (Join-Path $PSScriptRoot 'Launch.ps1') -PhysicalRenderTest -PassThru -PrototypeRoot $PrototypeRoot
 } finally {
     $env:SEVR_PHYSICAL_COCKPITS_ONLY = $previousScope
@@ -31,6 +35,8 @@ try {
     $env:SEVR_NATIVE_LEAD = $previousLead
     $env:SEVR_NATIVE_BLOCK_INFO = $previousBlockInfo
     $env:SEVR_PHYSICAL_MENUS_ONLY = $previousMenus
+    $env:SEVR_DLSS_PROBE = $previousDlss
+    $env:SEVR_DLSS_PROBE_SIZE = $previousDlssSize
 }
 $passed = $false
 $logPath = $null
@@ -60,4 +66,5 @@ try {
     }
 }
 if (!$passed) { throw "Physical renderer probe failed or timed out. Log: $logPath" }
+if ($DlssProbe -and !(Select-String -Path $logPath -Pattern 'PASS DLSS NGX' -Quiet)) { throw "DLSS NGX probe did not pass. Log: $logPath" }
 Write-Host "PASS: native renderer probe. InterfaceOnly=$InterfaceOnly CameraHudOnly=$CameraHudOnly NativeSignals=$NativeSignals. No world or VR session was loaded. Log: $logPath"

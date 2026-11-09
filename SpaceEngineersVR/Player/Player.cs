@@ -280,6 +280,7 @@ namespace SpaceEngineersVR.Player
             ThirdPersonView.Recenter(PlayerToAbsolute.matrix,floor);
             SpectatorView.Recenter(floor);
             WindowSpots.FollowRecenter(PlayerToAbsolute.matrix,floor);
+            Dlss.NotifyCut();
             Logger.Info("Recentered tracking origin at current seated/standing head position.");
 
             PlayerToAbsolute = new MatrixAndInvert(floor);

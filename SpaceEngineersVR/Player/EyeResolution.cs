@@ -38,8 +38,8 @@ namespace SpaceEngineersVR.Player
                 if(width>0 && height>0) Recommend(width,height);
                 queried=now;
             }
-            var requested=Size(Recommended,BaseScale*DynamicResolution.Scale);
             var hud=Size(Recommended,BaseScale);
+            var requested=Dlss.Render(Size(Recommended,BaseScale*DynamicResolution.Scale),hud);
             if(requested!=pending || hud!=pendingHud) { pending=requested; pendingHud=hud; changed=now; }
             if(Current.X==0 || (now-changed).TotalSeconds>=.5) { Current=pending; Hud=pendingHud; }
             return Current;
@@ -124,10 +124,15 @@ namespace SpaceEngineersVR.Player
                         Logger.Info("VR scene resources: "+size.X+"x"+size.Y+" in "+timer.Elapsed.TotalMilliseconds.ToString("F1")+" ms; desktop "+resolution.X+"x"+resolution.Y);
                     }
                     else Restore(current.Values);
-                    viewport.SetValue(null,size);
-                    fullViewport.SetValue(null,new MyViewport(size));
+                    Apply(size);
                 }
                 catch { Dispose(); throw; }
+            }
+            internal static void Apply(Vector2I size)
+            {
+                MyRender11.Resolution=size;
+                viewport.SetValue(null,size);
+                fullViewport.SetValue(null,new MyViewport(size));
             }
             public void Dispose()
             {

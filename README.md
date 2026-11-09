@@ -90,3 +90,5 @@ Mods that I think improve the VR experience:
 ## Credit
 
 Based on [SpaceEngineersVR](https://github.com/Math0424/SpaceEngineersVR) by Math0424 and contributors, licensed under GPL-2.0.
+
+DLSS integration adapted from [SE-DLSS](https://github.com/PhoenixTheSage/SE-DLSS) by PhoenixTheSage, licensed under MIT.

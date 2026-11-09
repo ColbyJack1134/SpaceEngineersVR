@@ -87,6 +87,10 @@ namespace SpaceEngineersVR.Config
         public float EyeRenderScale { get => eyeRenderScale; set => SetValue(ref eyeRenderScale,Bound(value,.5f,1.5f,1)); }
         private bool dynamicResolution;
         public bool DynamicResolution { get => dynamicResolution; set => SetValue(ref dynamicResolution,value); }
+        private int dlss;
+        public int Dlss { get => dlss; set => SetValue(ref dlss,(int)Bound(value,0,4,0)); }
+        private bool dlssFastModel;
+        public bool DlssFastModel { get => dlssFastModel; set => SetValue(ref dlssFastModel,value); }
         private float targetFrameRate=60;
         public float TargetFrameRate { get => targetFrameRate; set => SetValue(ref targetFrameRate,(float)Math.Round(Bound(value,30,144,60))); }
         private float remoteFeedScale=5f/6;
