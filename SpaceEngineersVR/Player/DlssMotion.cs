@@ -23,6 +23,8 @@ cbuffer Constants : register(b0)
     float4x4 PrevViewProj;
     float2 RenderSize;
     float2 InvRenderSize;
+    float2 Offset;
+    float2 Pad;
 };
 Texture2D DepthTex : register(t0);
 SamplerState PointSamp : register(s0);
@@ -60,10 +62,19 @@ float4 PS(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_Target
 }
 float PSDepth(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_Target
 {
-    return DepthTex.SampleLevel(PointSamp, uv, 0).r;
+    float2 p = uv * RenderSize + Offset - 0.5;
+    float2 corner = floor(p);
+    float2 f = p - corner;
+    int2 top = (int2)RenderSize - 1;
+    int2 i = (int2)corner;
+    float a = DepthTex.Load(int3(clamp(i, 0, top), 0)).r;
+    float b = DepthTex.Load(int3(clamp(i + int2(1, 0), 0, top), 0)).r;
+    float c = DepthTex.Load(int3(clamp(i + int2(0, 1), 0, top), 0)).r;
+    float d = DepthTex.Load(int3(clamp(i + int2(1, 1), 0, top), 0)).r;
+    return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
 }";
         [StructLayout(LayoutKind.Sequential)]
-        private struct Constants { public Matrix InverseJittered,Unjittered,Previous; public Vector2 Size,InverseSize; }
+        private struct Constants { public Matrix InverseJittered,Unjittered,Previous; public Vector2 Size,InverseSize,Offset,Pad; }
         private static Device device;
         private static VertexShader vertex;
         private static PixelShader pixel,depthPixel;
@@ -72,15 +83,18 @@ float PSDepth(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_Target
         private static Texture2D texture;
         private static RenderTargetView target;
 
-        // Point resample of a depth texture to the eye target size for the overlays' pixel depth tests.
+        // Resamples a depth texture of the jittered render to the eye target size for the overlays' depth tests. Depth is linear across a flat
+        // surface on screen, so interpolating at the position the jitter moved each point to gives the depth a full-size render would have had there.
         internal sealed class Resample : IDisposable
         {
             private Texture2D texture;
             private RenderTargetView target;
             internal ShaderResourceView View { get; private set; }
-            internal void Run(Device current,ShaderResourceView depth,int width,int height)
+            internal void Run(Device current,ShaderResourceView depth,int width,int height,Vector2I source,Vector2 offset)
             {
                 Ensure(current,0,0);
+                var data=new Constants { Size=new Vector2(source.X,source.Y),Offset=offset };
+                current.ImmediateContext.UpdateSubresource(ref data,constants);
                 if(texture==null || texture.Device.NativePointer!=current.NativePointer || texture.Description.Width!=width || texture.Description.Height!=height)
                 {
                     Dispose();

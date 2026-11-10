@@ -61,6 +61,8 @@ namespace SpaceEngineersVR.Player
         // Sub-pixel offsets in [-0.5, 0.5) as the NDC shift of the projection; NGX gets the pixel values.
         internal static Vector2 Pixels(int frame) => new Vector2(Halton(frame,2)-.5f,Halton(frame,3)-.5f);
         internal static Vector2 Ndc(Vector2 pixels,Vector2I size) => new Vector2(-2*pixels.X/size.X,2*pixels.Y/size.Y);
+        // Where the jitter moved the image, in render pixels with y down; m34 is the projection's w term.
+        internal static Vector2 Shift(Vector2 ndc,Vector2I size,double m34) => new Vector2((float)(ndc.X/m34*size.X/2),(float)(-ndc.Y/m34*size.Y/2));
         // Camera-relative matrices change origin every frame; the previous view projection is moved to this frame's origin in double precision.
         internal static Matrix Previous(Matrix previousUnjittered,Vector3D position,Vector3D previousPosition) =>
             Matrix.CreateTranslation((Vector3)(position-previousPosition))*previousUnjittered;
@@ -306,9 +308,10 @@ namespace SpaceEngineersVR.Player
                     state.PreviousUnjittered=state.Unjittered; state.PreviousPosition=state.Position; state.PreviousForward=state.Forward;
                     if(output!=render)
                     {
-                        sceneDepth.Run(Device,depthView,output.X,output.Y);
+                        var shift=Shift(Ndc(pixels,render),render,state.Projection.M34);
+                        sceneDepth.Run(Device,depthView,output.X,output.Y,render,shift);
                         var hand=NativeHandLayer.Raw;
-                        if(hand!=null) handDepth.Run(Device,hand,output.X,output.Y);
+                        if(hand!=null) handDepth.Run(Device,hand,output.X,output.Y,render,shift);
                     }
                 }
                 else
@@ -327,7 +330,7 @@ namespace SpaceEngineersVR.Player
             finally { new MyRenderContext(rc).ClearState(); }
         }
 
-        // Overlays depth-test at eye target pixels; after an upscale they read the scene and hand depths resampled to that size.
+        // Overlays depth-test at eye target pixels; after an upscale they read scene and hand depth resampled identically, so equal surfaces stay equal.
         private static bool Upscaled => active && output!=render && StereoRenderState.PhysicalEye && eyes[StereoRenderState.View].Evaluated;
         internal static ShaderResourceView OverlayDepth => Upscaled ? sceneDepth.View : null;
         internal static ShaderResourceView HandDepth(ShaderResourceView raw) => raw!=null && Upscaled ? handDepth.View : raw;

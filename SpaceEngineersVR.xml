@@ -16,7 +16,7 @@
 - NVIDIA DLAA and DLSS upscaling on RTX GPUs (Windows)
 - Pulsar Legacy and Interim, with experimental native Linux support
 
-Start SteamVR before launching. DLSS is off by default; Windows installs download NVIDIA's nvngx_dlss.dll runtime (31 MB); when enabled, DLSS loads it with the NVIDIA driver's NGX library, and it stays off while the NVIDIA DLSS plugin is loaded. On Linux, install your distribution's libgdiplus package. Full feature list, controls and issues: https://github.com/ColbyJack1134/SpaceEngineersVR</Description>
+Start SteamVR before launching. DLSS is off by default; Windows installs download NVIDIA's nvngx_dlss.dll runtime (31 MB download); when enabled, DLSS loads it with the NVIDIA driver's NGX library, and it stays off while the NVIDIA DLSS plugin is loaded. On Linux, install your distribution's libgdiplus package. Full feature list, controls and issues: https://github.com/ColbyJack1134/SpaceEngineersVR</Description>
   <SourceDirectories>
     <Directory>SpaceEngineersVR/</Directory>
   </SourceDirectories>

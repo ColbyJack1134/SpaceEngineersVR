@@ -23,6 +23,20 @@ namespace SpaceEngineersVR.Diagnostics
             var ndc=Dlss.Ndc(new Vector2(.5f,.5f),new Vector2I(2000,1000));
             Require(Math.Abs(ndc.X+.0005f)<1e-6f && Math.Abs(ndc.Y-.001f)<1e-6f,"NDC jitter scale: "+ndc);
 
+            // A view point drawn with the jittered projection lands Shift pixels from where the plain projection puts it.
+            var renderSize=new Vector2I(1648,1648);
+            var jitter=Dlss.Ndc(new Vector2(.3f,-.2f),renderSize);
+            MatrixD plain=VrMath.Projection(-1.1f,.9f,-1,1.05f,.03),jittered=plain;
+            jittered.M31+=jitter.X; jittered.M32+=jitter.Y;
+            var viewPoint=new Vector3D(.2,-.1,-.6);
+            Vector2 Pixel(MatrixD m)
+            {
+                var clip=Vector4D.Transform(new Vector4D(viewPoint,1),m);
+                return new Vector2((float)((clip.X/clip.W*.5+.5)*renderSize.X),(float)((.5-clip.Y/clip.W*.5)*renderSize.Y));
+            }
+            var moved=Pixel(jittered)-Pixel(plain)-Dlss.Shift(jitter,renderSize,plain.M34);
+            Require(Math.Abs(moved.X)<1e-3f && Math.Abs(moved.Y)<1e-3f,"jitter shift does not match the projection: "+moved);
+
             var output=new Vector2I(2472,2472);
             Require(Dlss.Clamp(output,output,2f/3,false)==new Vector2I(1648,1648),"Quality render size");
             Require(Dlss.Clamp(new Vector2I(1730,1730),output,2f/3,true)==new Vector2I(1236,1236),"dynamic resolution went below the NGX minimum");
@@ -68,7 +82,7 @@ namespace SpaceEngineersVR.Diagnostics
                 "previous reprojection drifted: "+(viaShift.X/viaShift.W)+","+(viaShift.Y/viaShift.W)+" vs "+(direct.X/direct.W)+","+(direct.Y/direct.W));
             Vector4D current=Vector4D.Transform(new Vector4D(point,1),view*projection);
             Require(Math.Abs(direct.X/direct.W-current.X/current.W)>.01,"eye translation produced no parallax");
-            log("PASS DLSS: Halton jitter inside the pixel, NDC scale, NGX render range, history resets on epoch, view, menu, rig, size, recenter and jumps, previous-origin reprojection");
+            log("PASS DLSS: Halton jitter inside the pixel, NDC scale, jitter shift, NGX render range, history resets on epoch, view, menu, rig, size, recenter and jumps, previous-origin reprojection");
         }
     }
 }
