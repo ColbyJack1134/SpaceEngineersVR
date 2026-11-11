@@ -82,7 +82,13 @@ namespace SpaceEngineersVR.Diagnostics
                 "previous reprojection drifted: "+(viaShift.X/viaShift.W)+","+(viaShift.Y/viaShift.W)+" vs "+(direct.X/direct.W)+","+(direct.Y/direct.W));
             Vector4D current=Vector4D.Transform(new Vector4D(point,1),view*projection);
             Require(Math.Abs(direct.X/direct.W-current.X/current.W)>.01,"eye translation produced no parallax");
-            log("PASS DLSS: Halton jitter inside the pixel, NDC scale, jitter shift, NGX render range, history resets on epoch, view, menu, rig, size, recenter and jumps, previous-origin reprojection");
+            int[] bayer={0,32,8,40,2,34,10,42,48,16,56,24,50,18,58,26,12,44,4,36,14,46,6,38,60,28,52,20,62,30,54,22,
+                3,35,11,43,1,33,9,41,51,19,59,27,49,17,57,25,15,47,7,39,13,45,5,37,63,31,55,23,61,29,53,21};
+            for(int i=0;i<64;i++) Require(Dlss.Bayer(i%8,i/8)==bayer[i],"Bayer texel "+i+" differs from the engine's dither texture");
+#if !LINUX
+            Require(Dlss.MissingEngineMember==null,"engine member missing: "+Dlss.MissingEngineMember);
+#endif
+            log("PASS DLSS: Halton jitter inside the pixel, NDC scale, jitter shift, NGX render range, history resets on epoch, view, menu, rig, size, recenter and jumps, previous-origin reprojection, engine dither pattern, engine state and depth members");
         }
     }
 }

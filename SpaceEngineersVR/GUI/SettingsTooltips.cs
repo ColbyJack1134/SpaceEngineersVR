@@ -25,6 +25,7 @@ namespace SpaceEngineersVR.GUI
             ["Headset resolution"]="Per-eye render scale",
             ["Anti-aliasing"]="FXAA, or NVIDIA DLAA and DLSS upscaling on RTX GPUs",
             ["DLSS fast model"]="Older DLSS model: about half the GPU cost, slightly softer",
+            ["Solid block previews with DLAA/DLSS"]="Build, paste and projector previews; their see-through pattern breaks up under DLAA and DLSS",
             ["Camera feed resolution"]="Camera and turret view detail",
             ["Camera feed refresh"]="How often the camera and turret view updates",
             ["LCD camera resolution"]="Detail of camera views on LCD screens",

@@ -190,8 +190,7 @@ namespace SpaceEngineersVR.Player
             return false;
         }
 
-        // The driver core resolves its caller from the native return address; a JIT return address has no module,
-        // so the private init exports are called from OleAut32 (NgxInvoke). Only the SDK export takes a plain delegate.
+        // The driver rejects callers whose return address has no module, so the private init exports go through OleAut32 (NgxInvoke).
         internal int Init(IntPtr projectId,int engineType,IntPtr engineVersion,IntPtr logPath,IntPtr device,int version,IntPtr info)
         {
             if(initProject!=IntPtr.Zero)
@@ -281,8 +280,7 @@ namespace SpaceEngineersVR.Player
         private static extern int DispCallFunc(IntPtr instance,UIntPtr function,int convention,ushort returnType,uint count,[In] ushort[] types,[In] IntPtr[] arguments,IntPtr result);
     }
 
-    // NVSDK_NGX_Parameter is an MSVC C++ object; overload groups sit in the vtable in reverse declaration order:
-    // Set void*, D3D12, D3D11, int, uint, double, float, ull; Get in the same order; then Reset.
+    // MSVC vtable order: Set void*, D3D12, D3D11, int, uint, double, float, ull; Get in the same order; then Reset.
     internal sealed class NgxParameter
     {
         [UnmanagedFunctionPointer(CallingConvention.ThisCall)] private delegate void SetPointerFn(IntPtr self,IntPtr name,IntPtr value);

@@ -72,19 +72,23 @@ float PSDepth(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_Target
     float c = DepthTex.Load(int3(clamp(i + int2(0, 1), 0, top), 0)).r;
     float d = DepthTex.Load(int3(clamp(i + int2(1, 1), 0, top), 0)).r;
     return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+}
+float PSWrite(float4 pos : SV_Position) : SV_Depth
+{
+    return DepthTex.Load(int3(pos.xy, 0)).r;
 }";
         [StructLayout(LayoutKind.Sequential)]
         private struct Constants { public Matrix InverseJittered,Unjittered,Previous; public Vector2 Size,InverseSize,Offset,Pad; }
         private static Device device;
         private static VertexShader vertex;
-        private static PixelShader pixel,depthPixel;
+        private static PixelShader pixel,depthPixel,writePixel;
+        private static DepthStencilState writeAlways;
         private static Buffer constants;
         private static SamplerState sampler;
         private static Texture2D texture;
         private static RenderTargetView target;
 
-        // Resamples a depth texture of the jittered render to the eye target size for the overlays' depth tests. Depth is linear across a flat
-        // surface on screen, so interpolating at the position the jitter moved each point to gives the depth a full-size render would have had there.
+        // Jittered render depth at eye target size, interpolated at the jitter-shifted position.
         internal sealed class Resample : IDisposable
         {
             private Texture2D texture;
@@ -112,6 +116,15 @@ float PSDepth(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_Target
         }
         private static readonly ShaderResourceView[] nullViews=new ShaderResourceView[8];
 
+        internal static void WriteDepth(Device current,ShaderResourceView depth,DepthStencilView output,int width,int height)
+        {
+            Ensure(current,0,0);
+            var context=current.ImmediateContext;
+            context.ClearDepthStencilView(output,DepthStencilClearFlags.Stencil,1,0);
+            context.OutputMerger.SetTargets(output,(RenderTargetView)null);
+            Draw(context,null,width,height,writePixel,depth,writeAlways);
+        }
+
         internal static Texture2D Generate(Device current,ShaderResourceView depth,int width,int height,Matrix inverseJittered,Matrix unjittered,Matrix previous)
         {
             Ensure(current,width,height);
@@ -122,11 +135,11 @@ float PSDepth(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_Target
         }
 
         // Fullscreen pass with the pipeline state the engine may have left behind reset to defaults.
-        private static void Draw(DeviceContext context,RenderTargetView rtv,int width,int height,PixelShader shader,ShaderResourceView source)
+        private static void Draw(DeviceContext context,RenderTargetView rtv,int width,int height,PixelShader shader,ShaderResourceView source,DepthStencilState depthState=null)
         {
-            context.OutputMerger.SetTargets((DepthStencilView)null,rtv);
+            if(rtv!=null) context.OutputMerger.SetTargets((DepthStencilView)null,rtv);
             context.OutputMerger.SetBlendState(null);
-            context.OutputMerger.SetDepthStencilState(null);
+            context.OutputMerger.SetDepthStencilState(depthState);
             context.Rasterizer.State=null;
             context.Rasterizer.SetViewport(0,0,width,height);
             context.InputAssembler.InputLayout=null;
@@ -158,6 +171,8 @@ float PSDepth(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_Target
                 using(var code=ShaderBytecode.Compile(Shader,"VS","vs_5_0")) vertex=new VertexShader(current,code);
                 using(var code=ShaderBytecode.Compile(Shader,"PS","ps_5_0")) pixel=new PixelShader(current,code);
                 using(var code=ShaderBytecode.Compile(Shader,"PSDepth","ps_5_0")) depthPixel=new PixelShader(current,code);
+                using(var code=ShaderBytecode.Compile(Shader,"PSWrite","ps_5_0")) writePixel=new PixelShader(current,code);
+                writeAlways=new DepthStencilState(current,new DepthStencilStateDescription { IsDepthEnabled=true,DepthWriteMask=DepthWriteMask.All,DepthComparison=Comparison.Always });
                 constants=new Buffer(current,new BufferDescription(Marshal.SizeOf(typeof(Constants)),ResourceUsage.Default,BindFlags.ConstantBuffer,CpuAccessFlags.None,ResourceOptionFlags.None,0));
                 sampler=new SamplerState(current,new SamplerStateDescription { Filter=Filter.MinMagMipPoint,AddressU=TextureAddressMode.Clamp,AddressV=TextureAddressMode.Clamp,AddressW=TextureAddressMode.Clamp });
                 device=current;
@@ -174,8 +189,8 @@ float PSDepth(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_Target
 
         internal static void Dispose()
         {
-            target?.Dispose(); texture?.Dispose(); sampler?.Dispose(); constants?.Dispose(); pixel?.Dispose(); depthPixel?.Dispose(); vertex?.Dispose();
-            target=null; texture=null; sampler=null; constants=null; pixel=null; depthPixel=null; vertex=null; device=null;
+            target?.Dispose(); texture?.Dispose(); sampler?.Dispose(); constants?.Dispose(); pixel?.Dispose(); depthPixel?.Dispose(); writePixel?.Dispose(); writeAlways?.Dispose(); vertex?.Dispose();
+            target=null; texture=null; sampler=null; constants=null; pixel=null; depthPixel=null; writePixel=null; writeAlways=null; vertex=null; device=null;
         }
     }
 }

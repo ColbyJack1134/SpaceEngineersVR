@@ -12,7 +12,7 @@ namespace SpaceEngineersVR.GUI
         private int shownMode;
         private readonly SettingsUndo undo;
         public override string GetFriendlyName() => "SEVR performance";
-        public PerformanceOptions() : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.8f,.88f))
+        public PerformanceOptions() : base(new Vector2(.5f),MyGuiConstants.SCREEN_BACKGROUND_COLOR,new Vector2(.8f,.96f))
         { m_closeOnEsc=true; CloseButtonEnabled=true; CanHideOthers=true; CanBeHidden=true; undo=new SettingsUndo(this); }
         public override void LoadContent() { base.LoadContent(); RecreateControls(true); }
         public override bool Update(bool hasFocus)
@@ -28,12 +28,12 @@ namespace SpaceEngineersVR.GUI
         {
             base.RecreateControls(constructor); AddCaption("Performance");
             shownMode=Common.Config.Dlss;
-            detail=Add(this,-.325f,true);
-            live=MenuLayout.Label(this,-.275f,.15f,Status(),.62f);
-            MenuLayout.Toggle(this,.21f,"Performance panel",PerformanceHud.Enabled,v=>PerformanceHud.Enabled=v,0);
-            Tips(this,.27f,.025f);
-            undo.Attach(MenuLayout.Button(this,-.14f,.4f,.26f,"Undo",undo.Restore));
-            MenuLayout.Button(this,.14f,.4f,.26f,"Done",()=>CloseScreen());
+            detail=Add(this,-.34f,true);
+            live=MenuLayout.Label(this,-.275f,.2f,Status(),.62f);
+            MenuLayout.Toggle(this,.26f,"Performance panel",PerformanceHud.Enabled,v=>PerformanceHud.Enabled=v,0);
+            Tips(this,.31f,.023f);
+            undo.Attach(MenuLayout.Button(this,-.14f,.445f,.26f,"Undo",undo.Restore));
+            MenuLayout.Button(this,.14f,.445f,.26f,"Done",()=>CloseScreen());
         }
 
         internal static MyGuiControlLabel Add(MyGuiScreenBase screen,float top,bool fastModelToggle=false)
@@ -44,8 +44,12 @@ namespace SpaceEngineersVR.GUI
             MenuLayout.Slider(screen,top+.18f,"Headset resolution",c.EyeRenderScale*100,50,150,5,"%",v=>c.EyeRenderScale=v/100,0,!c.DynamicResolution);
             bool dlss=Dlss.Available || c.Dlss>0;
             MenuLayout.Choice(screen,top+.3f,"Anti-aliasing",Dlss.Modes,c.Dlss,v=>c.Dlss=v,0,dlss);
-            if(fastModelToggle) MenuLayout.Toggle(screen,top+.365f,"DLSS fast model",c.DlssFastModel,v=>c.DlssFastModel=v,0,dlss && c.Dlss>0);
-            return MenuLayout.Label(screen,-.275f,top+(fastModelToggle ? .425f:.36f),Detail(),.6f);
+            if(fastModelToggle)
+            {
+                MenuLayout.Toggle(screen,top+.365f,"DLSS fast model",c.DlssFastModel,v=>c.DlssFastModel=v,0,dlss && c.Dlss>0);
+                MenuLayout.Toggle(screen,top+.43f,"Solid block previews with DLAA/DLSS",c.DlssSolidPreviews,v=>c.DlssSolidPreviews=v,0,dlss && c.Dlss>0);
+            }
+            return MenuLayout.Label(screen,-.275f,top+(fastModelToggle ? .49f:.36f),Detail(),.6f);
         }
         internal static void Tips(MyGuiScreenBase screen,float top,float spacing)
         {
