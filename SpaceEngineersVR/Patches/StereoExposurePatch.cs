@@ -17,6 +17,11 @@ namespace SpaceEngineersVR.Patches
 
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
         {
+            var pixelStage = AccessTools.PropertyGetter(AccessTools.TypeByName("VRage.Render11.RenderContext.MyRenderContext"), "PixelShader");
+            var setConstantBuffer = AccessTools.Method(AccessTools.TypeByName("VRage.Render11.RenderContext.MyPixelStage"), "SetConstantBuffer");
+            var frameConstants = AccessTools.PropertyGetter(AccessTools.TypeByName("VRageRender.MyCommon"), "FrameConstants");
+            if (pixelStage == null || setConstantBuffer == null || frameConstants == null)
+                throw new InvalidOperationException("Eye adaptation frame constant binding changed");
             int found = 0;
             foreach (var instruction in instructions)
             {
@@ -28,6 +33,12 @@ namespace SpaceEngineersVR.Patches
                 yield return new CodeInstruction(OpCodes.Ldsfld, AccessTools.Field(adaptation, "m_histogram"));
                 yield return CodeInstruction.Call(typeof(StereoExposure), nameof(StereoExposure.Collect));
                 yield return new CodeInstruction(OpCodes.Brfalse, proceed);
+                // The skipped exposure pass binds pixel b0; without bloom nothing rebinds it before FXAA and the billboards.
+                yield return new CodeInstruction(OpCodes.Ldarg_0);
+                yield return new CodeInstruction(OpCodes.Callvirt, pixelStage);
+                yield return new CodeInstruction(OpCodes.Ldc_I4_0);
+                yield return new CodeInstruction(OpCodes.Call, frameConstants);
+                yield return new CodeInstruction(OpCodes.Callvirt, setConstantBuffer);
                 yield return new CodeInstruction(OpCodes.Ret);
                 var next = new CodeInstruction(OpCodes.Nop);
                 next.labels.Add(proceed);
