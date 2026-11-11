@@ -406,7 +406,7 @@ namespace SpaceEngineersVR.Player
                 resolvedDepth.SetValue(main,outputDepth);
                 args[1]=CockpitRender.Member(outputDepth,"SrvDepth");
             }
-            catch(Exception ex) { RestoreDepth(); Block("DLSS off: "+ex.GetType().Name+": "+ex.Message); }
+            catch(Exception ex) { RestoreDepth(); ResetEngineState(args[0]); Block("DLSS off: "+ex.GetType().Name+": "+ex.Message); }
         }
         internal static void RestoreDepth()
         {

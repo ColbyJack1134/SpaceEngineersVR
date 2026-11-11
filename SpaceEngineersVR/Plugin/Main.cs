@@ -333,11 +333,9 @@ namespace SpaceEngineersVR.Plugin
             Logger.Info("Starting Steam OpenVR");
             EVRInitError error = EVRInitError.None;
             OpenVR.Init(ref error, EVRApplicationType.VRApplication_Scene);
-            Logger.Error($"Booting error = {error}");
-
             if (error != EVRInitError.None)
             {
-                Logger.Critical("Failed to connect to SteamVR!");
+                Logger.Critical($"Failed to connect to SteamVR: {error}");
                 return false;
             }
             OpenVrAlive = true;
