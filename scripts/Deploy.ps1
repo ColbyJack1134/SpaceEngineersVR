@@ -18,17 +18,11 @@ foreach ($target in $targets) {
         if (!(Test-Path (Join-Path $target.Source $asset))) { throw "Build is missing $asset. Run Build.ps1 first." }
     }
 }
-$backup = Join-Path $repo ('.tools\deployment-backups\' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 foreach ($target in $targets) {
     $files = if ($target.Files) { @($target.Files | ForEach-Object { Get-Item -LiteralPath (Join-Path $target.Source $_) }) } else { @(Get-ChildItem -LiteralPath $target.Source -Recurse -File) }
     foreach ($file in $files) {
         $relative = $file.FullName.Substring($target.Source.Length).TrimStart('\')
         $destination = Join-Path $target.Target $relative
-        if (Test-Path -LiteralPath $destination) {
-            $saved = Join-Path (Join-Path $backup $target.Name) $relative
-            New-Item -ItemType Directory -Force (Split-Path $saved) | Out-Null
-            Copy-Item -LiteralPath $destination -Destination $saved -Force
-        }
         New-Item -ItemType Directory -Force (Split-Path $destination) | Out-Null
         Copy-Item -LiteralPath $file.FullName -Destination $destination -Force
         if ((Get-FileHash -LiteralPath $file.FullName).Hash -ne (Get-FileHash -LiteralPath $destination).Hash) {
