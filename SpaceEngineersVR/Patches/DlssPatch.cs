@@ -52,6 +52,14 @@ namespace SpaceEngineersVR.Patches
         private static void Finalizer() => Dlss.RestoreDepth();
     }
 
+    [HarmonyPatchCategory("Dlss")]
+    [HarmonyPatch]
+    internal static class DlssObjectsPatch
+    {
+        private static MethodBase TargetMethod() => AccessTools.Method(AccessTools.TypeByName("VRage.Render11.Render.MyRenderScheduler"),"Done");
+        private static void Prefix() => Dlss.CollectObjects();
+    }
+
     // Previews are screen-door dithered; DLAA and DLSS keep the holes sharp and smear them while the preview moves.
     [HarmonyPatchCategory("Dlss")]
     [HarmonyPatch]

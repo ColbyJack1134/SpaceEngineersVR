@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using HarmonyLib;
@@ -101,7 +102,7 @@ namespace SpaceEngineersVR.Player
             public Vector2I MaxRender,Output;
             public int Quality,Failures;
             public uint Preset;
-            public bool History,Applied,Evaluated;
+            public bool History,Applied,Evaluated,Objects;
             public Matrix InverseJittered,Unjittered,PreviousUnjittered;
             public MatrixD Projection;
             public Vector3D Position,PreviousPosition;
@@ -117,14 +118,17 @@ namespace SpaceEngineersVR.Player
             setSamplers=AccessTools.Method(AccessTools.TypeByName("VRage.Render11.RenderContext.MyPixelStage"),"SetSamplers"),
             frameConstants=AccessTools.PropertyGetter(AccessTools.TypeByName("VRageRender.MyCommon"),"FrameConstants"),
             createDepth=AccessTools.Method(AccessTools.TypeByName("VRage.Render11.Resources.MyDepthStencilManager"),"CreateDepthStencil"),
-            disposeDepth=AccessTools.Method(AccessTools.TypeByName("VRage.Render11.Resources.MyDepthStencilManager"),"DisposeTex");
+            disposeDepth=AccessTools.Method(AccessTools.TypeByName("VRage.Render11.Resources.MyDepthStencilManager"),"DisposeTex"),
+            mainCullQuery=AccessTools.Method(AccessTools.TypeByName("VRage.Render11.Culling.MyCullManager"),"GetGBufferCullQuery");
         private static readonly System.Reflection.FieldInfo standardSamplers=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Resources.MySamplerStateManager"),"StandardSamplers"),
             depthStencils=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Common.MyManagers"),"DepthStencils"),
             gbuffer=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Resources.MyGBuffer"),"Main"),
             resolvedDepth=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Resources.MyGBuffer"),"m_resolvedDepthStencil"),
             ditherTexture=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Resources.MyGeneratedTextureManager"),"Dithering8x8Tex"),
             ditherResource=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Resources.Internal.MyGeneratedTexture"),"m_resource"),
-            ditherView=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Resources.Internal.MyGeneratedTexture"),"m_srv");
+            ditherView=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Resources.Internal.MyGeneratedTexture"),"m_srv"),
+            cullManager=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Common.MyManagers"),"Cull"),
+            cullGroups=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Culling.MyCullQuery"),"Groups");
         private static readonly (string Name,object Member)[] engineMembers=
         {
             ("UpdateFrameConstants",updateFrameConstants),("AllShaderStages",allStages),("PixelShader",pixelStage),("SetConstantBuffer",setConstantBuffer),
@@ -132,7 +136,13 @@ namespace SpaceEngineersVR.Player
             ("StandardSamplers",standardSamplers),("DepthStencils",depthStencils),("MyGBuffer.Main",gbuffer),("m_resolvedDepthStencil",resolvedDepth),
             ("Dithering8x8Tex",ditherTexture),("MyGeneratedTexture.m_resource",ditherResource),("MyGeneratedTexture.m_srv",ditherView)
         };
+        private static readonly (string Name,object Member)[] objectMembers=
+        {
+            ("GetGBufferCullQuery",mainCullQuery),("MyManagers.Cull",cullManager),("MyCullQuery.Groups",cullGroups),("MyDynamicAABBTree.m_extension",DlssObjects.Extension)
+        };
         internal static string MissingEngineMember => Array.Find(engineMembers,m=>m.Member==null).Name;
+        internal static string MissingObjectMember => Array.Find(objectMembers,m=>m.Member==null).Name;
+        private static bool objectsOff=MissingObjectMember!=null;
         private static object outputDepth,sceneResolvedDepth;
         private static Texture2D solidDither;
         private static ShaderResourceView solidDitherView,engineDitherView;
@@ -141,7 +151,7 @@ namespace SpaceEngineersVR.Player
         private static readonly Eye[] eyes={new Eye(),new Eye()};
         private static readonly DlssMotion.Resample sceneDepth=new DlssMotion.Resample(),handDepth=new DlssMotion.Resample();
         private static readonly Transitions transitions=new Transitions();
-        private static int cutRequests,frame;
+        private static int cutRequests,frame,tick;
         private static Vector2 pixels;
         private static Vector2I render,output;
         private static bool active,announced,runtimeMissing,switched;
@@ -201,11 +211,11 @@ namespace SpaceEngineersVR.Player
         // size is the scene size this frame; the eye target stays at the configured size and dynamic resolution only moves the render subrect.
         internal static void BeginFrame(Vector2I size,CameraRig.Frame rig)
         {
-            active=false; switched=false;
+            active=false; switched=false; tick++;
             try { SetSolidDither(SolidPreviews); }
             catch(Exception ex) { Block("DLSS off: "+ex.GetType().Name+": "+ex.Message); }
             // An eye that skipped its evaluate holds a stale previous view.
-            foreach(var eye in eyes) { if(!eye.Evaluated) eye.History=false; eye.Applied=eye.Evaluated=false; }
+            foreach(var eye in eyes) { if(!eye.Evaluated) eye.History=false; eye.Applied=eye.Evaluated=eye.Objects=false; }
             bool recenter=Interlocked.Exchange(ref cutRequests,0)!=0;
             int mode=Mode;
             render=size;
@@ -280,7 +290,7 @@ namespace SpaceEngineersVR.Player
         {
             foreach(var eye in eyes) { eye.Feature=IntPtr.Zero; eye.History=false; }
             Ngx.Forget();
-            sceneDepth.Dispose(); handDepth.Dispose(); DlssMotion.Dispose();
+            sceneDepth.Dispose(); handDepth.Dispose(); DlssMotion.Dispose(); DlssObjects.Forget();
             announced=false;
         }
 
@@ -302,6 +312,25 @@ namespace SpaceEngineersVR.Player
             state.Position=env.CameraPosition;
             state.Forward=env.InvViewAt0.Forward;
             if(state.History && Transitions.Jump(state.PreviousPosition,state.PreviousForward,state.Position,state.Forward)) state.History=false;
+        }
+
+        // Before the cull results of this eye's scene are released.
+        internal static void CollectObjects()
+        {
+            if(objectsOff || !Live || !Common.Config.DlssObjectMotion) return;
+            var state=eyes[StereoRenderState.View];
+            try
+            {
+                var query=mainCullQuery.Invoke(cullManager.GetValue(null),null);
+                if(query==null) return;
+                DlssObjects.Collect((List<VRage.Render.Scene.MyManualCullTreeData>)cullGroups.GetValue(query),state.Position,state.InverseJittered,tick);
+                state.Objects=true;
+            }
+            catch(Exception ex)
+            {
+                objectsOff=true; DlssObjects.Clear();
+                Logger.Warning("DLSS object motion off: "+ex.GetType().Name+": "+ex.Message);
+            }
         }
 
         // SE borrows the FXAA target at the renderer resolution; from there to the end of DrawGameScene the eye works at the output size.
@@ -338,7 +367,7 @@ namespace SpaceEngineersVR.Player
                     throw new InvalidOperationException("DLSS output size does not match the eye target");
                 var depthView=PhysicalSurface.SceneDepth(resolvedDepth);
                 var previous=state.History ? Previous(state.PreviousUnjittered,state.Position,state.PreviousPosition) : state.Unjittered;
-                var motion=DlssMotion.Generate(Device,depthView,render.X,render.Y,state.InverseJittered,state.Unjittered,previous);
+                var motion=DlssMotion.Generate(Device,depthView,render.X,render.Y,state.InverseJittered,state.Unjittered,previous,state.Objects && state.History);
                 bool ok=Ngx.Evaluate(state.Feature,color,depth,motion,target,pixels.X,pixels.Y,!state.History,render.X,render.Y);
                 if(ok)
                 {

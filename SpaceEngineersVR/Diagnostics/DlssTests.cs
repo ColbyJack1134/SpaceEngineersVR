@@ -1,5 +1,6 @@
 #if SEVR_DIAGNOSTICS
 using System;
+using System.Collections.Generic;
 using SpaceEngineersVR.Player;
 using VRageMath;
 
@@ -87,9 +88,59 @@ namespace SpaceEngineersVR.Diagnostics
             for(int i=0;i<64;i++) Require(Dlss.Bayer(i%8,i/8)==bayer[i],"Bayer texel "+i+" differs from the engine's dither texture");
 #if !LINUX
             Require(Dlss.MissingEngineMember==null,"engine member missing: "+Dlss.MissingEngineMember);
+            Require(Dlss.MissingObjectMember==null,"object motion member missing: "+Dlss.MissingObjectMember);
+            Objects();
 #endif
-            log("PASS DLSS: Halton jitter inside the pixel, NDC scale, jitter shift, NGX render range, history resets on epoch, view, menu, rig, size, recenter and jumps, previous-origin reprojection, engine dither pattern, engine state and depth members");
+            log("PASS DLSS: Halton jitter inside the pixel, NDC scale, jitter shift, NGX render range, history resets on epoch, view, menu, rig, size, recenter and jumps, previous-origin reprojection, engine dither pattern, engine state and depth members, object reprojection, tracking and box order");
         }
+
+#if !LINUX
+        private static void Objects()
+        {
+            // A point fixed on a grid that flew and turned far from the origin: its camera-relative position must reproject to where it was.
+            Vector3D camera=new Vector3D(1000000,2000000,3000000);
+            MatrixD previous=MatrixD.CreateFromAxisAngle(Vector3D.Up,.4)*MatrixD.CreateTranslation(camera+new Vector3D(3,-2,-20));
+            MatrixD current=MatrixD.CreateFromAxisAngle(Vector3D.Up,.43)*MatrixD.CreateFromAxisAngle(Vector3D.Right,.02)*MatrixD.CreateTranslation(camera+new Vector3D(3.5,-1.8,-21.5));
+            Vector3D local=new Vector3D(4,1.5,-7);
+            var now=(Vector3)(Vector3D.Transform(local,current)-camera);
+            Vector3D before=Vector3D.Transform(local,previous)-camera;
+            var reprojected=Vector3.Transform(now,DlssObjects.Reproject(current,previous,camera));
+            Require(Vector3D.Distance(reprojected,before)<1e-3,"object reprojection is off by "+Vector3D.Distance(reprojected,before)+" m");
+            Require(Vector3D.Distance(Vector3.Transform(now,DlssObjects.ToLocal(current,camera)),local)<1e-3,"box space does not match the object");
+            Require(Vector3D.Distance(now,before)>.5,"object did not move in the fixture");
+
+            var tracker=new DlssObjects.Tracker();
+            MatrixD seen; bool moved;
+            Require(!tracker.Observe(7,previous,10,out seen,out moved),"first sighting had a previous matrix");
+            Require(tracker.Observe(7,previous,11,out seen,out moved) && !moved,"resting actor reported as moving");
+            Require(tracker.Observe(7,current,12,out seen,out moved) && moved && DlssObjects.Same(seen,previous),"moving actor lost its previous matrix");
+            Require(tracker.Observe(7,previous,12,out seen,out moved) && moved && DlssObjects.Same(seen,previous),"second eye changed the frame's matrices");
+            Require(!tracker.Observe(7,current,14,out seen,out moved),"matrix from two frames ago used as previous");
+            Require(tracker.Observe(7,current,15,out seen,out moved) && !moved,"tracking did not resume");
+            MatrixD jumped=current; jumped.Translation+=new Vector3D(0,0,2000);
+            Require(!tracker.Observe(7,jumped,16,out seen,out moved),"a 2 km jump counted as motion");
+            tracker.Prune(40);
+            Require(tracker.Count==0,"stale tracks kept");
+
+            // Two cells of one grid merge into one box; a small grid inside it keeps its own motion and draws last.
+            var cell=new BoundingBox(new Vector3(-10),new Vector3(10));
+            var inner=new BoundingBox(new Vector3(-2),new Vector3(2));
+            MatrixD innerNow=MatrixD.CreateRotationY(.1)*current,innerBefore=previous;
+            var list=new List<DlssObjects.Candidate>
+            {
+                new DlssObjects.Candidate { Current=innerNow,Previous=innerBefore,Bounds=inner,Distance=5 },
+                new DlssObjects.Candidate { Current=current,Previous=previous,Bounds=cell,Distance=9 },
+                new DlssObjects.Candidate { Current=current,Previous=previous,Bounds=new BoundingBox(new Vector3(-10,-10,10),new Vector3(10,10,25)),Distance=20 }
+            };
+            DlssObjects.Emit(list,camera,Matrix.Identity,Matrix.Identity);
+            Require(DlssObjects.BoxCount==2,"expected two grids, got "+DlssObjects.BoxCount+" boxes");
+            Require(DlssObjects.Boxes[0].Min.Z==-10 && DlssObjects.Boxes[0].Max.Z==25,"cells of one grid did not merge into one box");
+            Require(DlssObjects.Boxes[1].Max.X==2 && DlssObjects.Boxes[1].Index!=DlssObjects.Boxes[0].Index,"the inner grid must draw last with its own motion");
+            var innerPoint=(Vector3)(Vector3D.Transform(new Vector3D(1,0,1),innerNow)-camera);
+            Require(Vector3D.Distance(Vector3.Transform(innerPoint,DlssObjects.Transforms[DlssObjects.Boxes[1].Index]),Vector3D.Transform(new Vector3D(1,0,1),innerBefore)-camera)<1e-3,"box index does not select its own motion");
+            DlssObjects.Clear();
+        }
+#endif
     }
 }
 #endif
