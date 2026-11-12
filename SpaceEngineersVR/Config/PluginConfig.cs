@@ -95,6 +95,8 @@ namespace SpaceEngineersVR.Config
         public bool DlssSolidPreviews { get => dlssSolidPreviews; set => SetValue(ref dlssSolidPreviews,value); }
         private bool dlssObjectMotion=true;
         public bool DlssObjectMotion { get => dlssObjectMotion; set => SetValue(ref dlssObjectMotion,value); }
+        private bool dlssPartMotion=true;
+        public bool DlssPartMotion { get => dlssPartMotion; set => SetValue(ref dlssPartMotion,value); }
         private float targetFrameRate=60;
         public float TargetFrameRate { get => targetFrameRate; set => SetValue(ref targetFrameRate,(float)Math.Round(Bound(value,30,144,60))); }
         private float remoteFeedScale=5f/6;

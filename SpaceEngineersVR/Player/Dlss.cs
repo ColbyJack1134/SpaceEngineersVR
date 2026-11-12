@@ -91,6 +91,8 @@ namespace SpaceEngineersVR.Player
         internal static Vector2I Output(Vector2I size) => size;
         internal static Vector2 Jitter(int eye) => Vector2.Zero;
         internal static void Capture(int eye,EnvironmentMatrices env,MatrixD projection) { }
+        internal static void BeginParts(Vector2I size) { }
+        internal static void EndParts() { }
         internal static void Dispose() { }
     }
 #else
@@ -290,7 +292,7 @@ namespace SpaceEngineersVR.Player
         {
             foreach(var eye in eyes) { eye.Feature=IntPtr.Zero; eye.History=false; }
             Ngx.Forget();
-            sceneDepth.Dispose(); handDepth.Dispose(); DlssMotion.Dispose(); DlssObjects.Forget();
+            sceneDepth.Dispose(); handDepth.Dispose(); DlssMotion.Dispose(); DlssObjects.Forget(); DlssParts.Dispose(); DlssParts.Forget();
             announced=false;
         }
 
@@ -323,14 +325,37 @@ namespace SpaceEngineersVR.Player
             {
                 var query=mainCullQuery.Invoke(cullManager.GetValue(null),null);
                 if(query==null) return;
-                DlssObjects.Collect((List<VRage.Render.Scene.MyManualCullTreeData>)cullGroups.GetValue(query),state.Position,state.InverseJittered,tick);
+                var groups=(List<VRage.Render.Scene.MyManualCullTreeData>)cullGroups.GetValue(query);
+                DlssObjects.Collect(groups,state.Position,state.InverseJittered,tick);
+                if(PartsWanted) DlssParts.SetGroups(groups);
                 state.Objects=true;
             }
             catch(Exception ex)
             {
-                objectsOff=true; DlssObjects.Clear();
+                objectsOff=true; DlssObjects.Clear(); DlssParts.Off();
                 Logger.Warning("DLSS object motion off: "+ex.GetType().Name+": "+ex.Message);
             }
+        }
+
+        private static int partsOff;
+        private static bool PartsWanted => !objectsOff && partsOff==0 && PatchGroups.DlssParts.Enabled && Common.Config.DlssObjectMotion && Common.Config.DlssPartMotion;
+        // Around this eye's scene draw, after Capture.
+        internal static void BeginParts(Vector2I size)
+        {
+            if(!active || !PartsWanted) { DlssParts.Dispose(); return; }
+            if(!Live) { DlssParts.Off(); return; }
+            try
+            {
+                var depth=(Texture2D)CockpitRender.Member(PhysicalSurface.ResolvedDepth(),"Resource");
+                DlssParts.Begin(size.X,size.Y,depth.Description.Format==SharpDX.DXGI.Format.R32G8X24_Typeless,eyes[StereoRenderState.View].Position,tick);
+            }
+            catch(Exception ex) { PartsFailed(ex); }
+        }
+        internal static void EndParts() => DlssParts.End();
+        internal static void PartsFailed(Exception ex)
+        {
+            DlssParts.Off();
+            if(Interlocked.Exchange(ref partsOff,1)==0) Logger.Warning("DLSS part motion off: "+ex.GetType().Name+": "+ex.Message);
         }
 
         // SE borrows the FXAA target at the renderer resolution; from there to the end of DrawGameScene the eye works at the output size.
@@ -367,7 +392,7 @@ namespace SpaceEngineersVR.Player
                     throw new InvalidOperationException("DLSS output size does not match the eye target");
                 var depthView=PhysicalSurface.SceneDepth(resolvedDepth);
                 var previous=state.History ? Previous(state.PreviousUnjittered,state.Position,state.PreviousPosition) : state.Unjittered;
-                var motion=DlssMotion.Generate(Device,depthView,render.X,render.Y,state.InverseJittered,state.Unjittered,previous,state.Objects && state.History);
+                var motion=DlssMotion.Generate(Device,depthView,render.X,render.Y,state.InverseJittered,state.Unjittered,previous,state.Objects && state.History,DlssParts.Ready && PartsWanted && render.X==DlssParts.Width && render.Y==DlssParts.Height);
                 bool ok=Ngx.Evaluate(state.Feature,color,depth,motion,target,pixels.X,pixels.Y,!state.History,render.X,render.Y);
                 if(ok)
                 {
@@ -489,7 +514,7 @@ namespace SpaceEngineersVR.Player
         {
             active=false;
             RestoreDepth(); ReleaseOutputDepth(); SetSolidDither(false);
-            sceneDepth.Dispose(); handDepth.Dispose(); DlssMotion.Dispose();
+            sceneDepth.Dispose(); handDepth.Dispose(); DlssMotion.Dispose(); DlssParts.Dispose();
         }
     }
 #endif

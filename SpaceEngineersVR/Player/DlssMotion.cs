@@ -24,7 +24,8 @@ cbuffer Constants : register(b0)
     float2 RenderSize;
     float2 InvRenderSize;
     float2 Offset;
-    float2 Pad;
+    // x: box count, y: 1 when parts were marked.
+    float2 Parts;
 };
 struct Box { float4x4 ToClip; float4x4 ToLocal; float3 Min; uint Index; float3 Max; float Flip; };
 Texture2D DepthTex : register(t0);
@@ -33,6 +34,8 @@ StructuredBuffer<Box> Boxes : register(t1);
 struct Motion { float4x4 ToPrevious; };
 StructuredBuffer<Motion> Reproject : register(t2);
 Texture2D<uint> IndexTex : register(t3);
+Texture2D<float> PartDepth : register(t4);
+Texture2D<uint2> PartStencil : register(t5);
 SamplerState PointSamp : register(s0);
 // Triangles wind towards the inside of the box.
 static const uint kCube[36] = { 0,2,6, 0,6,4, 1,5,7, 1,7,3, 0,4,5, 0,5,1, 2,3,7, 2,7,6, 0,1,3, 0,3,2, 4,6,7, 4,7,5 };
@@ -81,7 +84,14 @@ float4 PSObjects(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_Target
 {
     float closest = Closest(uv);
     float4 world = Unproject(uv, closest);
-    uint index = IndexTex.Load(int3(uv * RenderSize, 0));
+    int3 at = int3(uv * RenderSize, 0);
+    uint index = IndexTex.Load(at);
+    // A part owns the pixel only where its own redraw is the visible surface.
+    if (Parts.y > 0)
+    {
+        uint part = PartStencil.Load(at).y;
+        if (part > 0 && abs(PartDepth.Load(at) - closest) <= closest * 1e-4) index = (uint)Parts.x + part;
+    }
     return float4(Velocity(world, mul(world, Reproject[index].ToPrevious)), 0, 1);
 }
 void VSBox(uint id : SV_VertexID, uint instance : SV_InstanceID, out float4 pos : SV_Position, out nointerpolation uint box : BOX)
@@ -122,7 +132,7 @@ float PSWrite(float4 pos : SV_Position) : SV_Depth
     return DepthTex.Load(int3(pos.xy, 0)).r;
 }";
         [StructLayout(LayoutKind.Sequential)]
-        private struct Constants { public Matrix InverseJittered,Unjittered,Previous; public Vector2 Size,InverseSize,Offset,Pad; }
+        private struct Constants { public Matrix InverseJittered,Unjittered,Previous; public Vector2 Size,InverseSize,Offset,Parts; }
         private static Device device;
         private static VertexShader vertex,boxVertex;
         private static PixelShader pixel,depthPixel,writePixel,objectsPixel,boxPixel;
@@ -174,21 +184,35 @@ float PSWrite(float4 pos : SV_Position) : SV_Depth
             Draw(context,null,width,height,writePixel,depth,writeAlways);
         }
 
-        internal static Texture2D Generate(Device current,ShaderResourceView depth,int width,int height,Matrix inverseJittered,Matrix unjittered,Matrix previous,bool objects=false)
+        // parts: DlssParts marked this eye at the same render size.
+        internal static Texture2D Generate(Device current,ShaderResourceView depth,int width,int height,Matrix inverseJittered,Matrix unjittered,Matrix previous,bool objects=false,bool parts=false)
         {
             Ensure(current,width,height);
             var context=current.ImmediateContext;
-            var data=new Constants { InverseJittered=inverseJittered,Unjittered=unjittered,Previous=previous,Size=new Vector2(width,height),InverseSize=new Vector2(1f/width,1f/height) };
+            parts&=objects && DlssParts.Count>0;
+            var data=new Constants { InverseJittered=inverseJittered,Unjittered=unjittered,Previous=previous,Size=new Vector2(width,height),InverseSize=new Vector2(1f/width,1f/height),
+                Parts=new Vector2(DlssObjects.BoxCount,parts ? 1:0) };
             context.UpdateSubresource(ref data,constants);
-            if(!objects || DlssObjects.BoxCount==0) { Draw(context,target,width,height,pixel,depth); return texture; }
+            if(!objects || DlssObjects.BoxCount==0 && !parts) { Draw(context,target,width,height,pixel,depth); return texture; }
             Write(context,boxes,DlssObjects.Boxes,DlssObjects.BoxCount);
-            Write(context,transforms,DlssObjects.Transforms,DlssObjects.TransformCount);
+            var mapped=context.MapSubresource(transforms,0,MapMode.WriteDiscard,SharpDX.Direct3D11.MapFlags.None);
+            var next=SharpDX.Utilities.Write(mapped.DataPointer,DlssObjects.Transforms,0,DlssObjects.TransformCount);
+            if(parts) SharpDX.Utilities.Write(next,DlssParts.Transforms,0,DlssParts.Count);
+            context.UnmapSubresource(transforms,0);
             context.ClearRenderTargetView(indexTarget,new SharpDX.Mathematics.Interop.RawColor4(0,0,0,0));
-            context.VertexShader.SetShaderResource(1,boxesView);
-            context.PixelShader.SetShaderResource(1,boxesView);
-            Draw(context,indexTarget,width,height,boxPixel,depth,null,boxVertex,bothFaces,DlssObjects.BoxCount);
+            if(DlssObjects.BoxCount>0)
+            {
+                context.VertexShader.SetShaderResource(1,boxesView);
+                context.PixelShader.SetShaderResource(1,boxesView);
+                Draw(context,indexTarget,width,height,boxPixel,depth,null,boxVertex,bothFaces,DlssObjects.BoxCount);
+            }
             context.PixelShader.SetShaderResource(2,transformsView);
             context.PixelShader.SetShaderResource(3,indexView);
+            if(parts)
+            {
+                context.PixelShader.SetShaderResource(4,DlssParts.Depth);
+                context.PixelShader.SetShaderResource(5,DlssParts.Stencil);
+            }
             Draw(context,target,width,height,objectsPixel,depth);
             return texture;
         }
@@ -245,7 +269,7 @@ float PSWrite(float4 pos : SV_Position) : SV_Depth
                 // No depth clip: far faces behind the far plane still mark their pixels.
                 bothFaces=new RasterizerState(current,new RasterizerStateDescription { CullMode=CullMode.None,FillMode=FillMode.Solid,IsDepthClipEnabled=false });
                 boxes=Structured(current,Marshal.SizeOf(typeof(DlssObjects.Box)),DlssObjects.MaxBoxes);
-                transforms=Structured(current,Marshal.SizeOf(typeof(Matrix)),DlssObjects.MaxBoxes+1);
+                transforms=Structured(current,Marshal.SizeOf(typeof(Matrix)),DlssObjects.MaxBoxes+1+DlssParts.MaxParts);
                 boxesView=new ShaderResourceView(current,boxes); transformsView=new ShaderResourceView(current,transforms);
                 writeAlways=new DepthStencilState(current,new DepthStencilStateDescription { IsDepthEnabled=true,DepthWriteMask=DepthWriteMask.All,DepthComparison=Comparison.Always });
                 constants=new Buffer(current,new BufferDescription(Marshal.SizeOf(typeof(Constants)),ResourceUsage.Default,BindFlags.ConstantBuffer,CpuAccessFlags.None,ResourceOptionFlags.None,0));

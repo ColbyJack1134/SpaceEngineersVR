@@ -24,12 +24,16 @@ namespace SpaceEngineersVR.Player
         private static volatile bool leftDrawn,rightDrawn,observerOnly;
         internal static bool Drawn(bool left) => left ? leftDrawn:rightDrawn;
         private static AccessTools.FieldRef<object,VRage.Render.Scene.Components.MyActorComponent> parentField;
-        private static MethodBase TargetMethod()
+        internal static Type Proxy => PatchGroup.Type("VRageRender.MyRenderableProxy");
+        internal static VRage.Render.Scene.Components.MyActorComponent Parent(object proxy) => parentField(proxy);
+        // Shared with DlssParts: the GBuffer draw of one proxy.
+        internal static MethodBase GBufferDraw()
         {
-            var proxy=PatchGroup.Type("VRageRender.MyRenderableProxy");
-            parentField=AccessTools.FieldRefAccess<object,VRage.Render.Scene.Components.MyActorComponent>(AccessTools.Field(proxy,"Parent") ?? throw new MissingFieldException("MyRenderableProxy.Parent"));
+            var proxy=Proxy;
+            parentField=parentField ?? AccessTools.FieldRefAccess<object,VRage.Render.Scene.Components.MyActorComponent>(AccessTools.Field(proxy,"Parent") ?? throw new MissingFieldException("MyRenderableProxy.Parent"));
             return PatchGroup.Method(PatchGroup.Type("VRageRender.MyGBufferPass"),"RecordCommandsInternal",new[] {proxy});
         }
+        private static MethodBase TargetMethod() => GBufferDraw();
         // In third person only the tracked observer gloves are hands, not the character's own.
         internal static void Begin(int width,int height,bool enabled,bool observer=false)
         {
@@ -67,21 +71,48 @@ namespace SpaceEngineersVR.Player
                 else if(material!="Arms" && material!="RightArm") return;
             }
             else if(left) leftDrawn=true; else rightDrawn=true;
-            var context=(DeviceContext)CockpitRender.Member(CockpitRender.Member(__instance,"RC"),"DeviceContext");
-            var buffer=CockpitRender.Member(__instance,"GBuffer");
+            Redraw(__instance,proxy,target);
+        }
+
+        // Repeats the proxy's GBuffer draw into another depth target with the engine's shaders and geometry; state, when given, also replaces the pixel shader with none.
+        internal static void Redraw(object pass,object proxy,DepthStencilView output,DepthStencilState state=null,int reference=0)
+        {
+            var context=(DeviceContext)CockpitRender.Member(CockpitRender.Member(pass,"RC"),"DeviceContext");
+            var buffer=CockpitRender.Member(pass,"GBuffer");
             var depth=(DepthStencilView)CockpitRender.Member(CockpitRender.Member(CockpitRender.Member(buffer,"DepthStencil"),"Dsv"),"Dsv");
             var colors=(RenderTargetView[])CockpitRender.Member(buffer,"GbufferRtvs");
+            DepthStencilState savedState=null;
+            PixelShader savedPixel=null;
+            int savedReference=0;
+            bool swapped=false;
             // Restore the exact bindings without changing the engine's cached state.
-            context.OutputMerger.SetRenderTargets(target,new RenderTargetView[0]);
             try
             {
+                if(state!=null)
+                {
+                    savedState=context.OutputMerger.GetDepthStencilState(out savedReference);
+                    savedPixel=context.PixelShader.Get();
+                    swapped=true;
+                    context.OutputMerger.SetDepthStencilState(state,reference);
+                    context.PixelShader.Set(null);
+                }
+                context.OutputMerger.SetRenderTargets(output,new RenderTargetView[0]);
                 var submesh=CockpitRender.Member(proxy,"DrawSubmesh");
                 int count=Convert.ToInt32(CockpitRender.Member(submesh,"IndexCount")),start=Convert.ToInt32(CockpitRender.Member(submesh,"StartIndex")),vertex=Convert.ToInt32(CockpitRender.Member(submesh,"BaseVertex"));
                 int instances=Convert.ToInt32(CockpitRender.Member(proxy,"InstanceCount"));
                 if(instances==0) context.DrawIndexed(count,start,vertex);
                 else context.DrawIndexedInstanced(count,instances,start,vertex,Convert.ToInt32(CockpitRender.Member(proxy,"StartInstance")));
             }
-            finally { context.OutputMerger.SetRenderTargets(depth,colors); }
+            finally
+            {
+                if(swapped)
+                {
+                    context.PixelShader.Set(savedPixel);
+                    context.OutputMerger.SetDepthStencilState(savedState,savedReference);
+                }
+                savedPixel?.Dispose(); savedState?.Dispose();
+                context.OutputMerger.SetRenderTargets(depth,colors);
+            }
         }
     }
 }

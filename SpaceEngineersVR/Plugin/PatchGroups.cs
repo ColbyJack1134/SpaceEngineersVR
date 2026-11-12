@@ -20,6 +20,7 @@ namespace SpaceEngineersVR.Plugin
         internal static readonly PatchGroup StereoScene=new PatchGroup("Stereo scene","StereoScene");
         internal static readonly PatchGroup SharedShadows=new PatchGroup("Shared shadows","SharedShadows");
         internal static readonly PatchGroup Dlss=new PatchGroup("DLSS","Dlss",when:()=>Player.Dlss.NvidiaAdapter);
+        internal static readonly PatchGroup DlssParts=new PatchGroup("DLSS part motion","DlssParts",requires:new[] {Dlss},when:()=>Player.Dlss.NvidiaAdapter);
         internal static readonly PatchGroup StereoShields=new PatchGroup("Stereo shields","StereoShields");
         internal static readonly PatchGroup HandOcclusion=new PatchGroup("Hand occlusion","HandOcclusion");
         internal static readonly PatchGroup BodyFade=new PatchGroup("Body fade","BodyFade");
@@ -65,7 +66,7 @@ namespace SpaceEngineersVR.Plugin
             HandOcclusion,BodyFade,CharacterBody,SeatFit,ScreenEffects,Tracers,HudRouting,HudMarkers,CameraFeeds,CameraDisplays,BlockInspection,GpuTiming,
             HandPlacement,CreativePlacement,BuildHints,GridSelection,HandInteraction,Spectator,ThirdPerson,Targeting,CockpitControls,CockpitBuilding,CockpitMemory,
             HeldTools,WeaponModels,VoxelTools,MultiplayerArms,MenuExtras,CursorClip,ModHud,BuildInfo,BuildVision,TouchScreens,ArthurLcd,WeaponCore,PaintGun,DigiTools};
-        private static readonly PatchGroup[] later={DoubleClick,Dlss};
+        private static readonly PatchGroup[] later={DoubleClick,Dlss,DlssParts};
 #if SEVR_DIAGNOSTICS
         internal static readonly HashSet<string> Broken=new HashSet<string>();
         internal static Action<string> Sink;

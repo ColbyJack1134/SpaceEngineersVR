@@ -144,8 +144,9 @@ namespace SpaceEngineersVR.Player
             // The hand layer shares the scene's rasterization; DLSS resamples it with the scene depth.
             var sceneSize=MyRender11.Resolution;
             NativeHandLayer.Begin(sceneSize.X,sceneSize.Y,handLayer,rig?.ThirdPerson==true);
+            Dlss.BeginParts(sceneSize);
             try { MyRender11.DrawGameScene(target, out ambientOcclusion); }
-            finally { NativeHandLayer.End(); }
+            finally { NativeHandLayer.End(); Dlss.EndParts(); }
             FeatureTiming.End(eye==EVREye.Eye_Left ? FeatureTiming.Area.SceneLeft : FeatureTiming.Area.SceneRight,sceneStart);
             GpuTiming.End(sceneArea);
             GpuTiming.Begin(uiArea);
