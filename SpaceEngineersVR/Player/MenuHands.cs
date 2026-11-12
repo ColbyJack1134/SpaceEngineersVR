@@ -47,6 +47,8 @@ namespace SpaceEngineersVR.Player
         private static Mesh box;
         private static readonly Texture2D[] eyes=new Texture2D[2];
         private static readonly RenderTargetView[] targets=new RenderTargetView[2];
+        // Both eyes go to the compositor in one texture, so a late frame updates neither eye rather than one.
+        private static Texture2D stereo;
         private static Texture2D depth;
         private static DepthStencilView depthView;
         public static ShaderResourceView Depth { get; private set; }
@@ -114,7 +116,8 @@ float4 PS(P p):SV_TARGET {
             sampler=new SamplerState(device,new SamplerStateDescription { Filter=SharpDX.Direct3D11.Filter.MinMagMipLinear,AddressU=TextureAddressMode.Wrap,AddressV=TextureAddressMode.Wrap,AddressW=TextureAddressMode.Wrap,MaximumLod=float.MaxValue });
             context=new DeviceContext(device);
         }
-        private static string CharacterModel => Main.WorldAvailable ? MySession.Static?.LocalCharacter?.Definition?.Model ?? GloveGeometry.DefaultModel:GloveGeometry.DefaultModel;
+        // Definitions use backslashes; one spelling keeps the menu glove cached for the world.
+        private static string CharacterModel => (Main.WorldAvailable ? MySession.Static?.LocalCharacter?.Definition?.Model ?? GloveGeometry.DefaultModel:GloveGeometry.DefaultModel).Replace('\\','/');
         private static Vector4 CharacterColor => new Vector4(Main.WorldAvailable ? MySession.Static?.LocalCharacter?.ColorMask ?? Vector3.Zero:new Vector3(0,-1,0),1);
         private static ShaderResourceView Texture(string path,bool color)
         {
@@ -187,10 +190,13 @@ float4 PS(P p):SV_TARGET {
         {
             if(eyes[0]!=null && eyes[0].Description.Width==size.X && eyes[0].Description.Height==size.Y) return;
             for(int i=0;i<2;i++) { targets[i]?.Dispose(); eyes[i]?.Dispose(); }
+            stereo?.Dispose(); stereo=null;
             Depth?.Dispose(); depthView?.Dispose(); depth?.Dispose();
             var desc=new Texture2DDescription { Width=size.X,Height=size.Y,MipLevels=1,ArraySize=1,
                 Format=Format.R8G8B8A8_UNorm,SampleDescription=new SampleDescription(1,0),BindFlags=BindFlags.RenderTarget|BindFlags.ShaderResource };
             for(int i=0;i<2;i++) { eyes[i]=new Texture2D(gpu,desc); targets[i]=new RenderTargetView(gpu,eyes[i]); }
+            desc.Width*=2;
+            stereo=new Texture2D(gpu,desc);
             depth=CreateDepth(gpu,size,out depthView,out var readable);
             Depth=readable;
         }
@@ -475,8 +481,12 @@ float4 PS(P p):SV_TARGET {
                     if(!Main.MenuFallback)
                         SpatialUi.Draw(eyes[eye],view,VrMath.Projection(l,r,t,b,.03),tracking:true);
                     FloatingKeyboard.Draw(eyes[eye],which);
-                    var bounds=new VRTextureBounds_t { uMax=1,vMax=1 };
-                    var result=VrSubmit.Eye(which,eyes[eye].NativePointer,EColorSpace.Gamma,ref bounds);
+                    gpu.ImmediateContext.CopySubresourceRegion(eyes[eye],0,null,stereo,0,eye*size.X,0);
+                }
+                for(int eye=0;eye<2;eye++)
+                {
+                    var bounds=new VRTextureBounds_t { uMin=eye*.5f,uMax=.5f+eye*.5f,vMax=1 };
+                    var result=VrSubmit.Eye((EVREye)eye,stereo.NativePointer,EColorSpace.Gamma,ref bounds);
                     if(result!=EVRCompositorError.None && result!=EVRCompositorError.DoNotHaveFocus) throw new InvalidOperationException("Menu hands submit: "+result);
                 }
                 return true;
