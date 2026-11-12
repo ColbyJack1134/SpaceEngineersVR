@@ -58,7 +58,7 @@ void CS(uint index : SV_GroupIndex)
             int eye = StereoRenderState.Active ? StereoRenderState.View : -1;
             if (exposure == null || eye < 0 || eye > 1) return false;
             var target = MyRender11.DeviceInstance;
-            if (device == null || device.NativePointer != target.NativePointer) Create(target);
+            Prepare(target);
             var source = (Buffer)CockpitRender.Member(histogram, "Resource");
             target.ImmediateContext.CopyResource(source, histograms[eye]);
             if (eye == 0)
@@ -79,10 +79,14 @@ void CS(uint index : SV_GroupIndex)
             return leftCaptured && eye >= 0 && eye <= 1 ? exposure.Instance : native;
         }
 
+        internal static void Prepare(Device target)
+        {
+            if (device == null || device.NativePointer != target.NativePointer) Create(target);
+        }
+
         internal static void Create(Device target)
         {
             DisposeResources();
-            device = target;
             commands = new DeviceContext(target);
             using (var shader = ShaderBytecode.Compile(MergeShader, "CS", "cs_5_0")) merge = new ComputeShader(target, shader);
             for (int i = 0; i < 2; i++)
@@ -91,6 +95,7 @@ void CS(uint index : SV_GroupIndex)
                     BindFlags.ShaderResource, CpuAccessFlags.None, ResourceOptionFlags.BufferStructured, 4));
                 views[i] = new ShaderResourceView(target, histograms[i]);
             }
+            device = target;
         }
 
         internal static void Merge(DeviceContext immediate, UnorderedAccessView output)

@@ -254,6 +254,7 @@ float PSWrite(float4 pos : SV_Position) : SV_Depth
             context.ComputeShader.SetShaderResources(0,nullViews);
         }
 
+        internal static void Prepare(Device current) => Ensure(current,0,0);
         private static void Ensure(Device current,int width,int height)
         {
             if(device==null || device.NativePointer!=current.NativePointer)

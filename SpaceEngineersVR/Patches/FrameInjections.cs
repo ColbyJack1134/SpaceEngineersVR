@@ -82,6 +82,7 @@ namespace SpaceEngineersVR.Patches
             try
             {
                 GetPoses();
+                Player.LoadingScreen.Warm();
                 if(Main.MenuFallback)
                 {
                     VRGUIManager.Draw();

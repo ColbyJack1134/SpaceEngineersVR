@@ -88,6 +88,7 @@ namespace SpaceEngineersVR.Player
         internal static void SetRuntimePath(string path) { }
         internal static void NotifyCut() { }
         internal static void BeginFrame(Vector2I size,CameraRig.Frame rig) { }
+        internal static void Prepare() { }
         internal static Vector2I Output(Vector2I size) => size;
         internal static Vector2 Jitter(int eye) => Vector2.Zero;
         internal static void Capture(int eye,EnvironmentMatrices env,MatrixD projection) { }
@@ -224,13 +225,9 @@ namespace SpaceEngineersVR.Player
             output=mode>0 ? Vector2I.Max(EyeResolution.Hud,size) : size;
             bool cut=transitions.Update(rig?.Epoch ?? -1,rig?.ThirdPerson==true,SpectatorView.Active,Main.MenuOpen,rig!=null,output,recenter);
             if(mode==0) { Release(); return; }
-            if(blocked!=null || runtimeMissing) return;
             try
             {
-                var current=MyRender11.DeviceInstance;
-                if(current==null) return;
-                if(Device==null || Device.NativePointer!=current.NativePointer) { Forget(); Device=current; }
-                if(!Ngx.Initialized && !Initialize()) return;
+                if(!Ready()) return;
                 // The eye size settles half a second after a mode change; FXAA covers those frames instead of a feature that is replaced at once.
                 bool dynamic=Common.Config.DynamicResolution;
                 var maxRender=Scaled(output,ModeScales[mode]);
@@ -252,6 +249,25 @@ namespace SpaceEngineersVR.Player
             pixels=Pixels(frame++);
             if(!announced) { announced=true; Logger.Info(Modes[mode]+" on: "+size.X+"x"+size.Y+" per eye"+(output!=size ? " to "+output.X+"x"+output.Y : "")+(eyes[0].Preset==Ngx.PresetF ? ", older model" : "")+"; NGX "+Ngx.DriverPath); }
             active=true;
+        }
+
+        // NGX start-up and the motion shaders block the render thread for seconds; the loading screen runs them before the first world frame.
+        internal static void Prepare()
+        {
+            if(Mode==0) return;
+            bool ready;
+            try { ready=Ready(); }
+            catch(Exception ex) { Block("DLSS off: "+ex.Message); return; }
+            // A motion shader failure repeats and is reported where the frame first draws motion.
+            if(ready) try { DlssMotion.Prepare(Device); } catch { }
+        }
+        private static bool Ready()
+        {
+            if(blocked!=null || runtimeMissing) return false;
+            var current=MyRender11.DeviceInstance;
+            if(current==null) return false;
+            if(Device==null || Device.NativePointer!=current.NativePointer) { Forget(); Device=current; }
+            return Ngx.Initialized || Initialize();
         }
 
         private static bool Initialize()

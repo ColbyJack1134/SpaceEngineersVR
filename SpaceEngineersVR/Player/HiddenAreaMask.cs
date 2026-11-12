@@ -144,6 +144,10 @@ float4 PS() : SV_Target { return Depth.y; }";
             initialized=true;
         }
 
+        internal static void Prepare()
+        {
+            if(!initialized && Plugin.PatchGroups.LensMask.Enabled && Common.Config?.HiddenAreaMask==true) Initialize();
+        }
         private static void Initialize()
         {
             initialized=true;

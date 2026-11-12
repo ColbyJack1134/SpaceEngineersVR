@@ -50,6 +50,7 @@ namespace SpaceEngineersVR.Plugin
         internal static readonly PatchGroup VoxelTools=new PatchGroup("Voxel tools","VoxelTools");
         internal static readonly PatchGroup MultiplayerArms=new PatchGroup("Multiplayer arms","MultiplayerArms");
         internal static readonly PatchGroup MenuExtras=new PatchGroup("Menu extras","MenuExtras");
+        internal static readonly PatchGroup LoadingScreen=new PatchGroup("Loading screen","LoadingScreen");
         internal static readonly PatchGroup CursorClip=new PatchGroup("Cursor clip","CursorClip");
         internal static readonly PatchGroup ModHud=new PatchGroup("Mod HUD","ModHud");
         internal static readonly PatchGroup BuildInfo=new PatchGroup("Build Info","BuildInfo",requires:new[] {ModHud,HandPlacement});
@@ -65,7 +66,7 @@ namespace SpaceEngineersVR.Plugin
         internal static readonly PatchGroup[] All={Core,SharedExposure,LensMask,StereoFlares,StereoFoliage,StereoParticles,StereoScene,SharedShadows,StereoShields,
             HandOcclusion,BodyFade,CharacterBody,SeatFit,ScreenEffects,Tracers,HudRouting,HudMarkers,CameraFeeds,CameraDisplays,BlockInspection,GpuTiming,
             HandPlacement,CreativePlacement,BuildHints,GridSelection,HandInteraction,Spectator,ThirdPerson,Targeting,CockpitControls,CockpitBuilding,CockpitMemory,
-            HeldTools,WeaponModels,VoxelTools,MultiplayerArms,MenuExtras,CursorClip,ModHud,BuildInfo,BuildVision,TouchScreens,ArthurLcd,WeaponCore,PaintGun,DigiTools};
+            HeldTools,WeaponModels,VoxelTools,MultiplayerArms,MenuExtras,LoadingScreen,CursorClip,ModHud,BuildInfo,BuildVision,TouchScreens,ArthurLcd,WeaponCore,PaintGun,DigiTools};
         private static readonly PatchGroup[] later={DoubleClick,Dlss,DlssParts};
 #if SEVR_DIAGNOSTICS
         internal static readonly HashSet<string> Broken=new HashSet<string>();
