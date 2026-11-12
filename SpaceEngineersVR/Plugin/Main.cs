@@ -257,6 +257,12 @@ namespace SpaceEngineersVR.Plugin
                 ShutdownPending = shutdownRequested;
             }
             if(OpenVrAlive && !shutdownRequested && SteamVrQuit()) { shutdownRequested=true; Fail(new InvalidOperationException("SteamVR quit"),"SteamVR closed; continuing on the desktop"); return; }
+            // After a VR failure the router no longer updates, but SteamVR still opens its dashboard when the headset sleeps.
+            if(failed && !menuFallback && OpenVrAlive && !shutdownRequested)
+            {
+                try { Player.InputRouter.ReleaseStrandedOverlay(Player.VrSubmit.HeadsetAsleep); }
+                catch(Exception ex) { Logger.Warning(ex,"Steam overlay release"); }
+            }
             if(menuFallback)
             {
                 try { UpdateFallbackMenu(); }

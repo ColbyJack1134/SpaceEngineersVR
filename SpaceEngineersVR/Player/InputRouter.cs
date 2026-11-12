@@ -24,7 +24,7 @@ namespace SpaceEngineersVR.Player
         // Headset asleep, off or SteamVR reconnecting: VR input is blocked and the desktop keeps the game's own input, Esc included.
         internal static bool HeadsetAway { get; private set; }
         // Powering the headset off with the SteamVR dashboard open never reports the Steam overlay closed, so its pause and input block never lift.
-        private static void ReleaseStrandedOverlay(bool gone)
+        internal static void ReleaseStrandedOverlay(bool gone)
         {
             if(!gone) { lostAt=DateTime.MinValue; overlayChecked=false; return; }
             var now=DateTime.UtcNow;
