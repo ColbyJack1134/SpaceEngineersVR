@@ -54,20 +54,37 @@ namespace SpaceEngineersVR.Diagnostics
             log("PASS stick axes: grabbed shaft lean, compound tilt/twist isolation, translation mapping and projected yaw.");
             {
                 var tuning=new Multiplayer.FlightTuning();
-                Near(CockpitStickMath.HandSteering(Matrix.Identity,tuning,false),Vector3.Zero,"Hand steering kicks at grip");
-                Require(CockpitStickMath.HandSteering(Matrix.CreateRotationX(.03f),tuning,false)==Vector3.Zero,"Hand steering ignores its deadzone");
+                Near(CockpitStickMath.HandSteering(Matrix.Identity,Matrix.Identity,tuning,false),Vector3.Zero,"Hand steering kicks at grip");
+                Require(CockpitStickMath.HandSteering(Matrix.Identity,Matrix.CreateRotationX(.03f),tuning,false)==Vector3.Zero,"Hand steering ignores its deadzone");
                 foreach(var turn in new[] {Matrix.CreateRotationX(CockpitStickMath.TiltRange),Matrix.CreateRotationY(CockpitStickMath.TiltRange),Matrix.CreateRotationZ(CockpitStickMath.TwistRange)})
                 foreach(int sign in new[] {-1,1})
                 {
                     var delta=sign>0 ? turn:Matrix.Transpose(turn);
-                    var normal=CockpitStickMath.HandSteering(delta,tuning,false);
+                    var normal=CockpitStickMath.HandSteering(Matrix.Identity,delta,tuning,false);
                     Near(normal,CockpitStickMath.Rotation(Matrix.Identity,delta,0,true),"Hand steering sign differs from the stick");
-                    Near(CockpitStickMath.HandSteering(delta,tuning,true),new Vector3(-normal.X,normal.Y,normal.Z),"Invert pitch changes another axis");
+                    Near(CockpitStickMath.HandSteering(Matrix.Identity,delta,tuning,true),new Vector3(-normal.X,normal.Y,normal.Z),"Invert pitch changes another axis");
                 }
+                // A controller held pitched down and rolled must still turn on the seat's axes.
+                Matrix held=Matrix.CreateRotationX(-.7f)*Matrix.CreateRotationZ(.35f);
+                var yaw=CockpitStickMath.HandSteering(held,held*Matrix.CreateRotationY(CockpitStickMath.TiltRange),tuning,false);
+                Require(Math.Abs(yaw.Y)>.9f && Math.Abs(yaw.X)<.01f && Math.Abs(yaw.Z)<.01f,"Held controller tilt couples yaw into other axes: "+yaw);
+                var twist=CockpitStickMath.HandSteering(held,held*Matrix.CreateRotationZ(CockpitStickMath.TwistRange),tuning,false);
+                Require(Math.Abs(twist.Z)>.9f && Math.Abs(twist.X)<.01f && Math.Abs(twist.Y)<.01f,"Held controller tilt couples roll into other axes: "+twist);
                 tuning.Rotation=2;
-                Near(CockpitStickMath.HandSteering(Matrix.CreateRotationX(CockpitStickMath.TiltRange/2),tuning,false),-Vector3.Right,"Hand steering ignores rotation sensitivity");
+                Near(CockpitStickMath.HandSteering(Matrix.Identity,Matrix.CreateRotationX(CockpitStickMath.TiltRange/2),tuning,false),-Vector3.Right,"Hand steering ignores rotation sensitivity");
             }
-            log("PASS hand-relative steering: stick signs, deadzone, sensitivity and invert pitch.");
+            log("PASS hand-relative steering: stick signs, deadzone, sensitivity, invert pitch and held controller tilt.");
+            {
+                var tuning=new Multiplayer.FlightTuning();
+                var origin=new Vector3(-.2f,1.1f,-.3f);
+                Require(CockpitStickMath.HandTranslation(origin,origin+new Vector3(0,.005f,0),tuning)==Vector3.Zero,"Hand translation ignores its deadzone");
+                foreach(var axis in new[] {Vector3.Right,Vector3.Up,Vector3.Forward,Vector3.Left,Vector3.Down,Vector3.Backward})
+                    Near(CockpitStickMath.HandTranslation(origin,origin+axis*CockpitStickMath.HandTravel,tuning),axis,"Hand translation axis differs from the hand offset");
+                Near(CockpitStickMath.HandTranslation(origin,origin+Vector3.Up*CockpitStickMath.HandTravel*3,tuning),Vector3.Up,"Hand translation exceeds full thrust");
+                tuning.Translation=2;
+                Near(CockpitStickMath.HandTranslation(origin,origin+Vector3.Right*CockpitStickMath.HandTravel/2,tuning),Vector3.Right,"Hand translation ignores translation sensitivity");
+            }
+            log("PASS hand-relative translation: deadzone, axes, full thrust clamp and sensitivity.");
             foreach(var move in new[] {new Vector3(.4f,0,0),new Vector3(0,.4f,0),new Vector3(0,0,-.4f)})
                 Near(CockpitStickMath.Translation(Matrix.Identity,CockpitStickMath.Visual(Vector3.Zero,HotasHands.LeftAngles(move)),0,true),move,"HOTAS left stick lean does not command its axes");
             foreach(var turn in new[] {new Vector3(.4f,0,0),new Vector3(0,.4f,0),new Vector3(0,0,.4f)})

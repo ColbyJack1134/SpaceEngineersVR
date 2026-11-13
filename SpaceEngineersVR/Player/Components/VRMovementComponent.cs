@@ -15,7 +15,11 @@ namespace SpaceEngineersVR.Player.Components
     {
         private static VRMovementComponent active;
         private Sandbox.Game.Entities.IMyControllableEntity inputOwner;
-        private bool virtualStickHeld;
+        private bool virtualStickHeld,handTranslationHeld,handMoveGrip;
+        private readonly CockpitFeedback.StickPulse virtualSteeringDetent=new CockpitFeedback.StickPulse(),virtualTranslationDetent=new CockpitFeedback.StickPulse();
+        private readonly CockpitFeedback.MotionPulse virtualSteeringMotion=new CockpitFeedback.MotionPulse(),virtualTranslationMotion=new CockpitFeedback.MotionPulse();
+        private System.DateTime virtualSteeringPulse,virtualTranslationPulse,virtualSteeringGrab,virtualTranslationGrab;
+        private Vector3 handTranslationOrigin;
         private bool firstMovementTick = true;
         private bool firstCameraAfterTick = true;
         private Matrix virtualStickOrigin;
@@ -176,7 +180,9 @@ namespace SpaceEngineersVR.Player.Components
                 controlled?.MoveAndRotateStopped();
             }
             StopTools(controlled);
-            hadControllerMovement = wasShooting = wasSecondary = secondaryShooting = lockChordWas = virtualStickHeld = false;
+            hadControllerMovement = wasShooting = wasSecondary = secondaryShooting = lockChordWas = virtualStickHeld = handTranslationHeld = false;
+            VirtualFeedback(Player.HandL,false,Vector3.Zero,virtualTranslationDetent,virtualTranslationMotion,ref virtualTranslationPulse,virtualTranslationGrab);
+            VirtualFeedback(Player.HandR,false,Vector3.Zero,virtualSteeringDetent,virtualSteeringMotion,ref virtualSteeringPulse,virtualSteeringGrab);
             inputOwner = null;
         }
 
@@ -208,23 +214,41 @@ namespace SpaceEngineersVR.Player.Components
 
             Vector3 move=Vector3.Zero; Vector2 rotate=Vector2.Zero; float roll=0;
             bool controllerFlight=FlightAxes.ControllerInputAllowed(true,ThirdPersonView.Active || RemoteView.RemoteGrid && RemoteView.HomeSeat==null,Common.Config.PhysicalShipControlsOnly);
+            // The left grip descends unless it moves the ship by hand.
+            handMoveGrip=controllerFlight && !ThirdPersonView.Active && !CockpitControls.TranslationOwned && !CockpitControls.IsSteering && Common.Config.HandRelativeShipTranslation;
+            bool wasHandTranslationHeld=handTranslationHeld;
+            handTranslationHeld=handMoveGrip && controls.GripClick(Player.HandL).IsPressed && Player.HandL.pose.isTracked;
             if(controllerFlight || CockpitControls.NeedsControllerTranslation || CockpitControls.NeedsControllerRotation)
             {
                 ReadFlightInput(true,out move,out rotate,out roll);
                 FlightAxes.MissingStickAxes(controllerFlight,CockpitControls.NeedsControllerTranslation,CockpitControls.NeedsControllerRotation,ref move,ref rotate,ref roll);
             }
 
+            Vector3 handMove=Vector3.Zero;
+            if (handTranslationHeld)
+            {
+                Vector3 position = Player.HandL.deviceToPlayer.Translation;
+                if (!wasHandTranslationHeld) handTranslationOrigin = position;
+                handMove=CockpitStickMath.HandTranslation(handTranslationOrigin, position, SeatTuning);
+                move = Vector3.Clamp(move + handMove, -Vector3.One, Vector3.One);
+            }
+            FeedbackVirtualGrip(Player.HandL,handTranslationHeld,wasHandTranslationHeld,handMove,virtualTranslationDetent,virtualTranslationMotion,ref virtualTranslationPulse,ref virtualTranslationGrab);
+
+            bool wasVirtualStickHeld=virtualStickHeld;
+            Vector3 steering=Vector3.Zero;
             if (controllerFlight && !ThirdPersonView.Active && !CockpitControls.RotationOwned && !CockpitControls.IsSteering && Common.Config.HandRelativeShipSteering && controls.ThrustRoll.IsPressed && Player.HandR.pose.isTracked)
             {
                 Matrix hand = Player.HandR.deviceToPlayer;
                 hand.Translation = Vector3.Zero;
-                if (!virtualStickHeld) virtualStickOrigin = hand;
-                var command = CockpitStickMath.HandSteering(hand * Matrix.Invert(virtualStickOrigin), SeatTuning, Common.Config.InvertShipPitch);
+                if (!wasVirtualStickHeld) virtualStickOrigin = hand;
+                var command = CockpitStickMath.HandSteering(virtualStickOrigin, hand, SeatTuning, Common.Config.InvertShipPitch);
                 rotate = new Vector2(command.X, command.Y) * RotationSpeed;
                 roll = FlightAxes.Roll(command.Z, true, RotationSpeed, Common.Config.ShipRollSensitivity);
+                steering=new Vector3(command.X,command.Z,command.Y);
                 virtualStickHeld = true;
             }
             else virtualStickHeld = false;
+            FeedbackVirtualGrip(Player.HandR,virtualStickHeld,wasVirtualStickHeld,steering,virtualSteeringDetent,virtualSteeringMotion,ref virtualSteeringPulse,ref virtualSteeringGrab);
 
             CockpitControls.ApplyFlight(RotationSpeed,ref move,ref rotate,ref roll);
             // With nothing selected the trigger is the throttle, except on WeaponCore grids, where it fires without a selection.
@@ -244,6 +268,25 @@ namespace SpaceEngineersVR.Player.Components
                 ClearStuckThrust(ship,move);
                 ApplyMoveAndRotation(move, rotate, roll);
             }
+        }
+
+        private static void FeedbackVirtualGrip(Controller hand,bool held,bool wasHeld,Vector3 axes,CockpitFeedback.StickPulse detent,
+            CockpitFeedback.MotionPulse motion,ref System.DateTime nextPulse,ref System.DateTime grabbed)
+        {
+            var now=System.DateTime.UtcNow;
+            if(held && !wasHeld) { grabbed=now; hand.Vibrate(0,.055f,110,.5f); }
+            VirtualFeedback(hand,held,axes,detent,motion,ref nextPulse,grabbed);
+            if(!held && wasHeld) hand.Vibrate(0,.025f,75,.2f);
+        }
+
+        private static void VirtualFeedback(Controller hand,bool held,Vector3 axes,CockpitFeedback.StickPulse detent,
+            CockpitFeedback.MotionPulse motion,ref System.DateTime nextPulse,System.DateTime grabbed)
+        {
+            var now=System.DateTime.UtcNow;
+            int pulse=detent.Sample(held,axes,now);
+            if(pulse!=0) CockpitFeedback.Stick(hand,pulse,ref nextPulse);
+            float amplitude=motion.Sample(held,axes,now,now<nextPulse || (now-grabbed).TotalSeconds<.08);
+            if(amplitude>0) hand.Vibrate(0,.012f,85,amplitude);
         }
 
         // The engine clears thrust only with move, rotation and roll all zero, so a held rotation stick can keep an old command alive.
@@ -334,10 +377,10 @@ namespace SpaceEngineersVR.Player.Components
         private void ReadFlightInput(bool ship, out Vector3 move, out Vector2 rotate, out float roll)
         {
             var controls = Controls.Static;
-            float up=ship && !CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) ? 0 : controls.ThrustUp.Position.X,back=controls.ThrustBackward.Position.X;
+            float up=ship && !CockpitControls.IsSteering && (CockpitControls.Held(Player.HandL) || handTranslationHeld) ? 0 : controls.ThrustUp.Position.X,back=controls.ThrustBackward.Position.X;
             if(ship) FlightAxes.ApplyLeftTrigger(SeatTuning.LeftTrigger,ref up,ref back);
             move = FlightAxes.Translation(controls.ThrustLRUD.Position, controls.ThrustLRFB.Position,
-                up, WeaponHandling.ConsumesSupportGrip || ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) ? 0 : ThirdPersonView.Descent(controls.ThrustDown.Position.X), controls.ThrustForward.Position.X, back);
+                up, WeaponHandling.ConsumesSupportGrip || ship && handMoveGrip || ship && CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) ? 0 : ThirdPersonView.Descent(controls.ThrustDown.Position.X), controls.ThrustForward.Position.X, back);
             float rollSensitivity = ship ? Common.Config.ShipRollSensitivity : Common.Config.JetpackRoll;
             bool rollModifier=RollModifier(ship);
             FlightAxes.Rotation(controls.ThrustRotate.Position, rollModifier, ship, RotationSpeed, rollSensitivity, out rotate, out roll,ship ? Common.Config.InvertShipPitch : Common.Config.InvertJetpackPitch);
@@ -369,8 +412,8 @@ namespace SpaceEngineersVR.Player.Components
             !ClearTerrain.Active && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Handedness.ActionHand) &&
             FlightAxes.StickTriggerAllowed(MySession.Static?.ControlledEntity is MyShipController,Common.Config.PhysicalShipControlsOnly,
                 CockpitControls.SticksAvailable,CockpitControls.AnyHeld);
-        // Grip + trigger is ship and turret secondary, as with tools on foot. A held physical stick owns the grip.
-        private static bool ShipChord => Controls.Static.Fire.IsPressed && Controls.Static.ActionGripClick.IsPressed && !CockpitControls.Held(Handedness.ActionHand);
+        // Grip + trigger is ship and turret secondary, as with tools on foot. A held stick owns the grip.
+        private static bool ShipChord => Controls.Static.Fire.IsPressed && Controls.Static.ActionGripClick.IsPressed && !CockpitControls.Held(Handedness.ActionHand) && active?.virtualStickHeld!=true;
         internal static bool PrimaryFire => PrimaryPressed && !TriggerArm.AnyArmed && !((MySession.Static?.ControlledEntity is MyShipController || RemoteView.Turret) && ShipChord);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -380,7 +423,7 @@ namespace SpaceEngineersVR.Player.Components
 
             var controlledEntity = MySession.Static.ControlledEntity;
             bool turret=RemoteView.Turret;
-            bool stickAction=(controlledEntity is MyShipController || turret) && InputRouter.CockpitInteraction && !CockpitControls.IsSteering && CockpitControls.Held(Player.HandL) &&
+            bool stickAction=(controlledEntity is MyShipController || turret) && InputRouter.CockpitInteraction && !CockpitControls.IsSteering && (CockpitControls.Held(Player.HandL) || handTranslationHeld) &&
                 !CockpitControls.Adjusting && !PlacementControls.OwnsTools && !BlockInspection.ConsumesSecondary && !HelmetHud.ProtectsRight &&
                 !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Player.HandL) && !FloatingWindows.OwnsInput && Player.HandL.pose.isTracked;
             stickSecondary.Update(stickAction && controls.LeftTriggerPressure.Active && controls.LeftTriggerPressure.CanPress,
@@ -389,7 +432,7 @@ namespace SpaceEngineersVR.Player.Components
             bool ship=controlledEntity is MyShipController;
             var action=Handedness.ActionHand;
             var grip=controls.ActionGripClick;
-            bool gripSecondary=FlightAxes.SecondaryGrip(InputRouter.Flying,ship,CockpitControls.RotationOwned,CockpitControls.NearGrip(action),controls.ThrustRotate.RawPosition);
+            bool gripSecondary=FlightAxes.SecondaryGrip(InputRouter.Flying,ship,CockpitControls.RotationOwned || virtualStickHeld,CockpitControls.NearGrip(action),controls.ThrustRotate.RawPosition);
             bool uiOwnsAction=SpatialUi.Owns(action) || CockpitTouch.Owns(action) || HandInteraction.Consumes(action) || FloatingWindows.OwnsInput || TouchScreenBridge.OwnsInput || ArthurLcdBridge.Owns(action);
             bool chord=(ship || turret) && ShipChord && !uiOwnsAction;
             if(chord) primaryPressed=false;

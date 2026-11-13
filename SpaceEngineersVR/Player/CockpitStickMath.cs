@@ -111,13 +111,24 @@ namespace SpaceEngineersVR.Player
         }
         private static float TowardZero(float v,float step) => Math.Sign(v)*Math.Max(0,Math.Abs(v)-step);
         // Pointing direction gives pitch and yaw, wrist roll gives roll, all relative to the hand at grip; signs match the stick's Rotation.
-        internal static Vector3 HandSteering(Matrix delta,Multiplayer.FlightTuning tuning,bool invertPitch)
+        // Measured in seat space, not relative to the gripped controller's tilt, so a sideways wrist turn does not read as twist.
+        internal static Vector3 HandSteering(Matrix origin,Matrix hand,Multiplayer.FlightTuning tuning,bool invertPitch)
         {
+            Matrix delta=Matrix.Invert(origin)*hand;
             var forward=delta.Forward;
             var aim=new Vector2(-(float)Math.Atan2(forward.Y,-forward.Z),(float)Math.Atan2(forward.X,-forward.Z));
             Vector2 tilt=Tilt(aim*tuning.Rotation/TiltRange,tuning.TiltDeadzone);
             float roll=Axis((float)Math.Atan2(delta.Up.X,delta.Up.Y)*tuning.Rotation/TwistRange,tuning.TwistDeadzone);
             return Response(new Vector3(invertPitch ? -tilt.X:tilt.X,tilt.Y,roll),tuning.RotationCurve);
+        }
+        // Hand offset in meters for full translation.
+        internal const float HandTravel=.1f;
+        internal static Vector3 HandTranslation(Vector3 origin,Vector3 hand,Multiplayer.FlightTuning tuning)
+        {
+            Vector3 offset=(hand-origin)*tuning.Translation/HandTravel;
+            float length=offset.Length(),deadzone=tuning.TiltDeadzone;
+            if (!(length>deadzone) || float.IsInfinity(length)) return Vector3.Zero;
+            return Response(Vector3.Clamp(offset*((length-deadzone)/(1-deadzone)/length),-Vector3.One,Vector3.One),tuning.TranslationCurve);
         }
         internal static Vector2 Tilt(Vector2 value,float deadzone)
         {

@@ -49,6 +49,7 @@ namespace SpaceEngineersVR.GUI
             ["Tracked arms"]="Arms follow your controllers",
             ["Show laser on interactables"]="Laser shows while pointing at something usable",
             ["Hand-relative ship steering"]="Steer by tilting your hand while not holding a stick",
+            ["Hand-relative ship translation"]="Hold left grip and move your hand to strafe, rise and fly forward",
             ["Double-tap to keep tools running"]="Double-tap trigger to lock tools on",
             ["Clear terrain toggle"]="Tap grip with a drill to toggle",
             ["Right stick up jumps"]="Stick up jumps, or stands from crouch",

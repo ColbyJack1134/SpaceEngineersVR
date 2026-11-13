@@ -48,7 +48,7 @@ namespace SpaceEngineersVR.Config
         private bool trackedArms = true;
         private bool adaptiveArms = true;
         public bool AdaptiveArms { get => adaptiveArms; set => SetValue(ref adaptiveArms,value); }
-        private bool handRelativeShipSteering,physicalShipControlsOnly,holdGripRotation;
+        private bool handRelativeShipSteering,handRelativeShipTranslation,physicalShipControlsOnly,holdGripRotation;
         public bool PhysicalShipControlsOnly { get => physicalShipControlsOnly; set => SetValue(ref physicalShipControlsOnly,value); }
         private bool bodyCalibrated,seatedPlay,fitBodyOnFoot,setupCompleted;
         public bool SetupCompleted { get => setupCompleted; set => SetValue(ref setupCompleted,value); }
@@ -181,6 +181,7 @@ namespace SpaceEngineersVR.Config
         // Saved under its earlier name so existing profiles keep the setting.
         [System.Xml.Serialization.XmlElement("LegacyShipTilt")]
         public bool HandRelativeShipSteering { get => handRelativeShipSteering; set => SetValue(ref handRelativeShipSteering, value); }
+        public bool HandRelativeShipTranslation { get => handRelativeShipTranslation; set => SetValue(ref handRelativeShipTranslation, value); }
         public bool HoldGripRotation { get => holdGripRotation; set => SetValue(ref holdGripRotation, value); }
         private bool clearTerrainToggle;
         public bool ClearTerrainToggle { get => clearTerrainToggle; set => SetValue(ref clearTerrainToggle,value); }

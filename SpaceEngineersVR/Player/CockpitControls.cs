@@ -51,6 +51,7 @@ namespace SpaceEngineersVR.Player
         public static bool Adjusting => placement.Unlocked;
         public static bool CanAdjust => seat!=null && !IsSteering && Eligible(seat) && CockpitRender.Ready && InputRouter.CockpitInteraction && !Main.MenuOpen;
         public static bool RotationOwned => Adjusting || !IsSteering && right.Consumed;
+        public static bool TranslationOwned => Adjusting || !IsSteering && left.Consumed;
         // A seat with one stick keeps it as a left (translation) stick; the controller supplies the missing stick's axes.
         internal static bool NeedsControllerTranslation => Rig!=null && (Rig.Left==null || IsSteering && Rig.Right==null);
         internal static bool NeedsControllerRotation => Rig!=null && !IsSteering && Rig.Right==null;
@@ -339,8 +340,8 @@ namespace SpaceEngineersVR.Player
             int barEvent=barDetent.Sample(barTilt.Active || YokeMode && yoke.Active,new Vector3(feedbackTranslation.X,0,feedbackTranslation.Z),now);
             if(barEvent!=0)
             {
-                if(left.Held) Pulse(Player.HandL,barEvent,ref leftPulse);
-                if(right.Held) Pulse(Player.HandR,barEvent,ref rightPulse);
+                if(left.Held) CockpitFeedback.Stick(Player.HandL,barEvent,ref leftPulse);
+                if(right.Held) CockpitFeedback.Stick(Player.HandR,barEvent,ref rightPulse);
                 barPulse=now.AddMilliseconds(130);
             }
             bool sharedFeedback=barTilt.Active || YokeMode && yoke.Active;
@@ -360,13 +361,7 @@ namespace SpaceEngineersVR.Player
             var now=DateTime.UtcNow;
             int pulse=detent.Sample(held,axes,now);
             if(pulse==0 || suppressed) return;
-            Pulse(hand,pulse,ref next);
-        }
-        private static void Pulse(Controller hand,int pulse,ref DateTime next)
-        {
-            bool center=pulse==1;
-            hand.Vibrate(0,center ? .018f : .045f,center ? 150 : 75,center ? .32f : .38f);
-            next=DateTime.UtcNow.AddMilliseconds(130);
+            CockpitFeedback.Stick(hand,pulse,ref next);
         }
         public static void RefreshVisuals()
         {

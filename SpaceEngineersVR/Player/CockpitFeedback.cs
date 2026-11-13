@@ -122,5 +122,11 @@ namespace SpaceEngineersVR.Player
             float amplitude=motion[Index(hand)].Sample(held,input,DateTime.UtcNow,suppressed);
             if(amplitude>0) hand.Vibrate(0,.012f,85,amplitude);
         }
+        internal static void Stick(Controller hand,int pulse,ref DateTime next)
+        {
+            bool center=pulse==1;
+            hand.Vibrate(0,center ? .018f : .045f,center ? 150 : 75,center ? .32f : .38f);
+            next=DateTime.UtcNow.AddMilliseconds(130);
+        }
     }
 }

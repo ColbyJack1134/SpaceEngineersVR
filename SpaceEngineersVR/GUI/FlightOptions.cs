@@ -26,11 +26,12 @@ namespace SpaceEngineersVR.GUI
             base.RecreateControls(constructor);
             AddCaption("VR Flight Options");
             var config=Common.Config;
-            AddSensitivity(-0.23f,"Jetpack roll",config.JetpackRoll,PluginConfig.DefaultJetpackRoll,v=>config.JetpackRoll=v,PluginConfig.JetpackRollPercent,PluginConfig.MinJetpackRoll,PluginConfig.MaxJetpackRoll);
-            AddSensitivity(-0.09f,"Ship roll",config.ShipRollSensitivity,PluginConfig.DefaultShipRollSensitivity,v=>config.ShipRollSensitivity=v,100,PluginConfig.MinRollSensitivity,PluginConfig.MaxRollSensitivity);
-            AddToggle(.055f,"Invert ship pitch",config.InvertShipPitch,v=>config.InvertShipPitch=v);
-            AddToggle(.13f,"Physical ship sticks only (first person)",config.PhysicalShipControlsOnly,v=>config.PhysicalShipControlsOnly=v);
-            AddToggle(.205f,"Hand-relative ship steering",config.HandRelativeShipSteering,v=>config.HandRelativeShipSteering=v);
+            AddSensitivity(-0.27f,"Jetpack roll",config.JetpackRoll,PluginConfig.DefaultJetpackRoll,v=>config.JetpackRoll=v,PluginConfig.JetpackRollPercent,PluginConfig.MinJetpackRoll,PluginConfig.MaxJetpackRoll);
+            AddSensitivity(-0.14f,"Ship roll",config.ShipRollSensitivity,PluginConfig.DefaultShipRollSensitivity,v=>config.ShipRollSensitivity=v,100,PluginConfig.MinRollSensitivity,PluginConfig.MaxRollSensitivity);
+            AddToggle(.0f,"Invert ship pitch",config.InvertShipPitch,v=>config.InvertShipPitch=v);
+            AddToggle(.07f,"Physical ship sticks only (first person)",config.PhysicalShipControlsOnly,v=>config.PhysicalShipControlsOnly=v);
+            AddToggle(.14f,"Hand-relative ship steering",config.HandRelativeShipSteering,v=>config.HandRelativeShipSteering=v);
+            AddToggle(.21f,"Hand-relative ship translation",config.HandRelativeShipTranslation,v=>config.HandRelativeShipTranslation=v);
             Controls.Add(new MyGuiControlButton(new Vector2(-0.285f,0.32f),size:new Vector2(0.18f,0.055f),text:new StringBuilder("Reset roll"),onButtonClick:b=> {
                 config.JetpackRoll=PluginConfig.DefaultJetpackRoll;
                 config.ShipRollSensitivity=PluginConfig.DefaultShipRollSensitivity;
