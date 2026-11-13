@@ -77,6 +77,8 @@ namespace SpaceEngineersVR.Player
                 RenderEye(EVREye.Eye_Left, leftTexture, matrices, gameView, sceneCamera, originInverse,rig,out leftAmbient);
                 if(leftAmbient!=null) { new BorrowedRtvTexture(leftAmbient).Release(); leftAmbient=null; }
                 RenderEye(EVREye.Eye_Right, rightTexture, matrices, gameView, sceneCamera, originInverse,rig,out rightAmbient);
+                SubmitEye(EVREye.Eye_Left,leftTexture);
+                SubmitEye(EVREye.Eye_Right,rightTexture);
                 GpuTiming.Begin(GpuTiming.Area.Companion);
                 var source=(SharpDX.Direct3D11.Texture2D)leftTexture.GetResource();
                 var destination=(SharpDX.Direct3D11.Texture2D)MyRender11.GetBackbuffer().GetResource();
@@ -167,8 +169,12 @@ namespace SpaceEngineersVR.Player
             TargetFeedback.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),GridSelection.Active || TargetLock.Aiming ? RenderFrameBridge.Selection:null,view,projection,PhysicalSurface.SceneDepth());
             if(rig?.ThirdPerson!=true) HoloSight.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),RenderFrameBridge.Holo,view,projection,PhysicalSurface.SceneDepth());
             GpuTiming.End(uiArea);
-            var error = VrSubmit.Eye(eye,target.GetResource().NativePointer,EColorSpace.Auto,ref bounds);
             StereoRenderState.Record("eye",timing.Elapsed.TotalMilliseconds,world.Translation.X,world.Translation.Y,world.Translation.Z,projection.M11,projection.M22,projection.M31,projection.M32);
+        }
+
+        private void SubmitEye(EVREye eye,BorrowedRtvTexture target)
+        {
+            var error = VrSubmit.Eye(eye,target.GetResource().NativePointer,EColorSpace.Auto,ref bounds);
             if (error != EVRCompositorError.None && error != EVRCompositorError.DoNotHaveFocus)
                 throw new InvalidOperationException("OpenVR eye submission failed: " + error);
         }
