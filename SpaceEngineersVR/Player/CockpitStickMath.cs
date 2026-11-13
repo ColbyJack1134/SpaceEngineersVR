@@ -110,8 +110,7 @@ namespace SpaceEngineersVR.Player
             return new Vector3(TowardZero(value.X,step),TowardZero(value.Y,step),TowardZero(value.Z,step));
         }
         private static float TowardZero(float v,float step) => Math.Sign(v)*Math.Max(0,Math.Abs(v)-step);
-        // Pointing direction gives pitch and yaw, wrist roll gives roll, all relative to the hand at grip; signs match the stick's Rotation.
-        // Measured in seat space, not relative to the gripped controller's tilt, so a sideways wrist turn does not read as twist.
+        // Apply the grip delta in seat space so controller tilt does not mix the steering axes.
         internal static Vector3 HandSteering(Matrix origin,Matrix hand,Multiplayer.FlightTuning tuning,bool invertPitch)
         {
             Matrix delta=Matrix.Invert(origin)*hand;
@@ -121,7 +120,6 @@ namespace SpaceEngineersVR.Player
             float roll=Axis((float)Math.Atan2(delta.Up.X,delta.Up.Y)*tuning.Rotation/TwistRange,tuning.TwistDeadzone);
             return Response(new Vector3(invertPitch ? -tilt.X:tilt.X,tilt.Y,roll),tuning.RotationCurve);
         }
-        // Hand offset in meters for full translation.
         internal const float HandTravel=.1f;
         internal static Vector3 HandTranslation(Vector3 origin,Vector3 hand,Multiplayer.FlightTuning tuning)
         {

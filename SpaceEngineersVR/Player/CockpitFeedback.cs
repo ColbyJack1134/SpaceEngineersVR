@@ -117,9 +117,12 @@ namespace SpaceEngineersVR.Player
             }
             catch(Exception ex) { soundFailed=true; Plugin.Logger.Warning(ex,"Cockpit click sound unavailable"); }
         }
-        public static void Motion(Controller hand,bool held,Vector3 input,bool suppressed)
+        internal static void StickGrab(Controller hand) => hand.Vibrate(0,.055f,110,.5f);
+        internal static void StickRelease(Controller hand) => hand.Vibrate(0,.025f,75,.2f);
+        public static void Motion(Controller hand,bool held,Vector3 input,bool suppressed) => Motion(hand,motion[Index(hand)],held,input,suppressed);
+        internal static void Motion(Controller hand,MotionPulse state,bool held,Vector3 input,bool suppressed)
         {
-            float amplitude=motion[Index(hand)].Sample(held,input,DateTime.UtcNow,suppressed);
+            float amplitude=state.Sample(held,input,DateTime.UtcNow,suppressed);
             if(amplitude>0) hand.Vibrate(0,.012f,85,amplitude);
         }
         internal static void Stick(Controller hand,int pulse,ref DateTime next)

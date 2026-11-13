@@ -249,13 +249,13 @@ namespace SpaceEngineersVR.Player
             {
                 grabLeft=DateTime.UtcNow; leftDetent.Sample(false,Vector3.Zero,grabLeft);
                 leftStartOffset=placement.Left;
-                leftNeutral=l; leftAngles=Vector3.Zero; BlockGrip(true); Player.HandL.Vibrate(0,0.055f,110,0.5f);
+                leftNeutral=l; leftAngles=Vector3.Zero; BlockGrip(true); CockpitFeedback.StickGrab(Player.HandL);
             }
             if (right.Update(available && !CockpitTouch.OwnsRight && !ArthurLcdBridge.Owns(Player.HandR),rightDown,rightNear,true,Common.Config.TapHoldSticks && !Adjusting,Multiplayer.MultiplayerRuntime.Now))
             {
                 grabRight=DateTime.UtcNow; rightDetent.Sample(false,Vector3.Zero,grabRight);
                 rightStartOffset=placement.Right;
-                rightNeutral=r; rightAngles=Vector3.Zero; BlockGrip(false); Player.HandR.Vibrate(0,0.055f,110,0.5f);
+                rightNeutral=r; rightAngles=Vector3.Zero; BlockGrip(false); CockpitFeedback.StickGrab(Player.HandR);
 
             }
             if (leftWas && !left.Held) BlockGrip(true);
@@ -351,8 +351,8 @@ namespace SpaceEngineersVR.Player
             Feedback(Player.HandR,right.Held && !Adjusting,rightFeedback,rightDetent,ref rightPulse,sharedFeedback && now<barPulse);
             CockpitFeedback.Motion(Player.HandL,left.Held && !Adjusting,feedbackTranslation,DateTime.UtcNow<leftPulse || (DateTime.UtcNow-grabLeft).TotalSeconds<.08);
             CockpitFeedback.Motion(Player.HandR,right.Held && !Adjusting,feedbackRotation,DateTime.UtcNow<rightPulse || (DateTime.UtcNow-grabRight).TotalSeconds<.08);
-            if (leftWas && !left.Held) Player.HandL.Vibrate(0,0.025f,75,0.2f);
-            if (rightWas && !right.Held) Player.HandR.Vibrate(0,0.025f,75,0.2f);
+            if (leftWas && !left.Held) CockpitFeedback.StickRelease(Player.HandL);
+            if (rightWas && !right.Held) CockpitFeedback.StickRelease(Player.HandR);
             leftWas=left.Held; rightWas=right.Held;
             RefreshVisuals();
         }

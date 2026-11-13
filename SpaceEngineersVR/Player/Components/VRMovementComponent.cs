@@ -129,8 +129,7 @@ namespace SpaceEngineersVR.Player.Components
             if(!Main.VrActive || !CameraRig.Owns(Character) || (MySession.Static?.ControlledEntity!=Character && !RemoteView.CharacterAnchor) || Character.IsDead) return;
             try
             {
-                // Input/body following runs before physics. Publish a fresh camera AFTER
-                // physics too: at 100 m/s the old one-tick lag was about 1.67 metres.
+                // Refresh after physics to prevent a one-tick camera lag.
                 CameraRig.RefreshAfterSimulation(Character);
                 RemoteView.Refresh();
                 Patches.MotionToolPatch.Refresh(Character);
@@ -214,7 +213,6 @@ namespace SpaceEngineersVR.Player.Components
 
             Vector3 move=Vector3.Zero; Vector2 rotate=Vector2.Zero; float roll=0;
             bool controllerFlight=FlightAxes.ControllerInputAllowed(true,ThirdPersonView.Active || RemoteView.RemoteGrid && RemoteView.HomeSeat==null,Common.Config.PhysicalShipControlsOnly);
-            // The left grip descends unless it moves the ship by hand.
             handMoveGrip=controllerFlight && !ThirdPersonView.Active && !CockpitControls.TranslationOwned && !CockpitControls.IsSteering && Common.Config.HandRelativeShipTranslation;
             bool wasHandTranslationHeld=handTranslationHeld;
             handTranslationHeld=handMoveGrip && controls.GripClick(Player.HandL).IsPressed && Player.HandL.pose.isTracked;
@@ -274,9 +272,9 @@ namespace SpaceEngineersVR.Player.Components
             CockpitFeedback.MotionPulse motion,ref System.DateTime nextPulse,ref System.DateTime grabbed)
         {
             var now=System.DateTime.UtcNow;
-            if(held && !wasHeld) { grabbed=now; hand.Vibrate(0,.055f,110,.5f); }
+            if(held && !wasHeld) { grabbed=now; CockpitFeedback.StickGrab(hand); }
             VirtualFeedback(hand,held,axes,detent,motion,ref nextPulse,grabbed);
-            if(!held && wasHeld) hand.Vibrate(0,.025f,75,.2f);
+            if(!held && wasHeld) CockpitFeedback.StickRelease(hand);
         }
 
         private static void VirtualFeedback(Controller hand,bool held,Vector3 axes,CockpitFeedback.StickPulse detent,
@@ -285,8 +283,7 @@ namespace SpaceEngineersVR.Player.Components
             var now=System.DateTime.UtcNow;
             int pulse=detent.Sample(held,axes,now);
             if(pulse!=0) CockpitFeedback.Stick(hand,pulse,ref nextPulse);
-            float amplitude=motion.Sample(held,axes,now,now<nextPulse || (now-grabbed).TotalSeconds<.08);
-            if(amplitude>0) hand.Vibrate(0,.012f,85,amplitude);
+            CockpitFeedback.Motion(hand,motion,held,axes,now<nextPulse || (now-grabbed).TotalSeconds<.08);
         }
 
         // The engine clears thrust only with move, rotation and roll all zero, so a held rotation stick can keep an old command alive.
@@ -412,7 +409,6 @@ namespace SpaceEngineersVR.Player.Components
             !ClearTerrain.Active && !PlacementControls.OwnsTools && !CockpitControls.Adjusting && !TouchScreenBridge.OwnsInput && !ArthurLcdBridge.Owns(Handedness.ActionHand) &&
             FlightAxes.StickTriggerAllowed(MySession.Static?.ControlledEntity is MyShipController,Common.Config.PhysicalShipControlsOnly,
                 CockpitControls.SticksAvailable,CockpitControls.AnyHeld);
-        // Grip + trigger is ship and turret secondary, as with tools on foot. A held stick owns the grip.
         private static bool ShipChord => Controls.Static.Fire.IsPressed && Controls.Static.ActionGripClick.IsPressed && !CockpitControls.Held(Handedness.ActionHand) && active?.virtualStickHeld!=true;
         internal static bool PrimaryFire => PrimaryPressed && !TriggerArm.AnyArmed && !((MySession.Static?.ControlledEntity is MyShipController || RemoteView.Turret) && ShipChord);
 

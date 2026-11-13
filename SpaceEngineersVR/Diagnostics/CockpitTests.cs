@@ -64,7 +64,6 @@ namespace SpaceEngineersVR.Diagnostics
                     Near(normal,CockpitStickMath.Rotation(Matrix.Identity,delta,0,true),"Hand steering sign differs from the stick");
                     Near(CockpitStickMath.HandSteering(Matrix.Identity,delta,tuning,true),new Vector3(-normal.X,normal.Y,normal.Z),"Invert pitch changes another axis");
                 }
-                // A controller held pitched down and rolled must still turn on the seat's axes.
                 Matrix held=Matrix.CreateRotationX(-.7f)*Matrix.CreateRotationZ(.35f);
                 var yaw=CockpitStickMath.HandSteering(held,held*Matrix.CreateRotationY(CockpitStickMath.TiltRange),tuning,false);
                 Require(Math.Abs(yaw.Y)>.9f && Math.Abs(yaw.X)<.01f && Math.Abs(yaw.Z)<.01f,"Held controller tilt couples yaw into other axes: "+yaw);
