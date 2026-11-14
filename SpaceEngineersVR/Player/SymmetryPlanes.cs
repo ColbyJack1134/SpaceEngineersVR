@@ -18,6 +18,5 @@ namespace SpaceEngineersVR.Player
         internal static void Begin() { pending.Clear(); Current=Array.Empty<View>(); }
         internal static void Add(View triangle) => pending.Add(triangle);
         internal static void Commit() => Current=pending.ToArray();
-        internal static void Draw(object target,View[] planes) => NativeGizmos.Draw(target,planes);
     }
 }

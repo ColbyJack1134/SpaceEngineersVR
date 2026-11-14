@@ -45,11 +45,22 @@ namespace SpaceEngineersVR.Diagnostics
                 foreach(int eye in new[] {-1,1})
                 {
                     var from=new Vector3D(18+eye*.032,14,22);
-                    var view=MatrixD.CreateLookAt(from,Vector3D.Zero,Vector3D.Up); view.Translation=Vector3D.Zero;
-                    matrices.CameraPosition=from; matrices.ViewProjectionAt0=(Matrix)(view*VrMath.Projection(-1.1f,1.1f,-.62f,.62f,.03));
+                    var view=MatrixD.CreateLookAt(from,Vector3D.Zero,Vector3D.Up);
+                    var projection=VrMath.Projection(-1.1f,1.1f,-.62f,.62f,.03);
+                    matrices.CameraPosition=Vector3D.Zero; matrices.ViewProjectionAt0=Matrix.Identity;
                     using(var rtv=new SharpDX.Direct3D11.RenderTargetView(MyRender11.DeviceInstance,target.GetResource()))
                         MyRender11.DeviceInstance.ImmediateContext.ClearRenderTargetView(rtv,new SharpDX.Mathematics.Interop.RawColor4(.035f,.055f,.075f,1));
-                    SymmetryPlanes.Draw(target.Instance,planes.ToArray());
+                    var primitives=AccessTools.TypeByName("VRageRender.MyPrimitivesRenderer");
+                    var vertices=AccessTools.Field(primitives,"m_vertexList").GetValue(null);
+                    AccessTools.Method(primitives,"DrawTriangle",new[] {typeof(Vector3),typeof(Vector3),typeof(Vector3),typeof(Color)})
+                        .Invoke(null,new object[] {Vector3.Zero,Vector3.UnitX,Vector3.UnitY,Color.White});
+                    int retained=(int)AccessTools.Property(vertices.GetType(),"Count").GetValue(vertices);
+                    NativeGizmos.DrawEye(target.Instance,planes.ToArray(),null,view,projection);
+                    if((int)AccessTools.Property(vertices.GetType(),"Count").GetValue(vertices)!=retained)
+                        throw new Exception("Symmetry eye draw consumed native pending triangles");
+                    AccessTools.Method(vertices.GetType(),"ClearFast").Invoke(vertices,null);
+                    if(matrices.CameraPosition!=Vector3D.Zero || matrices.ViewProjectionAt0!=Matrix.Identity)
+                        throw new Exception("Symmetry eye draw changed the renderer camera");
                     UiTests.Save(target.GetResource(),Path.Combine(output,"symmetry-native-eye-"+(eye<0 ? "left":"right")+".png"));
                 }
             }

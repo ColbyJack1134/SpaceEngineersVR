@@ -154,7 +154,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Near(Vector3.Transform(fighter.Right.Pivot,right),fighter.Right.Pivot,"Right pivot moved");
             }
             var config=new PluginConfig();
-            Require(config.FighterCockpitSticks && config.StickTwist && config.PhysicalStickSensitivity==1 && config.PhysicalStickDeadzone==deadzone,"Old-config stick defaults");
+            Require(config.FighterCockpitSticks && config.StickTwist && !config.ShowCockpitSeatPanel && config.PhysicalStickSensitivity==1 && config.PhysicalStickDeadzone==deadzone,"Old-config stick and panel defaults");
             config.PhysicalStickDeadzone=float.NaN; config.PhysicalStickSensitivity=float.PositiveInfinity;
             Require(config.PhysicalStickSensitivity==1 && config.PhysicalStickDeadzone==deadzone,"Invalid comfort options");
             config.PhysicalStickDeadzone=9; config.PhysicalStickSensitivity=-8;

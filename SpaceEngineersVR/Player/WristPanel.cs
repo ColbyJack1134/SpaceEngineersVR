@@ -40,12 +40,13 @@ namespace SpaceEngineersVR.Player
         }
         public static SurfaceKey[] Keys(MyToolbar toolbar,bool building,bool seated,bool thirdPerson,bool jetpack,EssentialHud.View status,bool? previewToolbar=null)
         {
+            if(SeatOpen && (!seated || thirdPerson)) SeatOpen=false;
             int selected=previewToolbar.HasValue ? (previewToolbar.Value ? 1 : 0) : tab==CombatTab && !CombatAvailable ? 0 : tab;
             if(DesktopOpen && !previewToolbar.HasValue) return DesktopKeys(SpatialUi.DesktopRevealed,DesktopCapture.DisplayedNumber);
             bool showToolbar=selected==1;
             var keys=new List<SurfaceKey>();
             var tabs=new[] {
-                new ActionChoice("Quick",()=>Show(0)),new ActionChoice("Toolbar",()=>Show(1)),
+                new ActionChoice(SeatOpen && !previewToolbar.HasValue ? "Back":"Quick",()=>Show(0)),new ActionChoice("Toolbar",()=>Show(1)),
                 new ActionChoice("Search",()=>Show(2)),new ActionChoice("Navigation",()=>Show(3)) };
             if(CombatAvailable) tabs=tabs.Concat(new[] {new ActionChoice("Combat",()=>Show(CombatTab))}).ToArray();
             float tabPitch=.972f/tabs.Length;
@@ -53,7 +54,6 @@ namespace SpaceEngineersVR.Player
                 Action=tabs[i],Active=i==selected });
             if(selected==0 && SeatOpen && !previewToolbar.HasValue)
             {
-                keys.Add(new SurfaceKey("Back",.02f,.16f,.23f,.13f) { Action=new ActionChoice("Back",()=>Show(0)) });
                 SeatPanel.WristKeys(keys,SeatFit.Eligible(SeatFit.Seat),CockpitControls.CanAdjust,CockpitControls.Adjusting);
             }
             else if(selected==3) { WristSignals.Keys(keys); return keys.ToArray(); }
@@ -119,7 +119,7 @@ namespace SpaceEngineersVR.Player
             return keys.ToArray();
         }
         internal static string DoNotDisturbIcon => System.IO.Path.Combine(Common.AssetFolder ?? "","Icons","dnd.dds");
-        private static readonly ActionChoice SeatAction=new ActionChoice("Seat panel",OpenSeat,
+        private static readonly ActionChoice SeatAction=new ActionChoice("Seat setup",OpenSeat,
             icon:NativeSprites.Hud("AdminMenu"),enabled:()=>SeatFit.Eligible(SeatFit.Seat));
         internal static readonly string[] Categories={"All","Suit","Ship","Build","VR"};
         internal static void SelectCategory(int value) { category=Math.Max(0,Math.Min(Categories.Length-1,value)); page=0; }

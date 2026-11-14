@@ -209,13 +209,18 @@ namespace SpaceEngineersVR.Diagnostics
             taps.Update(true,false,false,true,holdTime);
             Require(taps.Update(false,false,false,false,holdTime.AddSeconds(window/2))==0 && taps.Update(true,false,false,false,holdTime.AddSeconds(window+.3))==0,"Leaving flight kept a pending dampener tap");
             bool latched=false;
-            Require(!ToolbarWheel.Confirms(true,true,false,.1,ref latched) && !latched,"Wheel confirmed while its button was still held");
-            Require(!ToolbarWheel.Confirms(true,false,false,.1,ref latched) && latched,"A quick bumper tap closed the wheel instead of keeping it open");
-            Require(!ToolbarWheel.Confirms(true,false,false,2,ref latched),"An open tapped wheel closed without a second tap");
-            Require(ToolbarWheel.Confirms(true,true,true,2.1,ref latched),"A second tap did not confirm the tapped wheel");
+            Require(!ToolbarWheel.Confirms(true,true,false,true,false,.1,ref latched,out bool close) && !latched && !close,"Wheel confirmed while its button was still held");
+            Require(!ToolbarWheel.Confirms(true,false,false,true,false,.1,ref latched,out close) && latched && !close,"A quick bumper tap closed the wheel instead of keeping it open");
+            Require(!ToolbarWheel.Confirms(true,false,false,true,false,2,ref latched,out close) && !close,"A pinned wheel closed without another press");
+            Require(!ToolbarWheel.Confirms(true,true,true,true,false,2.1,ref latched,out close) && close,"A pinned bumper press selected instead of closing");
             latched=false;
-            Require(ToolbarWheel.Confirms(true,false,false,.5,ref latched) && !latched,"Releasing a held bumper did not confirm the wheel");
-            Require(ToolbarWheel.Confirms(false,false,false,.05,ref latched) && !latched,"Hold-B wheel latched open; a B tap must stay unequip");
+            Require(ToolbarWheel.Confirms(true,false,false,true,false,.5,ref latched,out close) && !latched && !close,"Releasing a held bumper did not confirm its selection");
+            Require(!ToolbarWheel.Confirms(false,false,false,false,false,.5,ref latched,out close) && !latched && close,"Centered Quest release did not close the wheel");
+            Require(ToolbarWheel.Confirms(false,false,false,true,false,.5,ref latched,out close) && !close,"Quest selection did not confirm on release");
+            Require(!ToolbarWheel.Confirms(false,false,false,true,true,.5,ref latched,out close) && close,"A grip-selected choice activated again on release");
+            Require(!ToolbarWheel.Confirms(true,false,false,false,false,.1,ref latched,out close) && latched && !close,"A centered Frame bumper tap did not pin the wheel");
+            latched=false;
+            Require(!ToolbarWheel.Confirms(true,false,false,false,false,.5,ref latched,out close) && !latched && close,"A centered held Frame bumper release did not close the wheel");
             var gesture=new ToolbarGesture(); var cockpit=new object(); var now=DateTime.UtcNow;
             foreach(int slot in new[] {0,3,8,9,12})
             {

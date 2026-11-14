@@ -223,6 +223,11 @@ namespace SpaceEngineersVR.Diagnostics
             }
             string content=MyFileSystem.ContentPath;
             var rightGlove=GloveGeometry.Load(content,GloveGeometry.DefaultModel,false); var leftGlove=GloveGeometry.Load(content,GloveGeometry.DefaultModel,true);
+            string nativeModel=GloveGeometry.DefaultModel.Replace('/','\\');
+            MenuHands.PublishGeometry(nativeModel,true,leftGlove);
+            MenuHands.PublishGeometry(nativeModel,false,rightGlove);
+            if(!MenuHands.HasWristGeometry(GloveGeometry.DefaultModel) || MenuHands.HasWristGeometry("OtherModel"))
+                throw new Exception("Third-person native glove path lost the wrist mount");
             var mirror=Matrix.CreateScale(-1,1,1); var mirrored=mirror*rightGlove.PointFrame*mirror;
             if(Vector3.Distance(mirrored.Translation,leftGlove.PointFrame.Translation)>.002f || Vector3.Dot(mirrored.Forward,leftGlove.PointFrame.Forward)<.999f)
                 throw new Exception("Left menu pointer is not the mirror of the right: "+leftGlove.PointFrame.Translation+" vs "+mirrored.Translation);
@@ -721,6 +726,17 @@ namespace SpaceEngineersVR.Diagnostics
                 wrist.Hover=5; WristPreview(device,canvas,wrist,output,"wrist-idle-hover");
                 wrist.Pressed=5; WristPreview(device,canvas,wrist,output,"wrist-click-feedback");
                 wrist.Hover=wrist.Pressed=-1;
+                wrist.Keys=WristPanel.Keys(null,false,true,false,false,wrist.Status,false);
+                foreach(var key in wrist.Keys.Where(k=>k.Label=="Seat setup")) key.Enabled=true;
+                WristPreview(device,canvas,wrist,output,"wrist-ship-quick");
+                var rayPanel=wrist.At(MatrixD.CreateTranslation(0,0,-.65));
+                var rayFrom=new Vector3D(.18,-.13,-.30);
+                var rayTo=new Vector3D(.05,-.025,-.65);
+                var rayPointer=MatrixD.CreateWorld(rayFrom,Vector3D.Normalize(rayTo-rayFrom),Vector3D.Up);
+                scene.Clear(System.Drawing.Color.FromArgb(255,7,12,18)); scene.Upload();
+                device.ImmediateContext.ClearDepthStencilView(dsv,DepthStencilClearFlags.Depth,0,0);
+                PhysicalSurface.Draw(scene.Texture,new[] {rayPanel,SpatialUi.RaySurface(rayPointer,(float)Vector3D.Distance(rayFrom,rayTo))},MatrixD.Identity,projection,srv);
+                Save(scene.Texture,Path.Combine(output,"wrist-interactable-ray.png"));
                 wrist.Keys=WristPanel.Keys(null,false,true,true,false,wrist.Status,false);
                 WristPreview(device,canvas,wrist,output,"wrist-ship-controls");
                 foreach(bool unlocked in new[] {false,true})

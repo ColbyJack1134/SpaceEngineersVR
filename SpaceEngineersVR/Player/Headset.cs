@@ -15,6 +15,7 @@ namespace SpaceEngineersVR.Player
         private BorrowedRtvTexture leftTexture, rightTexture;
         private VRTextureBounds_t bounds = new VRTextureBounds_t { uMax = 1, vMax = 1 };
         private int submittedFrames;
+        private bool nativeGizmosUnavailable;
         private bool recenterPending = true;
         public bool MirroredDesktop { get; private set; }
 
@@ -165,7 +166,16 @@ namespace SpaceEngineersVR.Player
             FloatingKeyboard.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),eye);
             ToolbarWheel.DrawWorld((SharpDX.Direct3D11.Texture2D)target.GetResource(),view,projection,
                 rig?.TrackingToWorld ?? (MatrixD)originInverse*MatrixD.Invert(gameView));
-            NativeGizmos.Draw(target.Instance,RenderFrameBridge.Symmetry,RenderFrameBridge.Planets);
+            if(!nativeGizmosUnavailable)
+            {
+                try { NativeGizmos.DrawEye(target.Instance,RenderFrameBridge.Symmetry,RenderFrameBridge.Planets,view,projection); }
+                catch(Exception ex)
+                {
+                    // Build and placement overlays must not stop stereo rendering.
+                    nativeGizmosUnavailable=true;
+                    Logger.Warning(ex,"Native build and placement gizmos disabled until restart");
+                }
+            }
             TargetFeedback.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),GridSelection.Active || TargetLock.Aiming ? RenderFrameBridge.Selection:null,view,projection,PhysicalSurface.SceneDepth());
             if(rig?.ThirdPerson!=true) HoloSight.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),RenderFrameBridge.Holo,view,projection,PhysicalSurface.SceneDepth());
             GpuTiming.End(uiArea);

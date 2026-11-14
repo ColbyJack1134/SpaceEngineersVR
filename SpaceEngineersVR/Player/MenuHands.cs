@@ -162,6 +162,8 @@ float4 PS(P p):SV_TARGET {
         }
         internal static void PublishGeometry(string model,bool left,GloveGeometry geometry)
         {
+            // Native definitions use backslashes; the menu glove cache uses slashes.
+            model=model.Replace('\\','/');
             var previous=wrist;
             wrist=new Wrist { Model=model,
                 Mount=left ? geometry.WristMount : previous?.Model==model ? previous.Mount : Matrix.Identity,
@@ -169,6 +171,8 @@ float4 PS(P p):SV_TARGET {
                 RightPoint=!left ? geometry.PointFrame : previous?.Model==model ? previous.RightPoint : Matrix.Identity,
                 LeftPoint=left ? geometry.PointFrame : previous?.Model==model ? previous.LeftPoint : Matrix.Identity };
         }
+        private static bool MatchesWrist(Wrist pose,string model) => pose!=null && pose.Model==model.Replace('\\','/') && pose.Mount!=Matrix.Identity;
+        internal static bool HasWristGeometry(string model) => MatchesWrist(wrist,model);
         internal static bool TryPointPose(Matrix grip,out MatrixD point,Controller hand=null)
         {
             hand=hand ?? Player.HandR;
@@ -182,7 +186,7 @@ float4 PS(P p):SV_TARGET {
         {
             mount=MatrixD.Identity;
             var pose=wrist;
-            if(pose==null || pose.Model!=CharacterModel || pose.Mount==Matrix.Identity) return false;
+            if(!MatchesWrist(pose,CharacterModel)) return false;
             mount=Alignment.Apply(Alignment.WristKey,(MatrixD)pose.Mount*Alignment.Apply(Alignment.HandKey(Player.HandL),CockpitHandPose.GripWrist(grip)));
             return true;
         }

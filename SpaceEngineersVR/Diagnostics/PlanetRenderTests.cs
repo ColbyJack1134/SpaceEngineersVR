@@ -43,14 +43,17 @@ namespace SpaceEngineersVR.Diagnostics
                 {
                     var center=new Vector3D(1e9,-1e9,1e9);
                     var from=center+new Vector3D(eye*3200,40000,160000);
-                    var view=MatrixD.CreateLookAt(from,center,Vector3D.Up); view.Translation=Vector3D.Zero;
-                    matrices.CameraPosition=from; matrices.ViewProjectionAt0=(Matrix)(view*VrMath.Projection(-1.1f,1.1f,-.62f,.62f,.03));
+                    var view=MatrixD.CreateLookAt(from,center,Vector3D.Up);
+                    var projection=VrMath.Projection(-1.1f,1.1f,-.62f,.62f,.03);
+                    matrices.CameraPosition=Vector3D.Zero; matrices.ViewProjectionAt0=Matrix.Identity;
                     using(var rtv=new SharpDX.Direct3D11.RenderTargetView(MyRender11.DeviceInstance,target.GetResource()))
                         MyRender11.DeviceInstance.ImmediateContext.ClearRenderTargetView(rtv,new SharpDX.Mathematics.Interop.RawColor4(.035f,.055f,.075f,1));
                     var renderer=AccessTools.TypeByName("VRageRender.MyLinesRenderer");
                     var vertices=AccessTools.Field(renderer,"m_vertices").GetValue(null);
                     var batches=AccessTools.Field(renderer,"m_batches").GetValue(null);
-                    NativeGizmos.Draw(target.Instance,null,Capture(center,65000,valid));
+                    NativeGizmos.DrawEye(target.Instance,null,Capture(center,65000,valid),view,projection);
+                    if(matrices.CameraPosition!=Vector3D.Zero || matrices.ViewProjectionAt0!=Matrix.Identity)
+                        throw new Exception("Planet eye draw changed the renderer camera");
                     if(!ReferenceEquals(vertices,AccessTools.Field(renderer,"m_vertices").GetValue(null)) ||
                         !ReferenceEquals(batches,AccessTools.Field(renderer,"m_batches").GetValue(null))) throw new Exception("Planet eye renderer replaced desktop debug buffers");
                     UiTests.Save(target.GetResource(),Path.Combine(output,"planet-native-"+(valid ? "valid":"blocked")+"-"+(eye<0 ? "left":"right")+".png"));

@@ -85,6 +85,7 @@ namespace SpaceEngineersVR.Player
         internal static bool SolidPreviews => false;
         internal static SharpDX.Direct3D11.ShaderResourceView OverlayDepth => null;
         internal static SharpDX.Direct3D11.ShaderResourceView HandDepth(SharpDX.Direct3D11.ShaderResourceView raw) => raw;
+        internal static void DrawNativeGizmos(Action draw) => draw();
         internal static void SetRuntimePath(string path) { }
         internal static void NotifyCut() { }
         internal static void BeginFrame(Vector2I size,CameraRig.Frame rig) { }
@@ -450,6 +451,24 @@ namespace SpaceEngineersVR.Player
         private static bool Upscaled => active && output!=render && StereoRenderState.PhysicalEye && eyes[StereoRenderState.View].Evaluated;
         internal static ShaderResourceView OverlayDepth => Upscaled ? sceneDepth.View : null;
         internal static ShaderResourceView HandDepth(ShaderResourceView raw) => raw!=null && Upscaled ? handDepth.View : raw;
+        internal static void DrawNativeGizmos(Action draw)
+        {
+            if(!Upscaled || outputDepth==null) { draw(); return; }
+            // Native gizmos bind the engine depth and viewport instead of the overlay depth SRV.
+            var main=gbuffer.GetValue(null);
+            var previous=resolvedDepth.GetValue(main);
+            try
+            {
+                resolvedDepth.SetValue(main,outputDepth);
+                EyeResolution.Scene.Apply(output);
+                draw();
+            }
+            finally
+            {
+                EyeResolution.Scene.Apply(render);
+                resolvedDepth.SetValue(main,previous);
+            }
+        }
 
         // Billboards after anti-aliasing need unjittered frame constants and, after an upscale, depth at the eye target size.
         internal static void BeforePostPp(object[] args)

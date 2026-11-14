@@ -83,11 +83,12 @@ namespace SpaceEngineersVR.GUI
                     MenuLayout.Button(this,.2775f,.27f,.265f,"Hand alignment",()=>MyGuiSandbox.AddScreen(new HandAlignment()));
                     break;
                 case 1:
-                    Toggle(-.17f,"Physical cockpit sticks",c.FighterCockpitSticks,v=>c.FighterCockpitSticks=v);
-                    Toggle(-.085f,"Tap to hold joysticks",c.TapHoldSticks,v=>c.TapHoldSticks=v);
-                    Toggle(0,"Tap to hold levers",c.TapHoldLevers,v=>c.TapHoldLevers=v);
-                    Link(.085f,"Controller flight",()=>new FlightOptions());
-                    MenuLayout.Button(this,.135f,.185f,.55f,"Sensitivity & deadzones",()=> {
+                    Toggle(-.21f,"Physical cockpit sticks",c.FighterCockpitSticks,v=>c.FighterCockpitSticks=v);
+                    Toggle(-.13f,"Show cockpit seat panel",c.ShowCockpitSeatPanel,v=>c.ShowCockpitSeatPanel=v);
+                    Toggle(-.05f,"Tap to hold joysticks",c.TapHoldSticks,v=>c.TapHoldSticks=v);
+                    Toggle(.03f,"Tap to hold levers",c.TapHoldLevers,v=>c.TapHoldLevers=v);
+                    Link(.11f,"Controller flight",()=>new FlightOptions());
+                    MenuLayout.Button(this,.135f,.20f,.55f,"Sensitivity & deadzones",()=> {
                         // Only CloseScreen pops the single-player pause; CloseScreenNow alone leaves the game paused.
                         foreach(var pause in MyScreenManager.Screens.OfType<SpaceEngineers.Game.GUI.MyGuiScreenMainMenu>().ToArray()) { pause.CloseScreen(); pause.CloseScreenNow(); }
                         GameActions.Schedule(new ActionChoice("Cockpit tuning",()=>FlightSettings.Open(false)));

@@ -10,6 +10,7 @@ namespace SpaceEngineersVR.Player.Control
         private HashSet<MyStringId> previous = new HashSet<MyStringId>();
         private readonly HashSet<MyStringId> queued = new HashSet<MyStringId>();
         public void Queue(MyStringId action) => queued.Add(action);
+        public bool HasCurrentOrPrevious => current.Count>0 || previous.Count>0;
         public void Advance(bool enabled)
         {
             var reuse = previous; previous = current; current = reuse;

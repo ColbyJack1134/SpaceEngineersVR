@@ -80,7 +80,7 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 var seatKeys=new System.Collections.Generic.List<SurfaceKey>();
                 SeatPanel.WristKeys(seatKeys,available,sticks,unlocked);
-                Require(seatKeys.Count==14 && seatKeys.Select(k=>k.SeatControl).Distinct().Count()==14,"Wrist seat panel loses actions");
+                Require(seatKeys.Count==9 && seatKeys.Select(k=>k.SeatControl).OrderBy(k=>k).SequenceEqual(Enumerable.Range(0,9)),"Wrist seat setup loses adjustment controls");
                 var original=SeatPanel.Keys(sticks,unlocked);
                 foreach(var key in seatKeys)
                 {
@@ -92,8 +92,16 @@ namespace SpaceEngineersVR.Diagnostics
             }
             WristPanel.OpenSeat();
             var seatPage=WristPanel.Keys(null,false,true,false,false,null);
-            Require(seatPage.Count(k=>k.SeatControl>=0)==14,"Seat page missing controls");
+            Require(seatPage.Count(k=>k.SeatControl>=0)==9,"Seat setup page missing adjustment controls");
+            Require(seatPage[0].Label=="Back" && seatPage.Count(k=>k.Label=="Back")==1,"Seat setup duplicated the Back control");
             Require(seatPage.Where(k=>k.SeatControl>=0).All(k=>!k.Enabled),"Seat controls enabled without an eligible cockpit");
+            WristPanel.Keys(null,false,true,true,false,null);
+            Require(!WristPanel.SeatOpen,"Seat setup stayed open in third person");
+            WristPanel.Show(0);
+            Require(WristPanel.Keys(null,false,true,false,false,null)[0].Label=="Quick","Seat setup did not restore the Quick tab");
+            Require(WristPanel.Keys(null,false,true,false,false,null).Any(k=>k.Label=="Seat setup"),"First-person seat setup is missing from Quick");
+            Require(WristPanel.Keys(null,false,true,true,false,null).Any(k=>k.Action==GameActions.Quick[22]),"Third-person Quick lost Reset view");
+            WristPanel.OpenSeat();
             WristPanel.Show(1); Require(!WristPanel.SeatOpen,"Seat page survived a tab change"); WristPanel.Reset();
             log("PASS wrist seat panel: shared actions, availability, stick locks, bounds and page exit.");
             var oldHud=new EssentialHud.View { Values=new[] {"80","70","60","50"},Icons=new string[0],Dampeners=true };

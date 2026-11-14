@@ -13,7 +13,7 @@ namespace SpaceEngineersVR.Player
         internal static SurfaceView View()
         {
             var seat=SeatFit.Seat;
-            if(!SeatFit.Eligible(seat) || Plugin.Main.MenuOpen ||
+            if(SpaceEngineersVR.Plugin.Common.Config?.ShowCockpitSeatPanel!=true || !SeatFit.Eligible(seat) || Plugin.Main.MenuOpen ||
                 !TryMount(seat.BlockDefinition.Id.SubtypeName,out var local,out float width,out float height)) return null;
             var key=Alignment.SeatKey("seat");
             return new SurfaceView { Id="Seat",Pose=Alignment.Apply(key,local*seat.WorldMatrix),
@@ -40,10 +40,13 @@ namespace SpaceEngineersVR.Player
         private static readonly Vector3[] directions={ Vector3.Up,Vector3.Forward,Vector3.Down,Vector3.Left,Vector3.Zero,Vector3.Right,Vector3.Backward };
         internal static void WristKeys(List<SurfaceKey> keys,bool available,bool sticks,bool unlocked)
         {
-            foreach(var source in Keys(sticks,unlocked))
+            int[] order={0,1,2,3,6,5,4,7,8};
+            var sourceKeys=Keys(sticks,unlocked);
+            for(int i=0;i<order.Length;i++)
             {
-                var b=source.Bounds;
-                keys.Add(new SurfaceKey(source.Label,.29f+b.X*.42f,.15f+b.Y*.83f,b.Width*.42f,b.Height*.83f) {
+                var source=sourceKeys[order[i]];
+                keys.Add(new SurfaceKey(order[i]==7 ? unlocked ? "Lock sticks":"Unlock sticks":Label(order[i]),
+                    .10f+i%3*.27f,.20f+i/3*.24f,.25f,.20f) {
                     SeatControl=source.SeatControl,Enabled=available && source.Enabled });
             }
         }

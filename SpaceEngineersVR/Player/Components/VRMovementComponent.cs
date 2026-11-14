@@ -61,8 +61,8 @@ namespace SpaceEngineersVR.Player.Components
             if (!Main.VrActive || !InputRouter.Gameplay && !keyboardOnly || Main.MenuOpen || MySandboxGame.IsPaused || Character.IsDead || !RemoteView.Live(MySession.Static.ControlledEntity) || ThirdPersonView.Manipulating && !ThirdPersonView.FlightWhileManipulating)
             {
                 StopInput();
-                // The body keeps turning and stepping with the player while a menu is open.
-                if(Main.VrActive && Main.MenuOpen && Main.WorldAvailable && !MySandboxGame.IsPaused && !SpectatorView.Active) BodyLocomotion.Update(Character);
+                // The body keeps following the headset while menus and radial wheels own input.
+                if(Main.VrActive && (Main.MenuOpen || InputRouter.Mode==InputMode.Radial) && Main.WorldAvailable && !MySandboxGame.IsPaused && !SpectatorView.Active) BodyLocomotion.Update(Character);
                 return;
             }
             try

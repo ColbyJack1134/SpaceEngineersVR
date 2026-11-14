@@ -21,6 +21,13 @@ namespace SpaceEngineersVR.Player
         private static bool wasFlying;
         public static InputMode Mode { get; private set; } = InputMode.Blocked;
         public static bool RadialOpen { get; set; }
+        private static bool radialAction;
+        internal static void RunRadialAction(Action action)
+        {
+            radialAction=true;
+            try { action(); }
+            finally { radialAction=false; }
+        }
         // Headset asleep, off or SteamVR reconnecting: VR input is blocked and the desktop keeps the game's own input, Esc included.
         internal static bool HeadsetAway { get; private set; }
         // Powering the headset off with the SteamVR dashboard open never reports the Steam overlay closed, so its pause and input block never lift.
@@ -40,7 +47,7 @@ namespace SpaceEngineersVR.Player
         public static bool CockpitInteraction => Mode==InputMode.Piloting || Mode==InputMode.Turret && RemoteView.HomeSeat!=null;
         public static bool Flying => SpectatorView.Active || RemoteView.Turret || MySession.Static?.ControlledEntity is MyShipController ||
             (MySession.Static?.LocalCharacter is IMyCharacter character && character.EnabledThrusts);
-        public static bool Gameplay => IsGameplay(Mode);
+        public static bool Gameplay => IsGameplay(Mode) || radialAction && Mode==InputMode.Radial;
         // Gameplay blocked only because a controller is untracked; keyboard and mouse still play.
         public static bool KeyboardMouse { get; private set; }
         private static bool IsGameplay(InputMode mode) => mode == InputMode.Walking || mode == InputMode.Building ||
@@ -79,7 +86,7 @@ namespace SpaceEngineersVR.Player
             KeyboardMouse = (!handsTracked || HeadsetAway) && IsGameplay(next) && Common.Config.EnableKeyboardAndMouseControls;
             if (HeadsetAway || !handsTracked && next != InputMode.Menu) next = InputMode.Blocked;
             bool flying = Flying;
-            if (next != Mode || !ReferenceEquals(nextOwner, owner) || flying != wasFlying)
+            if (NeedsReset(Mode,next,owner,nextOwner,wasFlying,flying))
             {
                 if(Main.WorldAvailable) Logger.Info("INPUT transition: "+Mode+" -> "+next+"; owner="+nextOwner?.GetType().Name+"; clipboard="+PlacementControls.ClipboardActive);
                 if (!ReferenceEquals(nextOwner, owner) || next == InputMode.Blocked) GameActions.Reset();
@@ -87,9 +94,12 @@ namespace SpaceEngineersVR.Player
                     CanContinueHeldItem(Mode,next,owner,nextOwner));
                 Mode = next;
                 owner = nextOwner;
-                wasFlying = flying;
             }
+            wasFlying = flying;
         }
+
+        internal static bool NeedsReset(InputMode previous,InputMode next,object previousOwner,object nextOwner,bool wasFlying,bool flying) =>
+            next!=previous || !ReferenceEquals(nextOwner,previousOwner) || flying!=wasFlying && next!=InputMode.Radial;
 
         internal static bool CanContinueLocomotion(InputMode previous, InputMode next, object previousOwner, object nextOwner)
         {

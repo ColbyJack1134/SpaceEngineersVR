@@ -430,7 +430,7 @@ namespace SpaceEngineersVR.Player
                 bool pointing=tracking ? MenuHands.TryPointPose(Player.HandR.RenderGripTracking,out aim) : TrackedArms.TryFreePointPose(Player.HandR,out aim);
                 var controls=Controls.Static;
                 if(pointing && RayTargeted && (!OwnsRight || !wristDirect) && !CockpitTouch.OwnsRight && !HandInteraction.HoldingRight &&
-                    (HandInteraction.ShowRay(controls.PointerPressure.RawPosition.X,false) || controls.Primary.RawPressed))
+                    (Common.Config?.InteractableLaser==true || HandInteraction.ShowRay(controls.PointerPressure.RawPosition.X,false) || controls.Primary.RawPressed))
                 {
                     if(tracking) aim*=trackingToWorld ?? MatrixD.Identity;
                     float distance=float.MaxValue;

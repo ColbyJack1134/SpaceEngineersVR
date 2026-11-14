@@ -118,7 +118,7 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice RecenterAction=new ActionChoice("Recenter",()=>Player.Headset.RequestRecenter(),searchTerms:"Ctrl Alt R hotkey");
         public static readonly ActionChoice AllActions=new ActionChoice("All actions",()=>MyGuiSandbox.AddScreen(new GUI.ActionBrowser()),true);
         public static readonly ActionChoice RelativeDampeners=new ActionChoice("Auto dampeners",DampenerTargeting.Activate);
-        public static readonly ActionChoice Dampeners=Native("Dampeners",MyControlsSpace.DAMPING);
+        public static readonly ActionChoice Dampeners=new ActionChoice("Dampeners",() => new MyActionToggleDampeners().ExecuteAction());
         public static readonly ActionChoice ResetFeed=new ActionChoice("Reset camera screen",RemoteView.Recenter,enabled:()=>RemoteView.Current!=null);
         public static readonly ActionChoice ResetScreens=new ActionChoice("Reset screens",WindowSpots.ResetAll,searchTerms:"recenter menu window position default");
         public static readonly ActionChoice ExitFeed=new ActionChoice(()=>RemoteView.RemoteGrid ? "Exit remote control":RemoteView.Turret ? "Exit turret":"Exit camera control",
@@ -397,7 +397,7 @@ namespace SpaceEngineersVR.Player
             if(dampenerHold.Update(InputRouter.Gameplay,c.Dampener.HasPressed,c.Dampener.IsPressed,now)) { if(!turret) Execute(RelativeDampeners); }
             else if(dampenerHold.Tapped) Execute(Dampeners);
             HandInteraction.UpdateSupportUse();
-            bool interact=c.Interact.HasPressed && !ArthurLcdBridge.Owns(Player.HandR);
+            bool interact=c.Interact.HasPressed && !c.Unequip.RawPressed && !c.ToolbarWheel.RawPressed && !ArthurLcdBridge.Owns(Player.HandR);
             if (interact && !PlacementControls.Painting || c.Terminal.HasPressed || c.Inventory.HasPressed)
                 HandInteraction.RefreshTarget();
             if (c.Reload.HasPressed) NativeActions.Pulse(MyControlsSpace.RELOAD);

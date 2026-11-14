@@ -1,6 +1,7 @@
 #if SEVR_DIAGNOSTICS
 using System;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using HarmonyLib;
 using Sandbox.Game.Entities;
@@ -218,8 +219,8 @@ namespace SpaceEngineersVR.Diagnostics
             var debugTriangle=AccessTools.Method(typeof(VRageRender.MyRenderProxy),nameof(VRageRender.MyRenderProxy.DebugDrawTriangle));
             try
             {
+                RuntimeHelpers.PrepareMethod(AccessTools.Method(typeof(MyCubeBuilder),"DrawSymmetryPlane").MethodHandle);
                 planeHarmony.CreateClassProcessor(typeof(SymmetryPlanePatch)).Patch();
-                planeHarmony.CreateClassProcessor(typeof(SymmetryTrianglePatch)).Patch();
                 planeHarmony.Patch(debugTriangle,prefix:new HarmonyMethod(typeof(TargetingTests),nameof(SkipTriangle)) {priority=Priority.Last});
                 foreach(var axis in new[] {Sandbox.Game.Entities.Cube.MySymmetrySettingModeEnum.XPlane,Sandbox.Game.Entities.Cube.MySymmetrySettingModeEnum.YPlane,Sandbox.Game.Entities.Cube.MySymmetrySettingModeEnum.ZPlane})
                 {

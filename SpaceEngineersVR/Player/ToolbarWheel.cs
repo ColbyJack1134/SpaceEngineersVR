@@ -21,7 +21,7 @@ namespace SpaceEngineersVR.Player
         internal enum SlotResult { Ignored, Assigned, Activated, Unavailable }
         internal sealed class View
         {
-            public string Title, Hint;
+            public string Title, Hint, CenterHint;
             public string Footer, Idle;
             public bool Compact;
             public string[] Labels, SubIcons, ItemText;
@@ -30,7 +30,7 @@ namespace SpaceEngineersVR.Player
             public bool Variants;
             public int Selected,Group,Page,Pages;
             public Matrix Pose;
-            public bool SameAs(View other) => other!=null && Title==other.Title && Footer==other.Footer && Idle==other.Idle && Compact==other.Compact && Variants==other.Variants && Group==other.Group && Page==other.Page && Pages==other.Pages && Selected==other.Selected && Pose==other.Pose &&
+            public bool SameAs(View other) => other!=null && Title==other.Title && Footer==other.Footer && Idle==other.Idle && CenterHint==other.CenterHint && Compact==other.Compact && Variants==other.Variants && Group==other.Group && Page==other.Page && Pages==other.Pages && Selected==other.Selected && Pose==other.Pose &&
                 Enumerable.SequenceEqual(Labels,other.Labels) && Enumerable.SequenceEqual(Enabled,other.Enabled) && Enumerable.SequenceEqual(SubIcons,other.SubIcons) &&
                 Enumerable.SequenceEqual(ItemText,other.ItemText) && Icons.Zip(other.Icons,(a,b)=>Enumerable.SequenceEqual(a,b)).All(equal=>equal);
         }
@@ -52,6 +52,7 @@ namespace SpaceEngineersVR.Player
         private const double TapSeconds=.28;
         private static Button holder;
         private static bool latched;
+        private static int grippedChoice=-1,grippedGroup=-1,grippedPage=-1;
         private static DateTime openedAt;
         private static ActionChoice[] quickChoices;
         private static ActionChoice[][] quickPages;
@@ -129,30 +130,16 @@ namespace SpaceEngineersVR.Player
                         SelectSlot(target,slot,true,GameActions.AssignToolbarSlot);
                     return;
                 }
-                if (Confirming(DateTime.UtcNow))
+                int chosen=RadialMath.Sector(stick,group==0 ? Slots(toolbar):9);
+                int page=group==0 ? toolbar?.CurrentPage ?? 0:quickPage;
+                if(chosen!=grippedChoice || group!=grippedGroup || page!=grippedPage) grippedChoice=-1;
+                bool confirm=Confirming(DateTime.UtcNow,chosen>=0,chosen>=0 && chosen==grippedChoice,out bool close);
+                if(close) { Close(); return; }
+                if(confirm) { Activate(chosen,false); return; }
+                if(chosen>=0 && (controls.GripClick(Player.HandL).HasPressed || controls.GripClick(Player.HandR).HasPressed))
                 {
-                    int chosen = RadialMath.Sector(stick, group == 0 ? Slots(toolbar) : 9);
-                    int chosenGroup = group;
-                    var choices=quickChoices;
-                    var chosenToolbar = toolbar;
-                    Close();
-                    if (!InputRouter.Gameplay) return;
-                    if (chosen < 0) return;
-                    if (chosenGroup == 0)
-                    {
-                        if(!ReferenceEquals(chosenToolbar,MyToolbarComponent.CurrentToolbar)) return;
-                        var result=SelectSlot(chosenToolbar,chosen,false,GameActions.AssignToolbarSlot);
-                        if(result==SlotResult.Unavailable) EssentialHud.Notify("Action unavailable");
-                        else if(result==SlotResult.Activated)
-                        {
-                            GameActions.Reset();
-                            InputRouter.Update();
-                        }
-                    }
-                    else
-                    {
-                        if (chosen < choices.Length && choices[chosen]?.Enabled==true) GameActions.Execute(choices[chosen]);
-                    }
+                    Activate(chosen,true);
+                    if(InputRouter.RadialOpen) { grippedChoice=chosen; grippedGroup=group; grippedPage=page; }
                     return;
                 }
                 int pageDelta=(controls.Primary.HasPressed ? 1:0)-(controls.WheelNextPage.HasPressed ? 1:0);
@@ -176,11 +163,32 @@ namespace SpaceEngineersVR.Player
                 return;
             }
             bool available=InputRouter.Gameplay && !Main.MenuOpen;
+            if(available && controls.QuickMenu.RawPressed && controls.Jetpack.HasPressed)
+            {
+                quickGesture.Reset();
+                controls.QuickMenu.BlockUntilRelease(); controls.Jetpack.BlockUntilRelease();
+                GameActions.Execute(GameActions.InventoryAction);
+                return;
+            }
+            if(available && controls.Unequip.RawPressed && controls.Interact.HasPressed)
+            {
+                gesture.Reset();
+                controls.Unequip.BlockUntilRelease(); controls.Interact.BlockUntilRelease();
+                GameActions.Execute(GameActions.ConfigureToolbarAction);
+                return;
+            }
+            if(available && controls.ToolbarWheel.HasPressed && controls.Interact.HasPressed)
+            {
+                controls.ToolbarWheel.BlockUntilRelease(); controls.Interact.BlockUntilRelease();
+                GameActions.Execute(GameActions.ConfigureToolbarAction);
+                return;
+            }
             if(available && controls.ActionsWheel.HasPressed) { Open(true,controls.ActionsWheel); return; }
             if(available && controls.ToolbarWheel.HasPressed) { Open(false,controls.ToolbarWheel); return; }
             var quick=quickGesture.Update(available,controls.QuickMenu.HasPressed,controls.QuickMenu.IsPressed,controls.QuickMenu.HasReleased,
                 MySession.Static?.ControlledEntity,-1,DateTime.UtcNow);
             if(quick==ToolbarGesture.Action.OpenWheel) { Open(true,controls.QuickMenu); return; }
+            if(quick==ToolbarGesture.Action.Unequip) { GameActions.Execute(GameActions.Dampeners); return; }
             var action=gesture.Update(InputRouter.Gameplay && !Main.MenuOpen,
                 controls.Unequip.HasPressed,controls.Unequip.IsPressed,controls.Unequip.HasReleased,
                 MySession.Static?.ControlledEntity,CockpitBuilding.Active ? -1:CockpitButtons.HoveredSwitch,DateTime.UtcNow,ThirdPersonView.Active && !CockpitBuilding.Active);
@@ -193,16 +201,42 @@ namespace SpaceEngineersVR.Player
             Open(false,controls.Unequip);
         }
         private static bool TapLatches => holder==Controls.Static.ActionsWheel || holder==Controls.Static.ToolbarWheel;
-        private static bool Confirming(DateTime now) =>
-            Confirms(TapLatches,holder.RawPressed,holder.HasPressed,(now-openedAt).TotalSeconds,ref latched);
-        // Holding confirms on release. On the dedicated wheel buttons a quick tap keeps the wheel open until the next tap;
-        // Touch Y and B open only on a hold, since a B tap unequips.
-        internal static bool Confirms(bool tapLatches,bool held,bool pressed,double seconds,ref bool latched)
+        private static bool Confirming(DateTime now,bool selected,bool gripSelected,out bool close) =>
+            Confirms(TapLatches,holder.RawPressed,holder.HasPressed,selected,gripSelected,(now-openedAt).TotalSeconds,ref latched,out close);
+        internal static bool Confirms(bool tapLatches,bool held,bool pressed,bool selected,bool gripSelected,double seconds,ref bool latched,out bool close)
         {
-            if(latched) return pressed;
+            close=latched && pressed;
+            if(latched) return false;
             if(held) return false;
+            if(gripSelected || !selected && (!tapLatches || seconds>=TapSeconds)) { close=true; return false; }
             if(tapLatches && seconds<TapSeconds) { latched=true; return false; }
             return true;
+        }
+        private static void Activate(int chosen,bool keepOpen)
+        {
+            int chosenGroup=group;
+            var choices=quickChoices;
+            var chosenToolbar=toolbar;
+            if(!keepOpen) Close();
+            if(chosen<0 || !keepOpen && !InputRouter.Gameplay) return;
+            if(chosenGroup==0)
+            {
+                if(!ReferenceEquals(chosenToolbar,MyToolbarComponent.CurrentToolbar)) { if(keepOpen) Close(); return; }
+                var result=SelectSlot(chosenToolbar,chosen,false,GameActions.AssignToolbarSlot);
+                if(result==SlotResult.Unavailable) EssentialHud.Notify("Action unavailable");
+                else if(result==SlotResult.Activated) { GameActions.Reset(); InputRouter.Update(); }
+                if(keepOpen && (result==SlotResult.Assigned || InputRouter.Mode!=InputMode.Radial ||
+                    !ReferenceEquals(chosenToolbar,MyToolbarComponent.CurrentToolbar))) Close();
+            }
+            else if(chosen<choices.Length && choices[chosen]?.Enabled==true)
+            {
+                var action=choices[chosen];
+                if(keepOpen && action.OpensMenu) Close();
+                if(keepOpen) InputRouter.RunRadialAction(() => GameActions.Execute(action));
+                else GameActions.Execute(action);
+                if(keepOpen && InputRouter.RadialOpen && (InputRouter.Mode!=InputMode.Radial ||
+                    !ReferenceEquals(owner,MySession.Static?.ControlledEntity))) Close();
+            }
         }
         internal static ActionChoice[][] WithRecents(ActionChoice[][] pages,ActionChoice[] recent)
         {
@@ -212,7 +246,7 @@ namespace SpaceEngineersVR.Player
         }
         private static void Open(bool quick,Button button)
         {
-            holder=button; latched=false; openedAt=DateTime.UtcNow;
+            holder=button; latched=false; grippedChoice=-1; openedAt=DateTime.UtcNow;
             bool jetpack=InputRouter.Mode==InputMode.Jetpack || MySession.Static?.LocalCharacter?.JetpackComp?.TurnedOn==true;
             // The multitool places no blocks, so it keeps the on-foot actions; its own are on the Build Info page.
             quickChoices=quick ? GameActions.WheelActions(PlacementControls.OwnsTools && !Patches.BuildInfoBridge.MultiToolEquipped,InputRouter.Mode==InputMode.Piloting,ThirdPersonView.Active,jetpack):null;
@@ -344,7 +378,7 @@ namespace SpaceEngineersVR.Player
                     subIcons[i] = index < choices.Length ? choices[index]?.SubIcon : null;
                 }
             }
-            var next = new View { Pose = pose, Labels = labels, Enabled = enabled, Selected = selection, Icons = icons, SubIcons = subIcons, ItemText = itemText,
+            var next = new View { Pose = pose, Labels = labels, Enabled = enabled, Selected = selection, CenterHint=latched ? "Close":null, Icons = icons, SubIcons = subIcons, ItemText = itemText,
                 Title = group == 0 ? "Toolbar " + ((toolbar?.CurrentPage ?? 0) + 1) + "/" + (toolbar?.PageCount ?? 0)
                     : pageTitles?[quickPage] ?? "Quick actions",
                 Variants=group==1 && variantPages?[quickPage]==true,Group=group,Page=group==0 ? toolbar?.CurrentPage ?? 0 : quickPage,Pages=group==0 ? toolbar?.PageCount ?? 1 : quickPages?.Length ?? 1,
@@ -375,7 +409,7 @@ namespace SpaceEngineersVR.Player
 
         public static void Close(bool resume = true)
         {
-            gesture.Reset(); quickGesture.Reset(); navigation.Reset(); selection = -1; view = null; holder=null; latched=false;
+            gesture.Reset(); quickGesture.Reset(); navigation.Reset(); selection = -1; view = null; holder=null; latched=false; grippedChoice=-1;
             quickChoices=null; quickPages=null;
             Patches.BuildVisionBridge.Close(); buildVision=buildVisionLatched=false; buildVisionPage=-1;
             InputRouter.RadialOpen = false;
@@ -455,7 +489,7 @@ namespace SpaceEngineersVR.Player
             if(current.Selected>=0) foreach(string icon in current.Icons[current.Selected]) target.Icon(icon,512-iconSize/2,iconTop,iconSize);
             else if(current.Idle==null) target.Icon(current.Group==0 ? GameActions.ConfigureToolbarAction.Icon : current.Group==1 ? GameActions.InventoryAction.Icon :
                 GameActions.Building[0].Icon,512-iconSize/2,iconTop,iconSize);
-            string selected=current.Selected<0 ? current.Idle ?? "Cancel" : current.Labels[current.Selected];
+            string selected=current.Selected<0 ? current.CenterHint ?? current.Idle ?? "Cancel" : current.Labels[current.Selected];
             float labelWidth=current.Compact ? 230:280,labelTop=iconTop+iconSize+13;
             g.DrawString(selected,TextFit.Font(g,selected,titleFont,labelWidth,2,20),Brushes.Cyan,new System.Drawing.RectangleF(512-labelWidth/2,labelTop,labelWidth,current.Compact ? 60:76),centered);
             int pages=Math.Min(9,Math.Max(1,current.Pages));

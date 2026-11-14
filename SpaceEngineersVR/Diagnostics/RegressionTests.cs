@@ -192,6 +192,25 @@ namespace SpaceEngineersVR.Diagnostics
             if (actions.Read(actionId, VRage.Input.MyControlStateType.NEW_PRESSED)) throw new Exception("Reset retained queued native action");
             log("PASS native action frame: press/hold/release, disabled pulse discard and transition cancellation");
 
+            var radialFrame=(Player.Control.ActionFrame)AccessTools.Field(typeof(NativeActions),"radialFrame").GetValue(null);
+            var modeField=AccessTools.Field(typeof(InputRouter),"<Mode>k__BackingField");
+            var priorMode=modeField.GetValue(null);
+            bool priorOpen=InputRouter.RadialOpen;
+            try
+            {
+                modeField.SetValue(null,InputMode.Radial);
+                InputRouter.RadialOpen=true;
+                radialFrame.Reset(); radialFrame.Queue(actionId); radialFrame.Advance(true);
+                if(!NativeActions.RadialPulsePending) throw new Exception("Radial native press skipped");
+                radialFrame.Advance(true);
+                if(!NativeActions.RadialPulsePending || !radialFrame.Read(actionId,VRage.Input.MyControlStateType.NEW_RELEASED))
+                    throw new Exception("Radial native release frame skipped");
+                radialFrame.Advance(true);
+                if(NativeActions.RadialPulsePending) throw new Exception("Radial native pulse remained active after release");
+            }
+            finally { radialFrame.Reset(); InputRouter.RadialOpen=priorOpen; modeField.SetValue(null,priorMode); }
+            log("PASS radial native pulse: press, release and idle while the wheel stays open");
+
             var flightMove = FlightAxes.Translation(Vector2.Zero, new Vector2(0.4f, 0.7f), 0.8f, 0.2f, 0, 0);
             Near(flightMove.X, 0.4, "flight lateral"); Near(flightMove.Y, 0.6, "flight up/down cancellation"); Near(flightMove.Z, -0.7, "flight forward");
             Near(FlightAxes.Translation(Vector2.Zero, Vector2.Zero, 0, 1, 0, 1).Y, -1, "flight down");

@@ -33,6 +33,11 @@ namespace SpaceEngineersVR.Diagnostics
             log("PASS character turning: 150% smooth speed, 30-degree snap, repeat, release and reset.");
 
             var character = new object();
+            if(InputRouter.NeedsReset(InputMode.Radial,InputMode.Radial,character,character,false,true) ||
+                InputRouter.NeedsReset(InputMode.Radial,InputMode.Radial,character,character,true,false) ||
+                !InputRouter.NeedsReset(InputMode.Radial,InputMode.Jetpack,character,character,false,true) ||
+                !InputRouter.NeedsReset(InputMode.Radial,InputMode.Radial,character,new object(),false,true))
+                throw new Exception("Jetpack selection reset the open radial wheel or skipped its exit reset");
             var characterModes = new[] { InputMode.Walking, InputMode.Jetpack, InputMode.Building };
             foreach (InputMode before in Enum.GetValues(typeof(InputMode)))
                 foreach (InputMode after in Enum.GetValues(typeof(InputMode)))

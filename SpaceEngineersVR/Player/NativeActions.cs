@@ -12,13 +12,16 @@ namespace SpaceEngineersVR.Player
     internal static class NativeActions
     {
         private static readonly ActionFrame frame = new ActionFrame();
+        // Explicit wheel choices need native pulses while ordinary gameplay controls stay gated.
+        private static readonly ActionFrame radialFrame = new ActionFrame();
+        internal static bool RadialPulsePending => InputRouter.RadialOpen && InputRouter.Mode==InputMode.Radial && radialFrame.HasCurrentOrPrevious;
         private static IMyControllableEntity owner;
         private static bool wheelJumpHeld;
         public static void Pulse(MyStringId action)
         {
             if(action==MyControlsSpace.DAMPING_RELATIVE) { DampenerTargeting.Activate(); return; }
             if(action==MyControlsSpace.DAMPING) { DampenerTargeting.Cancel(); GridSelection.CancelDampeners(); }
-            frame.Queue(action);
+            (InputRouter.RadialOpen ? radialFrame : frame).Queue(action);
         }
         public static void Update()
         {
@@ -39,6 +42,9 @@ namespace SpaceEngineersVR.Player
                     Controls.Static.ActionGripClick.IsPressed, ClearTerrain.Active);
             }
             frame.Advance(enabled);
+            bool radialEnabled=InputRouter.RadialOpen && InputRouter.Mode==InputMode.Radial && !Main.MenuOpen;
+            if(radialEnabled) owner=MySession.Static?.ControlledEntity;
+            radialFrame.Advance(radialEnabled);
         }
         // Support grip sprints on foot and descends on the jetpack; ladders use the stick.
         internal static bool SprintAllowed => (InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Building) &&
@@ -49,14 +55,17 @@ namespace SpaceEngineersVR.Player
             InputRouter.Mode==InputMode.Turret ? RemoteView.Previous as MyShipController : null;
         internal static bool WheelJumpAllowed => WheelShip?.ControlWheels==true && !ToolbarWheel.QuickPending && !FloatingWindows.OwnsInput && !PlacementControls.Adjusting && !CockpitControls.Adjusting && !ThirdPersonView.Manipulating;
         public static bool Read(MyStringId action, MyControlStateType type) =>
-            Main.VrActive && InputRouter.Gameplay && !Main.MenuOpen && frame.Read(action, type) && !Blocked(action) &&
+            Main.VrActive && !Main.MenuOpen &&
+            (InputRouter.Gameplay && frame.Read(action,type) || InputRouter.RadialOpen && InputRouter.Mode==InputMode.Radial && radialFrame.Read(action,type)) &&
+            !Blocked(action) &&
             !(PlacementControls.ModDistanceScope && (action==MyControlsSpace.MOVE_FURTHER || action==MyControlsSpace.MOVE_CLOSER));
 
         // WeaponCore blocks vanilla fire while it fires itself. Only honoured with WeaponCore: TouchScreenAPI and Arthur's LCD
         // block fire while the head faces their screens, which in VR is not where the hand points.
         internal static bool Blocked(MyStringId action) => WeaponCoreBridge.ApiReady && MyInput.Static?.IsControlBlocked(action)==true;
 
-        private static bool WasHeld(MyStringId action) => frame.Read(action, MyControlStateType.PRESSED) || frame.Read(action, MyControlStateType.NEW_RELEASED);
+        private static bool WasHeld(MyStringId action) => frame.Read(action, MyControlStateType.PRESSED) || frame.Read(action, MyControlStateType.NEW_RELEASED) ||
+            radialFrame.Read(action,MyControlStateType.PRESSED) || radialFrame.Read(action,MyControlStateType.NEW_RELEASED);
         public static void Reset()
         {
             // The wheel/dashboard do not necessarily invoke the native screen's
@@ -67,6 +76,7 @@ namespace SpaceEngineersVR.Player
             if (WasHeld(MyControlsSpace.SECONDARY_TOOL_ACTION)) owner?.EndShoot(MyShootActionEnum.SecondaryAction);
             if(WasHeld(MyControlsSpace.WHEEL_JUMP)) (owner as Sandbox.Game.Entities.Interfaces.IMyWheelControllableEntity)?.WheelJump(false);
             frame.Reset(); owner = null; wheelJumpHeld = false;
+            radialFrame.Reset();
         }
     }
 }

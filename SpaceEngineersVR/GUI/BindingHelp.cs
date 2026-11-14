@@ -35,7 +35,7 @@ namespace SpaceEngineersVR.GUI
             new Topic("3rd Person", new Diagram("view", 1600, 760)),
             new Topic("Spectator", new Diagram("spectator", 1600, 650)),
             new Topic("Floating Menus", new Diagram("menus", 1600, 650)),
-            new Topic("Other", new Diagram("seat-panel", 1600, 760), new Diagram("other", 1600, 702), new Diagram("other-end", 1600, 160)),
+            new Topic("Other", new Diagram("seat-panel", 1600, 650), new Diagram("other", 1600, 702), new Diagram("other-end", 1600, 160)),
             new Topic("WeaponCore", new Diagram("weaponcore", 1600, 650), new Diagram("weaponcore-joystick", 1600, 650),
                 new Diagram("weaponcore-combat", 1600, 575), new Diagram("weaponcore-hand", 1600, 600)) {Shown=()=>Player.WeaponCoreBridge.ApiReady},
             new Topic("Build Vision", new Diagram("build-vision", 1600, 650)) {Shown=()=>Patches.BuildVisionBridge.Active},
