@@ -11,7 +11,7 @@ Use the API when the mod does its own targeting or input, for example a camera r
 
 ## Setup
 
-1. Copy [`ModApi/SevrApi.cs`](ModApi/SevrApi.cs) into your mod's scripts unchanged. It compiles under the mod script whitelist.
+1. Copy [`ModApi/SevrApi.cs`](../ModApi/SevrApi.cs) into your mod's scripts unchanged. It compiles under the mod script whitelist.
 2. Create one `SevrApi` per session: call `Load()` in `LoadData` and `Unload()` in `UnloadData`.
 3. Read members when you need them. Check `IsActive` each time; it is false without the plugin, outside VR, and while VR is restarting.
 

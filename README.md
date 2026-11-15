@@ -19,7 +19,7 @@ Other features:
 - Third-person diorama build mode
 - Left-handed mode
 - Wrist tablet, radial menus and VR keyboard
-- [Mod API](MOD-API.md) and [programmable block API](https://github.com/ColbyJack1134/SpaceEngineersVR/blob/main/MECH-SCRIPTS.md)
+- [Mod API](guides/MOD-API.md) and [programmable block API](https://github.com/ColbyJack1134/SpaceEngineersVR/blob/main/guides/MECH-SCRIPTS.md)
 - CameraLCD implementation
 - Stereo 3D, 6DOF and roomscale (obviously)
 
@@ -44,7 +44,7 @@ With the 1.0 release, I consider this experience to be practically complete and 
 
 Set **Model Quality** to **High** to avoid artifacts with your in-game hand model.
 
-To install from a GitHub release or the optional flatscreen multiplayer companion, see [Installing manually from a release](INSTALL-MANUAL.md).
+To install from a GitHub release or the optional flatscreen multiplayer companion, see [Installing manually from a release](guides/MANUAL-INSTALL.md).
 
 ### Native Linux
 
@@ -52,7 +52,7 @@ Use Pulsar's `Interim.dll` and install your distribution's `libgdiplus` package.
 
 ## Controls
 
-[Controls guide](CONTROLS.md) • [Steam Frame controls guide](CONTROLS-FRAME.md). Also available in game.
+[Controls guide](guides/CONTROLS.md) • [Steam Frame controls guide](guides/CONTROLS-FRAME.md). Also available in game.
 
 Controls guide made for Quest 3. Touch controllers (All quests and Rift S) and Steam Frame controllers are fully supported.
 
@@ -74,12 +74,12 @@ Supported:
 - [Improvised Experimentation](https://steamcommunity.com/workshop/filedetails/?id=2891367014) (formerly improvised engineering)
   - Grip plus trigger on a grid to hold it. With trigger held, rotate with the sticks, B to throw. Release trigger only to use the sticks to move around like normal.
 - [WeaponCore](https://steamcommunity.com/workshop/filedetails/?id=3154371364) and [Defense Shields](https://steamcommunity.com/workshop/filedetails/?id=3154379105)
-  - [Controls guide](CONTROLS.md) and guide in game with mod enabled show the relevant controls.
+  - [Controls guide](guides/CONTROLS.md) and guide in game with mod enabled show the relevant controls.
 - [Paint Gun](https://steamcommunity.com/sharedfiles/filedetails/?id=500818376)
 - [Build Info](https://steamcommunity.com/sharedfiles/filedetails/?id=514062285)
 - [Build Vision 3.0](https://steamcommunity.com/workshop/filedetails/?id=1697184408)
 
-If you want to see specific mods, feel free to reach out! Mod developers can add VR support with the [Mod API](MOD-API.md).
+If you want to see specific mods, feel free to reach out! Mod developers can add VR support with the [Mod API](guides/MOD-API.md).
 
 ### Recommended Mods
 

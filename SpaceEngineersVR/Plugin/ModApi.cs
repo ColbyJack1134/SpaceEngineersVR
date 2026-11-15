@@ -7,7 +7,7 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Plugin
 {
-    // Public API for Workshop mods, which cannot reference the plugin: offered over mod messaging (see MOD-API.md).
+    // Public API for Workshop mods, which cannot reference the plugin: offered over mod messaging (see guides/MOD-API.md).
     // Members and their meaning never change; additions raise Version.
     internal static class ModApi
     {

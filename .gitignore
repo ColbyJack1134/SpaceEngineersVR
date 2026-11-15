@@ -20,8 +20,3 @@ __pycache__/
 /local.settings.json
 /docs/
 /*.md
-!/CONTROLS.md
-!/CONTROLS-FRAME.md
-!/INSTALL-MANUAL.md
-!/MOD-API.md
-!/MECH-SCRIPTS.md

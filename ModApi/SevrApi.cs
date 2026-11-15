@@ -1,4 +1,4 @@
-// Space Engineers VR mod API client, version 1. Copy this file into your mod unchanged; see MOD-API.md.
+// Space Engineers VR mod API client, version 1. Copy this file into your mod unchanged; see guides/MOD-API.md.
 using System;
 using System.Collections.Generic;
 using Sandbox.ModAPI;

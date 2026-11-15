@@ -2,10 +2,10 @@
 
 Space Engineers VR sends the pilot's head, hands and estimated arm joints to programmable blocks.
 
-Examples in [`IngameScripts`](IngameScripts):
+Examples in [`IngameScripts`](../IngameScripts):
 
-- [`SevrVrData.cs`](IngameScripts/SevrVrData.cs) shows the data on the block's screen. Copy its `SevrData`, `SevrHand` and `SevrJoints` classes to parse it.
-- [`SevrMechArms.cs`](IngameScripts/SevrMechArms.cs) makes a mech's arms copy the pilot's.
+- [`SevrVrData.cs`](../IngameScripts/SevrVrData.cs) shows the data on the block's screen. Copy its `SevrData`, `SevrHand` and `SevrJoints` classes to parse it.
+- [`SevrMechArms.cs`](../IngameScripts/SevrMechArms.cs) makes a mech's arms copy the pilot's.
 
 ## Receiving data
 
