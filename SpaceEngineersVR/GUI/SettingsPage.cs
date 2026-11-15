@@ -50,17 +50,18 @@ namespace SpaceEngineersVR.GUI
                     Label(.19f,"Hands and wrist controls stay visible.",.65f);
                     break;
                 case "Advanced controls":
-                    Toggle(-.32f,"Controller menu pointer",c.ControllerMenuPointer,v=>c.ControllerMenuPointer=v);
-                    Toggle(-.25f,"Show laser on interactables",c.InteractableLaser,v=>c.InteractableLaser=v);
+                    Toggle(-.32f,"Pin Quest radial menus",c.PinQuestRadialMenus,v=>c.PinQuestRadialMenus=v);
+                    Toggle(-.255f,"Controller menu pointer",c.ControllerMenuPointer,v=>c.ControllerMenuPointer=v);
+                    Toggle(-.19f,"Show laser on interactables",c.InteractableLaser,v=>c.InteractableLaser=v);
                     Action<bool> lockMouse=null;
-                    Toggle(-.18f,"Keyboard / mouse gameplay",c.EnableKeyboardAndMouseControls,v=> { c.EnableKeyboardAndMouseControls=v; lockMouse(v); });
-                    lockMouse=Toggle(-.11f,"Lock mouse to game window",c.LockMouseToWindow,v=>c.LockMouseToWindow=v,.03f);
+                    Toggle(-.125f,"Keyboard / mouse gameplay",c.EnableKeyboardAndMouseControls,v=> { c.EnableKeyboardAndMouseControls=v; lockMouse(v); });
+                    lockMouse=Toggle(-.06f,"Lock mouse to game window",c.LockMouseToWindow,v=>c.LockMouseToWindow=v,.03f);
                     lockMouse(c.EnableKeyboardAndMouseControls);
-                    Toggle(-.04f,"Tracked arms",c.TrackedArms,v=>c.TrackedArms=v);
-                    Toggle(.03f,"Double-tap to keep tools running",c.DoubleTapToolLock,v=>c.DoubleTapToolLock=v);
-                    Toggle(.10f,"Clear terrain toggle",c.ClearTerrainToggle,v=>c.ClearTerrainToggle=v);
-                    Toggle(.17f,"Right stick up jumps",c.StickJump,v=>c.StickJump=v);
-                    Toggle(.24f,"VR data to [SEVR] programmable blocks",c.ProgrammableBlockData,v=>c.ProgrammableBlockData=v);
+                    Toggle(.005f,"Tracked arms",c.TrackedArms,v=>c.TrackedArms=v);
+                    Toggle(.07f,"Double-tap to keep tools running",c.DoubleTapToolLock,v=>c.DoubleTapToolLock=v);
+                    Toggle(.135f,"Clear terrain toggle",c.ClearTerrainToggle,v=>c.ClearTerrainToggle=v);
+                    Toggle(.20f,"Right stick up jumps",c.StickJump,v=>c.StickJump=v);
+                    Toggle(.265f,"VR data to [SEVR] programmable blocks",c.ProgrammableBlockData,v=>c.ProgrammableBlockData=v);
                     break;
                 case "Turrets and cameras":
                     Slider(-.33f,"Turret aim sensitivity",c.TurretAimSensitivity,.25f,v=>c.TurretAimSensitivity=v,400);

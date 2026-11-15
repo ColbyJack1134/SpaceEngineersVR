@@ -44,6 +44,7 @@ namespace SpaceEngineersVR.GUI
             ["Proximity fade in seats"]="Fade the body you lean into",
             ["Hide first-person body"]="Hands stay visible",
             ["Controller menu pointer"]="Laser pointer in menus",
+            ["Pin Quest radial menus"]="Release Y or B with the stick centered to keep its wheel open",
             ["Keyboard / mouse gameplay"]="Keyboard and mouse alongside controllers",
             ["Lock mouse to game window"]="Keep the cursor inside the game",
             ["Tracked arms"]="Arms follow your controllers",

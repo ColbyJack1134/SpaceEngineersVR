@@ -187,6 +187,8 @@ namespace SpaceEngineersVR.Config
         public bool ClearTerrainToggle { get => clearTerrainToggle; set => SetValue(ref clearTerrainToggle,value); }
         private bool doubleTapToolLock=true;
         public bool DoubleTapToolLock { get => doubleTapToolLock; set => SetValue(ref doubleTapToolLock,value); }
+        private bool pinQuestRadialMenus=true;
+        public bool PinQuestRadialMenus { get => pinQuestRadialMenus; set => SetValue(ref pinQuestRadialMenus,value); }
         private bool lockBlockWhileRotating=true;
         public bool LockBlockWhileRotating { get => lockBlockWhileRotating; set => SetValue(ref lockBlockWhileRotating,value); }
         private bool leftHanded;

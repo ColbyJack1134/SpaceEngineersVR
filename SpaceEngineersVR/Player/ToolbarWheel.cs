@@ -201,13 +201,15 @@ namespace SpaceEngineersVR.Player
             Open(false,controls.Unequip);
         }
         private static bool TapLatches => holder==Controls.Static.ActionsWheel || holder==Controls.Static.ToolbarWheel;
+        private static bool PinOnCenter => !TapLatches && Common.Config.PinQuestRadialMenus;
         private static bool Confirming(DateTime now,bool selected,bool gripSelected,out bool close) =>
-            Confirms(TapLatches,holder.RawPressed,holder.HasPressed,selected,gripSelected,(now-openedAt).TotalSeconds,ref latched,out close);
-        internal static bool Confirms(bool tapLatches,bool held,bool pressed,bool selected,bool gripSelected,double seconds,ref bool latched,out bool close)
+            Confirms(TapLatches,PinOnCenter,holder.RawPressed,holder.HasPressed,selected,gripSelected,(now-openedAt).TotalSeconds,ref latched,out close);
+        internal static bool Confirms(bool tapLatches,bool pinOnCenter,bool held,bool pressed,bool selected,bool gripSelected,double seconds,ref bool latched,out bool close)
         {
             close=latched && pressed;
             if(latched) return false;
             if(held) return false;
+            if(pinOnCenter && !selected) { latched=true; return false; }
             if(gripSelected || !selected && (!tapLatches || seconds>=TapSeconds)) { close=true; return false; }
             if(tapLatches && seconds<TapSeconds) { latched=true; return false; }
             return true;
@@ -378,7 +380,11 @@ namespace SpaceEngineersVR.Player
                     subIcons[i] = index < choices.Length ? choices[index]?.SubIcon : null;
                 }
             }
-            var next = new View { Pose = pose, Labels = labels, Enabled = enabled, Selected = selection, CenterHint=latched ? "Close":null, Icons = icons, SubIcons = subIcons, ItemText = itemText,
+            string centerHint=null;
+            if(latched) centerHint=PinOnCenter ? (group==1 ? "Y/B: Close":"B: Close") : "Close";
+            else if(PinOnCenter) centerHint="Release: keep open";
+            var next = new View { Pose = pose, Labels = labels, Enabled = enabled, Selected = selection,
+                CenterHint=centerHint, Icons = icons, SubIcons = subIcons, ItemText = itemText,
                 Title = group == 0 ? "Toolbar " + ((toolbar?.CurrentPage ?? 0) + 1) + "/" + (toolbar?.PageCount ?? 0)
                     : pageTitles?[quickPage] ?? "Quick actions",
                 Variants=group==1 && variantPages?[quickPage]==true,Group=group,Page=group==0 ? toolbar?.CurrentPage ?? 0 : quickPage,Pages=group==0 ? toolbar?.PageCount ?? 1 : quickPages?.Length ?? 1,
