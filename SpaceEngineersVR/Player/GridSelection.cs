@@ -32,7 +32,9 @@ namespace SpaceEngineersVR.Player
         internal const string PickBlock="Pick block";
         internal static bool Arm(string name,bool single=false,bool magnetic=false,Controller pointer=null)
         {
+            MenuKeyboard.ReleaseForWorldAction();
             if(!InputRouter.Gameplay || MySession.Static?.LocalCharacter?.IsDead!=false) return false;
+            if(!BlueprintActions.Allowed(name)) { EssentialHud.Notify("Copy/paste is unavailable"); return false; }
             if(!Plugin.PatchGroups.GridSelection.Enabled) { EssentialHud.Notify("Grid selection is off"); return false; }
             if(name==PickBlock && MySession.Static.ControlledEntity!=MySession.Static.LocalCharacter) { EssentialHud.Notify("Pick block works on foot"); return false; }
             if(PlacementControls.ClipboardActive || MyCubeBuilder.Static!=null && building(MyCubeBuilder.Static))
@@ -125,6 +127,7 @@ namespace SpaceEngineersVR.Player
             if(name=="Dampeners") { DampenerTargeting.Select(target,ray,pointer); return; }
             if(name=="Spectator lock") { SpectatorView.Lock(target); return; }
             if(name==PickBlock) { BlockPicker.Equip(block.BlockDefinition as Sandbox.Definitions.MyCubeBlockDefinition); return; }
+            if(!BlueprintActions.Allowed(name)) { EssentialHud.Notify("Copy/paste is unavailable"); return; }
             try
             {
                 Executing=true; Confirmed=target;

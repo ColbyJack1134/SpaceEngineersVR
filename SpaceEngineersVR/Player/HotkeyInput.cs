@@ -78,13 +78,14 @@ namespace SpaceEngineersVR.Player
                 default: return MyKeys.None;
             }
         }
-        private static bool Matches(MyKeys k) => k==key ||
+        private static bool Modifier(MyKeys k) =>
             heldShift && (k==MyKeys.Shift || k==MyKeys.LeftShift) || heldControl && (k==MyKeys.Control || k==MyKeys.LeftControl) ||
             heldAlt && (k==MyKeys.Alt || k==MyKeys.LeftAlt);
-        internal static bool Down(MyKeys k) { int age=Frame-pressed; return age>=1 && age<=Hold && Matches(k); }
-        internal static bool Was(MyKeys k) { int age=Frame-pressed; return age>=2 && age<=Hold+1 && Matches(k); }
-        internal static bool NewPressed(MyKeys k) => Frame-pressed==1 && Matches(k);
-        internal static bool NewReleased(MyKeys k) => Frame-pressed==Hold+1 && Matches(k);
+        // Native chord release checks require the modifier to outlast the main key by one update.
+        internal static bool Down(MyKeys k) { int age=Frame-pressed; return age>=1 && age<=Hold+(Modifier(k) ? 1:0) && (k==key || Modifier(k)); }
+        internal static bool Was(MyKeys k) { int age=Frame-pressed; return age>=2 && age<=Hold+(Modifier(k) ? 2:1) && (k==key || Modifier(k)); }
+        internal static bool NewPressed(MyKeys k) => Frame-pressed==1 && (k==key || Modifier(k));
+        internal static bool NewReleased(MyKeys k) => Frame-pressed==Hold+(Modifier(k) ? 2:1) && (k==key || Modifier(k));
         internal static bool MouseDown(MyMouseButtonsEnum b) { int age=Frame-mousePressed; return age>=1 && age<=Hold && b==mouse; }
         internal static bool MouseNewPressed(MyMouseButtonsEnum b) => Frame-mousePressed==1 && b==mouse;
         internal static bool MouseNewReleased(MyMouseButtonsEnum b) => Frame-mousePressed==Hold+1 && b==mouse;

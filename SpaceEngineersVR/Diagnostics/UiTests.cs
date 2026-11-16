@@ -56,6 +56,16 @@ namespace SpaceEngineersVR.Diagnostics
                 WristPreview(device,canvas,wrist,output,"wrist-menu-preview");
                 wrist.Keys=WristPanel.Keys(null,false,true,true,false,wrist.Status,false);
                 WristPreview(device,canvas,wrist,output,"wrist-ship-controls");
+                WristPanel.OpenBlueprints();
+                foreach(bool creative in new[] {false,true})
+                {
+                    var keys=WristPanel.Keys(null,false,false,false,false,wrist.Status).Take(4).ToList();
+                    WristPanel.BlueprintKeys(keys,creative);
+                    foreach(var key in keys) key.Enabled=true;
+                    wrist.Keys=keys.ToArray();
+                    WristPreview(device,canvas,wrist,output,creative ? "wrist-creative":"wrist-blueprints");
+                }
+                WristPanel.Show(0);
                 var chat=new WristChat.View {Channel="Global",Count=8,Available=true,Players=new Sandbox.Game.World.MyPlayer[0],Messages=new[] {
                     new Sandbox.Game.Gui.MyChatItem("Engineer","Thrusters online.","White",VRageMath.Color.White,VRageMath.Color.White),
                     new Sandbox.Game.Gui.MyChatItem("System","Player joined the game.","White",VRageMath.Color.PaleGoldenrod,VRageMath.Color.White),

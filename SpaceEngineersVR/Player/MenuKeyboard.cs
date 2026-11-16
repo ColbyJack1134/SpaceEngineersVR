@@ -20,6 +20,11 @@ namespace SpaceEngineersVR.Player
         private static Action submitted;
         private static string done="DONE";
         internal static bool Hotkeys { get; private set; }
+        internal static bool WorldHotkeys => Hotkeys && Standalone && screen==null && VRGUIManager.TopScreen==null;
+        internal static void ReleaseForWorldAction()
+        {
+            if(WorldHotkeys) Close();
+        }
         public static bool Standalone => target!=null && valid!=null;
         // Wrist chat and search have no native screen to show behind the keyboard; store and ATM fields keep theirs.
         public static bool HidesMenu => Standalone && screen==null;

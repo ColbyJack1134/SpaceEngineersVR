@@ -68,7 +68,7 @@ namespace SpaceEngineersVR.Player
         public static bool TryWorldPose(Controller controller, out MatrixD world)
         {
             world = MatrixD.Identity;
-            if (!Main.VrActive || Main.MenuOpen || !controller.pose.isTracked || MySector.MainCamera == null || MySession.Static?.LocalCharacter == null)
+            if (!Main.VrActive || Main.MenuOpen && !MenuKeyboard.WorldHotkeys || !controller.pose.isTracked || MySector.MainCamera == null || MySession.Static?.LocalCharacter == null)
                 return false;
             world = CameraRig.DeviceWorld(controller.AimTracking);
             return world.IsValid();
@@ -97,7 +97,7 @@ namespace SpaceEngineersVR.Player
         {
             ray = default(LineD);
             var character = MySession.Static?.LocalCharacter;
-            if (!InputRouter.Gameplay || character == null || character.IsDead || character.IsSitting ||
+            if (!(InputRouter.Gameplay || MenuKeyboard.WorldHotkeys) || character == null || character.IsDead || character.IsSitting ||
                 MySession.Static.ControlledEntity != character || !TryCharacterPointerPose(hand, out MatrixD pose)) return false;
             var head=character.GetHeadMatrix(true,true,forceHeadBone:true).Translation;
             if(!Multiplayer.HeldItemPose.Clear(character,head,pose.Translation) ||

@@ -92,14 +92,14 @@ namespace SpaceEngineersVR.Player
                     string binding=control.ToString();
                     string help=control.GetControlDescription().HasValue ? MyTexts.GetString(control.GetControlDescription().Value) : "";
                     yield return new ActionChoice("Control: "+name,()=>NativeActions.Pulse(id),
-                        searchTerms:"hotkey keyboard "+id.String+" "+binding+" "+help);
+                        searchTerms:"hotkey keyboard "+id.String+" "+binding+" "+help,buildCategory:BlueprintActions.IsControl(id));
                 }
             foreach(var field in typeof(Sandbox.Game.MyControlsSpace).GetFields(System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.Static))
                 if(field.FieldType==typeof(MyStringId))
                 {
                     var id=(MyStringId)field.GetValue(null);
                     if(!ids.Add(id)) continue;
-                    yield return new ActionChoice("Control: "+Words(id.String),()=>NativeActions.Pulse(id),searchTerms:"hotkey "+field.Name);
+                    yield return new ActionChoice("Control: "+Words(id.String),()=>NativeActions.Pulse(id),searchTerms:"hotkey "+field.Name,buildCategory:BlueprintActions.IsControl(id));
                 }
             var bar=MyToolbarComponent.CurrentToolbar;
             if(bar==null) yield break;
@@ -139,7 +139,7 @@ namespace SpaceEngineersVR.Player
                 label=string.IsNullOrEmpty(label) ? Words(key.ToString()) : MyTexts.GetString(MyStringId.GetOrCompute(label));
                 string icon=(string)definition?.Element("Icons")?.Elements("string").FirstOrDefault();
                 result.Add(new ActionChoice("Game: "+label,()=> { if(MySession.Static!=null && action.IsEnabled()) action.ExecuteAction(); },
-                    icon:icon,enabled:()=>MySession.Static!=null && action.IsEnabled(),searchTerms:"native action ship "+Words(key.ToString())));
+                    icon:icon,enabled:()=>MySession.Static!=null && action.IsEnabled(),searchTerms:"native action ship "+Words(key.ToString()),buildCategory:BlueprintActions.IsAction(key)));
             }
             return result.ToArray();
         }

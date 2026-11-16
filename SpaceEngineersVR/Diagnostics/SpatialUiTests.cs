@@ -48,7 +48,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Require(quickPages.All(p=>p.Length==9) && quickPages.SelectMany(p=>p).Where(a=>a!=null).SequenceEqual(wheel),"Action paging drops or duplicates an entry");
                 var panelKeys=WristPanel.Keys(null,context[0],context[1],context[2],context[3],null,false);
                 Require(panelKeys.Any(k=>k.Action==GameActions.Quick[22])==(context[1] && context[2]),"Ship camera action escaped seated third person");
-                Require(panelKeys.Any(k=>k.Action==GameActions.BlueprintsAction),"Wrist home lost blueprint access");
+                Require(panelKeys.Any(k=>k.Action==WristPanel.BlueprintsAction),"Wrist home lost blueprint access");
                 Require(panelKeys.Length<=21 && panelKeys.All(k=>k.Bounds.X>=0 && k.Bounds.Y>=0 && k.Bounds.Right<=1 && k.Bounds.Bottom<=1),"Tablet context overflows the panel");
                 for(int i=0;i<panelKeys.Length;i++) for(int j=i+1;j<panelKeys.Length;j++)
                     Require(panelKeys[i].Bounds.Right<=panelKeys[j].Bounds.X || panelKeys[j].Bounds.Right<=panelKeys[i].Bounds.X || panelKeys[i].Bounds.Bottom<=panelKeys[j].Bounds.Y || panelKeys[j].Bounds.Bottom<=panelKeys[i].Bounds.Y,"Tablet panelKeys overlap");
@@ -76,6 +76,30 @@ namespace SpaceEngineersVR.Diagnostics
             var keyboard=WristPanel.Keys(null,false,false,false,true,null);
             Require(keyboard.All(k=>k.Bounds.X>=0 && k.Bounds.Y>=0 && k.Bounds.Right<=1 && k.Bounds.Bottom<=1),"Search results leave tablet bounds");
             WristPanel.Reset();
+            WristPanel.OpenBlueprints();
+            var blueprints=WristPanel.Keys(null,false,false,false,false,null);
+            Require(blueprints[0].Label=="Back" && blueprints.Any(k=>k.Action==BlueprintActions.Create) &&
+                blueprints.Any(k=>k.Action==BlueprintActions.Library),"Wrist blueprint page lost its actions or Back");
+            foreach(bool creative in new[] {false,true})
+            {
+                var blueprintKeys=new System.Collections.Generic.List<SurfaceKey>();
+                WristPanel.BlueprintKeys(blueprintKeys,creative);
+                Require(blueprintKeys.Select(k=>k.Action).SequenceEqual(BlueprintActions.Choices(creative)),"Wrist blueprint action order changed");
+                Require(blueprintKeys.Count==(creative ? 6:2) && blueprintKeys.All(k=>k.Bounds.X>=0 && k.Bounds.Y>=.15f && k.Bounds.Right<=1 && k.Bounds.Bottom<=1),"Wrist blueprint actions overflow their page");
+                Require(blueprintKeys.All(k=>!k.Enabled),"Blueprint actions enabled outside a world");
+                for(int i=0;i<blueprintKeys.Count;i++) for(int j=i+1;j<blueprintKeys.Count;j++)
+                    Require(blueprintKeys[i].Bounds.Right<=blueprintKeys[j].Bounds.X || blueprintKeys[j].Bounds.Right<=blueprintKeys[i].Bounds.X ||
+                        blueprintKeys[i].Bounds.Bottom<=blueprintKeys[j].Bounds.Y || blueprintKeys[j].Bounds.Bottom<=blueprintKeys[i].Bounds.Y,"Wrist blueprint buttons overlap");
+            }
+            var nativeBlueprints=ActionCatalog.NativeEntries().Where(a=>a.BuildCategory).ToArray();
+            Require(nativeBlueprints.Length==5 && nativeBlueprints.All(a=>WristPanel.InCategory(a,3)),"Native blueprint actions missing from Build search");
+            foreach(var control in new[] {Sandbox.Game.MyControlsSpace.CREATE_BLUEPRINT,Sandbox.Game.MyControlsSpace.COPY_OBJECT_DETACHED,
+                Sandbox.Game.MyControlsSpace.CUT_OBJECT_MAGNETIC_LOCKS,Sandbox.Game.MyControlsSpace.PASTE_OBJECT,Sandbox.Game.MyControlsSpace.DELETE_OBJECT})
+                Require(BlueprintActions.IsControl(control),"Clipboard binding missing from Build search: "+control);
+            Require(!BlueprintActions.IsControl(Sandbox.Game.MyControlsSpace.JUMP),"Unrelated binding entered Build search");
+            WristPanel.Show(1); Require(!WristPanel.BlueprintsOpen,"Blueprint page survived a tab change");
+            WristPanel.OpenBlueprints(); WristPanel.Reset(); Require(!WristPanel.BlueprintsOpen,"Blueprint page survived reset");
+            log("PASS wrist blueprints: Survival/Creative layouts, native Build search membership, disabled no-world actions and page exit.");
             foreach(bool available in new[] {false,true}) foreach(bool sticks in new[] {false,true}) foreach(bool unlocked in new[] {false,true})
             {
                 var seatKeys=new System.Collections.Generic.List<SurfaceKey>();

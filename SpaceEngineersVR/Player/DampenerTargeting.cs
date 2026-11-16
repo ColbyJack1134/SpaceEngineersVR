@@ -16,6 +16,7 @@ namespace SpaceEngineersVR.Player
             Sandbox.Game.GameSystems.MyEntityThrustComponent.IsInRangeOfRelativeDampening(MySession.Static.ControlledEntity,target);
         public static void Activate()
         {
+            MenuKeyboard.ReleaseForWorldAction();
             Cancel();
             if(!InputRouter.Gameplay || SpectatorView.Active || MySession.Static?.ControlledEntity==null || !Player.Headset.pose.isTracked) return;
             GridSelection.Clear();

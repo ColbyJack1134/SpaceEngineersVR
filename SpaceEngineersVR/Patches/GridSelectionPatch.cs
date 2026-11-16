@@ -26,6 +26,16 @@ namespace SpaceEngineersVR.Patches
     }
 
     [HarmonyPatchCategory("GridSelection")]
+    [HarmonyPatch(typeof(MyClipboardComponent),nameof(MyClipboardComponent.Paste))]
+    internal static class ClipboardHotkeyPatch
+    {
+        private static void Prefix()
+        {
+            if(Main.VrActive) MenuKeyboard.ReleaseForWorldAction();
+        }
+    }
+
+    [HarmonyPatchCategory("GridSelection")]
     [HarmonyPatch(typeof(MyCubeGrid),nameof(MyCubeGrid.GetTargetEntity))]
     internal static class SelectedEntityPatch
     {

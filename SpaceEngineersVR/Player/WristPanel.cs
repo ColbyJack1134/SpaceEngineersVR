@@ -18,6 +18,10 @@ namespace SpaceEngineersVR.Player
         internal static void OpenHud() { Show(0); HudOpen=true; WristHud.Open(); }
         internal static readonly ActionChoice HudAction=new ActionChoice("HUD",OpenHud);
         internal static bool ChatOpen { get; private set; }
+        internal static bool BlueprintsOpen { get; private set; }
+        internal static void OpenBlueprints() { Show(0); BlueprintsOpen=true; }
+        internal static readonly ActionChoice BlueprintsAction=new ActionChoice(()=>"Blueprints",OpenBlueprints,
+            historyKey:"Wrist blueprints",icon:()=>NativeSprites.Hud("BlueprintsScreen"));
         internal const int CombatTab=4;
         // WeaponCore and Defense Shields share one tab that opens on Weapons.
         internal static bool CombatAvailable => WeaponCoreBridge.ApiReady || ShieldsBridge.Ready;
@@ -26,11 +30,11 @@ namespace SpaceEngineersVR.Player
         internal static void SwitchCombatView() => shieldsView=!ShieldsOpen;
         internal static void OpenChat() { Show(0); ChatOpen=true; SpatialUi.Expand(); }
         internal static bool DesktopOpen { get; private set; }
-        internal static void OpenDesktop() { StopEditing(); HudOpen=SeatOpen=ChatOpen=false; DesktopOpen=true; SpatialUi.Expand(); }
-        public static void Reset() { StopEditing(); tab=page=category=0; HudOpen=SeatOpen=DesktopOpen=ChatOpen=shieldsView=false; query=""; WristSignals.Reset(); WristChat.Reset(); }
+        internal static void OpenDesktop() { StopEditing(); HudOpen=SeatOpen=ChatOpen=BlueprintsOpen=false; DesktopOpen=true; SpatialUi.Expand(); }
+        public static void Reset() { StopEditing(); tab=page=category=0; HudOpen=SeatOpen=DesktopOpen=ChatOpen=BlueprintsOpen=shieldsView=false; query=""; WristSignals.Reset(); WristChat.Reset(); }
         internal static bool Inspecting => tab==3;
         public static void StopEditing() { if(editing || ChatOpen && MenuKeyboard.Standalone) MenuKeyboard.Close(); editing=false; }
-        internal static void Show(int selected) { StopEditing(); HudOpen=SeatOpen=DesktopOpen=ChatOpen=shieldsView=false; tab=selected; }
+        internal static void Show(int selected) { StopEditing(); HudOpen=SeatOpen=DesktopOpen=ChatOpen=BlueprintsOpen=shieldsView=false; tab=selected; }
         internal static void SetQuery(string text) { query=text; page=0; }
         internal static void Edit()
         {
@@ -46,7 +50,7 @@ namespace SpaceEngineersVR.Player
             bool showToolbar=selected==1;
             var keys=new List<SurfaceKey>();
             var tabs=new[] {
-                new ActionChoice(SeatOpen && !previewToolbar.HasValue ? "Back":"Quick",()=>Show(0)),new ActionChoice("Toolbar",()=>Show(1)),
+                new ActionChoice((SeatOpen || BlueprintsOpen) && !previewToolbar.HasValue ? "Back":"Quick",()=>Show(0)),new ActionChoice("Toolbar",()=>Show(1)),
                 new ActionChoice("Search",()=>Show(2)),new ActionChoice("Navigation",()=>Show(3)) };
             if(CombatAvailable) tabs=tabs.Concat(new[] {new ActionChoice("Combat",()=>Show(CombatTab))}).ToArray();
             float tabPitch=.972f/tabs.Length;
@@ -59,6 +63,7 @@ namespace SpaceEngineersVR.Player
             else if(selected==3) { WristSignals.Keys(keys); return keys.ToArray(); }
             else if(selected==0 && HudOpen && !previewToolbar.HasValue) WristHud.Keys(keys);
             else if(selected==0 && ChatOpen && !previewToolbar.HasValue) WristChat.Keys(keys);
+            else if(selected==0 && BlueprintsOpen && !previewToolbar.HasValue) BlueprintKeys(keys,BlueprintActions.Creative);
             else if(selected==CombatTab) { if(ShieldsOpen) ShieldsPanel.Keys(keys); else WeaponCoreStatus.Keys(keys); }
             else if(selected==2) SearchKeys(keys);
             else if(showToolbar)
@@ -83,7 +88,7 @@ namespace SpaceEngineersVR.Player
             }
             else
             {
-                var actions=new[] {GameActions.BlueprintsAction,GameActions.InventoryAction,GameActions.TerminalAction,
+                var actions=new[] {BlueprintsAction,GameActions.InventoryAction,GameActions.TerminalAction,
                     seated ? (thirdPerson ? GameActions.Quick[22]:SeatAction):GameActions.Quick[3],
                     GameActions.LightsAction,seated ? GameActions.ParkAction:GameActions.HelmetAction,
                     seated ? GameActions.PowerAction:GameActions.JetpackAction,GameActions.Dampeners,
@@ -109,6 +114,16 @@ namespace SpaceEngineersVR.Player
             }
             return keys.ToArray();
         }
+        internal static void BlueprintKeys(List<SurfaceKey> keys,bool creative)
+        {
+            var actions=BlueprintActions.Choices(creative);
+            for(int i=0;i<actions.Length;i++)
+            {
+                var action=actions[i];
+                keys.Add(new SurfaceKey(action.Label,.02f+i%2*.49f,.18f+i/2*.25f,.47f,.22f) {
+                    Action=action,Icons=new[] {action.Icon},Enabled=action.Enabled,Horizontal=true });
+            }
+        }
         internal static SurfaceKey[] DesktopKeys(bool revealed,int monitor)
         {
             var keys=new List<SurfaceKey> {new SurfaceKey("Back",.025f,.044f,.075f,.133f) {Action=new ActionChoice("Back",()=>DesktopOpen=false),Invisible=!revealed}};
@@ -130,7 +145,7 @@ namespace SpaceEngineersVR.Player
                 action==GameActions.DetachBootsAction || action==GameActions.Dampeners || action==GameActions.RelativeDampeners || action==GameActions.Quick[3] || action==GameActions.CycleAmmoAction || action==GameActions.InventoryAction;
             if(value==2) return action==GameActions.PowerAction || action==GameActions.ParkAction || action==GameActions.Dampeners || action==GameActions.RelativeDampeners ||
                 action==GameActions.TerminalAction || action==GameActions.BroadcastAction || action==GameActions.CockpitBuild || action==GameActions.ExitFeed || action==GameActions.ResetFeed || action.Label.StartsWith("Toolbar ");
-            if(value==3) return GameActions.Building.Contains(action) || action==GameActions.BlueprintsAction || action==GameActions.CockpitBuild || action==GameActions.PickBlockAction;
+            if(value==3) return action.BuildCategory || GameActions.Building.Contains(action) || action==GameActions.BlueprintsAction || action==GameActions.CockpitBuild || action==GameActions.PickBlockAction;
             return action.Label.StartsWith("VR:") || action==GameActions.Options || action.Label==GameActions.Options.Label || action==GameActions.HudOptions || action==GameActions.Quick[10] ||
                 action==GameActions.RecenterAction || action==GameActions.ResetScreens || action==GameActions.PlayPosture || action==GameActions.DesktopFloating || action==GameActions.DesktopWrist;
         }

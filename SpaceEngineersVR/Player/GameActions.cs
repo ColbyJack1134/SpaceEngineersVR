@@ -27,11 +27,12 @@ namespace SpaceEngineersVR.Player
         private readonly string icon;
         private readonly Func<bool> enabled;
         public readonly string SearchTerms;
+        public readonly bool BuildCategory;
         public bool Enabled => enabled?.Invoke() ?? true;
         private readonly Func<string> iconProvider,subIcon;
         public string Icon => icon ?? iconProvider?.Invoke() ?? NativeSprites.Hud(IconName());
         public string SubIcon => subIcon?.Invoke();
-        public ActionChoice(string label, Action run, bool opensMenu = false,string icon=null,Func<bool> enabled=null,string searchTerms=null) { HistoryKey=label; SearchTerms=searchTerms; this.label=label; Run=run; OpensMenu=opensMenu; this.icon=icon; this.enabled=enabled; }
+        public ActionChoice(string label, Action run, bool opensMenu = false,string icon=null,Func<bool> enabled=null,string searchTerms=null,bool buildCategory=false) { HistoryKey=label; SearchTerms=searchTerms; BuildCategory=buildCategory; this.label=label; Run=run; OpensMenu=opensMenu; this.icon=icon; this.enabled=enabled; }
         public ActionChoice(Func<string> label,Action run,Func<bool> enabled=null,string historyKey=null,bool opensMenu=false,Func<string> icon=null,Func<string> subIcon=null)
         { HistoryKey=historyKey; labelProvider=label; Run=run; this.enabled=enabled; OpensMenu=opensMenu; iconProvider=icon; this.subIcon=subIcon; }
         private string IconName()

@@ -28,6 +28,11 @@ internal static class Program
             if(args.Length==3 && args[1]=="--paint-gun-test") { PaintGunTests.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==2 && args[1]=="--lcd-input-test") { LcdInputTests.Run(Console.WriteLine); return 0; }
             if(args.Length==2 && args[1]=="--keyboard-test") { KeyboardInputTests.Run(Console.WriteLine); return 0; }
+            if(args.Length==2 && args[1]=="--hotkeys-test")
+            {
+                UiTests.Initialize(game,Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"SEVRPrototype","Reports","regression-data"));
+                RegressionTests.InitializeRenderer(game); HotkeyTests.Run(Console.WriteLine); return 0;
+            }
             if(args.Length==2 && args[1]=="--smoothframes-test")
             {
                 UiTests.Initialize(game,Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"SEVRPrototype","Reports","regression-data"));
