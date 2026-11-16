@@ -106,6 +106,15 @@ namespace SpaceEngineersVR.Player
                 new Group("Right front switches",29,31,30,32),
                 new Group("Right outer column switches",33,34,35));
             AddRemaining(result);
+            Add(result,"FighterCockpitType2",
+                new Group("Left front switches",0,1,2,3,4),
+                new Group("Right front switches",5,6,7,8,9),
+                new Group("Left rear switches",10,11,12),
+                new Group("Right rear switches",13,14,15),
+                new Group("Left inner switches",16,17,18),
+                new Group("Center switches",19,20),
+                new Group("Analog handle",21));
+            Add(result,"LargeBlockCaptainChair");
             return result;
         }
 

@@ -25,6 +25,8 @@ namespace SpaceEngineersVR.Player
             public Vector4 Color;
             public Vector2 HalfSize;
             public float NativeWidth;
+            public int? EmpTick;
+            public float EmpScale;
             public ShipReload.View Reload;
             public string Altitude;
             public Vector2 AltitudeSize,AltitudeOffset;
@@ -50,7 +52,7 @@ namespace SpaceEngineersVR.Player
                 if(HelmetHud.NativeSuppressed) return null;
                 // The turret view hides the native crosshair; its look still applies.
                 var aimed=Read(MyHud.Crosshair,MatrixD.CreateWorld(point,Vector3D.Normalize(point-turret.PositionComp.GetPosition()),up),point,false);
-                if(aimed!=null) aimed.Owner=turret.EntityId;
+                if(aimed!=null) { aimed.Owner=turret.EntityId; CaptureEmp(aimed); }
                 return aimed;
             }
             if(!(session?.ControlledEntity is MyShipController ship) || ship.Closed || ship.MarkedForClose ||
@@ -58,6 +60,7 @@ namespace SpaceEngineersVR.Player
                 session.CameraController is MySpectatorCameraController) return null;
             var result=Read(MyHud.Crosshair,ship.WorldMatrix);
             if(result==null) return null;
+            CaptureEmp(result);
             result.Owner=ship.EntityId; result.Reload=ShipReload.Capture(ship);
             if(ship.HorizonIndicatorEnabled && ship.CubeGrid.Physics!=null)
             {
@@ -71,6 +74,13 @@ namespace SpaceEngineersVR.Player
                 }
             }
             return result;
+        }
+        private static void CaptureEmp(View value)
+        {
+            if(!MyHudEmpDistortion.IsActive) return;
+            value.EmpTick=HudEmp.Tick;
+            int height=Sandbox.Graphics.MyGuiManager.GetSafeFullscreenRectangle().Height;
+            value.EmpScale=(height>0 ? height:1080)/1080f;
         }
         // Vanilla's DrawArtificialHorizonAndAltitude layout in native pixels around the crosshair center.
         internal static void Horizon(View value,float altitude,Vector3 gravity,MatrixD ship,VRageRender.MyFont font,float textScale,string texture,Vector2 textureSize,float screenHeight)
@@ -104,8 +114,8 @@ namespace SpaceEngineersVR.Player
             board.Scale*=(Common.Config?.CrosshairScale ?? PluginConfig.DefaultCrosshairScale)/PluginConfig.DefaultCrosshairScale;
             var glyph=SignalPainter.Artwork(SignalPainter.Atlas(value.Icon,value.Color)); glyph.NativeGui=true;
             var extent=value.HalfSize/.02f;
-            if(board.Project(new RectangleF(-extent.X/2,-extent.Y/2,extent.X,extent.Y),view,projection,ref glyph))
-                NativeSprites.Draw(target,new[] {glyph});
+            glyph.Bounds=new RectangleF(-extent.X/2,-extent.Y/2,extent.X,extent.Y);
+            DrawGlyph(target,glyph,board,view,projection,value.EmpTick,value.EmpScale*extent.X/value.NativeWidth);
             var pixels=board; pixels.Scale*=extent.X/value.NativeWidth;
             ShipReload.Draw(target,value.Reload,pixels,view,projection);
             DrawHorizon(target,value,pixels,view,projection);
@@ -113,8 +123,18 @@ namespace SpaceEngineersVR.Player
             if(hit==null || hit.Owner!=value.Owner || (System.DateTime.UtcNow-hit.Time).TotalSeconds>.3) return;
             var marker=RemoteCombat.HitSprite(hit);
             float width=hit.Size.X*hitScale,height=hit.Size.Y*hitScale;
-            if(pixels.Project(new RectangleF(-width/2,-height/2,width,height),view,projection,ref marker))
-                NativeSprites.Draw(target,new[] {marker});
+            marker.Bounds=new RectangleF(-width/2,-height/2,width,height);
+            DrawGlyph(target,marker,pixels,view,projection,value.EmpTick,value.EmpScale);
+        }
+        private static void DrawGlyph(Texture2D target,NativeSprite glyph,MarkerBillboard board,MatrixD view,MatrixD projection,int? tick,float scale)
+        {
+            var output=new List<NativeSprite>();
+            foreach(var slice in HudEmp.Slices(glyph,tick,scale))
+            {
+                var sprite=slice;
+                if(board.Project(slice.Bounds,view,projection,ref sprite)) output.Add(sprite);
+            }
+            NativeSprites.Draw(target,output);
         }
         private static void DrawHorizon(Texture2D target,View value,MarkerBillboard pixels,MatrixD view,MatrixD projection)
         {

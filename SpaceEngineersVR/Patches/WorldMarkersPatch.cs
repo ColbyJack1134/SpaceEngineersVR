@@ -8,7 +8,11 @@ namespace SpaceEngineersVR.Patches
     [HarmonyPatch(typeof(MyHudMarkerRender),nameof(MyHudMarkerRender.AddGPS))]
     internal static class GpsMarkerPatch
     {
-        private static void Postfix(MyHudMarkerRender __instance,Sandbox.Game.Screens.Helpers.MyGps gps) => WorldMarkers.CaptureGps(__instance,gps);
+        private static void Prefix(System.Collections.IList ___m_pointsOfInterest,out int __state) => __state=___m_pointsOfInterest.Count;
+        private static void Postfix(MyHudMarkerRender __instance,Sandbox.Game.Screens.Helpers.MyGps gps,System.Collections.IList ___m_pointsOfInterest,int __state)
+        {
+            if(___m_pointsOfInterest.Count==__state+1) WorldMarkers.CaptureGps(__instance,gps);
+        }
     }
     // AsyncUpdate ends by starting the parallel HUD draw, so the capture must run before it.
     [HarmonyPatchCategory("HudMarkers")]
@@ -20,6 +24,7 @@ namespace SpaceEngineersVR.Patches
             if(!SpaceEngineersVR.Plugin.Main.VrActive) return;
             WorldMarkers.CaptureHidden(__instance,___m_markerRender);
             WorldMarkers.UpdateTargetingStats();
+            HudEmp.UpdateHidden(__instance);
         }
     }
     [HarmonyPatchCategory("HudMarkers")]
@@ -27,5 +32,11 @@ namespace SpaceEngineersVR.Patches
     internal static class WorldMarkersPatch
     {
         private static void Prefix(MyHudMarkerRender __instance) => WorldMarkers.Capture(__instance);
+    }
+    [HarmonyPatchCategory("HudMarkers")]
+    [HarmonyPatch(typeof(Sandbox.Game.Gui.MyHudEmpDistortion),nameof(Sandbox.Game.Gui.MyHudEmpDistortion.Draw))]
+    internal static class EmpMarkersPatch
+    {
+        private static void Postfix() => HudEmp.Capture();
     }
 }

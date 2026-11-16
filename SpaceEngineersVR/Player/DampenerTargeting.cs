@@ -12,8 +12,8 @@ namespace SpaceEngineersVR.Player
         private static uint sequence,pending;
         private static bool faceAttempt;
         private static DateTime deadline;
-        internal static bool InRange(VRage.Game.Entity.MyEntity target) => MySession.Static?.ControlledEntity!=null &&
-            Sandbox.Game.GameSystems.MyEntityThrustComponent.IsInRangeOfRelativeDampening(MySession.Static.ControlledEntity,target);
+        internal static bool InRange(VRage.Game.Entity.MyEntity target) =>
+            Multiplayer.DampenerRequests.Allowed(MySession.Static?.ControlledEntity,target as Sandbox.Game.Entities.MyCubeGrid);
         public static void Activate()
         {
             MenuKeyboard.ReleaseForWorldAction();

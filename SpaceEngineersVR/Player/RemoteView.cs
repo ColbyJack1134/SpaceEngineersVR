@@ -12,6 +12,7 @@ using SpaceEngineersVR.Config;
 using SpaceEngineersVR.Player.Control;
 using SpaceEngineersVR.Plugin;
 using VRageMath;
+using VRage.Input;
 
 namespace SpaceEngineersVR.Player
 {
@@ -36,6 +37,7 @@ namespace SpaceEngineersVR.Player
             public MatrixD WorldToTracking=MatrixD.Identity;
             public float FaceDepth;
             public int AimMode=-1;
+            public int PanMode=-1;
         }
         private static readonly MenuWindow window=new MenuWindow { BarOffset=.035f,TopMargin=.08f };
         private static readonly WindowInteraction interaction=new WindowInteraction(window);
@@ -48,6 +50,7 @@ namespace SpaceEngineersVR.Player
         private static string world;
         private static bool placementDirty;
         private static bool recenter;
+        private static bool cameraPanning;
         private static Vector3D? rayStart,rayEnd;
         private static int lastHover;
         public static bool Pointing => Current?.Hover>0 || interaction.DirectHeld;
@@ -112,7 +115,7 @@ namespace SpaceEngineersVR.Player
         {
             CancelCameraSwitch();
             if(placementDirty) Save();
-            owner=source=null; seat=null; Current=null; aimMode=0; SeatedRig=null; OwnsInput=false;
+            owner=source=null; seat=null; Current=null; aimMode=0; cameraPanning=false; SeatedRig=null; OwnsInput=false;
             interaction.Reset(true); recenter=false; rayStart=rayEnd=null; lastHover=0; epoch++;
         }
         public static void Recenter() { recenter=true; }
@@ -179,7 +182,7 @@ namespace SpaceEngineersVR.Player
                 if(seat==null) { CameraRig.Begin(character); CameraRig.End(character); }
                 Place(); Restore();
             }
-            else if(changed) { ReleaseInput(); owner=next; }
+            else if(changed) { ReleaseInput(); owner=next; cameraPanning=false; }
             if(changed && next is MyRemoteControl remote && !(session.CameraController is MyCameraBlock))
             {
                 // Native AssignControl opens this camera only for character-origin control.
@@ -190,7 +193,8 @@ namespace SpaceEngineersVR.Player
                 camera?.RequestSetView();
             }
             var feed=Feed(session.ControlledEntity,session.CameraController);
-            if(!ReferenceEquals(source,feed)) { ReleaseInput(); source=feed; }
+            if(!ReferenceEquals(source,feed)) { ReleaseInput(); source=feed; cameraPanning=false; }
+            if(PannableCamera==null) cameraPanning=false;
             aimMode=Clamp(Feed()?.AimMode ?? 0,2);
             Refresh();
         }
@@ -226,7 +230,7 @@ namespace SpaceEngineersVR.Player
             if(recenter) { Place(); Save(); }
             var now=DateTime.UtcNow; float seconds=(float)Math.Min(.05,Math.Max(0,(now-last).TotalSeconds)); last=now;
             var controls=Controls.Static;
-            if((!Turret || TurretHeadAim.Active) && InputRouter.Gameplay && !Main.MenuOpen && CockpitControls.OwnsRightThumb)
+            if((!Turret || TurretHeadAim.Active) && PanningCamera==null && InputRouter.Gameplay && !Main.MenuOpen && CockpitControls.OwnsRightThumb)
                 Zoom(-controls.ThrustRotate.Position.Y*seconds*ZoomSpeed);
             if(InputRouter.Gameplay && !Main.MenuOpen) left=interaction.PickHand(Hand,Free,Aim)==Player.HandL;
             var hand=Hand;
@@ -236,7 +240,7 @@ namespace SpaceEngineersVR.Player
             var Reachable=WindowInteraction.Reachable(window,aim,PhysicalTrackingToWorld);
             int ExtraHit(Vector3 point,bool near)
             {
-                int control=WindowFrame.Control(point,window.Width,window.Height,window.BarOffset,true,false,false,true,TurretHeadAim.Available);
+                int control=WindowFrame.Control(point,window.Width,window.Height,window.BarOffset,true,false,false,true,TurretHeadAim.Available,PannableCamera!=null);
                 if(control!=0) return control;
                 return near && !TurretHeadAim.Face && Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2 ? 1:0;
             }
@@ -256,6 +260,7 @@ namespace SpaceEngineersVR.Player
                 interaction.Grab(hand,PhysicalTrackingToWorld);
                 if(interaction.HeldAction==WindowFrame.SignalsHover) CycleSignals();
                 if(interaction.HeldAction==WindowFrame.AimHover) CycleAim();
+                if(interaction.HeldAction==WindowFrame.PanHover) TogglePanning();
                 if(interaction.HeldAction==3 || interaction.HeldAction==4) Zoom(interaction.HeldAction==3 ? .12f:-.12f);
             }
             else if(interaction.Active && (hover==3 || hover==4) && interaction.HeldAction==hover) Zoom((hover==3 ? 1:-1)*seconds*.6f);
@@ -302,6 +307,7 @@ namespace SpaceEngineersVR.Player
                 SignalMode=ReadSignalMode(),Ammo=ammo,Capacity=capacity,Pointed=pointedSphere,
                 RayStart=rayStart,RayEnd=rayEnd,LeftHand=left,Source=feed,Face=face,WorldToTracking=face ? MatrixD.Invert(PhysicalTrackingToWorld):MatrixD.Identity,FaceDepth=face && MySession.Static.ControlledEntity is MyLargeTurretBase faced ? TurretHeadAim.FaceDepth(faced):0,
                 AimMode=TurretHeadAim.Available ? TurretHeadAim.Mode : -1,
+                PanMode=PannableCamera==null ? -1:cameraPanning ? 1:0,
                 Character=character?.Render.GetRenderObjectID() ?? uint.MaxValue,FirstPersonMaterials=FirstPersonMaterials(character?.Definition) };
         }
         private static Sandbox.Definitions.MyCharacterDefinition materialsDefinition;
@@ -316,14 +322,39 @@ namespace SpaceEngineersVR.Player
         }
         internal static void Axes(Vector2 right,Vector2 left,float speed,out Vector2 aim,out float zoom)
         { aim=new Vector2(-VrMath.Deadzone(right.Y),VrMath.Deadzone(right.X))*speed; zoom=-VrMath.Deadzone(left.Y); }
-        public static void ControlTurret(float speed)
+        private static void ReadAim(float speed,out Vector2 aim,out float zoom)
         {
             var controls=Controls.Static;
-            Axes(controls.ThrustRotate.Position,controls.ThrustLRFB.Position,speed,out var aim,out float zoom);
+            Axes(controls.ThrustRotate.Position,controls.ThrustLRFB.Position,speed,out aim,out zoom);
             if(controls.ThrustRoll.IsPressed) { zoom-=VrMath.Deadzone(controls.ThrustRotate.Position.Y); aim.X=0; }
             CockpitControls.ApplyTurret(speed,ref aim,ref zoom);
             aim*=Common.Config.TurretAimSensitivity;
             if(OwnsInput || CockpitControls.Adjusting) { aim=Vector2.Zero; zoom=0; }
+        }
+        internal static MyCameraBlock PannableCamera => !Turret && source is MyCameraBlock camera && camera.IsActive && camera.EnablePanning && Usable(camera) ? camera:null;
+        internal static MyCameraBlock PanningCamera => cameraPanning ? PannableCamera:null;
+        internal static void TogglePanning()
+        {
+            if(PannableCamera==null) return;
+            cameraPanning=!cameraPanning;
+            ReleaseInput(); InputRouter.Update();
+        }
+        internal static void ControlCamera(float speed,bool keyboardOnly)
+        {
+            var camera=PanningCamera;
+            if(camera==null) return;
+            var aim=Vector2.Zero; float zoom=0;
+            if(!keyboardOnly) ReadAim(speed,out aim,out zoom);
+            if(Common.Config.EnableKeyboardAndMouseControls && VRage.Input.MyInput.Static!=null) aim+=VRage.Input.MyInput.Static.GetRotation();
+            if(FloatingWindows.OwnsInput || CockpitControls.Adjusting) { aim=Vector2.Zero; zoom=0; }
+            MySession.Static.ControlledEntity?.MoveAndRotate(Vector3.Zero,Vector2.Zero,0);
+            MySession.Static.ControlledEntity?.MoveAndRotateStopped();
+            camera.Rotate(aim,0);
+            Zoom(zoom*ZoomSpeed/60);
+        }
+        public static void ControlTurret(float speed)
+        {
+            ReadAim(speed,out var aim,out float zoom);
             var turret=MySession.Static.ControlledEntity; var move=Vector3.Zero; float roll=0;
             if(TurretHeadAim.Active && turret is MyLargeTurretBase large) { aim=TurretHeadAim.Indicator(large); TurretHeadAim.LimitZoom(large); }
             else KeyboardMouseInput.Add(turret,ref move,ref aim,ref roll);

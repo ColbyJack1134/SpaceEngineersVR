@@ -45,7 +45,7 @@ namespace SpaceEngineersVR.Player
             Logger.Info("Headset gone with the Steam overlay open; released its pause");
         }
         public static bool CockpitInteraction => Mode==InputMode.Piloting || Mode==InputMode.Turret && RemoteView.HomeSeat!=null;
-        public static bool Flying => SpectatorView.Active || RemoteView.Turret || MySession.Static?.ControlledEntity is MyShipController ||
+        public static bool Flying => SpectatorView.Active || RemoteView.Turret || RemoteView.PanningCamera!=null || MySession.Static?.ControlledEntity is MyShipController ||
             (MySession.Static?.LocalCharacter is IMyCharacter character && character.EnabledThrusts);
         public static bool Gameplay => IsGameplay(Mode) || radialAction && Mode==InputMode.Radial;
         // Gameplay blocked only because a controller is untracked; keyboard and mouse still play.
@@ -60,7 +60,8 @@ namespace SpaceEngineersVR.Player
         public static void Update()
         {
             var character = MySession.Static?.LocalCharacter;
-            object nextOwner = Main.MenuOpen ? (object)VRGUIManager.TopScreen : SpectatorView.Active ? (object)MySession.Static.CameraController:MySession.Static?.ControlledEntity;
+            object nextOwner = Main.MenuOpen ? (object)VRGUIManager.TopScreen : SpectatorView.Active ? (object)MySession.Static.CameraController:
+                RemoteView.PanningCamera!=null ? (object)RemoteView.PanningCamera:MySession.Static?.ControlledEntity;
             InputMode next;
             // An open dashboard also makes input unavailable; only a headset that is gone releases the overlay pause.
             bool gone=!Player.Headset.pose.isTracked || VrSubmit.HeadsetAsleep;

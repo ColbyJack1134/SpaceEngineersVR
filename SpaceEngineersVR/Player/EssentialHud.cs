@@ -44,7 +44,11 @@ namespace SpaceEngineersVR.Player
             public int BuffLevel;
             public Notice[] Notices=new Notice[0];
             public bool Takeover,Transmitting;
+            public string EmpImmunity;
+            public int? EmpTick;
             public bool SameAs(View other) => other!=null && Selected==other.Selected && Ammo==other.Ammo && Takeover==other.Takeover && Transmitting==other.Transmitting &&
+                EmpImmunity==other.EmpImmunity && EmpTick==other.EmpTick &&
+                Enumerable.SequenceEqual(Levels ?? Array.Empty<float>(),other.Levels ?? Array.Empty<float>()) &&
                 Speed==other.Speed && SpeedLevel==other.SpeedLevel && ShipHydrogenLevel==other.ShipHydrogenLevel &&
                 ShipBatteryLevel==other.ShipBatteryLevel && ShipLoadLevel==other.ShipLoadLevel && NaturalGravity==other.NaturalGravity && ArtificialGravity==other.ArtificialGravity && Helmet==other.Helmet && Jetpack==other.Jetpack &&
                 Dampeners==other.Dampeners && AutoDampeners==other.AutoDampeners && Alternate==other.Alternate && Flying==other.Flying && Down==other.Down &&
@@ -75,7 +79,7 @@ namespace SpaceEngineersVR.Player
         private static readonly Font number = new Font("Segoe UI", 24, FontStyle.Regular, GraphicsUnit.Pixel);
         private static readonly StringFormat centered=new StringFormat { Alignment=StringAlignment.Center };
         private static readonly Color[] colors={ Color.FromArgb(125,224,159),Color.FromArgb(115,207,247),Color.FromArgb(246,178,101),Color.FromArgb(244,216,120) };
-        private static readonly string[] stats = { "player_health", "player_oxygen", "player_hydrogen", "player_energy" };
+        internal static readonly string[] Stats = { "player_health", "player_oxygen", "player_hydrogen", "player_energy" };
         private static readonly string[] art = { "HealthIcon", "OxygenIcon", "HydrogenIcon", "EnergyIcon" };
         private static readonly Type[] buffs={typeof(MyMaxHealthBuff),typeof(MyWeldingSpeedBuff),
             typeof(MyGrindingSpeedBuff),typeof(MyMovementSpeedBuff),
@@ -114,8 +118,9 @@ namespace SpaceEngineersVR.Player
             var controlled=session?.ControlledEntity;
             if (!Main.WorldAvailable || character==null || character.IsDead || controlled?.Entity==null)
             { snapshot = null; return; }
-            if (DateTime.UtcNow < nextSample) return;
-            nextSample = DateTime.UtcNow.AddMilliseconds(100);
+            bool impaired=MyHudEmpDistortion.IsActive;
+            if (DateTime.UtcNow < nextSample && impaired==(snapshot?.EmpTick.HasValue==true)) return;
+            nextSample = DateTime.UtcNow.AddMilliseconds(impaired ? 40:100);
             var toolbar = MyToolbarComponent.CurrentToolbar;
             var item = toolbar?.SelectedSlot.HasValue == true ? toolbar.GetItemAtSlot(toolbar.SelectedSlot.Value) : null;
             var block = MyCubeBuilder.Static?.IsActivated == true ? MyCubeBuilder.Static.CurrentBlockDefinition : null;
@@ -187,7 +192,7 @@ namespace SpaceEngineersVR.Player
             ReadNotices(view);
             for (int i=0;i<4;i++)
             {
-                var stat=Stat(stats[i]);
+                var stat=Stat(Stats[i]);
                 view.Values[i]=stat?.GetValueString() ?? "--";
                 view.Levels[i]=stat == null || stat.MaxValue<=0 ? 0 : MathHelper.Clamp(stat.CurrentValue/stat.MaxValue,0,1);
             }
@@ -197,6 +202,9 @@ namespace SpaceEngineersVR.Player
                 if (gravity.LengthSquared()>0.001f)
                     view.Down=Vector3D.TransformNormal(Vector3D.Normalize(gravity),MatrixD.Transpose(controlled.Entity.WorldMatrix.GetOrientation()));
             }
+            var immunity=Stat("controlled_emp_immunity");
+            if(immunity?.CurrentValue>0) view.EmpImmunity=((int)immunity.CurrentValue).ToString()+"s";
+            if(impaired) HudEmp.Apply(view);
             if (!view.SameAs(snapshot)) snapshot=view;
         }
 
@@ -224,7 +232,7 @@ namespace SpaceEngineersVR.Player
         internal static void Paint(OverlayCanvas target,View current,bool vitals=true,bool notifications=true,bool chat=true)
         {
             target.Clear(Color.Transparent);
-            if(vitals) Vitals(target,current);
+            if(vitals) target.Distort(current.EmpTick,1280f/1920,()=>Vitals(target,current));
             NoticeLines(target,current,notifications,chat);
             if(current.Transmitting) Microphone(target);
         }
@@ -241,9 +249,11 @@ namespace SpaceEngineersVR.Player
                 string mass=current.ShipMass ?? "--";
                 float timeWidth=g.MeasureString(endurance,small).Width,massWidth=g.MeasureString(mass,small).Width;
                 float shipX=right-(timeWidth+48+massWidth)/2;
-                g.DrawString(endurance,small,Brushes.LightCyan,shipX,environmentY-2);
-                target.Icon(NativeSprites.Hud("Mass"),shipX+timeWidth+18,environmentY,23,Color.LightCyan);
-                g.DrawString(mass,small,Brushes.LightCyan,shipX+timeWidth+48,environmentY-2);
+                target.Instrument(shipX,environmentY,()=>g.DrawString(endurance,small,Brushes.LightCyan,shipX,environmentY-2));
+                target.Instrument(shipX+timeWidth+18,environmentY,()=> {
+                    target.Icon(NativeSprites.Hud("Mass"),shipX+timeWidth+18,environmentY,23,Color.LightCyan);
+                    g.DrawString(mass,small,Brushes.LightCyan,shipX+timeWidth+48,environmentY-2);
+                });
                 StateIcon(target,"GridPowerOnCenter",current.ShipPower,right-66,328+lower);
                 StateIcon(target,"GridBroadcastingOnCenter",current.ShipBroadcasting,right-15,312+lower);
                 StateIcon(target,"HandbrakeCenter",current.ShipPark,right+36,328+lower);
@@ -270,13 +280,16 @@ namespace SpaceEngineersVR.Player
             {
                 string radiation=current.Radiation ?? "--";
                 float textWidth=g.MeasureString(radiation,small).Width;
-                target.Icon(NativeSprites.Hud("RadiationIcon"),environmentX,environmentY,24,Color.Goldenrod);
-                g.DrawString(radiation,small,Brushes.Goldenrod,environmentX+30,environmentY-2);
+                target.Instrument(environmentX,environmentY,()=> {
+                    target.Icon(NativeSprites.Hud("RadiationIcon"),environmentX,environmentY,24,Color.Goldenrod);
+                    g.DrawString(radiation,small,Brushes.Goldenrod,environmentX+30,environmentY-2);
+                });
                 environmentX+=30+textWidth+12;
                 if(current.RadiationImmunity) { target.Icon(NativeSprites.Hud("RadiationImmunityIcon"),environmentX,environmentY,24,Color.LightCyan); environmentX+=36; }
                 environmentX+=12;
             }
             environmentX=BuffReadout(target,current,environmentX,environmentY);
+            if(current.EmpImmunity!=null) environmentX=EnvironmentReadout(target,"EMPImmunity",current.EmpImmunity,environmentX,environmentY,Color.LightCyan);
             Speedometer(target,current,right,374+lower);
             GravityReadout(target,current,900,451,1.15f);
             float equipmentX=Math.Max(430,environmentX+14);
@@ -323,12 +336,14 @@ namespace SpaceEngineersVR.Player
             notice.Style==NoticeStyle.Warning ? Color.LightSalmon : notice.Style==NoticeStyle.Title ? colors[3] : Color.LightCyan);
         private static void Speedometer(OverlayCanvas target,View current,int x,int y)
         {
-            int segments=SpeedSegments(current.Speed,current.SpeedLevel);
-            for(int i=0;i<11;i++) Arc(target.Graphics,i<segments ? Color.LightCyan:Color.FromArgb(65,170,216,230),x-66,y,132,132,135+i*24,17,5);
-            target.Icon(NativeSprites.Hud(current.AutoDampeners ? "DampenersAuto":"DampenersOn"),x-21,y+14,42,37,new Vector4(0,0,1,1),current.Dampeners ? Color.LightCyan:Color.Orange);
-            target.Graphics.DrawString(current.AutoDampeners ? "AUTO":current.Dampeners ? "ON":"OFF",small,current.Dampeners ? Brushes.LightCyan:Brushes.Orange,new System.Drawing.RectangleF(x-46,y+48,92,26),centered);
-            target.Graphics.DrawString(current.Speed ?? "--",number,Brushes.LightCyan,new System.Drawing.RectangleF(x-55,y+76,110,32),centered);
-            target.Graphics.DrawString("m/s",small,Brushes.LightSteelBlue,new System.Drawing.RectangleF(x-46,y+105,92,30),centered);
+            target.Instrument(x,y,()=> {
+                int segments=SpeedSegments(current.Speed,current.SpeedLevel);
+                for(int i=0;i<11;i++) Arc(target.Graphics,i<segments ? Color.LightCyan:Color.FromArgb(65,170,216,230),x-66,y,132,132,135+i*24,17,5);
+                target.Icon(NativeSprites.Hud(current.AutoDampeners ? "DampenersAuto":"DampenersOn"),x-21,y+14,42,37,new Vector4(0,0,1,1),current.Dampeners ? Color.LightCyan:Color.Orange);
+                target.Graphics.DrawString(current.AutoDampeners ? "AUTO":current.Dampeners ? "ON":"OFF",small,current.Dampeners ? Brushes.LightCyan:Brushes.Orange,new System.Drawing.RectangleF(x-46,y+48,92,26),centered);
+                target.Graphics.DrawString(current.Speed ?? "--",number,Brushes.LightCyan,new System.Drawing.RectangleF(x-55,y+76,110,32),centered);
+                target.Graphics.DrawString("m/s",small,Brushes.LightSteelBlue,new System.Drawing.RectangleF(x-46,y+105,92,30),centered);
+            });
         }
         internal static void PaintWrist(OverlayCanvas target,View s,float width,float height)
         {
@@ -340,6 +355,7 @@ namespace SpaceEngineersVR.Player
             target.DrawAt(target.Width*(1-inset)/2,target.Height*(1-inset)/2,inset*target.Width/640f,inset*target.Height/logicalHeight,()=> {
                 var g=target.Graphics;
                 if(s.Takeover) { PaintTakeover(target,s,logicalHeight); return; }
+                target.Distort(s.EmpTick,640f/1920,()=> {
                 StateIcon(target,"PlayerHelmetOn",s.Helmet,40,3);
                 StateIcon(target,s.Piloting ? "GridPowerOnCenter":"JetpackOff",s.Piloting ? s.ShipPower:s.Jetpack,122,3);
                 StateIcon(target,s.Piloting ? "GridBroadcastingOnCenter":"PlayerBroadcastingOnCenter",s.Piloting ? s.ShipBroadcasting:s.Broadcasting,204,3);
@@ -367,7 +383,8 @@ namespace SpaceEngineersVR.Player
                         environmentX=EnvironmentReadout(target,"RadiationIcon",s.Radiation,environmentX,310,Color.Goldenrod);
                         if(s.RadiationImmunity) { target.Icon(NativeSprites.Hud("RadiationImmunityIcon"),environmentX,310,23,Color.LightCyan); environmentX+=47; }
                     }
-                    BuffReadout(target,s,environmentX,310);
+                    environmentX=BuffReadout(target,s,environmentX,310);
+                    if(s.EmpImmunity!=null) EnvironmentReadout(target,"EMPImmunity",s.EmpImmunity,environmentX,310,Color.LightCyan);
                 }
                 if(s.Piloting)
                 {
@@ -378,15 +395,18 @@ namespace SpaceEngineersVR.Player
                     ToolGauge(target,s,22+3*pitch,153);
                     using(var rightAligned=new StringFormat { Alignment=StringAlignment.Far,FormatFlags=StringFormatFlags.NoWrap,Trimming=StringTrimming.EllipsisCharacter })
                     {
-                        g.DrawString(s.ShipBattery ?? "--",small,Brushes.LightCyan,new System.Drawing.RectangleF(396,234,226,26),rightAligned);
-                        g.DrawString(s.ShipEndurance ?? "--",small,Brushes.LightCyan,new System.Drawing.RectangleF(396,259,226,26),rightAligned);
+                        target.Instrument(396,234,()=>g.DrawString(s.ShipBattery ?? "--",small,Brushes.LightCyan,new System.Drawing.RectangleF(396,234,226,26),rightAligned));
+                        target.Instrument(396,259,()=>g.DrawString(s.ShipEndurance ?? "--",small,Brushes.LightCyan,new System.Drawing.RectangleF(396,259,226,26),rightAligned));
                         string mass=s.ShipMass ?? "--";
                         float massWidth=Math.Min(198,g.MeasureString(mass,small).Width);
-                        target.Icon(NativeSprites.Hud("Mass"),622-massWidth-28,286,22,Color.LightCyan);
-                        g.DrawString(mass,small,Brushes.LightCyan,new System.Drawing.RectangleF(424,284,198,26),rightAligned);
+                        target.Instrument(424,284,()=> {
+                            target.Icon(NativeSprites.Hud("Mass"),622-massWidth-28,286,22,Color.LightCyan);
+                            g.DrawString(mass,small,Brushes.LightCyan,new System.Drawing.RectangleF(424,284,198,26),rightAligned);
+                        });
                     }
                 }
                 else EquipmentReadout(target,s,18,244,604,56);
+                });
                 if(s.Notices.Length>0)
                     using(var format=new StringFormat { FormatFlags=StringFormatFlags.NoWrap,Trimming=StringTrimming.EllipsisCharacter })
                     {
@@ -444,81 +464,91 @@ namespace SpaceEngineersVR.Player
         }
         private static void GravityReadout(OverlayCanvas target,View s,float x,float y,float scale=1)
         {
-            target.DrawAt(x,y,scale,scale,()=> {
-                using(var label=new Font("Segoe UI",18,FontStyle.Regular,GraphicsUnit.Pixel))
-                using(var subscript=new Font("Segoe UI",12,FontStyle.Regular,GraphicsUnit.Pixel))
-                {
-                    string[] labels={"A","P"},values={s.ArtificialGravity,s.NaturalGravity};
-                    for(int i=0;i<2;i++)
+            target.Instrument(x,y,()=> {
+                target.DrawAt(x,y,scale,scale,()=> {
+                    using(var label=new Font("Segoe UI",18,FontStyle.Regular,GraphicsUnit.Pixel))
+                    using(var subscript=new Font("Segoe UI",12,FontStyle.Regular,GraphicsUnit.Pixel))
                     {
-                        int row=i*24;
-                        target.Graphics.DrawString(labels[i],label,Brushes.LightSteelBlue,0,row);
-                        target.Graphics.DrawString("g",subscript,Brushes.LightSteelBlue,12,row+10);
-                        target.Graphics.DrawString(":",label,Brushes.LightSteelBlue,22,row);
-                        target.Graphics.DrawString((values[i] ?? "--")+" g",label,Brushes.LightCyan,34,row);
+                        string[] labels={"A","P"},values={s.ArtificialGravity,s.NaturalGravity};
+                        for(int i=0;i<2;i++)
+                        {
+                            int row=i*24;
+                            target.Graphics.DrawString(labels[i],label,Brushes.LightSteelBlue,0,row);
+                            target.Graphics.DrawString("g",subscript,Brushes.LightSteelBlue,12,row+10);
+                            target.Graphics.DrawString(":",label,Brushes.LightSteelBlue,22,row);
+                            target.Graphics.DrawString((values[i] ?? "--")+" g",label,Brushes.LightCyan,34,row);
+                        }
                     }
-                }
+                });
             });
         }
         // The visor shows clear terrain on the build orientation panel instead of the item row.
         private static void EquipmentReadout(OverlayCanvas target,View s,float x,float y,float width,float size,bool center=false,bool clearTerrain=true)
         {
-            if(string.IsNullOrEmpty(s.Selected) || width<=size+12) return;
-            var g=target.Graphics;
-            string suffix=(string.IsNullOrEmpty(s.Ammo) ? "":" ["+s.Ammo+"]")+(s.Alternate && clearTerrain ? " · Clear terrain":"");
-            using(var format=new StringFormat(StringFormat.GenericTypographic) { Trimming=StringTrimming.EllipsisCharacter,FormatFlags=StringFormatFlags.NoWrap })
-            {
-                float suffixWidth=string.IsNullOrEmpty(suffix) ? 0:g.MeasureString(suffix,small,int.MaxValue,format).Width;
-                float nameWidth=Math.Min(g.MeasureString(s.Selected,small,int.MaxValue,format).Width+2,Math.Max(0,width-size-12-suffixWidth));
-                if(center) x+=(width-size-12-nameWidth-suffixWidth)/2;
-                foreach(string icon in s.Icons ?? new string[0]) target.Icon(icon,x,y,size);
-                float textX=x+size+12,textY=y+(size-26)/2;
-                if(nameWidth>0) g.DrawString(s.Selected,small,Brushes.LightCyan,new System.Drawing.RectangleF(textX,textY,nameWidth,28),format);
-                if(suffixWidth>0) g.DrawString(suffix,small,Brushes.LightCyan,new System.Drawing.RectangleF(textX+nameWidth,textY,Math.Min(suffixWidth+2,width-size-12-nameWidth),28),format);
-            }
+            target.Instrument(x,y,()=> {
+                if(string.IsNullOrEmpty(s.Selected) || width<=size+12) return;
+                var g=target.Graphics;
+                string suffix=(string.IsNullOrEmpty(s.Ammo) ? "":" ["+s.Ammo+"]")+(s.Alternate && clearTerrain ? " · Clear terrain":"");
+                using(var format=new StringFormat(StringFormat.GenericTypographic) { Trimming=StringTrimming.EllipsisCharacter,FormatFlags=StringFormatFlags.NoWrap })
+                {
+                    float suffixWidth=string.IsNullOrEmpty(suffix) ? 0:g.MeasureString(suffix,small,int.MaxValue,format).Width;
+                    float nameWidth=Math.Min(g.MeasureString(s.Selected,small,int.MaxValue,format).Width+2,Math.Max(0,width-size-12-suffixWidth));
+                    if(center) x+=(width-size-12-nameWidth-suffixWidth)/2;
+                    foreach(string icon in s.Icons ?? new string[0]) target.Icon(icon,x,y,size);
+                    float textX=x+size+12,textY=y+(size-26)/2;
+                    if(nameWidth>0) g.DrawString(s.Selected,small,Brushes.LightCyan,new System.Drawing.RectangleF(textX,textY,nameWidth,28),format);
+                    if(suffixWidth>0) g.DrawString(suffix,small,Brushes.LightCyan,new System.Drawing.RectangleF(textX+nameWidth,textY,Math.Min(suffixWidth+2,width-size-12-nameWidth),28),format);
+                }
+            });
         }
         // Vanilla draws its voice icon at the bottom left while the local player transmits; here beside the first vital.
         private static void Microphone(OverlayCanvas target) =>
             target.Icon(VoiceMarkers.Icon,MicrophoneX,MicrophoneY,MicrophoneSize,Color.White);
         private static void StateIcon(OverlayCanvas target,string icon,bool on,int x,int y)
         {
-            var color=on ? Color.LightCyan : Color.FromArgb(85,170,195,210);
-            // Native status textures have different transparent margins.
-            System.Drawing.Rectangle crop;
-            switch(icon)
-            {
-                case "PlayerHelmetOn": crop=new System.Drawing.Rectangle(39,62,108,108); break;
-                case "JetpackOff": crop=new System.Drawing.Rectangle(59,64,69,69); break;
-                case "PlayerBroadcastingOnCenter": crop=new System.Drawing.Rectangle(40,59,106,73); break;
-                case "LightCenter": crop=new System.Drawing.Rectangle(42,74,106,42); break;
-                case "Magboot": crop=new System.Drawing.Rectangle(41,85,106,62); break;
-                case "GridPowerOnCenter": crop=new System.Drawing.Rectangle(44,40,101,111); break;
-                case "GridBroadcastingOnCenter": crop=new System.Drawing.Rectangle(43,43,106,106); break;
-                default: crop=new System.Drawing.Rectangle(37,50,117,90); break;
-            }
-            float scale=28f/Math.Max(crop.Width,crop.Height),w=crop.Width*scale,h=crop.Height*scale;
-            target.Icon(NativeSprites.Hud(icon),x+(30-w)/2,y+(30-h)/2,w,h,
-                new Vector4(crop.X/190f,crop.Y/190f,crop.Width/190f,crop.Height/190f),color);
-            if(on) using(var pen=new Pen(Color.LightCyan,2)) target.Graphics.DrawLine(pen,x+6,y+32,x+24,y+32);
+            target.Instrument(x,y,()=> {
+                var color=on ? Color.LightCyan : Color.FromArgb(85,170,195,210);
+                // Native status textures have different transparent margins.
+                System.Drawing.Rectangle crop;
+                switch(icon)
+                {
+                    case "PlayerHelmetOn": crop=new System.Drawing.Rectangle(39,62,108,108); break;
+                    case "JetpackOff": crop=new System.Drawing.Rectangle(59,64,69,69); break;
+                    case "PlayerBroadcastingOnCenter": crop=new System.Drawing.Rectangle(40,59,106,73); break;
+                    case "LightCenter": crop=new System.Drawing.Rectangle(42,74,106,42); break;
+                    case "Magboot": crop=new System.Drawing.Rectangle(41,85,106,62); break;
+                    case "GridPowerOnCenter": crop=new System.Drawing.Rectangle(44,40,101,111); break;
+                    case "GridBroadcastingOnCenter": crop=new System.Drawing.Rectangle(43,43,106,106); break;
+                    default: crop=new System.Drawing.Rectangle(37,50,117,90); break;
+                }
+                float scale=28f/Math.Max(crop.Width,crop.Height),w=crop.Width*scale,h=crop.Height*scale;
+                target.Icon(NativeSprites.Hud(icon),x+(30-w)/2,y+(30-h)/2,w,h,
+                    new Vector4(crop.X/190f,crop.Y/190f,crop.Width/190f,crop.Height/190f),color);
+                if(on) using(var pen=new Pen(Color.LightCyan,2)) target.Graphics.DrawLine(pen,x+6,y+32,x+24,y+32);
+            });
         }
         private static void Bottles(OverlayCanvas target,string count,bool refilling,int x,int y,Color color)
         {
-            if(!string.IsNullOrEmpty(count) && count!="0")
-            {
-                using(var pen=new Pen(color,2))
+            target.Instrument(x,y,()=> {
+                if(!string.IsNullOrEmpty(count) && count!="0")
                 {
-                    target.Graphics.DrawRectangle(pen,x+13,y+4,7,12);
-                    target.Graphics.DrawRectangle(pen,x+15,y+1,3,3);
+                    using(var pen=new Pen(color,2))
+                    {
+                        target.Graphics.DrawRectangle(pen,x+13,y+4,7,12);
+                        target.Graphics.DrawRectangle(pen,x+15,y+1,3,3);
+                    }
+                    target.Graphics.DrawString(count,small,Brushes.LightCyan,x+24,y-3);
                 }
-                target.Graphics.DrawString(count,small,Brushes.LightCyan,x+24,y-3);
-            }
-            if(refilling) target.Graphics.DrawString("+",small,Brushes.LightCyan,x+46,y-3);
+                if(refilling) target.Graphics.DrawString("+",small,Brushes.LightCyan,x+46,y-3);
+            });
         }
         private static float EnvironmentReadout(OverlayCanvas target,string icon,string value,float x,int y,Color color)
         {
             if(string.IsNullOrEmpty(value)) return x;
-            target.Icon(NativeSprites.Hud(icon),x,y,20,color);
-            target.Graphics.DrawString(value,small,Brushes.LightCyan,x+25,y-2);
+            target.Instrument(x,y,()=> {
+                target.Icon(NativeSprites.Hud(icon),x,y,20,color);
+                target.Graphics.DrawString(value,small,Brushes.LightCyan,x+25,y-2);
+            });
             return x+25+target.Graphics.MeasureString(value,small).Width+24;
         }
         private static void InventoryGauge(OverlayCanvas target,View s,int x,int y)
@@ -532,9 +562,11 @@ namespace SpaceEngineersVR.Player
         {
             if(!s.BuffsEnabled) return x;
             var color=s.BuffLevel>0 ? Color.FromArgb(244,216,120) : Color.FromArgb(120,170,195,210);
-            target.Icon(NativeSprites.Hud("ActiveBuff"),x,y-1,22,24,new Vector4(34f/192,23f/192,124f/192,134f/192),color);
             string level=s.BuffLevel.ToString(CultureInfo.InvariantCulture);
-            target.Graphics.DrawString(level,small,Brushes.LightCyan,x+27,y-2);
+            target.Instrument(x,y,()=> {
+                target.Icon(NativeSprites.Hud("ActiveBuff"),x,y-1,22,24,new Vector4(34f/192,23f/192,124f/192,134f/192),color);
+                target.Graphics.DrawString(level,small,Brushes.LightCyan,x+27,y-2);
+            });
             return x+27+target.Graphics.MeasureString(level,small).Width+24;
         }
         private static string Compact(string value) => value==null ? "--" : value.StartsWith("NO ") ? "--" : value.Split(' ')[0];
@@ -558,11 +590,13 @@ namespace SpaceEngineersVR.Player
         }
         private static void Gauge(OverlayCanvas target,string icon,float level,string value,int x,int y,Color color,bool warnLow=true)
         {
-            if(warnLow && level<.2f && value!="--") color=Color.OrangeRed;
-            Ring(target,level,value,x,y,color);
-            if(icon=="Battery") target.Icon(NativeSprites.Hud(icon),x+17,y+21,26,13,new Vector4(27f/128,45f/128,73f/128,37f/128),color);
-            else if(icon=="Backpack") target.Icon(NativeSprites.Hud(icon),x+21,y+15,18,26,new Vector4(0,0,1,1),color);
-            else target.Icon(NativeSprites.Hud(icon),x+17,y+15,26,color);
+            target.Instrument(x,y,()=> {
+                if(warnLow && level<.2f && value!="--") color=Color.OrangeRed;
+                Ring(target,level,value,x,y,color);
+                if(icon=="Battery") target.Icon(NativeSprites.Hud(icon),x+17,y+21,26,13,new Vector4(27f/128,45f/128,73f/128,37f/128),color);
+                else if(icon=="Backpack") target.Icon(NativeSprites.Hud(icon),x+21,y+15,18,26,new Vector4(0,0,1,1),color);
+                else target.Icon(NativeSprites.Hud(icon),x+17,y+15,26,color);
+            });
         }
         private static void Ring(OverlayCanvas target,float level,string value,int x,int y,Color color)
         {
@@ -573,10 +607,12 @@ namespace SpaceEngineersVR.Player
         // Build Info's ship drill or grinder fill, with the icon cropped from the left end of its 1536x128 bar texture; it warns above 70 percent.
         private static void ToolGauge(OverlayCanvas target,View s,int x,int y)
         {
-            if(s.ShipTool==null) return;
-            Ring(target,s.ShipToolLevel,s.ShipTool,x,y,s.ShipToolLevel>.7f ? Color.OrangeRed : Color.FromArgb(136,218,240));
-            if(s.ShipToolIcon.IndexOf("Grinder",StringComparison.OrdinalIgnoreCase)>=0) target.Icon(s.ShipToolIcon,x+10,y+16,40,24,new Vector4(23f/1536,41f/128,74f/1536,45f/128),Color.White);
-            else target.Icon(s.ShipToolIcon,x+8,y+21,44,15,new Vector4(4f/1536,48f/128,89f/1536,31f/128),Color.White);
+            target.Instrument(x,y,()=> {
+                if(s.ShipTool==null) return;
+                Ring(target,s.ShipToolLevel,s.ShipTool,x,y,s.ShipToolLevel>.7f ? Color.OrangeRed : Color.FromArgb(136,218,240));
+                if(s.ShipToolIcon.IndexOf("Grinder",StringComparison.OrdinalIgnoreCase)>=0) target.Icon(s.ShipToolIcon,x+10,y+16,40,24,new Vector4(23f/1536,41f/128,74f/1536,45f/128),Color.White);
+                else target.Icon(s.ShipToolIcon,x+8,y+21,44,15,new Vector4(4f/1536,48f/128,89f/1536,31f/128),Color.White);
+            });
         }
         private static string Percent(string id)
         {

@@ -129,6 +129,7 @@ namespace SpaceEngineersVR.Diagnostics
             VRage.ObjectBuilders.MyObjectBuilderType.RegisterFromAssembly(typeof(VRage.Game.MyDefinitionId).Assembly);
             VRage.ObjectBuilders.MyObjectBuilderType.RegisterFromAssembly(Assembly.Load("SpaceEngineers.ObjectBuilders"));
             TargetingTests.Run(log);
+            Warfare3Tests.Run(log);
             HotkeyTests.Run(log);
             MotionToolTests.Run(log);
             CockpitMaterialTests.Run(log);

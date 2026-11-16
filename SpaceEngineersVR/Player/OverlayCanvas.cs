@@ -12,7 +12,7 @@ using Device = SharpDX.Direct3D11.Device;
 
 namespace SpaceEngineersVR.Player
 {
-    // Render-thread owner for small, infrequently updated HUD and selector textures.
+    // Render-thread owner for HUD and selector textures.
     internal sealed class OverlayCanvas : IDisposable
     {
         private readonly ulong handle;
@@ -25,13 +25,32 @@ namespace SpaceEngineersVR.Player
         private bool visible;
         public readonly Graphics Graphics;
         private readonly List<NativeSprite> icons = new List<NativeSprite>();
+        private int? empTick;
+        private float empScale;
         public void Clear(System.Drawing.Color color) { Graphics.Clear(color); icons.Clear(); }
-        internal void Sprite(NativeSprite sprite) => icons.Add(sprite);
+        internal void Sprite(NativeSprite sprite)
+        {
+            if(empTick.HasValue) icons.AddRange(HudEmp.Slices(sprite,empTick,empScale));
+            else icons.Add(sprite);
+        }
+        internal void Distort(int? tick,float scale,Action paint)
+        {
+            var previous=empTick; float previousScale=empScale;
+            empTick=tick; empScale=scale;
+            try { paint(); }
+            finally { empTick=previous; empScale=previousScale; }
+        }
+        internal void Instrument(float x,float y,Action paint)
+        {
+            if(!empTick.HasValue) { paint(); return; }
+            var offset=Sandbox.Game.Gui.MyHudEmpDistortion.GetPositionJitter(new Vector2(x,y),empScale);
+            DrawAt(offset.X,offset.Y,1,1,paint);
+        }
         public void Icon(string path, float x, float y, float size, bool enabled = true)
         {
             if(path.StartsWith(NativeSprites.DimPrefix,StringComparison.Ordinal)) { path=path.Substring(NativeSprites.DimPrefix.Length); enabled=false; }
             if(path.StartsWith(NativeSprites.SwatchPrefix,StringComparison.Ordinal)) { Swatch(path,x,y,size,enabled); return; }
-            icons.Add(new NativeSprite(path,new VRageMath.RectangleF(x,y,size,size),enabled ? Vector4.One : new Vector4(0.4f,0.4f,0.4f,0.8f)));
+            Sprite(new NativeSprite(path,new VRageMath.RectangleF(x,y,size,size),enabled ? Vector4.One : new Vector4(0.4f,0.4f,0.4f,0.8f)));
         }
         private void Swatch(string path,float x,float y,float size,bool enabled)
         {
@@ -42,9 +61,9 @@ namespace SpaceEngineersVR.Player
             using(var edge=new Pen(System.Drawing.Color.FromArgb(enabled ? 220:110,255,255,255),Math.Max(1,size/40))) Graphics.DrawRectangle(edge,x+inset,y+inset,side,side);
         }
         public void Icon(string path,float x,float y,float size,System.Drawing.Color tint)
-        { icons.Add(new NativeSprite(path,new VRageMath.RectangleF(x,y,size,size),new Vector4(tint.R/255f,tint.G/255f,tint.B/255f,tint.A/255f))); }
+        { Sprite(new NativeSprite(path,new VRageMath.RectangleF(x,y,size,size),new Vector4(tint.R/255f,tint.G/255f,tint.B/255f,tint.A/255f))); }
         public void Icon(string path,float x,float y,float width,float height,Vector4 uv,System.Drawing.Color tint)
-        { icons.Add(new NativeSprite(path,new VRageMath.RectangleF(x,y,width,height),new Vector4(tint.R/255f,tint.G/255f,tint.B/255f,tint.A/255f)) { UV=uv }); }
+        { Sprite(new NativeSprite(path,new VRageMath.RectangleF(x,y,width,height),new Vector4(tint.R/255f,tint.G/255f,tint.B/255f,tint.A/255f)) { UV=uv }); }
 
         internal void DrawAt(float x,float y,float sx,float sy,Action paint)
         {

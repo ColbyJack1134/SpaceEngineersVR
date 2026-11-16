@@ -436,7 +436,7 @@ namespace SpaceEngineersVR.Diagnostics
             if(native!=uint.MaxValue) MyRenderProxy.RemoveRenderObject(native,MyRenderProxy.ObjectType.Entity);
             if(rigGrid!=uint.MaxValue) MyRenderProxy.RemoveRenderObject(rigGrid,MyRenderProxy.ObjectType.ManualCull);
             rigGrid=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_HIERARCHY")=="1" ?
-                MyRenderProxy.CreateManualCullObject("SEVR rig grid",MatrixD.Identity):uint.MaxValue;
+                MyRenderProxy.CreateManualCullObject("SEVR rig grid",MatrixD.Identity,0):uint.MaxValue;
             if(rigGrid!=uint.MaxValue) SmoothFramesTests.BeginNativeCockpit();
             var rig=rigs[rigIndex];
             native=MyRenderProxy.CreateRenderEntity("SEVR rig probe "+rig.Subtype,rig.Model,MatrixD.Identity,MyMeshDrawTechnique.MESH,
@@ -449,7 +449,8 @@ namespace SpaceEngineersVR.Diagnostics
         private static void UpdateRig()
         {
             var rig=rigs[rigIndex];
-            Vector3 center=rig.Wheel!=null ? rig.Wheel.Pivot : rig.Left!=null && rig.Right!=null ? (rig.Left.Contact+rig.Right.Contact)*.5f : (rig.Left ?? rig.Right)?.Contact ?? rig.Handles[0].Center;
+            Vector3 center=rig.Wheel!=null ? rig.Wheel.Pivot : rig.Left!=null && rig.Right!=null ? (rig.Left.Contact+rig.Right.Contact)*.5f :
+                (rig.Left ?? rig.Right)?.Contact ?? (rig.Handles.Length>0 ? rig.Handles[0].Center : rig.AllButtons.First().Center);
             Vector3D eye=center+new Vector3(.02f,.55f,.48f);
             // Optional close-up "eye x,y,z;target x,y,z" in rig model space for inspecting individual controls.
             string focus=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_FOCUS");

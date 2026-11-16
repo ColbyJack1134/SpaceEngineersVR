@@ -124,6 +124,8 @@ namespace SpaceEngineersVR.Multiplayer
             ray=new LineD(ray.From+ray.Direction*entry,ray.To);
             return true;
         }
+        internal static bool Allowed(Sandbox.Game.Entities.IMyControllableEntity controlled,MyCubeGrid target) => controlled!=null && target!=null &&
+            MyEntityThrustComponent.IsInRangeOfRelativeDampening(controlled,target) && !MyEntityThrustComponent.IsDampeningToGridDenied(controlled,target);
         private static bool Apply(ulong sender,long ownerId,long targetId,Vector3D start,Vector3D direction)
         {
             if(!ValidRay(start,direction) || !(MyEntities.GetEntityByIdOrDefault(ownerId) is Sandbox.Game.Entities.IMyControllableEntity controlled) ||
@@ -135,7 +137,7 @@ namespace SpaceEngineersVR.Multiplayer
             var target=result?.Entity?.GetTopMostParent() as MyCubeGrid;
             if(target==null || target.Closed || target.MarkedForClose || target.Physics==null ||
                 target==controlled.Entity.GetTopMostParent() || targetId!=0 && target.EntityId!=targetId ||
-                !MyEntityThrustComponent.IsInRangeOfRelativeDampening(controlled,target)) return false;
+                !Allowed(controlled,target)) return false;
             controlled.RelativeDampeningEntity=target;
             if(controlled.RelativeDampeningEntity!=target) return false;
             if(!controlled.EnabledDamping) controlled.SwitchDamping();

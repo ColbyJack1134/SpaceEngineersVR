@@ -40,6 +40,24 @@ namespace SpaceEngineersVR.Diagnostics
                 }
                 var t2=reticle.Tangents;
                 Require(t2.Width>0 && t2.Height>0 && t2.X<0 && t2.X+t2.Width>0 && t2.Y>0 && t2.Y-t2.Height<0,item+": reticle does not surround the aim point");
+                if(item=="PreciseAutomaticRifleItem" || item=="UltimateAutomaticRifleItem")
+                    Require(reticle.Rims.Length==2,item+": rifle opening has no front/rear crop");
+                if(item=="BasicHandHeldLauncherItem")
+                {
+                    foreach(double distance in new[] {.25,.6,1.0}) foreach(double yaw in new[] {0,.25,-.25})
+                    {
+                        var gun=MatrixD.CreateRotationY(yaw)*MatrixD.CreateTranslation(50000,2000,-30000);
+                        var state=new HoloSight.View {Gun=gun,Reticle=reticle};
+                        var projection=VrMath.Projection(-.15f,.15f,-.1f,.1f,.03);
+                        var head=Vector3D.Transform(reticle.Center,gun)-Vector3D.TransformNormal(reticle.Forward,gun)*distance;
+                        Require(HoloSight.TrySprite(state,MatrixD.CreateTranslation(-(head-Vector3D.Right*.032)),projection,out var leftGlyph),"Launcher left eye unexpectedly lost its sight");
+                        Require(HoloSight.TrySprite(state,MatrixD.CreateTranslation(-(head+Vector3D.Right*.032)),projection,out var rightGlyph),"Launcher right eye unexpectedly lost its sight");
+                        Vector2 Ndc(Vector4 p) => new Vector2(p.X/p.W,p.Y/p.W);
+                        Require(Vector2.Distance(Ndc(leftGlyph.TopLeft),Ndc(rightGlyph.TopLeft))<1e-5 && Vector2.Distance(Ndc(leftGlyph.BottomRight),Ndc(rightGlyph.BottomRight))<1e-5,
+                            "Launcher reticle has binocular disparity at "+distance+" m");
+                        Require(leftGlyph.Clip1!=rightGlyph.Clip1,"Launcher windows do not follow their individual eyes");
+                    }
+                }
             }
             var window=new Vector4(-.013f,.013f,-.003f,.01f);
             Vector3D center=new Vector3D(0,.11,-.011),forward=Vector3D.Forward,right=Vector3D.Right,up=Vector3D.Up;
@@ -60,7 +78,7 @@ namespace SpaceEngineersVR.Diagnostics
             var both=HoloSight.Crop(new[] {rear,front},Vector2.Zero);
             bool Inside(Vector2 p) => both.All(c=>c.X*p.X+c.Y*p.Y+c.Z>=0);
             Require(Inside(new Vector2(.19f,.19f)) && !Inside(new Vector2(-.21f,0)) && !Inside(new Vector2(.21f,0)) && !Inside(new Vector2(0,.21f)),"Two-rim crop does not keep the nearer edges");
-            log("PASS holographic sights: five installed models lose only their painted reticle and keep their magazine subparts, reticle masks surround the aim point, window gating of the parallel sight line, crop to the nearest projected rim");
+            log("PASS holographic sights: installed model copies, masks, native subparts, rifle front/rear rim crop, launcher zero angular disparity at 25/60/100 cm with per-eye windows");
         }
     }
 }

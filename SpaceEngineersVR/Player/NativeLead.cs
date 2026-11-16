@@ -39,11 +39,11 @@ namespace SpaceEngineersVR.Player
             var controlled=MySession.Static?.ControlledEntity;
             if(indicator?.HasTargetLock!=true || target==null || target.Closed || target.MarkedForClose || circle==null || circle.State.ToString()!="Visible" ||
                 RemoteView.Current!=null || HelmetHud.NativeSuppressed ||
-                !(controlled is Sandbox.ModAPI.IMyTargetingCapableBlock capable) || !capable.CanActiveToolShoot() || !capable.IsTargetLockingEnabled()) return null;
-            if(controlled is MyCubeBlock block && (!block.IsWorking || !block.CubeGrid.IsPowerSwitchOn)) return null;
+                !NativeTargeting.Enabled(controlled)) return null;
             var native=lead.GetValue(indicator);
             var predictor=native==null ? null:prediction.GetValue(native) as MyLargeTurretTargetingSystem.MyPositionPrediction;
-            if(predictor==null || !(controlled.Entity is IMyShootOrigin origin)) return null;
+            var origin=NativeTargeting.Origin(controlled);
+            if(predictor==null || origin==null) return null;
             // Reuse the game's predictor, including its ammunition, velocity and per-tick cache.
             predictor.Origin=origin; predictor.UsePrediction=true;
             predictor.PreferedGridTargetingOption=target is MyCubeGrid grid && !grid.IsStatic ?

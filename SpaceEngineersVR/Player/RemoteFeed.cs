@@ -62,7 +62,7 @@ namespace SpaceEngineersVR.Player
         }
         internal static void Paint(OverlayCanvas canvas,RemoteView.View view) => WindowFrame.Paint(canvas,Frame(view));
         private static WindowFrame.Snapshot Frame(RemoteView.View view) => new WindowFrame.Snapshot {Pose=(Matrix)view.Pose,Width=view.Width,Height=view.Height,
-            Hover=view.Hover,Zoom=true,SignalMode=view.SignalMode,Aim=view.AimMode};
+            Hover=view.Hover,Zoom=true,SignalMode=view.SignalMode,Aim=view.AimMode,Pan=view.PanMode};
         internal const float FaceOpacity=.55f,FaceDistance=50,FaceHeightDegrees=22.5f,NearestFace=3,FarthestFace=3000;
         internal static void FaceLayout(MatrixD head,MatrixD orientation,float distance,out MatrixD pose,out float width,out float height)
         {

@@ -69,7 +69,7 @@ namespace SpaceEngineersVR.Diagnostics
             }
             return "button\t"+at;
         }
-        private static void Write(string path,CockpitRig rig,CockpitGeometry mesh,Matrix?[] visual)
+        internal static void Write(string path,CockpitRig rig,CockpitGeometry mesh,Matrix?[] visual)
         {
             var vertices=new List<float[]>(); var uv=new List<float[]>(); var parts=new List<ModelInspection.Part>();
             for(int actor=0;actor<mesh.Parts.Length;actor++)

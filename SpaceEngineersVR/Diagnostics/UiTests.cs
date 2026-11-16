@@ -176,8 +176,80 @@ namespace SpaceEngineersVR.Diagnostics
                         }
                 }
                 finally { configField.SetValue(null,savedConfig); }
+                foreach(bool piloting in new[] {false,true})
+                foreach(bool impaired in new[] {false,true})
+                {
+                    model=WristFixture(); model.Piloting=piloting; model.FoodEnabled=true; model.RadiationEnabled=true;
+                    model.Inventory="46%"; model.InventoryLevel=.46f; model.BuffsEnabled=true; model.BuffLevel=3;
+                    model.EmpImmunity=piloting && !impaired ? "10s":null;
+                    string name=(piloting ? "ship":"foot")+(impaired ? "-emp":"-recovered");
+                    void PaintEmp()
+                    {
+                        Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,name+"-hud.png"));
+                        Wrist(name+"-wrist");
+                        model.Notices=new[] {new Notice("This switch action is unavailable or access is denied.",NoticeStyle.Warning)};
+                        Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,name+"-error.png"));
+                        Wrist(name+"-wrist-error");
+                    }
+                    if(impaired) Warfare3Tests.EmpReadings(model,PaintEmp); else PaintEmp();
+                }
+                var phantoms=Warfare3Tests.EmpPhantoms();
+                foreach(float eye in new[] {-.032f,.032f})
+                {
+                    void DrawPhantoms()
+                    {
+                        hud.Clear(System.Drawing.Color.FromArgb(12,20,28)); hud.Upload(); phantoms.Time=DateTime.UtcNow;
+                        HudEmp.Draw(hud.Texture,phantoms,MatrixD.CreateTranslation(-eye,0,0),VrMath.Projection(-1,1,-.4375f,.4375f,.05),_=>true);
+                    }
+                    DrawPhantoms();
+                    var deadline=DateTime.UtcNow.AddSeconds(15);
+                    while(NativeSprites.Pending && DateTime.UtcNow<deadline) { NativeSprites.Poll(); Thread.Sleep(10); }
+                    if(NativeSprites.Pending) throw new TimeoutException("EMP marker texture loading");
+                    DrawPhantoms();
+                    Save(hud.Texture,Path.Combine(output,"emp-phantom-"+(eye<0 ? "left":"right")+".png"));
+                }
             }
             log("PASS HUD preview renders.");
+        }
+        public static void EmpPreview(string game,string output,Action<string> log)
+        {
+            Directory.CreateDirectory(output);
+            Initialize(game,Path.Combine(output,"data"));
+            using(var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport))
+            using(var hud=new OverlayCanvas("EMP visor",1280,560,1,false,device))
+            using(var wrist=new OverlayCanvas("EMP wrist",1024,640,1,false,device))
+            using(var crosshair=new OverlayCanvas("EMP crosshair",512,288,1,false,device))
+            {
+                Warfare3Tests.EmpCanvas(hud,log);
+                for(int frame=0;frame<75;frame++)
+                {
+                    int index=frame;
+                    Warfare3Tests.WithEmpClock(1200+frame*40,()=> {
+                        bool impaired=index>=10 && index<60;
+                        var model=WristFixture(); model.Piloting=true; model.FoodEnabled=true;
+                        model.Inventory="46%"; model.InventoryLevel=.46f;
+                        model.Selected="Gatling Gun"; model.Icons=new[] {@"Textures\GUI\Icons\Cubes\gatling_gun.dds"}; model.Ammo="2,400";
+                        model.Notices=new[] {new Notice("This switch action is unavailable or access is denied.",NoticeStyle.Warning)};
+                        if(impaired) HudEmp.Apply(model);
+                        string name=index.ToString("D3");
+                        Render(hud,()=>EssentialHud.Paint(hud,model)); Save(hud.Texture,Path.Combine(output,"visor-"+name+".png"));
+                        WristPreview(device,wrist,new SurfaceView {Id="EMP wrist",Style=SurfaceStyle.WristStatus,Width=.133f,Height=.07f,Status=model},output,"wrist-"+name);
+                        var aim=ShipCrosshair.Read(new Sandbox.Game.Gui.MyHudCrosshair(),MatrixD.Identity);
+                        aim.EmpTick=model.EmpTick; aim.EmpScale=1;
+                        void DrawAim()
+                        {
+                            crosshair.Clear(System.Drawing.Color.FromArgb(12,20,28)); crosshair.Upload();
+                            ShipCrosshair.Draw(crosshair.Texture,aim,MatrixD.Identity,MatrixD.Identity,VrMath.Projection(-.08f,.08f,-.045f,.045f,.05));
+                        }
+                        DrawAim();
+                        var deadline=DateTime.UtcNow.AddSeconds(15);
+                        while(NativeSprites.Pending && DateTime.UtcNow<deadline) { NativeSprites.Poll(); Thread.Sleep(10); }
+                        if(NativeSprites.Pending) throw new TimeoutException("EMP crosshair texture loading");
+                        DrawAim(); Save(crosshair.Texture,Path.Combine(output,"crosshair-"+name+".png"));
+                    });
+                }
+            }
+            log("PASS EMP animation: production visor, wrist at displayed aspect and projected crosshair; onset and recovery frames exported");
         }
         public static void BuildPlanner(string game,string output,Action<string> log)
         {

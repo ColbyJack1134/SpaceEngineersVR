@@ -103,7 +103,7 @@ namespace SpaceEngineersVR.Player
             var revised=SeatPanelMount.Find(subtype);
             if(revised!=null) { local=revised.Pose; width=revised.Width; height=revised.Height; return true; }
             var rig=CockpitRig.Find(subtype);
-            if(rig==null) return false;
+            if(rig==null || !rig.HasSeatMount) return false;
             local=rig.SeatMount; width=.108f; height=.120f;
             local.Translation+=local.Backward*.009;
             return true;

@@ -49,7 +49,7 @@ namespace SpaceEngineersVR.Player
         private static readonly StickPlacement placement=new StickPlacement();
         private static Vector3 leftStartOffset,rightStartOffset,fit;
         public static bool Adjusting => placement.Unlocked;
-        public static bool CanAdjust => seat!=null && !IsSteering && Eligible(seat) && CockpitRender.Ready && InputRouter.CockpitInteraction && !Main.MenuOpen;
+        public static bool CanAdjust => seat!=null && Rig?.HasSticks==true && !IsSteering && Eligible(seat) && CockpitRender.Ready && InputRouter.CockpitInteraction && !Main.MenuOpen;
         public static bool RotationOwned => Adjusting || !IsSteering && right.Consumed;
         public static bool TranslationOwned => Adjusting || !IsSteering && left.Consumed;
         // A seat with one stick keeps it as a left (translation) stick; the controller supplies the missing stick's axes.
@@ -174,7 +174,7 @@ namespace SpaceEngineersVR.Player
         {
             string subtype=cockpit.BlockDefinition.Id.SubtypeName,model=cockpit.BlockDefinition.InteriorModel ?? cockpit.BlockDefinition.Model;
             var rig=CockpitRig.Find(subtype);
-            return rig!=null && (rig.HasSticks || rig.AllHandles.Any() || rig.Wheel!=null) && rig.Matches(model);
+            return rig!=null && (rig.HasSticks || rig.Count>0 || rig.Wheel!=null) && rig.Matches(model);
         }
 
         public static bool HasTrackedSeat(MyCharacter character) => Main.VrActive && seat!=null &&

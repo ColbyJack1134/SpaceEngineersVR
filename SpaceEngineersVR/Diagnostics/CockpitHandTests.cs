@@ -42,6 +42,19 @@ namespace SpaceEngineersVR.Diagnostics
                 new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
         }
 
+        internal static void ExportFree(string output,string name,bool left,Matrix pose)
+        {
+            var bones=ArmTests.InstalledBones(); string side=left ? "L":"R";
+            var palm=bones.Single(b=>b.Name=="SE_Rig"+side+"Palm");
+            palm.SetCompleteTransformFromAbsoluteMatrix(ref pose,false);
+            var curls=new float[5]; ControllerFingers.Fallback(curls,0,0);
+            foreach(var bone in bones.Where(b=>b.Name.StartsWith("SE_Rig"+side+"_"))) bone.Rotation=CockpitHandPose.FreeRotation(bone.Name,curls);
+            palm.ComputeAbsoluteTransform(true,true);
+            var export=new PoseExport(); foreach(var bone in bones) export.absolute[bone.Name]=Elements(bone.AbsoluteTransform);
+            using(var file=File.Create(Path.Combine(output,name+"-"+side+".json")))
+                new DataContractJsonSerializer(typeof(PoseExport),new DataContractJsonSerializerSettings {UseSimpleDictionaryFormat=true}).WriteObject(file,export);
+        }
+
         [DataContract]
         public sealed class PoseExport
         {

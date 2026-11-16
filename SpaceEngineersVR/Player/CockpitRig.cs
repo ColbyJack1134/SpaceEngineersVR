@@ -99,6 +99,7 @@ namespace SpaceEngineersVR.Player
             public readonly bool Hinged;
             public readonly bool Pinch;
             private readonly Matrix frame=Matrix.Identity;
+            internal readonly Matrix GripTransform=Matrix.Identity;
             private readonly Vector3 bottom,top;
             private readonly float bottomAngle;
             private readonly bool rotateGrip;
@@ -111,10 +112,11 @@ namespace SpaceEngineersVR.Player
                 frame=Frame(shaft,normal); this.bottom=bottom; this.top=top;
                 Axis=Vector3.Normalize(top-bottom); Range=Vector3.Distance(bottom,top); contour=false; Pinch=pinch;
             }
-            public Handle(Vector3 center,int actor,Vector3 shaft,Vector3 normal,Vector3 pivot,Vector3 axis,float bottomAngle,float topAngle,float halfWidth,float radius,bool rotateGrip=false)
+            public Handle(Vector3 center,int actor,Vector3 shaft,Vector3 normal,Vector3 pivot,Vector3 axis,float bottomAngle,float topAngle,float halfWidth,float radius,bool rotateGrip=false,Matrix? gripTransform=null)
             {
                 Center=center; Actor=actor; HalfWidth=halfWidth; Radius=radius;
                 frame=Frame(shaft,normal); Pivot=pivot; Axis=Vector3.Normalize(axis);
+                GripTransform=gripTransform ?? Matrix.Identity;
                 this.bottomAngle=bottomAngle; Range=topAngle-bottomAngle; Hinged=true; contour=false; this.rotateGrip=rotateGrip;
             }
             private static Matrix Frame(Vector3 shaft,Vector3 normal)
@@ -139,7 +141,7 @@ namespace SpaceEngineersVR.Player
             }
             internal Matrix Palm(bool left,float position,float offset=0)
             {
-                var grip=CockpitStickMath.GripPalm(left,Vector3.Right*MathHelper.Clamp(offset,-GripOffset,GripOffset),left ? Vector3.Right:Vector3.Left)*frame;
+                var grip=CockpitStickMath.GripPalm(left,Vector3.Right*MathHelper.Clamp(offset,-GripOffset,GripOffset),left ? Vector3.Right:Vector3.Left)*GripTransform*frame;
                 // Round crossbars allow a fixed wrist roll; shaped grips turn with the handle.
                 return rotateGrip ? grip*Matrix.CreateTranslation(Center)*Visual(position) :
                     grip*Matrix.CreateTranslation(Vector3.Transform(Center,Visual(position)));
@@ -277,7 +279,7 @@ namespace SpaceEngineersVR.Player
         }
         private static Dictionary<string,Added> addedData;
         // Built on first use: static initializers in partial files run in an unspecified order.
-        private static Dictionary<string,Added> AddedData => addedData ?? (addedData=CreateAdded());
+        private static Dictionary<string,Added> AddedData => addedData ?? (addedData=CreateAdded().Concat(CreateWarfare3Added()).ToDictionary(p=>p.Key,p=>p.Value));
         private sealed class Added
         {
             public readonly Piece[] Pieces;
@@ -297,6 +299,7 @@ namespace SpaceEngineersVR.Player
         public readonly string Subtype,Model;
         private readonly string geometryModel;
         public readonly MatrixD SeatMount;
+        public readonly bool HasSeatMount;
         public readonly Vector3 DefaultSeatOffset;
         public readonly Stick Left,Right;
         public readonly Steering Wheel;
@@ -318,7 +321,7 @@ namespace SpaceEngineersVR.Player
         public readonly int[] StaticActors;
         private CockpitGeometry geometry;
         private CockpitRig(string subtype,string model,string geometryModel,Vector3 panel,Vector3 normal,Stick left,Stick right,Piece[] pieces,Lever[] levers,Handle[] handles=null,
-            Button[] buttons=null,Bar[] bars=null,Screen[] screens=null,bool packedCovers=false,Steering steering=null,Vector3 defaultSeatOffset=default(Vector3),Vector3? mirrorRight=null,Vector3? mirrorLeft=null)
+            Button[] buttons=null,Bar[] bars=null,Screen[] screens=null,bool packedCovers=false,Steering steering=null,Vector3 defaultSeatOffset=default(Vector3),Vector3? mirrorRight=null,Vector3? mirrorLeft=null,bool seatMount=true)
         {
             Subtype=subtype; Model=model; this.geometryModel=geometryModel; Left=left; Right=right; Wheel=steering; DefaultSeatOffset=defaultSeatOffset;
             Buttons=buttons ?? new Button[0]; Levers=levers; Handles=handles ?? new Handle[0]; Bars=bars ?? new Bar[0];
@@ -332,6 +335,7 @@ namespace SpaceEngineersVR.Player
             AddedGroups=addition?.Groups.Select(g=>(g.Name,g.Controls.Select(_=>next++).ToArray())).ToArray() ?? new (string,int[])[0];
             var up=Vector3.Normalize(Vector3.Cross(normal,Vector3.Right));
             SeatMount=MatrixD.CreateWorld(panel,-normal,up);
+            HasSeatMount=seatMount;
             ActorCount=pieces.Length==0 ? 0 : pieces.Max(p=>Math.Max(p.Actor,p.StaticActor))+1;
             if(AllButtons.Any(b=>b.TemplateActor>=0)) ActorCount=Math.Max(ActorCount,AllButtons.Where(b=>b.TemplateActor>=0).Max(b=>b.Actor)+1);
             foreach(var button in AllButtons.Where(b=>b.Cap!=null))
@@ -356,7 +360,7 @@ namespace SpaceEngineersVR.Player
             for(int slot=0,packed=0;slot<Count;slot++)
                 coverIndices[slot]=LeverAt(slot)?.CoverActor>=0 ? packedCovers ? packed++ : slot : -1;
         }
-        private static readonly Dictionary<string,CockpitRig> rigs=Create().ToDictionary(p=>p.Subtype,StringComparer.Ordinal);
+        private static readonly Dictionary<string,CockpitRig> rigs=Create().Concat(CreateWarfare3()).ToDictionary(p=>p.Subtype,StringComparer.Ordinal);
         internal static IEnumerable<CockpitRig> All => rigs.Values;
         internal static CockpitRig Find(string subtype) => subtype!=null && rigs.TryGetValue(subtype,out var value) ? value:null;
         internal bool HasSticks => Left!=null || Right!=null;

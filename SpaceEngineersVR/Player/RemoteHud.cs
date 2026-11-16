@@ -51,6 +51,7 @@ namespace SpaceEngineersVR.Player
                 harmony.Patch(PatchGroup.Method(typeof(MyRenderProxy),method),new HarmonyMethod(typeof(RemoteHud),nameof(Route)));
             foreach(string type in new[] {"Sandbox.Game.GUI.MyHudCameraOverlay","Sandbox.Game.Gui.MyHudCrosshair","Sandbox.Game.Gui.MyHudTargetingMarkers"})
                 harmony.Patch(PatchGroup.Method(PatchGroup.Type(type),"Draw"),new HarmonyMethod(typeof(RemoteHud),nameof(Begin)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(End)));
+            harmony.Patch(PatchGroup.Method(typeof(Sandbox.Game.Gui.MyHudEmpDistortion),"Draw"),new HarmonyMethod(typeof(RemoteHud),nameof(Begin)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(End)));
             var marker=typeof(Sandbox.Game.GUI.HudViewers.MyHudMarkerRender);
             harmony.Patch(PatchGroup.Method(typeof(Sandbox.Game.Gui.MyGuiScreenHudBase),"DrawTexts"),prefix:new HarmonyMethod(typeof(RemoteHud),nameof(BeginMarkers)),finalizer:new HarmonyMethod(typeof(RemoteHud),nameof(EndMarkers)));
             harmony.Patch(PatchGroup.Getter(marker,"SignalDisplayMode"),postfix:new HarmonyMethod(typeof(RemoteHud),nameof(SignalMode)));

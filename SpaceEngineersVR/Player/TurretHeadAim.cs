@@ -54,7 +54,7 @@ namespace SpaceEngineersVR.Player
             float pitch=MaxIndicator*elevationSpeed(turret)/rate;
             var indicator=new Vector2(MathHelper.Clamp(-(target.X-elevation(turret))/step,-pitch,pitch),
                 MathHelper.Clamp(-MathHelper.WrapAngle(target.Y-rotation(turret))/step,-MaxIndicator,MaxIndicator));
-            return indicator.IsValid() ? indicator:Vector2.Zero;
+            return indicator.IsValid() ? MyViewRotation.RotateInput(MyViewRotation.Snap(-turret.ViewRotation),indicator):Vector2.Zero;
         }
         // On the face screen the view is never wider than the screen, so zoomed out it matches the world 1:1 and zooming in magnifies.
         internal static void LimitZoom(MyLargeTurretBase turret)

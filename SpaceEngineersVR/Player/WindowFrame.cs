@@ -21,6 +21,7 @@ namespace SpaceEngineersVR.Player
             public int SignalMode=-1;
             // Turret aim mode icon: -1 hidden, 0 vanilla, 1 head, 2 head with the face screen.
             public int Aim=-1;
+            public int Pan=-1;
         }
         private sealed class Cache
         {
@@ -32,15 +33,16 @@ namespace SpaceEngineersVR.Player
         internal static float ZoomX(float width,bool plus) => -width/2+(plus ? .115f:.05f);
         // Move bar hit half-length; the drawn bar is a little shorter.
         internal static float BarHalf(float width) => MathHelper.Clamp(width*.095f,.125f,.19f);
-        internal const int CloseHover=5,MonitorHover=6,SignalsHover=7,AimHover=8;
+        internal const int CloseHover=5,MonitorHover=6,SignalsHover=7,AimHover=8,PanHover=9;
         internal static float SignalsX(float width) => width/2-.035f;
         internal static float SignalsY(float height) => height/2+.04f;
         internal static float AimX(float width) => ZoomX(width,false);
-        private static float Top(Snapshot s) => s.SignalMode>=0 || s.Aim>=0 ? .08f:.03f;
-        internal static int Control(Vector3 point,float width,float height,float barOffset,bool zoom,bool close,bool monitor,bool signals=false,bool aim=false)
+        private static float Top(Snapshot s) => s.SignalMode>=0 || s.Aim>=0 || s.Pan>=0 ? .08f:.03f;
+        internal static int Control(Vector3 point,float width,float height,float barOffset,bool zoom,bool close,bool monitor,bool signals=false,bool aim=false,bool pan=false)
         {
             if(signals && Math.Abs(point.Y-SignalsY(height))<.027f && Math.Abs(point.X-SignalsX(width))<.027f) return SignalsHover;
             if(aim && Math.Abs(point.Y-SignalsY(height))<.027f && Math.Abs(point.X-AimX(width))<.035f) return AimHover;
+            if(pan && Math.Abs(point.Y-SignalsY(height))<.027f && Math.Abs(point.X-AimX(width))<.035f) return PanHover;
             if(Math.Abs(point.Y+height/2+barOffset)>=.035f) return 0;
             if(Math.Abs(point.X-ZoomX(width,false))<.027f) return zoom ? 3 : close ? CloseHover : 0;
             if(Math.Abs(point.X-ZoomX(width,true))<.027f) return zoom ? 4 : monitor ? MonitorHover : 0;
@@ -93,6 +95,20 @@ namespace SpaceEngineersVR.Player
                 if(s.Aim>=0)
                     using(var pen=new Pen(s.Hover==AimHover ? Color.Cyan:Color.White,.003f) {StartCap=LineCap.Round,EndCap=LineCap.Round})
                         AimIcon(g,pen,AimX(s.Width),-SignalsY(s.Height),s.Aim);
+                if(s.Pan>=0)
+                {
+                    float x=AimX(s.Width),y=-SignalsY(s.Height);
+                    using(var pen=new Pen(s.Pan==1 ? Color.Cyan:Color.White,s.Hover==PanHover ? .004f:.003f) {StartCap=LineCap.Round,EndCap=LineCap.Round})
+                    {
+                        foreach(var (dx,dy) in new[] {(1,0),(-1,0),(0,1),(0,-1)})
+                        {
+                            float tipX=x+dx*.019f,tipY=y+dy*.019f;
+                            g.DrawLine(pen,x,y,tipX,tipY);
+                            g.DrawLine(pen,tipX,tipY,x+dx*.013f-dy*.006f,y+dy*.013f+dx*.006f);
+                            g.DrawLine(pen,tipX,tipY,x+dx*.013f+dy*.006f,y+dy*.013f-dx*.006f);
+                        }
+                    }
+                }
                 if(s.Close)
                     using(var pen=new Pen(s.Hover==CloseHover ? Color.Cyan : Color.White,.006f) { StartCap=LineCap.Round,EndCap=LineCap.Round })
                     {
@@ -145,7 +161,7 @@ namespace SpaceEngineersVR.Player
                 var canvas=new OverlayCanvas("Window frame "+id,1600,1100,1,false,target.Device,true);
                 frames[id]=frame=new Cache {Canvas=canvas,Texture=new ShaderResourceView(target.Device,canvas.Texture)};
             }
-            string key=s.Width+"|"+s.Height+"|"+s.Hover+"|"+s.BarOffset+"|"+s.Zoom+"|"+s.Close+"|"+s.Monitor+"|"+s.SignalMode+"|"+s.Aim;
+            string key=s.Width+"|"+s.Height+"|"+s.Hover+"|"+s.BarOffset+"|"+s.Zoom+"|"+s.Close+"|"+s.Monitor+"|"+s.SignalMode+"|"+s.Aim+"|"+s.Pan;
             if(frame.Key!=key)
             {
                 Paint(frame.Canvas,s); frame.Canvas.Upload(); target.Device.ImmediateContext.GenerateMips(frame.Texture); frame.Key=key;

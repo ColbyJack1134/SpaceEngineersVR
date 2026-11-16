@@ -38,6 +38,10 @@ internal static class Program
                 UiTests.Initialize(game,Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"SEVRPrototype","Reports","regression-data"));
                 RegressionTests.InitializeRenderer(game); SmoothFramesTests.Run(Console.WriteLine); return 0;
             }
+            if(args.Length==2 && args[1]=="--warfare3-test")
+            {
+                Warfare3(game); return 0;
+            }
             if(args.Length==3 && args[1]=="--pb-compile") { RegressionTests.InitializeRenderer(game); PbFeedTests.CompileFile(args[2],Console.WriteLine); return 0; }
             if(args.Length==4 && args[1]=="--stick-preview") { StickPreview.Export(game,args[2],args[3]); return 0; }
             if(args.Length==3 && args[1]=="--left-handed-models") { UiTests.Initialize(game,Path.Combine(args[2],"data")); LeftHandedModelTests.Run(Console.WriteLine,args[2]); return 0; }
@@ -52,6 +56,8 @@ internal static class Program
             if(args.Length==3 && args[1]=="--multiplayer-test") { MultiplayerTests.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--navigation-preview") { UiTests.Navigation(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--hud-preview") { UiTests.HudPreview(game,args[2],Console.WriteLine); return 0; }
+            if(args.Length==3 && args[1]=="--emp-preview") { UiTests.EmpPreview(game,args[2],Console.WriteLine); return 0; }
+            if(args.Length==3 && args[1]=="--camera-sights-preview") { CameraSightPreview.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--wrist-menus") { UiTests.WristMenus(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--planner-preview") { UiTests.BuildPlanner(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--signals-test") { UiTests.Signals(game,args[2],Console.WriteLine); return 0; }
@@ -61,11 +67,19 @@ internal static class Program
             if(args.Length==3 && args[1]=="--targeting-preview") { TargetingPreview.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--added-controls-preview") { AddedControlsPreview.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--control-seat-preview") { ControlSeatPreview.Export(game,args[2],Console.WriteLine); return 0; }
+            if(args.Length==3 && args[1]=="--warfare3-interiors-preview") { Warfare3InteriorPreview.Export(game,args[2],Console.WriteLine); return 0; }
             if(args.Length==3 && args[1]=="--compare-physical-rigs") { PhysicalImageComparison.VerifyRigs(args[2],Console.WriteLine); return 0; }
             if((args.Length==2 || args.Length==3) && args[1]=="--benchmark-geometry") { GeometryBenchmark.Run(game,Console.WriteLine,args.Length==3 ? args[2] : null); return 0; }
             return Run(game, Array.IndexOf(args, "--vr") >= 0, Array.IndexOf(args,"--self-test") >= 0, Array.IndexOf(args,"--ui-test") >= 0);
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void Warfare3(string game)
+    {
+        UiTests.Initialize(game,Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"SEVRPrototype","Reports","regression-data"));
+        RegressionTests.InitializeRenderer(game); Warfare3Tests.Run(Console.WriteLine);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

@@ -15,6 +15,8 @@ namespace SpaceEngineersVR.Diagnostics
     {
         private static void Require(bool condition,string message) { if(!condition) throw new Exception(message); }
         private static T State<T>(string name) => (T)AccessTools.Field(typeof(SmoothFramesBridge),name).GetValue(null);
+        private static VRage.Render.Scene.MyScene Scene() =>
+            (VRage.Render.Scene.MyScene)Activator.CreateInstance(AccessTools.TypeByName("VRage.Render11.Scene.MyScene11"),true);
         public static void Upstream(Assembly upstream,Action<string> log)
         {
             var harmony=new Harmony("SEVR.SmoothFrames.Upstream.Tests");
@@ -186,7 +188,7 @@ namespace SpaceEngineersVR.Diagnostics
         }
         private static void MovingWrist(object skin,Matrix[] current,Action<string> log)
         {
-            var actor=new VRage.Render.Scene.MyActor(null);
+            var actor=new VRage.Render.Scene.MyActor(Scene());
             var tracker=new VRage.Render.Scene.MyIDTracker<VRage.Render.Scene.MyActor>();
             const uint id=uint.MaxValue-10;
             Require(VRage.Render.Scene.MyIDTracker<VRage.Render.Scene.MyActor>.FindByID(id)==null,"Fixture actor ID already used");
@@ -308,7 +310,7 @@ namespace SpaceEngineersVR.Diagnostics
             var getter=AccessTools.Field(typeof(SmoothFramesBridge),"getSkinning"); var oldGetter=getter.GetValue(null);
             var setter=AccessTools.Field(typeof(SmoothFramesBridge),"setBones"); var oldSetter=setter.GetValue(null);
             var surfaceField=AccessTools.Property(typeof(RenderFrameBridge),"Surfaces"); var oldSurfaces=surfaceField.GetValue(null);
-            var actor=new VRage.Render.Scene.MyActor(null);
+            var actor=new VRage.Render.Scene.MyActor(Scene());
             var tracker=new VRage.Render.Scene.MyIDTracker<VRage.Render.Scene.MyActor>();
             const uint id=uint.MaxValue-13;
             Require(VRage.Render.Scene.MyIDTracker<VRage.Render.Scene.MyActor>.FindByID(id)==null,"Fault fixture actor already exists");
@@ -418,7 +420,7 @@ namespace SpaceEngineersVR.Diagnostics
         {
             if(ParallelTasks.Parallel.Scheduler==null)
                 ParallelTasks.Parallel.Scheduler=new ParallelTasks.WorkStealingScheduler(1,System.Threading.ThreadPriority.Normal);
-            var scene=(VRage.Render.Scene.MyScene)Activator.CreateInstance(AccessTools.TypeByName("VRage.Render11.Scene.MyScene11"),true);
+            var scene=Scene();
             var grid=new VRage.Render.Scene.MyActor(scene);
             var interior=new VRage.Render.Scene.MyActor(scene);
             var control=new VRage.Render.Scene.MyActor(scene);

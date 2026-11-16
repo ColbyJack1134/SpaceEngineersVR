@@ -75,7 +75,8 @@ namespace SpaceEngineersVR.Player.Components
                 // A standing character watching a camera or remote feed still turns and steps with the player.
                 if(!RemoteView.Active || RemoteView.CharacterAnchor) BodyLocomotion.Update(Character);
 
-                if(keyboardOnly) ApplyMoveAndRotation(Vector3.Zero,Vector2.Zero,0);
+                if(RemoteView.PanningCamera!=null) { RemoteView.ControlCamera(RotationSpeed,keyboardOnly); hadControllerMovement=true; }
+                else if(keyboardOnly) ApplyMoveAndRotation(Vector3.Zero,Vector2.Zero,0);
                 else if(RemoteView.Turret)
                 {
                     // Head-aimed, the sticks fly the ship as they do while viewing a camera.

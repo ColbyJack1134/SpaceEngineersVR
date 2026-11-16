@@ -78,6 +78,7 @@ namespace SpaceEngineersVR.Player
         private static readonly List<Marker> weaponCore=new List<Marker>();
         internal static View WithWeaponCore(View native)
         {
+            if(MyHudEmpDistortion.AreSignalsFlickeredOff) return new View(new Marker[0],DateTime.UtcNow) {Mode=native?.Mode ?? RemoteHud.GlobalSignalMode};
             if(native==null || !WeaponCoreBridge.ApiReady) return native;
             weaponCore.Clear();
             WeaponCoreMarkers.Add(weaponCore);
@@ -168,6 +169,7 @@ namespace SpaceEngineersVR.Player
         private static MatrixD renderHead,signalHead;
         private static Vector3D signalUp;
         private static ShipCrosshair.View renderCrosshair;
+        private static HudEmp.Frame renderEmp;
         internal static MatrixD RenderHead => renderHead;
         internal static View RenderSnapshot => renderSnapshot;
         private static SignalLayout.Options renderOptions=new SignalLayout.Options();
@@ -189,7 +191,7 @@ namespace SpaceEngineersVR.Player
                 var head=CameraRig.Current?.Anchor.Translation ?? Sandbox.Game.World.MySector.MainCamera.Position;
                 var now=DateTime.UtcNow;
                 var snapshot=Read(renderer,mode,head,now) ?? new View(new Marker[0],now) {Mode=mode};
-                snapshot.Lead=NativeLead.Capture(renderer);
+                snapshot.Lead=MyHudEmpDistortion.AreSignalsFlickeredOff ? null:NativeLead.Capture(renderer);
                 RenderFrameBridge.CaptureMarkers(snapshot);
             }
             catch (Exception ex) { RenderFrameBridge.CaptureMarkers(null); recovery.Fail(ex,"VR world markers disabled; native desktop markers retained"); }
@@ -197,7 +199,7 @@ namespace SpaceEngineersVR.Player
 
         internal static View Read(MyHudMarkerRender renderer,MyHudMarkerRender.SignalMode mode,Vector3D head,DateTime now)
         {
-            if(mode==MyHudMarkerRender.SignalMode.Off) return null;
+            if(mode==MyHudMarkerRender.SignalMode.Off || MyHudEmpDistortion.AreSignalsFlickeredOff) return null;
             var markers=new List<Marker>();
             // Copy before native grouping mutates and recycles the POIs. Do not retain engine objects.
             foreach (object poi in (IEnumerable)points.GetValue(renderer))
@@ -264,8 +266,7 @@ namespace SpaceEngineersVR.Player
             if(target?.IsSet!=true || target.Entity==null || target.Entity.Closed || target.Entity.MarkedForClose || circle==null || circle.State.ToString()!="Visible") return;
             if(HelmetHud.NativeSuppressed) return;
             var controlled=Sandbox.Game.World.MySession.Static?.ControlledEntity;
-            if(!(controlled is Sandbox.ModAPI.IMyTargetingCapableBlock capable) || !capable.IsTargetLockingEnabled() || capable.IsShipToolSelected()) return;
-            if(controlled is Sandbox.Game.Entities.MyCubeBlock block && (!block.IsWorking || !block.CubeGrid.IsPowerSwitchOn)) return;
+            if(!NativeTargeting.Enabled(controlled)) return;
             if(target.Entity is Sandbox.Game.Entities.MyCubeGrid grid && grid.Physics==null) return;
             var marker=markers.FirstOrDefault(m=>m.Kind=="OffscreenTarget");
             if(marker==null)
@@ -326,6 +327,7 @@ namespace SpaceEngineersVR.Player
             renderSnapshot=markers?.Generation==generation ? markers : null;
             renderHead=head;
             renderCrosshair=crosshair;
+            renderEmp=HudEmp.Current;
             var options=SignalLayout.Options.Current;
             if(limits.HasValue) { options.LimitX=Math.Min(options.LimitX,limits.Value.X); options.LimitY=Math.Min(options.LimitY,limits.Value.Y); }
             if(eyeWidth>0) options.PixelTan=2*(float)StereoRenderState.PixelSlopeX/eyeWidth;
@@ -365,6 +367,7 @@ namespace SpaceEngineersVR.Player
                 if(ShipCrosshair.Enabled(Common.Config,HelmetHud.Visible)) ShipCrosshair.Draw(target,renderCrosshair,renderHead,view,projection,Common.Config.FaceMarkersTowardViewer);
                 if(HelmetHud.Visible) { DamageMarkers.Draw(target,renderHead,view,projection); if(Common.Config.ShowHitMarkers) RemoteCombat.DrawImpact(target,renderHead,view,projection); }
                 if(HelmetHud.Visible) BuildInfoLabels.Draw(target,signalHead,view,projection,Common.Config.FaceMarkersTowardViewer,signalUp);
+                if(HelmetHud.Visible && RenderFrameBridge.Remote==null) HudEmp.Draw(target,renderEmp,view,projection,InSharedView);
                 bool signals=current!=null && (DateTime.UtcNow-current.Time).TotalSeconds<=MaxCaptureAge && markersVisible;
                 if(HelmetHud.Visible) VoiceMarkers.Draw(target,RenderFrameBridge.Talking,signals ? layout:null,signalHead,view,projection,Common.Config.FaceMarkersTowardViewer,signalUp);
                 if(signals)
@@ -382,6 +385,7 @@ namespace SpaceEngineersVR.Player
         {
             generation++; RenderFrameBridge.CaptureMarkers(null); renderSnapshot=null;
             renderCrosshair=null; DamageMarkers.Reset();
+            renderEmp=null; HudEmp.Reset();
             layout=new SignalLayout.Entry[0]; WristSignals.Reset();
         }
     }

@@ -65,8 +65,9 @@ namespace SpaceEngineersVR.Diagnostics
                 throw new Exception("Rover pull bar changes existing analog slot or is classified as analog");
             foreach(var rig in CockpitRig.All)
             {
-                if(!SeatPanel.TryMount(rig.Subtype,out var mount,out float width,out float height) ||
-                    !mount.IsValid() || Math.Abs(width-(rig.Subtype=="OpenCockpitSmall" ? .072f:.108f))>.00001f || Math.Abs(height-(rig.Subtype=="OpenCockpitSmall" ? .080f:.120f))>.00001f)
+                bool mounted=SeatPanel.TryMount(rig.Subtype,out var mount,out float width,out float height);
+                if(mounted!=rig.HasSeatMount || mounted &&
+                    (!mount.IsValid() || Math.Abs(width-(rig.Subtype=="OpenCockpitSmall" ? .072f:.108f))>.00001f || Math.Abs(height-(rig.Subtype=="OpenCockpitSmall" ? .080f:.120f))>.00001f))
                     throw new Exception("Cockpit seat panel differs from the common module: "+rig.Subtype);
                 if(rig.ActorCount==0) continue;
                 var mesh=rig.Geometry(content);
@@ -108,6 +109,7 @@ namespace SpaceEngineersVR.Diagnostics
                 if(rig.AllBars.Any(b=>!mesh.Parts[b.Actor].Tangents.All(v=>v.IsValid() && Math.Abs(v.Length()-1)<.001f)))
                     throw new Exception("Extended bar stem has an invalid tangent: "+rig.Subtype);
                 Levers(rig,mesh);
+                if(rig.Subtype=="FighterCockpitType2") Fighter2Contacts(rig,mesh,log);
                 foreach(var button in rig.AllButtons.Where(b=>b.TemplateMaterial!=null))
                     if(OutwardNormals(mesh.Parts[button.Actor])<.95f) throw new Exception("Repainted template cap has inward normals (renders dark): "+rig.Subtype+"/"+button.Actor);
                 foreach(var button in rig.AllButtons.Where(b=>b.Actor>=0))
@@ -192,7 +194,10 @@ namespace SpaceEngineersVR.Diagnostics
                     {
                         var palm=handle.Palm(left,position,offset);
                         var cavity=Vector3.Transform(new Vector3(-.105f,-.035f,0),palm);
-                        var bar=Vector3.Transform(handle.Center+(Vector3)handle.TouchPose.Right*MathHelper.Clamp(offset,-handle.GripOffset,handle.GripOffset),handle.Visual(position));
+                        var correction=handle.GripTransform.Translation;
+                        var local=handle.Center+(Vector3)handle.TouchPose.Right*(MathHelper.Clamp(offset,-handle.GripOffset,handle.GripOffset)+correction.X)+
+                            (Vector3)handle.TouchPose.Backward*correction.Y-(Vector3)handle.TouchPose.Up*correction.Z;
+                        var bar=Vector3.Transform(local,handle.Visual(position));
                         if(Vector3.Distance(cavity,bar)>.00001f || !palm.IsValid())
                             throw new Exception("Bar grasp separates from the grip across hand/travel/offset");
                     }
@@ -203,6 +208,57 @@ namespace SpaceEngineersVR.Diagnostics
                 log("PASS installed cockpit rig: "+rig.Subtype+"; "+mesh.Parts.Length+" actors, "+mesh.NativeTriangles+" conserved triangles");
             }
             Layout(log);
+        }
+        internal static void Fighter2Contacts(CockpitRig rig,CockpitGeometry mesh,Action<string> log)
+        {
+            foreach(var bank in new[] {new[] {0,1,2,3,4},new[] {5,6,7,8,9},new[] {13,14,15},new[] {16,17,18},new[] {19,20}})
+            foreach(int slot in bank)
+            {
+                var lever=rig.Levers[slot]; var reference=rig.Levers[bank[0]];
+                var stem=Vector3.Normalize(lever.Center-lever.Pivot);
+                if(mesh.Parts[lever.Actor].Positions.Min(v=>Vector3.Dot(v-lever.Pivot,stem))>.001f)
+                    throw new Exception("Fighter II moving switch omits its lower stem: slot="+slot);
+                foreach(float state in new[] {0f,1f})
+                {
+                    var delta=Vector3.Transform(lever.Center,lever.Visual(state))-Vector3.Transform(reference.Center,reference.Visual(state));
+                    delta-=reference.Axis*Vector3.Dot(delta,reference.Axis);
+                    // The native flat switch variants differ in length by about 1.5 mm.
+                    if(delta.Length()>.0017f)
+                        throw new Exception("Fighter II switch tips disagree along their bank: slot="+slot+", state="+state);
+                }
+            }
+            var heads=new[] {new Vector3D(0,.41,.33),new Vector3D(-.15,.25,.25),new Vector3D(.15,.25,.25),new Vector3D(0,.6,.4)};
+            for(int slot=0;slot<rig.Levers.Length;slot++)
+            {
+                var lever=rig.Levers[slot];
+                foreach(float value in new[] {0f,.5f,1f})
+                {
+                    var surface=CockpitButtons.Preview(rig.Subtype,slot);
+                    surface.Pose*=lever.Visual(value);
+                    var tip=(Vector3D)Vector3.Transform(lever.Center,lever.Visual(value));
+                    foreach(var head in heads)
+                    {
+                        if(Vector3D.Dot(surface.Pose.Backward,head-surface.Pose.Translation)<=.005)
+                            throw new Exception("Fighter II switch cannot be acquired from the seat: slot="+slot+", state="+value);
+                        foreach(bool left in new[] {true,false})
+                        {
+                            var finger=MatrixD.CreateWorld(tip,Vector3D.Normalize(tip-head),Vector3D.Up);
+                            var probe=new CockpitProbe(finger,left).Transform(MatrixD.Invert(surface.Pose));
+                            if(CockpitTouch.NearKey(surface,probe,out _,out _)!=0)
+                                throw new Exception("Fighter II switch touch surface misses its modeled tip: slot="+slot+", state="+value);
+                        }
+                    }
+                }
+                var off=Vector3.Transform(lever.Center,lever.Visual(0));
+                var on=Vector3.Transform(lever.Center,lever.Visual(1));
+                var up=slot>=10 && slot<16 ? Vector3.Up:Vector3.Forward;
+                if(Vector3.Dot(on-off,up)<.008f)
+                    throw new Exception("Fighter II switch does not move toward the top of its panel: slot="+slot);
+            }
+            var handle=rig.Handles.Single();
+            if(Vector3.Transform(handle.Center,handle.Visual(1)).Y<=Vector3.Transform(handle.Center,handle.Visual(0)).Y)
+                throw new Exception("Fighter II analog handle is raised when unassigned");
+            log("PASS Fighter II: complete moving stems and aligned banks; all 21 contacts face seated head samples, both finger probes acquire at three states, and switches/analog handle rise from off to on.");
         }
         private static void Levers(CockpitRig rig,CockpitGeometry mesh)
         {

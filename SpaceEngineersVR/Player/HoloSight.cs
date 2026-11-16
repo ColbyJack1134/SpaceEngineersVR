@@ -56,10 +56,14 @@ namespace SpaceEngineersVR.Player
         }
         internal sealed class View { internal MatrixD Gun; internal Reticle Reticle; internal uint RenderParent=uint.MaxValue; }
 
+        // Rims stay inside the rifle frame material; scene depth trims the curved opening.
+        private static readonly Rim[] rifleRims={
+            new Rim(new Vector4(-.0175f,.0175f,-.010f,.0135f),-.012f),
+            new Rim(new Vector4(-.0175f,.0175f,-.010f,.0135f),.014f) };
         // Triangle runs of the painted reticle in the first mesh part, measured from the installed models.
         private static readonly Sight[] sights={
-            new Sight("PreciseAutomaticRifleItem",5161,58,.16f,.012f,Widen(new Vector4(-.013f,.013f,-.003f,.01f),.005f)),
-            new Sight("UltimateAutomaticRifleItem",5163,58,.16f,.012f,Widen(new Vector4(-.013f,.013f,-.003f,.01f),.005f)),
+            new Sight("PreciseAutomaticRifleItem",5161,58,.16f,.012f,Widen(new Vector4(-.013f,.013f,-.003f,.01f),.005f),rifleRims),
+            new Sight("UltimateAutomaticRifleItem",5163,58,.16f,.012f,Widen(new Vector4(-.013f,.013f,-.003f,.01f),.005f),rifleRims),
             new Sight("ElitePistolItem",6044,200,.16f,.012f,Widen(new Vector4(-.011f,.011f,-.006f,.008f),.02f),new Rim(new Vector4(-.014f,.014f,-.0087f,.01f),-.002f)),
             new Sight("BasicHandHeldLauncherItem",8628,160,.25f,.015f,Widen(new Vector4(-.04f,.028f,-.032f,.03f),.06f),new Rim(new Vector4(-.0432f,.0432f,-.0327f,.0315f))),
             new Sight("AdvancedHandHeldLauncherItem",9860,128,.25f,.11f,Widen(new Vector4(-.012f,.012f,-.012f,.012f),.03f),
@@ -246,6 +250,37 @@ namespace SpaceEngineersVR.Player
             return clips;
         }
 
+        internal static bool TrySprite(View state,MatrixD view,MatrixD projection,out NativeSprite sprite)
+        {
+            sprite=default(NativeSprite);
+            var r=state.Reticle; var gun=state.Gun;
+            var eye=MatrixD.Invert(view).Translation;
+            var forward=Vector3D.Normalize(Vector3D.TransformNormal(r.Forward,gun));
+            var right=Vector3D.Normalize(Vector3D.TransformNormal(r.Right,gun)); var up=Vector3D.Normalize(Vector3D.TransformNormal(r.Up,gun));
+            var along=Along(eye,Vector3D.Transform(r.Center,gun),forward,right,up,r.Window);
+            if(!along.HasValue) return false;
+            // The quad sits past the window frame so the scene depth test clips it to the window.
+            double distance=along.Value+r.Clip;
+            var origin=eye+forward*distance;
+            right*=distance; up*=distance;
+            var transform=view*projection;
+            Vector4 Corner(double x,double y) => (Vector4)Vector4D.Transform(new Vector4D(origin+right*x+up*y,1),transform);
+            var t=r.Tangents;
+            sprite=new NativeSprite(r.Texture,default(RectangleF),Tint) { Projected=true,
+                TopLeft=Corner(t.X,t.Y),TopRight=Corner(t.X+t.Width,t.Y),BottomLeft=Corner(t.X,t.Y-t.Height),BottomRight=Corner(t.X+t.Width,t.Y-t.Height) };
+            if(r.Rims.Length>0)
+            {
+                right.Normalize(); up.Normalize();
+                Vector2 Screen(Vector3D world) { var p=Vector4D.Transform(new Vector4D(world,1),transform); return new Vector2((float)(p.X/p.W),(float)(p.Y/p.W)); }
+                var inside=Screen(Vector3D.Transform(r.Center,gun));
+                var clips=Crop(r.Rims.Select(rim=> {
+                    var o=rim.Edges; var plane=Vector3D.Transform(r.Center+r.Forward*rim.Depth,gun);
+                    return new[] {Screen(plane+right*o.X+up*o.W),Screen(plane+right*o.Y+up*o.W),Screen(plane+right*o.Y+up*o.Z),Screen(plane+right*o.X+up*o.Z)}; }).ToArray(),inside);
+                sprite.Clip0=clips[0]; sprite.Clip1=clips[1]; sprite.Clip2=clips[2]; sprite.Clip3=clips[3];
+            }
+            return true;
+        }
+
         internal static void Draw(Texture2D target,View state,MatrixD view,MatrixD projection,ShaderResourceView depth)
         {
             SmoothFramesBridge.Holo(state,failed,view);
@@ -261,32 +296,7 @@ namespace SpaceEngineersVR.Player
             }
             try
             {
-                var r=state.Reticle; var gun=state.Gun;
-                var eye=MatrixD.Invert(view).Translation;
-                var forward=Vector3D.Normalize(Vector3D.TransformNormal(r.Forward,gun));
-                var right=Vector3D.Normalize(Vector3D.TransformNormal(r.Right,gun)); var up=Vector3D.Normalize(Vector3D.TransformNormal(r.Up,gun));
-                var along=Along(eye,Vector3D.Transform(r.Center,gun),forward,right,up,r.Window);
-                if(!along.HasValue) return;
-                // The quad sits past the window frame so the scene depth test clips it to the window.
-                double distance=along.Value+r.Clip;
-                var origin=eye+forward*distance;
-                right*=distance; up*=distance;
-                var transform=view*projection;
-                Vector4 Corner(double x,double y) => (Vector4)Vector4D.Transform(new Vector4D(origin+right*x+up*y,1),transform);
-                var t=r.Tangents;
-                var sprite=new NativeSprite(r.Texture,default(RectangleF),Tint) { Projected=true,
-                    TopLeft=Corner(t.X,t.Y),TopRight=Corner(t.X+t.Width,t.Y),BottomLeft=Corner(t.X,t.Y-t.Height),BottomRight=Corner(t.X+t.Width,t.Y-t.Height) };
-                if(r.Rims.Length>0)
-                {
-                    right.Normalize(); up.Normalize();
-                    Vector2 Screen(Vector3D world) { var p=Vector4D.Transform(new Vector4D(world,1),transform); return new Vector2((float)(p.X/p.W),(float)(p.Y/p.W)); }
-                    var inside=Screen(Vector3D.Transform(r.Center,gun));
-                    var clips=Crop(r.Rims.Select(rim=> {
-                        var o=rim.Edges; var plane=Vector3D.Transform(r.Center+r.Forward*rim.Depth,gun);
-                        return new[] {Screen(plane+right*o.X+up*o.W),Screen(plane+right*o.Y+up*o.W),Screen(plane+right*o.Y+up*o.Z),Screen(plane+right*o.X+up*o.Z)}; }).ToArray(),inside);
-                    sprite.Clip0=clips[0]; sprite.Clip1=clips[1]; sprite.Clip2=clips[2]; sprite.Clip3=clips[3];
-                }
-                NativeSprites.Draw(target,new[] {sprite},depth);
+                if(TrySprite(state,view,projection,out var sprite)) NativeSprites.Draw(target,new[] {sprite},depth);
             }
             catch(Exception ex) { failed=true; Logger.Warning(ex,"Holographic sight drawing disabled"); }
         }
