@@ -263,7 +263,9 @@ namespace SpaceEngineersVR.Player
                 WristPanel.Reset(); wristOwner=owner; fold=0; wristTouch.Reset();
             }
             MatrixD mount;
-            if(!(CameraRig.Detached ? MenuHands.TryWristMount(Player.HandL.GripTracking,out mount):TrackedArms.TryWristScreen(out mount)))
+            MatrixD forearm=MatrixD.Identity;
+            bool attached=CameraRig.Detached ? MenuHands.TryWristMount(Player.HandL.GripTracking,out mount):TrackedArms.TryWristScreen(out mount,out forearm);
+            if(!attached)
             {
                 Matrix tracking=Matrix.CreateRotationX(-MathHelper.PiOver2)*Matrix.CreateTranslation(0,.04f,.09f)*Player.HandL.GripTracking;
                 mount=SurfacePose(tracking);
@@ -274,6 +276,7 @@ namespace SpaceEngineersVR.Player
             foreach(var panel in panels)
             {
                 panel.TrackingSpace=CameraRig.Detached;
+                if(SmoothFramesBridge.Ready && attached && !panel.TrackingSpace) panel.WristLocal=panel.Pose*MatrixD.Invert(forearm);
                 if(panel.TrackingSpace) panel.HandLocal=panel.Pose*MatrixD.Invert(Player.HandL.GripTracking);
                 if(panel.Id==wristHoverSurface) { panel.Hover=wristHover; panel.Pressed=wristPressed; }
                 if(wristTouch.Committed && wristTouch.Surface==panel.Id && heldKey!=null)
@@ -297,10 +300,10 @@ namespace SpaceEngineersVR.Player
             if(seat!=null)
             {
                 seat.Hover=seatHover; seat.Pressed=seatPressed;
-                output.Add(seat);
+                output.Add(CockpitParent(seat));
             }
-            if(!CameraRig.Detached) output.AddRange(CockpitButtons.Views);
-            if(!CameraRig.Detached) output.AddRange(CockpitTouch.Labels());
+            if(!CameraRig.Detached) output.AddRange(CockpitButtons.Views.Select(CockpitParent));
+            if(!CameraRig.Detached) output.AddRange(CockpitTouch.Labels().Select(CockpitParent));
             if(!CameraRig.Detached) output.AddRange(HandInteraction.Labels());
             if(BlockInspection.Current!=null)
             {
@@ -313,6 +316,21 @@ namespace SpaceEngineersVR.Player
             }
             var ammo=WeaponAmmo.View(); if(ammo!=null) output.Add(ammo);
             current=output.ToArray();
+        }
+        private static SurfaceView CockpitParent(SurfaceView surface)
+        {
+            if(!SmoothFramesBridge.Ready) return surface;
+            try
+            {
+                var grid=SeatFit.Seat?.CubeGrid;
+                if(grid==null) return surface;
+                var copy=surface.At(surface.Pose);
+                copy.RenderParent=grid.Render.GetRenderObjectID();
+                copy.ParentLocal=surface.Pose*grid.PositionComp.WorldMatrixInvScaled;
+                copy.SmoothFramesParent=true;
+                return copy;
+            }
+            catch(Exception ex) { SmoothFramesBridge.Fail(ex); return surface; }
         }
         internal static SurfaceView[] WristViews(MatrixD mount,float fold,float scale,EssentialHud.View status,SurfaceKey[] keys)
         {

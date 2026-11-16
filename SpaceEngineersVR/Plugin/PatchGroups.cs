@@ -62,12 +62,14 @@ namespace SpaceEngineersVR.Plugin
         internal static readonly PatchGroup DigiTools=new PatchGroup("Digi tools","DigiTools",requires:new[] {VoxelTools});
         // Its targets' class constructors need the renderer, so it applies from the first Update.
         internal static readonly PatchGroup DoubleClick=new PatchGroup("Double click","DoubleClick",Patches.DoubleClickTolerancePatch.Install);
+        internal static readonly PatchGroup SmoothFramesBridge=new PatchGroup("SmoothFrames compatibility","SmoothFramesBridge",Player.SmoothFramesBridge.Install,
+            off:Player.SmoothFramesBridge.Disable,when:Player.SmoothFramesBridge.Available);
 
         internal static readonly PatchGroup[] All={Core,SharedExposure,LensMask,StereoFlares,StereoFoliage,StereoParticles,StereoScene,SharedShadows,StereoShields,
             HandOcclusion,BodyFade,CharacterBody,SeatFit,ScreenEffects,Tracers,HudRouting,HudMarkers,CameraFeeds,CameraDisplays,BlockInspection,GpuTiming,
             HandPlacement,CreativePlacement,BuildHints,GridSelection,HandInteraction,Spectator,ThirdPerson,Targeting,CockpitControls,CockpitBuilding,CockpitMemory,
             HeldTools,WeaponModels,VoxelTools,MultiplayerArms,MenuExtras,LoadingScreen,CursorClip,ModHud,BuildInfo,BuildVision,TouchScreens,ArthurLcd,WeaponCore,PaintGun,DigiTools};
-        private static readonly PatchGroup[] later={DoubleClick,Dlss,DlssParts};
+        private static readonly PatchGroup[] later={DoubleClick,Dlss,DlssParts,SmoothFramesBridge};
 #if SEVR_DIAGNOSTICS
         internal static readonly HashSet<string> Broken=new HashSet<string>();
         internal static Action<string> Sink;

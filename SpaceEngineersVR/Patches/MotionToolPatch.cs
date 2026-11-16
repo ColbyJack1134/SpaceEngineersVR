@@ -25,6 +25,7 @@ namespace SpaceEngineersVR.Patches
             // Publish the item and final arm bones together before native skinning is queued.
             item.WorldMatrix=pose; TrackedArms.Update(character);
             SpatialUi.Publish();
+            SmoothFramesBridge.ToolUpdated();
         }
     }
     [HarmonyPatchCategory("HeldTools")]

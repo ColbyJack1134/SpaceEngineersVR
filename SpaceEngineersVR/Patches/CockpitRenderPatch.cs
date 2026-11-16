@@ -11,6 +11,16 @@ using VRageRender.Messages;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("SmoothFramesBridge")]
+    [HarmonyPatch(typeof(VRage.Render.Scene.MyActorUpdater),nameof(VRage.Render.Scene.MyActorUpdater.Update))]
+    internal static class CockpitTransformPatch
+    {
+        private static void Prefix(VRage.Render.Scene.MyActorUpdater __instance)
+        {
+            try { CockpitRender.RefreshTransforms(__instance); }
+            catch(System.Exception ex) { SmoothFramesBridge.Fail(ex); CockpitRender.TransformFailed(ex); }
+        }
+    }
     [HarmonyPatch]
     internal static class CockpitMaterialPatch
     {

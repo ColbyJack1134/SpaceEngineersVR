@@ -46,9 +46,11 @@ namespace SpaceEngineersVR.Player
         public bool Enabled=true;
         public MatrixD Pose;
         public MatrixD? HandLocal;
+        internal MatrixD? WristLocal;
         internal MatrixD? WindowPose;
         internal uint RenderParent=uint.MaxValue;
         internal MatrixD ParentLocal;
+        internal bool SmoothFramesParent;
         internal int WindowHover;
         internal SurfaceView At(MatrixD pose) { var copy=(SurfaceView)MemberwiseClone(); copy.Pose=pose; return copy; }
         public float Width,Height;
@@ -471,8 +473,20 @@ namespace SpaceEngineersVR.Player
         public static void Draw(Texture2D target,IEnumerable<SurfaceView> surfaces,MatrixD view,MatrixD projection,ShaderResourceView depth,ShaderResourceView handDepth=null)
         {
             sprites.Clear();
-            foreach(var s in surfaces.OrderBy(s=>s.Style==SurfaceStyle.Pointer ? 2 : s.Style==SurfaceStyle.Label ? 1 : 0).ThenBy(s=>Vector3D.Transform(s.Pose.Translation,view).Z))
+            foreach(var source in surfaces.OrderBy(s=>s.Style==SurfaceStyle.Pointer ? 2 : s.Style==SurfaceStyle.Label ? 1 : 0).ThenBy(s=>Vector3D.Transform(s.Pose.Translation,view).Z))
             {
+                var s=source;
+                bool resolveParent=SmoothFramesBridge.Ready && s.RenderParent!=uint.MaxValue;
+                if(resolveParent)
+                {
+                    try
+                    {
+                        var parent=VRage.Render.Scene.MyIDTracker<VRage.Render.Scene.MyActor>.FindByID(s.RenderParent);
+                        if(parent==null) continue;
+                        s=s.At(s.ParentLocal*parent.WorldMatrix);
+                    }
+                    catch(Exception ex) { SmoothFramesBridge.Fail(ex); }
+                }
                 var size=TextureSize(s);
                 if(cache.TryGetValue(s.Id,out var c) && (c.Canvas.Width!=size.X || c.Canvas.Height!=size.Y))
                 {
@@ -519,7 +533,7 @@ namespace SpaceEngineersVR.Player
                 if(s.Style==SurfaceStyle.ModelControl || s.Style==SurfaceStyle.Label || s.Style==SurfaceStyle.BlockInfo || s.Style==SurfaceStyle.BuildInfo || s.Style==SurfaceStyle.Ammo)
                 {
                     var pose=s.Pose;
-                    if(s.RenderParent!=uint.MaxValue)
+                    if(!resolveParent && !s.SmoothFramesParent && s.RenderParent!=uint.MaxValue)
                     {
                         var parent=VRage.Render.Scene.MyIDTracker<VRage.Render.Scene.MyActor>.FindByID(s.RenderParent);
                         if(parent==null) continue;

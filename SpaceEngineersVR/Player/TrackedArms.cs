@@ -375,12 +375,15 @@ namespace SpaceEngineersVR.Player
             }
         }
         internal static bool TryWristScreen(out MatrixD world)
+            => TryWristScreen(out world,out _);
+        internal static bool TryWristScreen(out MatrixD world,out MatrixD forearm)
         {
-            world=MatrixD.Identity;
+            world=forearm=MatrixD.Identity;
             var character=MySession.Static?.LocalCharacter;
             if(character!=owner || disabled || left==null || !left.Applied || !Player.HandL.pose.isTracked) return false;
             var bone=character.AnimationController.FindBone("SE_RigLForearm2",out _);
             if(bone==null) return false;
+            forearm=(MatrixD)bone.AbsoluteTransform*character.WorldMatrix;
             world=Alignment.Apply(Alignment.WristKey,(MatrixD)(WristScreenLocal*bone.AbsoluteTransform)*character.WorldMatrix);
             return world.IsValid();
         }

@@ -122,6 +122,7 @@ namespace SpaceEngineersVR.Diagnostics
             StereoStateTests.Run(log);
             AlignmentTests.Run(log);
             RenderingPatchTests.Run(log);
+            SmoothFramesTests.Run(log);
             ModHudTests.Run(log);
             ToolContactTests.Run(log);
             HudLifecycleTests.Run(log);

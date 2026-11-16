@@ -135,6 +135,7 @@ namespace SpaceEngineersVR.Diagnostics
             }
         }
         private static uint native=uint.MaxValue;
+        private static uint rigGrid=uint.MaxValue;
         private static int phase;
         private static CockpitRig[] rigs;
         private static int rigIndex,rigStep;
@@ -433,9 +434,14 @@ namespace SpaceEngineersVR.Diagnostics
         {
             CockpitRender.Reset();
             if(native!=uint.MaxValue) MyRenderProxy.RemoveRenderObject(native,MyRenderProxy.ObjectType.Entity);
+            if(rigGrid!=uint.MaxValue) MyRenderProxy.RemoveRenderObject(rigGrid,MyRenderProxy.ObjectType.ManualCull);
+            rigGrid=Environment.GetEnvironmentVariable("SEVR_PHYSICAL_HIERARCHY")=="1" ?
+                MyRenderProxy.CreateManualCullObject("SEVR rig grid",MatrixD.Identity):uint.MaxValue;
+            if(rigGrid!=uint.MaxValue) SmoothFramesTests.BeginNativeCockpit();
             var rig=rigs[rigIndex];
             native=MyRenderProxy.CreateRenderEntity("SEVR rig probe "+rig.Subtype,rig.Model,MatrixD.Identity,MyMeshDrawTechnique.MESH,
                 RenderFlags.Visible|RenderFlags.ForceOldPipeline|RenderFlags.CastShadows,(CullingOptions)0,Color.White,neutralPaint);
+            if(rigGrid!=uint.MaxValue) MyRenderProxy.SetParentCullObject(native,rigGrid,Matrix.Identity);
             foreach(string material in rig.Pieces.Select(p=>p.Material).Distinct().Where(m=>CockpitRender.MovingScreenActor(rig,m)>=0 && m.StartsWith("CockpitScreen_")))
                 MyRenderProxy.ChangeMaterialTexture(native,material,@"Textures\Models\default_online.dds");
             next=DateTime.UtcNow.AddSeconds(2);
@@ -638,6 +644,7 @@ namespace SpaceEngineersVR.Diagnostics
             if (!Active || path==null || captured==path || renderError!=null) return;
             try
             {
+                if(phase==50 && rigGrid!=uint.MaxValue && (rigStep==1 || rigStep==2)) SmoothFramesTests.NativeCockpit(line=>Logger.Info(line));
                 if(phase==3 && !remoteVisibilityChecked)
                 {
                     CockpitVisibilityTests.RunNative(line=>Logger.Info(line));
@@ -927,8 +934,10 @@ namespace SpaceEngineersVR.Diagnostics
             if(recentHistory!=null) { AccessTools.Field(typeof(ActionCatalog),"history").SetValue(null,recentHistory); recentHistory=null; }
             options?.CloseScreenNow(); options=null;
             if(assignment!=null) { assignment.Finish(); assignment=null; }
-            NativeGloves.Reset(); CockpitRender.Reset();
+            NativeGloves.Reset(); CockpitRender.Reset(); SmoothFramesTests.EndNativeCockpit();
             if (native!=uint.MaxValue) MyRenderProxy.RemoveRenderObject(native,MyRenderProxy.ObjectType.Entity);
+            if(rigGrid!=uint.MaxValue) MyRenderProxy.RemoveRenderObject(rigGrid,MyRenderProxy.ObjectType.ManualCull);
+            rigGrid=uint.MaxValue;
             native=uint.MaxValue; Active=false;
         }
         private static void BeginCameraHud()

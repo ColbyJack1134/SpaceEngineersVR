@@ -18,20 +18,37 @@ namespace SpaceEngineersVR.Patches
         public static void Install(Harmony harmony)
         {
             Type type = PatchGroup.Type("VRageRender.MyRender11");
-            harmony.Patch(PatchGroup.Method(type,"SetupCameraMatrices"), new HarmonyMethod(typeof(FrameInjections),nameof(CameraFrame)));
+            harmony.Patch(PatchGroup.Method(type,"SetupCameraMatrices"),new HarmonyMethod(typeof(FrameInjections),nameof(CameraFrame)));
             harmony.Patch(PatchGroup.Method(type,"DrawScene"), new HarmonyMethod(typeof(FrameInjections),nameof(BeforeScene)));
-            harmony.Patch(PatchGroup.Method(type,"DrawScene"), new HarmonyMethod(typeof(FrameInjections),nameof(EnterScene)) { priority=Priority.First },
+            harmony.Patch(PatchGroup.Method(type,"DrawScene"),new HarmonyMethod(typeof(FrameInjections),nameof(EnterScene)) {priority=Priority.First},
                 finalizer:new HarmonyMethod(typeof(FrameInjections),nameof(LeaveScene)));
             harmony.Patch(PatchGroup.Method(type,"ConsumeMainSprites"), new HarmonyMethod(typeof(FrameInjections),nameof(BeforeSprites)));
             harmony.Patch(PatchGroup.Method(type,"Present"),
                 new HarmonyMethod(typeof(FrameInjections),nameof(BeforePresent)), new HarmonyMethod(typeof(FrameInjections),nameof(AfterPresent)));
         }
-        // Only the message queue sets the camera, before DrawScene; calls inside it are other plugins' views.
         private static void EnterScene() => inScene=true;
         private static void LeaveScene() => inScene=false;
+        internal static void InstallCamera(Harmony harmony)
+        {
+            Type type=PatchGroup.Type("VRageRender.MyRender11");
+            harmony.Patch(PatchGroup.Method(type,"ProcessMessageInternal"),new HarmonyMethod(typeof(FrameInjections),nameof(NativeCameraFrame)));
+            harmony.Patch(PatchGroup.Method(type,"SetupCameraMatrices"),new HarmonyMethod(typeof(FrameInjections),nameof(SyntheticCameraFrame)));
+        }
+        private static void NativeCameraFrame(VRageRender.Messages.MyRenderMessageBase message)
+        {
+            if(Main.VrActive && Player.SmoothFramesBridge.Ready && message is VRageRender.Messages.MyRenderMessageSetCameraViewMatrix) ConsumeCamera(message);
+        }
+        // Direct camera setup also serves auxiliary views. Only SmoothFrames replaces the queued world camera here.
         private static void CameraFrame(VRageRender.Messages.MyRenderMessageSetCameraViewMatrix message)
         {
-            if (!Main.VrActive || inScene) return;
+            if(Main.VrActive && !Player.SmoothFramesBridge.Ready && !inScene) ConsumeCamera(message);
+        }
+        private static void SyntheticCameraFrame(VRageRender.Messages.MyRenderMessageSetCameraViewMatrix message)
+        {
+            if(Main.VrActive && Player.SmoothFramesBridge.IsSynthetic(message)) ConsumeCamera(message);
+        }
+        private static void ConsumeCamera(object message)
+        {
             Player.RenderFrameBridge.Consume(message);
             if (!reportedCameraFrame && Player.RenderFrameBridge.Current != null)
             {
@@ -109,6 +126,7 @@ namespace SpaceEngineersVR.Patches
         }
         private static void AfterPresent()
         {
+            Player.SmoothFramesBridge.EndFrame();
             if(presentStart!=0) Player.FeatureTiming.End(Player.FeatureTiming.Area.DesktopPresent,presentStart);
             Player.GpuTiming.EndFrame();
             Player.RenderPerformance.Sample(Main.VrActive && drewStereo && Main.WorldAvailable && !Main.MenuOpen);

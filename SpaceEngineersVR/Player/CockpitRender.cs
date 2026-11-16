@@ -28,6 +28,8 @@ namespace SpaceEngineersVR.Player
             public volatile bool NativeHidden;
             public readonly bool[] Verified;
             public readonly MatrixD?[] Poses;
+            public MatrixD ParentInverse;
+            public bool Parented;
             public readonly string[] Materials;
             public readonly string[][] ActorMaterials;
             public int ReadyCount;
@@ -49,6 +51,49 @@ namespace SpaceEngineersVR.Player
         private static volatile bool remoteInterior;
         public static bool Ready => verification!=null && verification.NativeHidden && Volatile.Read(ref verification.ReadyCount)==verification.Verified.Length && verification.Error==null;
         public static string Status => failed ? "Sticks unavailable: button flight" : Ready ? "Cockpit controls ready" : "Checking cockpit control renderer";
+        internal static void TracePose(out uint actor,out MatrixD pose)
+        {
+            actor=uint.MaxValue; pose=MatrixD.Identity;
+            var check=verification;
+            if(check==null) return;
+            for(int i=0;i<check.Actors.Length;i++)
+                if(check.Actors[i]!=uint.MaxValue && check.Poses[i].HasValue)
+                { actor=check.Actors[i]; pose=check.Poses[i].Value; return; }
+        }
+        internal static void RefreshTransforms(MyActorUpdater updater)
+        {
+            var check=Volatile.Read(ref verification);
+            var interior=check==null ? null:MyIDTracker<MyActor>.FindByID(check.Interior);
+            if(check?.Parented!=true || interior==null || !ReferenceEquals(interior.Scene.Updater,updater)) return;
+            RefreshTransform(interior);
+            foreach(uint id in check.Actors)
+            {
+                var actor=MyIDTracker<MyActor>.FindByID(id);
+                if(actor==null || !ReferenceEquals(actor.Parent,interior)) continue;
+                actor.SetWorldMatrixDirty();
+                actor.UpdateWorldMatrix();
+            }
+        }
+        internal static void TransformFailed(Exception ex)
+        {
+            var check=Volatile.Read(ref verification);
+            if(check!=null) check.Error="Cockpit transform refresh failed: "+ex.Message;
+        }
+        private static MatrixD RefreshTransform(IMyActor actor)
+        {
+            // Native invalidation stops at direct children; relative transforms read the cached parent matrix.
+            if(actor.Parent!=null)
+            {
+                RefreshTransform(actor.Parent);
+                if(actor.RelativeTransformValid)
+                {
+                    var local=actor.RelativeTransform;
+                    actor.SetRelativeTransform(ref local);
+                }
+                else actor.SetWorldMatrixDirty();
+            }
+            return actor.WorldMatrix;
+        }
         private static string Name(int i) => "SEVR_Cockpit_"+activeRig.Subtype+"_"+i;
 
         public static void Reset()
@@ -115,7 +160,7 @@ namespace SpaceEngineersVR.Player
                     foreach(string templateSubtype in activeRig.TemplateSubtypes)
                         MyRenderProxy.PreloadModel(CockpitRig.Find(templateSubtype).Model,forceOldPipeline:true);
                     geometry=activeRig.Geometry(MyFileSystem.ContentPath);
-                    verification=new Verification(interior,geometry,activeRig.Pieces.Select(p=>p.Material).Distinct().ToArray(),activeRig.Subtype);
+                    verification=new Verification(interior,geometry,activeRig.Pieces.Select(p=>p.Material).Distinct().ToArray(),activeRig.Subtype) {Parented=SmoothFramesBridge.Ready};
                     deadline=DateTime.UtcNow.AddSeconds(8);
                     // This also converts the instance to the engine's supported per-material pipeline.
                     foreach(string material in verification.Materials)
@@ -123,6 +168,7 @@ namespace SpaceEngineersVR.Player
                     Logger.Info("COCKPIT CONTROLS waiting for native material visibility verification");
                 }
                 var check=verification;
+                if(check.Parented) check.ParentInverse=MatrixD.Invert(world);
                 Vector3 paint=colorMask ?? Vector3.Zero;
                 if (check.Error!=null) throw new InvalidOperationException(check.Error);
                 if (!Ready && DateTime.UtcNow>deadline) throw new TimeoutException("Cockpit control renderer did not confirm hidden native geometry and replacement meshes: "+check.NativeStatus);
@@ -152,6 +198,7 @@ namespace SpaceEngineersVR.Player
                             MyRenderProxy.AddRuntimeModel(Name(i),message);
                             actors[i]=MyRenderProxy.CreateRenderEntity(Name(i),Name(i),world,MyMeshDrawTechnique.MESH,
                                 RenderFlags.Visible|RenderFlags.ForceOldPipeline|RenderFlags.CastShadows,(CullingOptions)0,Color.White,paint);
+                            if(check.Parented) MyRenderProxy.SetParentCullObject(actors[i],interior,Matrix.Identity);
                             Volatile.Write(ref check.Actors,actors.Take(i+1).ToArray());
                         }
                         Volatile.Write(ref check.Actors,actors);
@@ -325,7 +372,8 @@ namespace SpaceEngineersVR.Player
             if(check.Actors[index]==uint.MaxValue) return;
             if(check.Poses[index].HasValue && check.Poses[index].Value==pose) return;
             check.Poses[index]=pose;
-            MyRenderProxy.UpdateRenderObject(check.Actors[index],pose);
+            if(check.Parented) MyRenderProxy.UpdateRenderObject(check.Actors[index],null,localMatrix:(Matrix)(pose*check.ParentInverse));
+            else MyRenderProxy.UpdateRenderObject(check.Actors[index],pose);
         }
         private static readonly System.Collections.Generic.Dictionary<uint,int> feedback=new System.Collections.Generic.Dictionary<uint,int>();
         internal static void ApplyFeedback(uint id,string material,int state)

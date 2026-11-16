@@ -189,6 +189,7 @@ namespace SpaceEngineersVR.Plugin
 
         public void Dispose()
         {
+            Player.SmoothFramesBridge.Dispose();
             Player.StereoExposure.Reset();
             Player.StereoParticles.Dispose();
             Player.Dlss.Dispose();
@@ -495,6 +496,7 @@ namespace SpaceEngineersVR.Plugin
 
         private static void ResetWorldState()
         {
+            Player.SmoothFramesBridge.Reset();
             Multiplayer.MultiplayerRuntime.Reset();
             Player.GameActions.Reset();
             Player.SpectatorView.Reset(forgetTracked:true);

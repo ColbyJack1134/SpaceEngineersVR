@@ -54,7 +54,7 @@ namespace SpaceEngineersVR.Player
             internal Vector4 Window;
             internal Rim[] Rims;
         }
-        internal sealed class View { internal MatrixD Gun; internal Reticle Reticle; }
+        internal sealed class View { internal MatrixD Gun; internal Reticle Reticle; internal uint RenderParent=uint.MaxValue; }
 
         // Triangle runs of the painted reticle in the first mesh part, measured from the installed models.
         private static readonly Sight[] sights={
@@ -219,7 +219,7 @@ namespace SpaceEngineersVR.Player
             if(reticles.Count==0 || !Main.VrActive) return null;
             var weapon=MySession.Static?.LocalCharacter?.CurrentWeapon as MyEntity;
             string model=weapon?.Model?.AssetName;
-            return model!=null && reticles.TryGetValue(model,out var reticle) ? new View { Gun=weapon.WorldMatrix,Reticle=reticle }:null;
+            return model!=null && reticles.TryGetValue(model,out var reticle) ? new View { Gun=weapon.WorldMatrix,Reticle=reticle,RenderParent=SmoothFramesBridge.Ready ? weapon.Render.GetRenderObjectID():uint.MaxValue }:null;
         }
 
         // Distance from the eye to the reticle plane along the sight line, or null when the eye's parallel ray misses the window.
@@ -248,7 +248,17 @@ namespace SpaceEngineersVR.Player
 
         internal static void Draw(Texture2D target,View state,MatrixD view,MatrixD projection,ShaderResourceView depth)
         {
+            SmoothFramesBridge.Holo(state,failed,view);
             if(state==null || failed) return;
+            if(SmoothFramesBridge.Ready && state.RenderParent!=uint.MaxValue)
+            {
+                try
+                {
+                    var parent=VRage.Render.Scene.MyIDTracker<VRage.Render.Scene.MyActor>.FindByID(state.RenderParent);
+                    if(parent!=null) state=new View { Gun=parent.WorldMatrix,Reticle=state.Reticle };
+                }
+                catch(Exception ex) { SmoothFramesBridge.Fail(ex); }
+            }
             try
             {
                 var r=state.Reticle; var gun=state.Gun;
