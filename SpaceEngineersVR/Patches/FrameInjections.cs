@@ -64,7 +64,7 @@ namespace SpaceEngineersVR.Patches
         }
         private static bool BeforeScene()
         {
-            if (!Main.VrActive) { Player.RemoteFeed.Reset(); Player.LcdFeed.Reset(); Player.DesktopCapture.Release(); Player.GpuTiming.Reset(); Player.EyeResolution.Scene.RestoreNative(); return true; }
+            if (!Main.VrActive) { Player.Dlss.RestoreDesktop(); Player.RemoteFeed.Reset(); Player.LcdFeed.Reset(); Player.DesktopCapture.Release(); Player.GpuTiming.Reset(); Player.EyeResolution.Scene.RestoreNative(); return true; }
             if (Standby) { Player.EyeResolution.Scene.RestoreNative(); return true; }
             try
             {

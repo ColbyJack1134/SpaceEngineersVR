@@ -1,6 +1,7 @@
 #if SEVR_DIAGNOSTICS
 using System;
 using System.Collections.Generic;
+using HarmonyLib;
 using SpaceEngineersVR.Player;
 using VRageMath;
 
@@ -90,13 +91,50 @@ namespace SpaceEngineersVR.Diagnostics
             Require(Dlss.MissingEngineMember==null,"engine member missing: "+Dlss.MissingEngineMember);
             Require(Dlss.MissingObjectMember==null,"object motion member missing: "+Dlss.MissingObjectMember);
             Objects();
+            Previews();
 #endif
             log("PASS DLSS: Halton jitter inside the pixel, NDC scale, jitter shift, NGX render range, history resets on epoch, view, menu, rig, size, recenter and jumps, previous-origin reprojection, engine dither pattern, engine state and depth members, object reprojection, tracking and box order");
         }
 
 #if !LINUX
+        private static void Previews()
+        {
+            var fields=new[] {
+                AccessTools.Field(typeof(Plugin.Common),"<Config>k__BackingField"),AccessTools.Field(typeof(Plugin.Main),"failed"),
+                AccessTools.Field(typeof(Dlss),"nvidia"),AccessTools.Field(typeof(Dlss),"conflict"),
+                AccessTools.Field(typeof(Dlss),"blocked"),AccessTools.Field(typeof(Dlss),"runtimeMissing")
+            };
+            var saved=Array.ConvertAll(fields,f=>f.GetValue(null));
+            var config=new Config.PluginConfig {Dlss=1,DlssSolidPreviews=true};
+            try
+            {
+                fields[0].SetValue(null,config); fields[2].SetValue(null,true); fields[3].SetValue(null,false);
+                fields[4].SetValue(null,null); fields[5].SetValue(null,false);
+                foreach(bool vr in new[] {true,false,false,true})
+                {
+                    fields[1].SetValue(null,!vr);
+                    var builder=new object[] {true};
+                    AccessTools.Method(typeof(Patches.DlssSolidPreviewPatch),"Prefix").Invoke(null,builder);
+                    Require((bool)builder[0]==!vr,"Block preview transparency did not follow VR/desktop/VR transitions");
+                    var paste=new object[] {.5f};
+                    bool native=(bool)AccessTools.Method(typeof(Patches.DlssSolidPastePatch),"Prefix").Invoke(null,paste);
+                    Require(native==!vr && (float)paste[0]==(vr ? 0:.5f),"Clipboard preview changed native desktop transparency");
+                    var projection=new object[] {.5f};
+                    AccessTools.Method(typeof(Patches.DlssSolidProjectionPatch),"Prefix").Invoke(null,projection);
+                    Require((float)projection[0]==(vr ? .001f:.5f),"Projector preview did not restore its native transparency");
+                    Require(config.Dlss==1 && config.DlssSolidPreviews,"Desktop fallback changed the saved DLSS options");
+                }
+            }
+            finally { for(int i=0;i<fields.Length;i++) fields[i].SetValue(null,saved[i]); }
+        }
+
         private static void Objects()
         {
+            DlssObjects.Transforms[0]=default(Matrix);
+            DlssObjects.Emit(new List<DlssObjects.Candidate>(),Vector3D.Zero,Matrix.Identity,Matrix.Identity);
+            var staticPoint=new Vector4(3,-2,-20,1);
+            Require(DlssObjects.BoxCount==0 && DlssObjects.TransformCount==1 && Vector4.Transform(staticPoint,DlssObjects.Transforms[0])==staticPoint,
+                "Cold parts-only pass changes the homogeneous position of static pixels");
             // A point fixed on a grid that flew and turned far from the origin: its camera-relative position must reproject to where it was.
             Vector3D camera=new Vector3D(1000000,2000000,3000000);
             MatrixD previous=MatrixD.CreateFromAxisAngle(Vector3D.Up,.4)*MatrixD.CreateTranslation(camera+new Vector3D(3,-2,-20));

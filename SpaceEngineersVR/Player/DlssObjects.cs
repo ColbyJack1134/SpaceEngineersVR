@@ -130,6 +130,7 @@ namespace SpaceEngineersVR.Player
         internal static void Emit(List<Candidate> list,Vector3D camera,Matrix viewProjection,Matrix inverseViewProjection)
         {
             Clear();
+            Transforms[0]=Matrix.Identity;
             if(list.Count==0) return;
             list.Sort(nearest);
             indices.Clear(); merged.Clear();
@@ -144,7 +145,6 @@ namespace SpaceEngineersVR.Player
                 }
                 else if(merged.Count<MaxBoxes) { indices[candidate]=merged.Count; merged.Add(candidate); }
             }
-            Transforms[0]=Matrix.Identity;
             foreach(var motion in merged)
             {
                 Transforms[BoxCount+1]=Reproject(motion.Current,motion.Previous,camera);

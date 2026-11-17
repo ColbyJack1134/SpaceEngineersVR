@@ -95,6 +95,7 @@ namespace SpaceEngineersVR.Player
         internal static void Capture(int eye,EnvironmentMatrices env,MatrixD projection) { }
         internal static void BeginParts(Vector2I size) { }
         internal static void EndParts() { }
+        internal static void RestoreDesktop() { }
         internal static void Dispose() { }
     }
 #else
@@ -172,7 +173,7 @@ namespace SpaceEngineersVR.Player
         private static bool Selected => Mode>0 && Available && !runtimeMissing;
         // Unchanged when DLSS cannot run, so FXAA keeps the full eye.
         internal static Vector2I Render(Vector2I size,Vector2I output) => Selected ? Clamp(size,output,ModeScales[Mode],Common.Config.DynamicResolution) : size;
-        internal static bool SolidPreviews => Selected && Common.Config.DlssSolidPreviews;
+        internal static bool SolidPreviews => Main.VrActive && Selected && Common.Config.DlssSolidPreviews;
         internal static string Status
         {
             get
@@ -508,6 +509,14 @@ namespace SpaceEngineersVR.Player
             if(outputDepth==null) return;
             disposeDepth.Invoke(depthStencils.GetValue(null),new[] {outputDepth});
             outputDepth=null;
+        }
+
+        internal static void RestoreDesktop()
+        {
+            active=false;
+            if(solidDither==null) return;
+            try { SetSolidDither(false); }
+            catch(Exception ex) { Logger.Warning(ex,"DLSS preview restoration failed"); }
         }
 
         // Holograms always clip dither texel 0; raising it to 1/255 lets them draw without holes.
