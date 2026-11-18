@@ -22,6 +22,7 @@ namespace SpaceEngineersVR.Player
             // Turret aim mode icon: -1 hidden, 0 vanilla, 1 head, 2 head with the face screen.
             public int Aim=-1;
             public int Pan=-1;
+            public int FaceOpacity=-1;
         }
         private sealed class Cache
         {
@@ -33,16 +34,25 @@ namespace SpaceEngineersVR.Player
         internal static float ZoomX(float width,bool plus) => -width/2+(plus ? .115f:.05f);
         // Move bar hit half-length; the drawn bar is a little shorter.
         internal static float BarHalf(float width) => MathHelper.Clamp(width*.095f,.125f,.19f);
-        internal const int CloseHover=5,MonitorHover=6,SignalsHover=7,AimHover=8,PanHover=9;
+        internal const int CloseHover=5,MonitorHover=6,SignalsHover=7,AimHover=8,PanHover=9,OpacityHover=10;
+        internal const int MinOpacity=Config.MenuWindowSetting.DefaultFaceOpacity,MaxOpacity=100;
+        private const float OpacityHalf=.12f;
         internal static float SignalsX(float width) => width/2-.035f;
         internal static float SignalsY(float height) => height/2+.04f;
         internal static float AimX(float width) => ZoomX(width,false);
+        private static float OpacityX(float width) => (AimX(width)+SignalsX(width))*.5f;
+        internal static int OpacityAt(float x,float width)
+        {
+            float fraction=MathHelper.Clamp((x-OpacityX(width)+OpacityHalf)/(2*OpacityHalf),0,1);
+            return MinOpacity+(int)Math.Round(fraction*(MaxOpacity-MinOpacity));
+        }
         private static float Top(Snapshot s) => s.SignalMode>=0 || s.Aim>=0 || s.Pan>=0 ? .08f:.03f;
-        internal static int Control(Vector3 point,float width,float height,float barOffset,bool zoom,bool close,bool monitor,bool signals=false,bool aim=false,bool pan=false)
+        internal static int Control(Vector3 point,float width,float height,float barOffset,bool zoom,bool close,bool monitor,bool signals=false,bool aim=false,bool pan=false,bool opacity=false)
         {
             if(signals && Math.Abs(point.Y-SignalsY(height))<.027f && Math.Abs(point.X-SignalsX(width))<.027f) return SignalsHover;
             if(aim && Math.Abs(point.Y-SignalsY(height))<.027f && Math.Abs(point.X-AimX(width))<.035f) return AimHover;
             if(pan && Math.Abs(point.Y-SignalsY(height))<.027f && Math.Abs(point.X-AimX(width))<.035f) return PanHover;
+            if(opacity && Math.Abs(point.Y-SignalsY(height))<.027f && Math.Abs(point.X-OpacityX(width))<OpacityHalf+.015f) return OpacityHover;
             if(Math.Abs(point.Y+height/2+barOffset)>=.035f) return 0;
             if(Math.Abs(point.X-ZoomX(width,false))<.027f) return zoom ? 3 : close ? CloseHover : 0;
             if(Math.Abs(point.X-ZoomX(width,true))<.027f) return zoom ? 4 : monitor ? MonitorHover : 0;
@@ -95,6 +105,7 @@ namespace SpaceEngineersVR.Player
                 if(s.Aim>=0)
                     using(var pen=new Pen(s.Hover==AimHover ? Color.Cyan:Color.White,.003f) {StartCap=LineCap.Round,EndCap=LineCap.Round})
                         AimIcon(g,pen,AimX(s.Width),-SignalsY(s.Height),s.Aim);
+                if(s.FaceOpacity>=0) PaintOpacity(g,s);
                 if(s.Pan>=0)
                 {
                     float x=AimX(s.Width),y=-SignalsY(s.Height);
@@ -134,6 +145,16 @@ namespace SpaceEngineersVR.Player
             }
             finally { g.Restore(state); }
         }
+        private static void PaintOpacity(Graphics g,Snapshot s)
+        {
+            float x=OpacityX(s.Width),y=-SignalsY(s.Height);
+            float fraction=(float)(s.FaceOpacity-MinOpacity)/(MaxOpacity-MinOpacity);
+            float knob=x+OpacityHalf*(2*fraction-1);
+            var brush=s.Hover==OpacityHover ? Brushes.Cyan:Brushes.White;
+            using(var track=new Pen(Color.FromArgb(190,255,255,255),.003f) {StartCap=LineCap.Round,EndCap=LineCap.Round})
+                g.DrawLine(track,x-OpacityHalf,y,x+OpacityHalf,y);
+            g.FillEllipse(brush,knob-.007f,y-.007f,.014f,.014f);
+        }
         // Crosshair for vanilla aim, an eye for head aim, the eye inside a screen when the picture is on the face.
         private static void AimIcon(Graphics g,Pen pen,float x,float y,int mode)
         {
@@ -161,7 +182,7 @@ namespace SpaceEngineersVR.Player
                 var canvas=new OverlayCanvas("Window frame "+id,1600,1100,1,false,target.Device,true);
                 frames[id]=frame=new Cache {Canvas=canvas,Texture=new ShaderResourceView(target.Device,canvas.Texture)};
             }
-            string key=s.Width+"|"+s.Height+"|"+s.Hover+"|"+s.BarOffset+"|"+s.Zoom+"|"+s.Close+"|"+s.Monitor+"|"+s.SignalMode+"|"+s.Aim+"|"+s.Pan;
+            string key=s.Width+"|"+s.Height+"|"+s.Hover+"|"+s.BarOffset+"|"+s.Zoom+"|"+s.Close+"|"+s.Monitor+"|"+s.SignalMode+"|"+s.Aim+"|"+s.Pan+"|"+s.FaceOpacity;
             if(frame.Key!=key)
             {
                 Paint(frame.Canvas,s); frame.Canvas.Upload(); target.Device.ImmediateContext.GenerateMips(frame.Texture); frame.Key=key;

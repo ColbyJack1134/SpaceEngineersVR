@@ -28,7 +28,7 @@ namespace SpaceEngineersVR.Diagnostics
                     Tuple.Create("cockpit-building",GameActions.CockpitBuildActions()),
                     Tuple.Create("clipboard",GameActions.ClipboardActions()),
                     Tuple.Create("planet-clipboard",GameActions.ClipboardActions(false)),
-                    Tuple.Create("remote",GameActions.RemoteWheelChoices()),
+                    Tuple.Create("remote",GameActions.RemoteWheelActions(aim:false,screen:true,camera:true)),
                     Tuple.Create("remote-no-feed",GameActions.RemoteWheelActions()),
                     Tuple.Create("spectator",SpectatorView.Actions()),
                     Tuple.Create("recent-spectator",new ActionHistory(new[] {"Reset view","Pause","Camera mode"}).Recent(ActionCatalog.CommonEntries(true),9)),

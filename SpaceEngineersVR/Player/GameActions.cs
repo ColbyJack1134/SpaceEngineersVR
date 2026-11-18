@@ -119,7 +119,7 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice RecenterAction=new ActionChoice("Recenter",()=>Player.Headset.RequestRecenter(),searchTerms:"Ctrl Alt R hotkey");
         public static readonly ActionChoice AllActions=new ActionChoice("All actions",()=>MyGuiSandbox.AddScreen(new GUI.ActionBrowser()),true);
         public static readonly ActionChoice RelativeDampeners=new ActionChoice("Auto dampeners",DampenerTargeting.Activate);
-        public static readonly ActionChoice Dampeners=new ActionChoice("Dampeners",() => new MyActionToggleDampeners().ExecuteAction());
+        public static readonly ActionChoice Dampeners=new ActionChoice("Dampeners",() => ShipActionTarget?.SwitchDamping());
         public static readonly ActionChoice ResetFeed=new ActionChoice("Reset camera screen",RemoteView.Recenter,enabled:()=>RemoteView.Current!=null);
         public static readonly ActionChoice ResetScreens=new ActionChoice("Reset screens",WindowSpots.ResetAll,searchTerms:"recenter menu window position default");
         public static readonly ActionChoice ExitFeed=new ActionChoice(()=>RemoteView.RemoteGrid ? "Exit remote control":RemoteView.Turret ? "Exit turret":"Exit camera control",
@@ -150,20 +150,24 @@ namespace SpaceEngineersVR.Player
             pending=null; pendingOwner=null; pendingHand=null; pendingSearch=false;
             Execute(action,hand,fromSearch);
         }
-        public static readonly ActionChoice CockpitBuild=new ActionChoice(()=>CockpitBuilding.Label,CockpitBuilding.Toggle,historyKey:"Cockpit building");
+        public static readonly ActionChoice CockpitBuild=new ActionChoice(()=>CockpitBuilding.Label,CockpitBuilding.Toggle,enabled:()=>!RemoteView.Active,historyKey:"Cockpit building");
         internal static readonly ActionChoice SnapHeldGrid=new ActionChoice(()=>HandGrab.SnapLabel,HandGrab.ToggleSnap,historyKey:"Snap held grid to center");
         public static ActionChoice[] WheelActions(bool building,bool seated,bool thirdPerson,bool jetpack=false)
         {
             if(SpectatorView.Active) return PlacementControls.ClipboardActive ? ClipboardActions(PlacementControls.GridClipboardActive):SpectatorView.Actions();
-            if(RemoteView.Active) return RemoteWheelActions();
+            if(RemoteView.Active) return FeedQuickActions(RemoteView.ShipController!=null,thirdPerson);
             if(building && seated) return CockpitBuildActions();
-            if(thirdPerson && seated) return new[] { PauseAction,TerminalAction,Quick[22],LightsAction,Dampeners,PowerAction,ParkAction,BroadcastAction,CockpitBuild };
             if(building && PlacementControls.ClipboardActive) return ClipboardActions(PlacementControls.GridClipboardActive);
             if(building) return VoxelTools.Current?.Actions() ?? BuildingWheelActions();
-            if(seated) return new[] { PauseAction,TerminalAction,LightsAction,Dampeners,PowerAction,ParkAction,HelmetAction,BroadcastAction,CockpitBuild };
+            if(seated) return CockpitWheelActions(thirdPerson);
             if(jetpack) return new[] { PauseAction,BlueprintsAction,TerminalAction,RelativeDampeners,Dampeners,JetpackAction,LightsAction,HelmetAction,HandGrab.Active ? SnapHeldGrid:BroadcastAction };
             return new[] { PauseAction,BlueprintsAction,TerminalAction,JetpackAction,LightsAction,HelmetAction,BroadcastAction,Quick[11],HandGrab.Active ? SnapHeldGrid:Quick[12] };
         }
+        private static ActionChoice[] CockpitWheelActions(bool thirdPerson) => thirdPerson
+            ? new[] { PauseAction,TerminalAction,Quick[22],LightsAction,Dampeners,PowerAction,ParkAction,BroadcastAction,CockpitBuild }
+            : new[] { PauseAction,TerminalAction,LightsAction,Dampeners,PowerAction,ParkAction,HelmetAction,BroadcastAction,CockpitBuild };
+        internal static ActionChoice[] FeedQuickActions(bool ship,bool thirdPerson) =>
+            ship ? CockpitWheelActions(thirdPerson) : new[] { PauseAction,TerminalAction };
         // Its own Actions wheel page while a WeaponCore hand weapon is out.
         internal static ActionChoice[] WeaponCoreWheelActions()
         {
@@ -184,8 +188,17 @@ namespace SpaceEngineersVR.Player
         public static readonly ActionChoice ZoomIn=new ActionChoice("Zoom in",()=>RemoteView.Zoom(-.12f),enabled:()=>RemoteView.Current!=null);
         public static readonly ActionChoice ZoomOut=new ActionChoice("Zoom out",()=>RemoteView.Zoom(.12f),enabled:()=>RemoteView.Current!=null);
         public static readonly ActionChoice TurretAimAction=new ActionChoice(()=>TurretHeadAim.Label,()=> { RemoteView.CycleAim(); RemoteView.ReleaseInput(); },enabled:()=>TurretHeadAim.Available,historyKey:"Turret aim");
-        internal static ActionChoice[] RemoteWheelChoices() => new[] { PauseAction,TerminalAction,ExitFeed,TurretAimAction,FeedSignals,ZoomIn,ZoomOut,PreviousCamera,NextCamera,ResetFeed,ConfigureToolbarAction,Inspect };
-        internal static ActionChoice[] RemoteWheelActions() => RemoteWheelChoices().Where(choice=>choice.Enabled).ToArray();
+        internal static string RemoteWheelTitle => CameraFeed ? "Camera" : RemoteView.Turret ? "Turret" : "Remote control";
+        internal static ActionChoice[] RemoteWheelActions() => RemoteWheelActions(TurretHeadAim.Available,RemoteView.Current!=null,CameraFeed);
+        internal static ActionChoice[] RemoteWheelActions(bool aim,bool screen,bool camera)
+        {
+            var actions=new List<ActionChoice> { ExitFeed };
+            if(aim && !camera) actions.Add(TurretAimAction);
+            if(screen) actions.AddRange(new[] { FeedSignals,ZoomIn,ZoomOut });
+            if(camera) actions.AddRange(new[] { PreviousCamera,NextCamera });
+            if(screen) actions.Add(ResetFeed);
+            return actions.ToArray();
+        }
         internal static ActionChoice[] ClipboardActions(bool grid=true) => grid ?
             new[] { PauseAction,TerminalAction,AlignGravity,Building[21],Building[20],Building[6],Building[7],BlueprintsAction } :
             new[] { PauseAction,TerminalAction,Building[20],Building[6],Building[7],BlueprintsAction };
@@ -215,17 +228,19 @@ namespace SpaceEngineersVR.Player
         }
         public static readonly ActionChoice TerminalAction = new ActionChoice("Terminal", () => MySession.Static.ControlledEntity?.ShowTerminal(), true);
         public static readonly ActionChoice ConfigureToolbarAction = new ActionChoice("G menu / toolbar", ToolbarConfig, true);
-        public static readonly ActionChoice LightsAction = new ActionChoice("Lights", () => new MyActionToggleLights().ExecuteAction());
+        private static Sandbox.Game.Entities.IMyControllableEntity ShipActionTarget =>
+            RemoteView.ShipController ?? MySession.Static?.ControlledEntity;
+        public static readonly ActionChoice LightsAction = new ActionChoice("Lights", () => ShipActionTarget?.SwitchLights());
         public static readonly ActionChoice HelmetAction = new ActionChoice("Helmet", () => ((IMyControllableEntity)MySession.Static?.LocalCharacter)?.SwitchHelmet());
         public static readonly ActionChoice AlignGravity = new ActionChoice("Align to gravity",PlacementControls.AlignGravity);
         public static readonly ActionChoice JetpackAction = new ActionChoice("Jetpack", () => { if (MySession.Static.ControlledEntity == MySession.Static.LocalCharacter) ((IMyCharacter)MySession.Static.LocalCharacter).SwitchThrusts(); });
         public static readonly ActionChoice PauseAction = new ActionChoice("Pause", PauseMenu, true);
         public static readonly ActionChoice ParkAction = new ActionChoice("Landing gear / park", () => {
-            var controlled=MySession.Static?.ControlledEntity;
+            var controlled=ShipActionTarget;
             if(controlled?.CanSwitchLandingGears==true) controlled.SwitchLandingGears();
         });
-        public static readonly ActionChoice PowerAction = new ActionChoice("Power", () => new MyActionTogglePower().ExecuteAction());
-        public static readonly ActionChoice BroadcastAction = new ActionChoice("Broadcast", () => new MyActionToggleBroadcasting().ExecuteAction());
+        public static readonly ActionChoice PowerAction = new ActionChoice("Power", () => ShipActionTarget?.SwitchReactors());
+        public static readonly ActionChoice BroadcastAction = new ActionChoice("Broadcast", () => ShipActionTarget?.SwitchBroadcasting());
         public static readonly ActionChoice DetachBootsAction = new ActionChoice("Detach boots", () => {
             var character=MySession.Static?.LocalCharacter;
             if(character!=null && MySession.Static.ControlledEntity==character && character.IsMagneticBootsActive)

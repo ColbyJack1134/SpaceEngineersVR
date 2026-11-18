@@ -34,6 +34,7 @@ namespace SpaceEngineersVR.Player
             public uint Character=uint.MaxValue;
             public string[] FirstPersonMaterials;
             public bool Face;
+            public int FaceOpacity=WindowFrame.MinOpacity;
             public MatrixD WorldToTracking=MatrixD.Identity;
             public float FaceDepth;
             public int AimMode=-1;
@@ -49,6 +50,9 @@ namespace SpaceEngineersVR.Player
         private static string key;
         private static string world;
         private static bool placementDirty;
+        private static bool opacityDirty;
+        private static int faceOpacity=WindowFrame.MinOpacity;
+        private static bool FaceScreen => source is MyLargeTurretBase && TurretHeadAim.Face;
         private static bool recenter;
         private static bool cameraPanning;
         private static Vector3D? rayStart,rayEnd;
@@ -105,6 +109,13 @@ namespace SpaceEngineersVR.Player
             controlled is MyTurretControlBlock custom ? custom.PreviousControlledEntity :
             controlled is MyRemoteControl remote ? remote.PreviousControlledEntity : controlled;
         internal static Sandbox.Game.Entities.IMyControllableEntity Previous => PreviousOwner(MySession.Static?.ControlledEntity);
+        internal static MyShipController ShipControllerFor(Sandbox.Game.Entities.IMyControllableEntity controlled)
+        {
+            if(!Live(controlled)) return null;
+            var ship=controlled as MyShipController ?? PreviousOwner(controlled) as MyShipController;
+            return Live(ship) ? ship:null;
+        }
+        internal static MyShipController ShipController => Active ? ShipControllerFor(MySession.Static?.ControlledEntity):null;
         internal static MyCockpit SeatFor(Sandbox.Game.Entities.IMyControllableEntity controlled,MyCharacter character) =>
             character?.Parent as MyCockpit ?? PreviousOwner(controlled) as MyCockpit;
         public static bool CharacterAnchor => Active && seat==null && MySession.Static?.LocalCharacter==Previous;
@@ -115,7 +126,9 @@ namespace SpaceEngineersVR.Player
         {
             CancelCameraSwitch();
             if(placementDirty) Save();
+            SaveOpacity();
             owner=source=null; seat=null; Current=null; aimMode=0; cameraPanning=false; SeatedRig=null; OwnsInput=false;
+            faceOpacity=WindowFrame.MinOpacity;
             interaction.Reset(true); recenter=false; rayStart=rayEnd=null; lastHover=0; epoch++;
         }
         public static void Recenter() { recenter=true; }
@@ -124,6 +137,7 @@ namespace SpaceEngineersVR.Player
         public static void ReleaseInput()
         {
             if(placementDirty) Save();
+            SaveOpacity();
             interaction.Reset(); OwnsInput=false; lastHover=0;
             Controls.Static.BlockUntilRelease(); Components.VRMovementComponent.StopActive();
         }
@@ -195,7 +209,9 @@ namespace SpaceEngineersVR.Player
             var feed=Feed(session.ControlledEntity,session.CameraController);
             if(!ReferenceEquals(source,feed)) { ReleaseInput(); source=feed; cameraPanning=false; }
             if(PannableCamera==null) cameraPanning=false;
-            aimMode=Clamp(Feed()?.AimMode ?? 0,2);
+            var saved=Feed();
+            aimMode=Clamp(saved?.AimMode ?? 0,2);
+            if(!opacityDirty) faceOpacity=ClampOpacity(saved?.FaceOpacity ?? WindowFrame.MinOpacity);
             Refresh();
         }
         private static bool AvailableCamera(MyCameraBlock camera) => Usable(camera) && MyGridCameraSystem.CameraIsInRangeAndPlayerHasAccessLocal(camera);
@@ -235,27 +251,41 @@ namespace SpaceEngineersVR.Player
             if(InputRouter.Gameplay && !Main.MenuOpen) left=interaction.PickHand(Hand,Free,Aim)==Player.HandL;
             var hand=Hand;
             bool available=InputRouter.Gameplay && !Main.MenuOpen && !ThirdPersonView.Manipulating && Free(hand);
-            if(!available) { interaction.Reset(); if(placementDirty) Save(); window.Stop(); lastHover=0; Publish(); return; }
+            if(!available) { interaction.Reset(); if(placementDirty) Save(); SaveOpacity(); window.Stop(); lastHover=0; Publish(); return; }
+            bool face=FaceScreen;
+            if(!face && interaction.HeldAction==WindowFrame.OpacityHover) ReleaseInput();
             MatrixD aim=Aim(hand);
             var Reachable=WindowInteraction.Reachable(window,aim,PhysicalTrackingToWorld);
             int ExtraHit(Vector3 point,bool near)
             {
-                int control=WindowFrame.Control(point,window.Width,window.Height,window.BarOffset,true,false,false,true,TurretHeadAim.Available,PannableCamera!=null);
+                int control=WindowFrame.Control(point,window.Width,window.Height,window.BarOffset,true,false,false,true,TurretHeadAim.Available,PannableCamera!=null,face);
                 if(control!=0) return control;
-                return near && !TurretHeadAim.Face && Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2 ? 1:0;
+                return near && !face && Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2 ? 1:0;
             }
+            bool wasSliding=interaction.HeldAction==WindowFrame.OpacityHover;
             interaction.Update(hand,(Matrix)aim,seconds,ExtraHit,Reachable);
             int hover=interaction.Hover;
             if(interaction.Hit && hover==0 && !interaction.Active)
             {
                 var point=interaction.Point;
-                if(!TurretHeadAim.Face && Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2) ImageUV=window.UV(point);
+                if(!face && Math.Abs(point.X)<window.Width/2 && Math.Abs(point.Y)<window.Height/2) ImageUV=window.UV(point);
             }
             OwnsInput=interaction.Active || interaction.Released;
             if(interaction.Changed) placementDirty=true;
-            if(interaction.Released) Save();
+            if(interaction.Released && !wasSliding) Save();
+            if(wasSliding && !interaction.Active) SaveOpacity();
             if(interaction.Ray(aim,Reachable,out var start,out var end)) {rayStart=start; rayEnd=end;}
-            if(interaction.Captured)
+            if(interaction.HeldAction==WindowFrame.OpacityHover)
+            {
+                hover=WindowFrame.OpacityHover;
+                if(interaction.Hit && Reachable(interaction.Point))
+                {
+                    int opacity=WindowFrame.OpacityAt(interaction.Point.X,window.Width);
+                    opacityDirty|=faceOpacity!=opacity;
+                    faceOpacity=opacity;
+                }
+            }
+            else if(interaction.Captured)
             {
                 interaction.Grab(hand,PhysicalTrackingToWorld);
                 if(interaction.HeldAction==WindowFrame.SignalsHover) CycleSignals();
@@ -271,7 +301,7 @@ namespace SpaceEngineersVR.Player
         }
         internal static int NextSignalMode(int mode) => (mode+1)%4;
         internal static float ZoomX(float width,bool plus) => WindowFrame.ZoomX(width,plus);
-        // Marker and turret aim modes are kept per feed block and world.
+        // Feed preferences are kept per block and world.
         private static long FeedId => (source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0;
         private static MenuWindowSetting Feed()
         {
@@ -281,10 +311,18 @@ namespace SpaceEngineersVR.Player
         private static void StoreFeed(Action<MenuWindowSetting> change)
         {
             long id=FeedId; var old=Feed();
-            var saved=new MenuWindowSetting {Screen="CameraSignals",World=world,Cockpit=id,SignalMode=old?.SignalMode ?? 0,AimMode=old?.AimMode ?? 0};
+            var saved=new MenuWindowSetting {Screen="CameraSignals",World=world,Cockpit=id,SignalMode=old?.SignalMode ?? 0,
+                AimMode=old?.AimMode ?? 0,FaceOpacity=old?.FaceOpacity ?? WindowFrame.MinOpacity};
             change(saved);
             Common.Config.MenuWindows=Common.Config.MenuWindows.Where(s=>s.Screen!=saved.Screen || s.World!=world || s.Cockpit!=id).Concat(new[] {saved}).ToArray();
             aimMode=Clamp(saved.AimMode,2);
+        }
+        private static int ClampOpacity(int opacity) => Math.Max(WindowFrame.MinOpacity,Math.Min(WindowFrame.MaxOpacity,opacity));
+        private static void SaveOpacity()
+        {
+            if(!opacityDirty) return;
+            opacityDirty=false;
+            StoreFeed(s=>s.FaceOpacity=faceOpacity);
         }
         private static int Clamp(int mode,int max) => Math.Max(0,Math.Min(max,mode));
         private static int ReadSignalMode() => Clamp(Feed()?.SignalMode ?? 0,3);
@@ -302,9 +340,9 @@ namespace SpaceEngineersVR.Player
             long feed=(source as VRage.Game.Entity.MyEntity)?.EntityId ?? 0;
             var pointed=TargetLock.Preview;
             BoundingSphereD? pointedSphere=pointed!=null && !pointed.Closed ? pointed.PositionComp.WorldVolume : (BoundingSphereD?)null;
-            bool face=TurretHeadAim.Face;
+            bool face=FaceScreen;
             Current=new View { Pose=(MatrixD)window.Pose,Width=window.Width,Height=window.Height,Hover=hover<0 ? window.Drag!=0 ? window.Drag:lastHover : hover,
-                SignalMode=ReadSignalMode(),Ammo=ammo,Capacity=capacity,Pointed=pointedSphere,
+                SignalMode=ReadSignalMode(),Ammo=ammo,Capacity=capacity,Pointed=pointedSphere,FaceOpacity=faceOpacity,
                 RayStart=rayStart,RayEnd=rayEnd,LeftHand=left,Source=feed,Face=face,WorldToTracking=face ? MatrixD.Invert(PhysicalTrackingToWorld):MatrixD.Identity,FaceDepth=face && MySession.Static.ControlledEntity is MyLargeTurretBase faced ? TurretHeadAim.FaceDepth(faced):0,
                 AimMode=TurretHeadAim.Available ? TurretHeadAim.Mode : -1,
                 PanMode=PannableCamera==null ? -1:cameraPanning ? 1:0,

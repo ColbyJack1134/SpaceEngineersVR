@@ -255,13 +255,14 @@ namespace SpaceEngineersVR.Player
             quickPage=0; quickPages=null; pageTitles=null; variantPages=null;
             if(quick)
             {
-                bool symmetry=SymmetrySetupControls.Active;
+                bool feed=RemoteView.Active && !SpectatorView.Active;
+                bool symmetry=!feed && SymmetrySetupControls.Active;
                 var block=symmetry || PlacementControls.ClipboardActive ? Array.Empty<ActionChoice>():BlockActions.Capture(PlacementControls.OwnsTools);
                 ActionChoice[] Contextual(ActionChoice[] choices) => choices.Select(choice=>choice==GameActions.Quick[11] || choice==GameActions.Quick[12] ?
                     block.FirstOrDefault(c=>c.Label==choice.Label) ?? choice:choice).ToArray();
                 var aimed=new Group("Block actions",block);
                 var groups=new List<Group>();
-                if(InputRouter.Mode==InputMode.Building && !symmetry)
+                if(!feed && InputRouter.Mode==InputMode.Building && !symmetry)
                 {
                     var voxel=VoxelTools.Current;
                     groups.AddRange(ToolGroups(voxel?.Title ?? "Building",quickChoices,voxel!=null ? voxel.Materials() : new[] {new Group("Variants",BlockVariants.Choices(),true)},
@@ -269,9 +270,15 @@ namespace SpaceEngineersVR.Player
                 }
                 else
                 {
+                    if(feed)
+                    {
+                        groups.Add(new Group("Quick actions",quickChoices));
+                        groups.Add(new Group(GameActions.RemoteWheelTitle,GameActions.RemoteWheelActions()));
+                    }
                     var paint=symmetry ? Array.Empty<ActionChoice>() : PaintGun.Actions();
                     if(paint.Length>0) groups.Add(new Group("Paint gun",paint));
-                    groups.AddRange(new[] {aimed,new Group(symmetry ? "Symmetry setup":"Quick actions",Contextual(quickChoices))});
+                    groups.Add(aimed);
+                    if(!feed) groups.Add(new Group(symmetry ? "Symmetry setup":"Quick actions",Contextual(quickChoices)));
                     var weaponCore=symmetry ? Array.Empty<ActionChoice>() : GameActions.WeaponCoreWheelActions();
                     if(weaponCore.Length>0) groups.Add(new Group("WeaponCore",weaponCore));
                 }

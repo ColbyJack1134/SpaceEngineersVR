@@ -82,7 +82,7 @@ namespace SpaceEngineersVR.Diagnostics
             log("PASS voxel tool previews: "+materials.Sum(m=>m.Items.Length)+" native materials in "+materials.Length+" groups, "+terrain.Length+" terrain types");
         }
         // Renders selected pages of a Y wheel built by the production layout, with the same hint as the live wheel.
-        internal static void Wheel(OverlayCanvas wheel,ToolbarWheel.Group[] groups,int[] pages,string output,string prefix)
+        internal static void Wheel(OverlayCanvas wheel,ToolbarWheel.Group[] groups,int[] pages,string output,string prefix,Func<ActionChoice,bool> enabled=null)
         {
             var layout=ToolbarWheel.WithRecents(ToolbarWheel.Layout(groups,out var titles,out var variants),new ActionChoice[0]);
             foreach(int page in pages.Where(p=>p<titles.Length))
@@ -91,7 +91,7 @@ namespace SpaceEngineersVR.Diagnostics
                 var model=new ToolbarWheel.View {Group=1,SubIcons=new string[9],ItemText=new string[9],Hint=ToolbarWheel.QuickControlsHint(true),
                     Title=titles[page],Variants=variants[page],Page=page,Pages=layout.Length,Selected=variants[page] ? 2:-1,
                     Labels=items.Select(c=>c?.Label ?? "").ToArray(),Icons=items.Select(c=>c?.Icon==null ? new string[0]:new[] {c.Icon}).ToArray(),
-                    Enabled=items.Select(c=>c!=null).ToArray()};
+                    Enabled=items.Select(c=>c!=null && (enabled?.Invoke(c) ?? true)).ToArray()};
                 UiTests.Render(wheel,()=>ToolbarWheel.Paint(wheel,model)); UiTests.Save(wheel.Texture,Path.Combine(output,prefix+page+".png"));
             }
         }

@@ -62,8 +62,8 @@ namespace SpaceEngineersVR.Player
         }
         internal static void Paint(OverlayCanvas canvas,RemoteView.View view) => WindowFrame.Paint(canvas,Frame(view));
         private static WindowFrame.Snapshot Frame(RemoteView.View view) => new WindowFrame.Snapshot {Pose=(Matrix)view.Pose,Width=view.Width,Height=view.Height,
-            Hover=view.Hover,Zoom=true,SignalMode=view.SignalMode,Aim=view.AimMode,Pan=view.PanMode};
-        internal const float FaceOpacity=.55f,FaceDistance=50,FaceHeightDegrees=22.5f,NearestFace=3,FarthestFace=3000;
+            Hover=view.Hover,Zoom=true,SignalMode=view.SignalMode,Aim=view.AimMode,Pan=view.PanMode,FaceOpacity=view.Face ? view.FaceOpacity:-1};
+        internal const float FaceDistance=50,FaceHeightDegrees=22.5f,NearestFace=3,FarthestFace=3000;
         internal static void FaceLayout(MatrixD head,MatrixD orientation,float distance,out MatrixD pose,out float width,out float height)
         {
             height=2*distance*(float)Math.Tan(MathHelper.ToRadians(FaceHeightDegrees)/2); width=height*16/9;
@@ -115,15 +115,17 @@ namespace SpaceEngineersVR.Player
                     var built=MatrixD.CreateWorld(Vector3D.Zero,Vector3D.Normalize(forward),Vector3D.Normalize(tracking.Up));
                     if(built.IsValid()) orientation=built;
                 }
-                DrawFace(target,image.View,head,orientation,distance,view,projection,NativeHandLayer.Depth);
+                DrawFace(target,image.View,head,orientation,distance,view,projection,remote.FaceOpacity,NativeHandLayer.Depth);
             }
             DrawPanel(target,remote.Face ? null:image.View,remote,view,projection,NativeHandLayer.Depth);
         }
-        internal static void DrawFace(Texture2D target,ShaderResourceView image,MatrixD head,MatrixD orientation,float distance,MatrixD view,MatrixD projection,ShaderResourceView hands=null)
+        internal static void DrawFace(Texture2D target,ShaderResourceView image,MatrixD head,MatrixD orientation,float distance,MatrixD view,MatrixD projection,
+            int opacity=WindowFrame.MinOpacity,ShaderResourceView hands=null)
         {
             FaceLayout(head,orientation,distance,out var pose,out float width,out float height);
             var picture=PhysicalSurface.Quad(image,pose,new VRageMath.RectangleF(-width/2,height/2,width,height),new Vector4(0,0,1,1),
-                new Vector4(1,1,1,FaceOpacity),view,projection);
+                new Vector4(1,1,1,opacity/100f),view,projection);
+            picture.Opaque=opacity==WindowFrame.MaxOpacity;
             NativeSprites.Draw(target,new[] {picture},handDepth:hands);
         }
         internal static void DrawPanel(Texture2D target,ShaderResourceView image,RemoteView.View remote,MatrixD view,MatrixD projection,ShaderResourceView hands=null)

@@ -78,8 +78,28 @@ namespace SpaceEngineersVR.Diagnostics
                         RemoteFeed.DrawPanel(target.Texture,image,remote,MatrixD.Invert(head),VrMath.Projection(-.9f,.9f,-.6f,.6f,.03));
                         UiTests.Save(target.Texture,Path.Combine(output,"remote-window-"+(lean ? "lean":"center")+".png"));
                     }
+                    var projection=VrMath.Projection(-.65f,.65f,-.43f,.43f,.03);
+                    var face=new RemoteView.View {Pose=MatrixD.CreateTranslation(0,-.08,-1.5),Width=MenuWindow.MinWidth,
+                        Height=MenuWindow.MinWidth*9/16,AimMode=2,SignalMode=0,Face=true,Hover=WindowFrame.OpacityHover};
+                    foreach(int opacity in new[] {WindowFrame.MinOpacity,WindowFrame.MaxOpacity})
+                    {
+                        face.FaceOpacity=opacity;
+                        target.Clear(System.Drawing.Color.FromArgb(30,62,35)); target.Upload();
+                        RemoteFeed.DrawFace(target.Texture,image,MatrixD.Identity,MatrixD.Identity,RemoteFeed.FaceDistance,MatrixD.Identity,projection,opacity);
+                        RemoteFeed.DrawPanel(target.Texture,null,face,MatrixD.Identity,projection);
+                        UiTests.Save(target.Texture,Path.Combine(output,"turret-opacity-"+opacity+".png"));
+                    }
                 }
             }
+            using(var wheel=new OverlayCanvas("Feed actions wheel",1024,1024,1,false,device))
+                foreach(bool camera in new[] {false,true})
+                {
+                    var feed=GameActions.RemoteWheelActions(!camera,true,camera);
+                    if(!camera) feed[0]=new ActionChoice("Exit turret",GameActions.ExitFeed.Run,icon:GameActions.ExitFeed.Icon);
+                    VoxelToolRenders.Wheel(wheel,new[] {new ToolbarWheel.Group("Quick actions",GameActions.FeedQuickActions(true,false)),
+                        new ToolbarWheel.Group(camera ? "Camera":"Turret",feed)},new[] {0,1},output,camera ? "wheel-camera-":"wheel-turret-",
+                        action=>action!=GameActions.CockpitBuild);
+                }
             RemoteFeed.Reset();
         }
         private static void LcdFrustum(Action<string> log)
@@ -120,6 +140,26 @@ namespace SpaceEngineersVR.Diagnostics
             var home=Entity<MyCockpit>(); var remote=Entity<MyRemoteControl>();
             var camera=Entity<MyCameraBlock>(); var alternate=Entity<MyCameraBlock>();
             var turret=(MyLargeTurretBase)FormatterServices.GetUninitializedObject(typeof(MyTurretControlBlock).Assembly.GetTypes().First(t=>!t.IsAbstract && typeof(MyLargeTurretBase).IsAssignableFrom(t))); var custom=Entity<MyTurretControlBlock>();
+            foreach(var controlled in new Sandbox.Game.Entities.IMyControllableEntity[] {turret,custom})
+            {
+                var field=AccessTools.Field(controlled.GetType(),"m_turretController");
+                var controller=FormatterServices.GetUninitializedObject(field.FieldType);
+                field.SetValue(controlled,controller);
+                Set(controller,"m_previousControlledEntity",home);
+                Require(RemoteView.ShipControllerFor(controlled)==home,"Ship actions ignored the turret's prior cockpit");
+                Set(controller,"m_previousControlledEntity",Entity<Sandbox.Game.Entities.Character.MyCharacter>());
+                Require(RemoteView.ShipControllerFor(controlled)==null,"An on-foot turret viewer gained ship actions");
+            }
+            Require(RemoteView.ShipControllerFor(home)==home && RemoteView.ShipControllerFor(remote)==remote,
+                "A cockpit or remote camera lost its active ship controller");
+            foreach(bool thirdPerson in new[] {false,true})
+            {
+                var cockpit=GameActions.WheelActions(false,true,thirdPerson);
+                Require(cockpit.Length==9 && cockpit.Contains(GameActions.ParkAction) &&
+                    GameActions.FeedQuickActions(true,thirdPerson).SequenceEqual(cockpit),"Feed Quick actions lost the usual cockpit layout or Park");
+            }
+            Require(GameActions.FeedQuickActions(false,false).SequenceEqual(new[] {GameActions.PauseAction,GameActions.TerminalAction}),
+                "A feed watched from on foot offered ship controls");
             foreach(object target in new object[] {remote,turret,custom,camera})
             {
                 string action=target is MyCameraBlock ? "View":"Control";
@@ -168,24 +208,31 @@ namespace SpaceEngineersVR.Diagnostics
             Require(RemoteView.Feed(remote,camera)==null && RemoteView.Owner(remote,camera)==remote,"Deleted camera retained a feed or removed remote control");
             closed.Invoke(remote,new object[] {true});
             Require(RemoteView.Owner(remote,alternate)==null && !RemoteView.Live(remote),"Deleted remote retained flight input");
+            Require(RemoteView.ShipControllerFor(remote)==null,"Deleted remote retained ship actions");
             Require(RemoteView.Owner(home,null)==null,"Returning to the home cockpit retained remote context");
             log("PASS remote ownership: home seat/keypad, native/custom turret, camera transfer, no camera, camera power/deletion, remote deletion and A-exit policy");
 
             var previousSession=Sandbox.Game.World.MySession.Static;
             var currentView=AccessTools.Field(typeof(RemoteView),"<Current>k__BackingField");
+            var wheelOwner=AccessTools.Field(typeof(RemoteView),"owner");
             object previousView=currentView.GetValue(null);
+            object previousOwner=wheelOwner.GetValue(null);
             try
             {
                 Sandbox.Game.World.MySession.Static=(Sandbox.Game.World.MySession)FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.World.MySession));
+                wheelOwner.SetValue(null,new object());
+                Require(!GameActions.CockpitBuild.Enabled,"Cockpit building became selectable while a feed is open");
                 currentView.SetValue(null,null);
-                Require(GameActions.RemoteWheelActions().SequenceEqual(new[] {GameActions.PauseAction,GameActions.TerminalAction,GameActions.ExitFeed,
-                    GameActions.ConfigureToolbarAction,GameActions.Inspect}),"Turret wheel without a feed is not pause, terminal, exit, toolbar and block info");
+                Require(GameActions.RemoteWheelActions().SequenceEqual(new[] {GameActions.ExitFeed}),
+                    "A remote view without a feed offered actions beyond Exit");
                 Set(Sandbox.Game.World.MySession.Static,"m_cameraController",camera);
                 currentView.SetValue(null,new RemoteView.View());
-                Require(GameActions.RemoteWheelActions().SequenceEqual(new[] {GameActions.PauseAction,GameActions.TerminalAction,GameActions.ExitFeed,GameActions.FeedSignals,GameActions.ZoomIn,GameActions.ZoomOut,
-                    GameActions.PreviousCamera,GameActions.NextCamera,GameActions.ResetFeed,GameActions.ConfigureToolbarAction,GameActions.Inspect}),"Camera feed lost its screen reset or camera cycling");
+                Require(GameActions.RemoteWheelTitle=="Camera" && GameActions.RemoteWheelActions().SequenceEqual(new[] {GameActions.ExitFeed,GameActions.FeedSignals,GameActions.ZoomIn,GameActions.ZoomOut,
+                    GameActions.PreviousCamera,GameActions.NextCamera,GameActions.ResetFeed}),"The camera page lost its feed controls or showed unrelated actions");
+                Require(GameActions.RemoteWheelActions(true,true,false).SequenceEqual(new[] {GameActions.ExitFeed,GameActions.TurretAimAction,GameActions.FeedSignals,GameActions.ZoomIn,GameActions.ZoomOut,
+                    GameActions.ResetFeed}),"The turret page lost its feed controls or showed unrelated actions");
             }
-            finally { Sandbox.Game.World.MySession.Static=previousSession; currentView.SetValue(null,previousView); }
+            finally { Sandbox.Game.World.MySession.Static=previousSession; currentView.SetValue(null,previousView); wheelOwner.SetValue(null,previousOwner); }
             var terminalShow=AccessTools.Method(typeof(Sandbox.Game.Gui.MyGuiScreenTerminal),nameof(Sandbox.Game.Gui.MyGuiScreenTerminal.Show));
             Require(!PatchProcessor.GetOriginalInstructions(AccessTools.Method(typeof(MyTurretControlBlock),nameof(MyTurretControlBlock.ShowInventory))).Any(i=>i.Calls(terminalShow)),
                 "Custom turret controller now opens an inventory of its own; the terminal fallback is obsolete");
@@ -194,7 +241,19 @@ namespace SpaceEngineersVR.Diagnostics
                 AccessTools.Method(typeof(MyTurretControlBlock),nameof(MyTurretControlBlock.ShowTerminal))})
                 Require(PatchProcessor.GetOriginalInstructions(opens).Any(i=>i.Calls(terminalShow)),
                     "Native inventory or turret terminal no longer opens the terminal screen: "+opens.DeclaringType.Name+"."+opens.Name);
-            log("PASS feed wheel drops camera cycling and screen reset without a feed; custom turret inventory stays empty while cockpit, native turret and turret terminal open the terminal screen");
+            log("PASS feed wheels keep the usual cockpit Quick actions and place camera or turret controls on one page; custom turret inventory retains its terminal fallback");
+            foreach(float width in new[] {MenuWindow.MinWidth,1.2f,MenuWindow.MaxWidth})
+            {
+                float height=width*9/16,y=WindowFrame.SignalsY(height);
+                int Control(float x,bool face) => WindowFrame.Control(new Vector3(x,y,0),width,height,.035f,true,false,false,true,true,false,face);
+                Require(Control(-.1f,true)==WindowFrame.OpacityHover && Control(.11f,true)==WindowFrame.OpacityHover && Control(0,false)==0,
+                    "Face opacity slider missed its rail or still hit outside face mode");
+                Require(Control(WindowFrame.AimX(width),true)==WindowFrame.AimHover && Control(WindowFrame.SignalsX(width),true)==WindowFrame.SignalsHover,
+                    "The opacity slider displaced the tracking or HUD control");
+                Require(WindowFrame.OpacityAt(-width/2,width)==WindowFrame.MinOpacity && WindowFrame.OpacityAt(width/2,width)==WindowFrame.MaxOpacity,
+                    "Dragging past the opacity rail failed to clamp to 55% or 100%");
+            }
+            log("PASS turret opacity rail visibility, hit targets and clamped endpoints from minimum to maximum screen size");
 
             var type=typeof(RemoteView);
             var window=(MenuWindow)AccessTools.Field(type,"window").GetValue(null);

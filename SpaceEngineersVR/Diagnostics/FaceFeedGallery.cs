@@ -43,6 +43,7 @@ namespace SpaceEngineersVR.Diagnostics
                     Scene("window-aim-"+mode,()=>RemoteFeed.DrawPanel(eye.Texture,wide.View,new RemoteView.View {
                         Pose=MatrixD.CreateTranslation(0,-.08,-1.5),Width=1.2f,Height=.675f,SignalMode=0,AimMode=mode},MatrixD.Identity,projection));
                 Scene("aligned-wide",()=>RemoteFeed.DrawFace(eye.Texture,wide.View,head,head,RemoteFeed.FaceDistance,MatrixD.Identity,projection));
+                Scene("aligned-wide-opaque",()=>RemoteFeed.DrawFace(eye.Texture,wide.View,head,head,RemoteFeed.FaceDistance,MatrixD.Identity,projection,WindowFrame.MaxOpacity));
                 Scene("frame",()=> {
                     RemoteFeed.DrawFace(eye.Texture,wide.View,head,head,RemoteFeed.FaceDistance,MatrixD.Identity,projection);
                     RemoteFeed.DrawPanel(eye.Texture,null,new RemoteView.View {Pose=MatrixD.CreateTranslation(.55,-.35,-1.5)*MatrixD.CreateRotationY(-.35),
@@ -52,7 +53,7 @@ namespace SpaceEngineersVR.Diagnostics
                 Scene("full-fov",()=> {
                     float h=2*RemoteFeed.FaceDistance*(float)Math.Tan(MathHelper.ToRadians(SourceFov)/2);
                     NativeSprites.Draw(eye.Texture,new[] {PhysicalSurface.Quad(wide.View,MatrixD.CreateTranslation(0,0,-RemoteFeed.FaceDistance),
-                        new VRageMath.RectangleF(-h*8/9,h/2,h*16/9,h),new Vector4(0,0,1,1),new Vector4(1,1,1,RemoteFeed.FaceOpacity),MatrixD.Identity,projection)});
+                        new VRageMath.RectangleF(-h*8/9,h/2,h*16/9,h),new Vector4(0,0,1,1),new Vector4(1,1,1,WindowFrame.MinOpacity/100f),MatrixD.Identity,projection)});
                 });
                 using(var detail=new OverlayCanvas("Face feed toggles",900,300,1,false,device))
                 foreach(var (name,mode,hover) in new[] {("0",0,0),("1",1,0),("2",2,0),("hover",1,WindowFrame.AimHover)})
