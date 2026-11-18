@@ -6,11 +6,30 @@ using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using SpaceEngineersVR.Player;
+using SpaceEngineersVR.Plugin;
 using SpaceEngineersVR.Wrappers;
 using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
+    [HarmonyPatchCategory("StereoFlares")]
+    [HarmonyPatch]
+    internal static class FlareQueryAcquisition
+    {
+        private static readonly MethodInfo acquire=AccessTools.Method(AccessTools.TypeByName("VRage.Render11.Culling.Occlusion.MyFlareOcclusionRenderer"),"Get");
+        private static readonly FieldInfo query=AccessTools.Field(acquire.ReturnType,"Query");
+        private static readonly MethodInfo reset=AccessTools.Method(query.FieldType,"Reset",new[] {typeof(long)})
+            ?? throw new MissingMethodException(query.FieldType.FullName,"Reset");
+        private static readonly object[] zeroPixels={0L};
+
+        private static MethodBase TargetMethod() => acquire;
+        private static void Postfix(object __result)
+        {
+            // A blinking light can reacquire a query with its previous owner's GPU result still pending.
+            if(Main.VrActive) reset.Invoke(query.GetValue(__result),zeroPixels);
+        }
+    }
+
     [HarmonyPatchCategory("StereoFlares")]
     [HarmonyPatch]
     internal static class StereoFlareQueries

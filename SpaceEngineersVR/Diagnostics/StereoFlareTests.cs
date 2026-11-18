@@ -60,6 +60,7 @@ namespace SpaceEngineersVR.Diagnostics
                 flare=AccessTools.Method(native,"Set").Invoke(null,new[] {nullId,null,(object)description});
                 object manager=AccessTools.Field(AccessTools.TypeByName("VRage.Render11.Common.MyManagers"),"FlareOcclusionRenderer").GetValue(null);
                 var queries=(System.Collections.IDictionary)AccessTools.Field(manager.GetType(),"m_queries").GetValue(manager);
+                CheckQueryReuse(queries,nullId,description);
                 object query=queries[flare]; AccessTools.Field(query.GetType(),"OcclusionFactor").SetValue(query,0f);
                 position=camera.CameraPosition+MatrixD.Invert(camera.ViewD).Forward*5;
                 Common.Config.HiddenAreaMask=Common.Config.StableShadows=false;
@@ -115,7 +116,7 @@ namespace SpaceEngineersVR.Diagnostics
                     }
                     AccessTools.Field(pool.GetType(),"m_nextAllocateIndex").SetValue(pool,initial);
                 }
-                log("PASS native stereo flares: scene pool isolation, matching eye corners, three long sun strips including shifted ghost remain finite at sun scale under head rotation and scales 1/100");
+                log("PASS native stereo flares: pooled query reuse in VR and desktop, scene pool isolation, matching eye corners, three long sun strips including shifted ghost remain finite at sun scale under head rotation and scales 1/100");
             }
             finally
             {
@@ -126,6 +127,31 @@ namespace SpaceEngineersVR.Diagnostics
                 camera.Restore(savedCamera); active.SetValue(null,oldActive); center.SetValue(null,oldCenter); projection.SetValue(null,oldProjection); StereoRenderState.View=oldView;
                 Common.Config.HiddenAreaMask=mask; Common.Config.StableShadows=shadows;
             }
+        }
+        private static void CheckQueryReuse(System.Collections.IDictionary queries,object nullId,MyFlareDesc description)
+        {
+            var queryField=AccessTools.Field(queries[flare].GetType(),"Query");
+            var reset=AccessTools.Method(queryField.FieldType,"Reset");
+            var result=AccessTools.Method(queryField.FieldType,"GetResult");
+            var failed=AccessTools.Field(typeof(Main),"failed");
+            object saved=failed.GetValue(null);
+            try
+            {
+                foreach(bool vr in new[] {false,true})
+                {
+                    var previous=queryField.GetValue(queries[flare]);
+                    result.Invoke(previous,new object[] {true});
+                    reset.Invoke(previous,new object[] {41L});
+                    AccessTools.Method(native,"Remove").Invoke(null,new[] {flare});
+                    flare=null;
+                    failed.SetValue(null,!vr);
+                    flare=AccessTools.Method(native,"Set").Invoke(null,new[] {nullId,null,(object)description});
+                    var current=queryField.GetValue(queries[flare]);
+                    Require(ReferenceEquals(previous,current),"Flare did not reuse the released query");
+                    Require((long)result.Invoke(current,new object[] {false})==(vr ? 0L : 41L),"Unexpected visibility at flare acquisition");
+                }
+            }
+            finally { failed.SetValue(null,saved); }
         }
         private static void Draw(BorrowedRtvTexture target)
         { object ao=null; try { MyRender11.DrawGameScene(target,out ao); } finally { if(ao!=null) new BorrowedRtvTexture(ao).Release(); } }
