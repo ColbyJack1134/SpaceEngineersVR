@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using Sandbox.Game.Entities;
+using Sandbox.Game.EntityComponents;
 using Sandbox.Game.World;
 using SpaceEngineersVR.Plugin;
 using SpaceEngineersVR.Player;
@@ -42,6 +43,23 @@ namespace SpaceEngineersVR.Patches
             if(Main.VrActive && controller.Player==MySession.Static?.LocalHumanPlayer)
                 CockpitBuilding.Exit(__instance);
         }
+    }
+
+    // The gameplay screen and target focus also read build/remove tool controls as ship fire and lock requests.
+    [HarmonyPatchCategory("CockpitBuilding")]
+    [HarmonyPatch(typeof(MyShipController),nameof(MyShipController.BeginShoot))]
+    internal static class CockpitBuildFirePatch
+    {
+        private static bool Prefix(MyShipController __instance) =>
+            !CockpitBuilding.Active || !ReferenceEquals(MySession.Static?.ControlledEntity,__instance);
+    }
+
+    [HarmonyPatchCategory("CockpitBuilding")]
+    [HarmonyPatch(typeof(MyTargetFocusComponent),nameof(MyTargetFocusComponent.OnLockRequest))]
+    internal static class CockpitBuildLockPatch
+    {
+        private static bool Prefix(MyTargetFocusComponent __instance) =>
+            !CockpitBuilding.Active || !ReferenceEquals(__instance.Entity,MySession.Static?.LocalCharacter);
     }
 
     [HarmonyPatchCategory("CockpitBuilding")]
