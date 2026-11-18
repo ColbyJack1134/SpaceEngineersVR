@@ -271,7 +271,7 @@ namespace SpaceEngineersVR.Player
             }
             if(arm!=null && LadderClimb.TryPalm(hand,out var rungPalm,out float rungBlend))
                 return CockpitHandPose.Blend(world,(MatrixD)Matrix.Invert(arm.PalmOffset)*rungPalm,rungBlend);
-            if(!character.IsSitting && character.CurrentWeapon==null && arm?.IndexTip!=null)
+            if(!character.IsSitting && arm?.IndexTip!=null && WeaponHandling.EmptyHand(character))
             {
                 if(HandInteraction.TryAttachment(hand,out var pressed,out var point,out float amount))
                 {

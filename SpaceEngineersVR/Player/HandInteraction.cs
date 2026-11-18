@@ -28,6 +28,8 @@ namespace SpaceEngineersVR.Player
         internal static (Controller Hand,Vector3D Hit)? ObserverUse { get; private set; }
         internal static bool ObserverCanUse => ThirdPersonView.Character && !ThirdPersonView.Manipulating &&
             (InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Jetpack);
+        internal static bool RequiresUseRay(MyCharacter character) => WeaponHandling.EmptyHand(character) &&
+            !character.IsOnLadder && (ObserverCanUse || character.CurrentWeapon!=null);
         internal static bool HoldingRight => Holding(Player.HandR);
         private static bool Holding(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Input.Surface!=null;
         internal static bool OwnsRight => hands[0].Input.Consumed;
@@ -71,6 +73,9 @@ namespace SpaceEngineersVR.Player
         private static readonly Action<MyCharacterDetectorComponent, bool> detect =
             AccessTools.MethodDelegate<Action<MyCharacterDetectorComponent, bool>>(
                 AccessTools.Method(typeof(MyCharacterDetectorComponent), "DoDetection"));
+        private static readonly Action<MyCharacterDetectorComponent,VRage.ModAPI.IMyEntity> setDetectedEntity=
+            AccessTools.MethodDelegate<Action<MyCharacterDetectorComponent,VRage.ModAPI.IMyEntity>>(
+                AccessTools.PropertySetter(typeof(MyCharacterDetectorComponent),nameof(MyCharacterDetectorComponent.DetectedEntity)));
         public static bool TryWorldPose(Controller controller, out MatrixD world)
         {
             world = MatrixD.Identity;
@@ -113,9 +118,9 @@ namespace SpaceEngineersVR.Player
             }
             else if(!TryCharacterPointerPose(hand,out pose)) return false;
             var head=character.GetHeadMatrix(true,true,forceHeadBone:true).Translation;
-            if(!Multiplayer.HeldItemPose.Clear(character,head,pose.Translation) ||
-                Multiplayer.HeldItemPose.ReachAlong(head,pose.Translation,pose.Forward,MyConstants.DEFAULT_INTERACTIVE_DISTANCE)<=0) return false;
-            ray = RayForPose(pose,head);
+            double reach=ReachForPose(pose,head);
+            if(reach<.001 || !Multiplayer.HeldItemPose.Clear(character,head,pose.Translation)) return false;
+            ray=new LineD(pose.Translation,pose.Translation+pose.Forward*reach);
             return true;
         }
 
@@ -130,14 +135,12 @@ namespace SpaceEngineersVR.Player
                 return Math.Min(maximum,(float)Vector3D.Distance(pose.Translation,hit.Position));
             return maximum;
         }
+        private static double ReachForPose(MatrixD pose,Vector3D head) =>
+            Multiplayer.HeldItemPose.ReachAlong(head,pose.Translation,pose.Forward,MyConstants.DEFAULT_INTERACTIVE_DISTANCE);
         internal static LineD RayForPose(MatrixD pose) =>
             RayForPose(pose,MySession.Static?.LocalCharacter?.GetHeadMatrix(true,true,forceHeadBone:true).Translation ?? pose.Translation);
-        // Vanilla reach is measured from the head.
-        internal static LineD RayForPose(MatrixD pose,Vector3D head)
-        {
-            double length=Multiplayer.HeldItemPose.ReachAlong(head,pose.Translation,pose.Forward,MyConstants.DEFAULT_INTERACTIVE_DISTANCE);
-            return new LineD(pose.Translation,pose.Translation+pose.Forward*Math.Max(length,.001));
-        }
+        internal static LineD RayForPose(MatrixD pose,Vector3D head) =>
+            new LineD(pose.Translation,pose.Translation+pose.Forward*Math.Max(ReachForPose(pose,head),.001));
 
         internal static bool SmallControl(MatrixD activation) => activation.IsValid() &&
             activation.Right.Length()<=.6 && activation.Up.Length()<=.6 && activation.Backward.Length()<=.6;
@@ -195,7 +198,7 @@ namespace SpaceEngineersVR.Player
         private static void SampleTouch()
         {
             var character=MySession.Static?.LocalCharacter;
-            bool available=!disabled && character!=null && !character.IsDead && !character.IsSitting && !character.IsOnLadder &&
+            bool available=!disabled && !CameraRig.Detached && character!=null && !character.IsDead && !character.IsSitting && !character.IsOnLadder &&
                 MySession.Static.ControlledEntity==character && WeaponHandling.EmptyHand(character) && InputRouter.Gameplay &&
                 !Main.MenuOpen && Player.Headset.pose.isTracked &&
                 !PlacementControls.OwnsTools && !TouchScreenBridge.OwnsInput && !SpatialUi.Pointing;
@@ -350,8 +353,11 @@ namespace SpaceEngineersVR.Player
         internal static bool TryRefreshTarget(bool trace=false)
         {
             if (!TryInteractionRay(out var ray)) return false;
-            var detector = MySession.Static.LocalCharacter.GetDetectorComponent();
+            var character=MySession.Static.LocalCharacter;
+            var detector=character.GetDetectorComponent();
             if (detector == null) return false;
+            // Native Use can open the previous inventory after a ray miss leaves DetectedEntity set.
+            if(detector.DetectedEntity!=null && RequiresUseRay(character)) setDetectedEntity(detector,null);
             Detect(detector,ray);
             if(trace && Common.Config.DeveloperTools) Logger.Info("INTERACTION detector=" + detector.GetType().Name + "; origin=" + detector.StartPosition +
                 "; use=" + (detector.UseObject?.GetType().Name ?? "none") +

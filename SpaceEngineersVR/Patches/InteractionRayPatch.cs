@@ -12,9 +12,6 @@ using VRageMath;
 
 namespace SpaceEngineersVR.Patches
 {
-    // Replace only the ray's origin/direction, before the native endpoint calculation.
-    // Keep geometry ordering, model use-detectors, occlusion, selection lifecycle,
-    // interaction distance and action dispatch in the game's implementation.
     [HarmonyPatchCategory("HandInteraction")]
     [HarmonyPatch]
     internal static class InteractionRayPatch
@@ -26,7 +23,7 @@ namespace SpaceEngineersVR.Patches
                 "Sandbox.Game.Entities.Character.Components.MyCharacterClosestDetectorComponent"), "DoDetection");
         }
 
-        internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod)
+        internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod, ILGenerator generator)
         {
             var code = instructions.ToList();
             var distance = AccessTools.Field(typeof(MyConstants), nameof(MyConstants.DEFAULT_INTERACTIVE_DISTANCE));
@@ -41,33 +38,107 @@ namespace SpaceEngineersVR.Patches
             if (locals[origin].LocalType != typeof(Vector3D) ||
                 (directionType != typeof(Vector3D) && directionType != typeof(Vector3)))
                 throw new InvalidOperationException("Unrecognized native interaction coordinates");
-            var replacement = new[] {
+            var length = generator.DeclareLocal(typeof(float));
+            bool area = directionType == typeof(Vector3);
+            var replacement = new List<CodeInstruction> {
                 new CodeInstruction(OpCodes.Ldarg_0),
                 CodeInstruction.LoadLocal(origin, true),
-                CodeInstruction.LoadLocal(direction, true),
-                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(InteractionRayPatch),
-                    directionType == typeof(Vector3D) ? nameof(OverrideRay) : nameof(OverrideAreaRay)))
+                CodeInstruction.LoadLocal(direction, true)
             };
+            if (area)
+            {
+                if (start + 5 >= code.Count || code[start + 3].opcode != OpCodes.Ldarg_0 || code[start + 4].opcode != OpCodes.Ldfld ||
+                    !(code[start + 4].operand is FieldInfo radius) || radius.FieldType != typeof(float) ||
+                    code[start + 5].opcode != OpCodes.Sub)
+                    throw new InvalidOperationException("Unrecognized native area radius");
+                replacement.Add(new CodeInstruction(OpCodes.Ldarg_0));
+                replacement.Add(new CodeInstruction(OpCodes.Ldfld, radius));
+            }
+            replacement.Add(new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(InteractionRayPatch),
+                area ? nameof(OverrideAreaRay) : nameof(OverrideRay))));
+            replacement.Add(new CodeInstruction(OpCodes.Stloc, length));
+            if (area)
+            {
+                var casts = code.Select((instruction, index) => new { instruction, index }).Where(x =>
+                    x.instruction.operand is MethodInfo m && m.DeclaringType == typeof(Sandbox.Engine.Physics.MyPhysics) &&
+                    m.Name == "CastShapeReturnContactBodyDatas" && m.ReturnType == typeof(bool)).ToArray();
+                if (casts.Length != 1 || casts[0].index <= start || casts[0].index + 2 >= code.Count ||
+                    code[casts[0].index + 1].opcode != OpCodes.Pop)
+                    throw new InvalidOperationException("Unrecognized native area cast");
+                var afterCast = generator.DefineLabel();
+                code[casts[0].index + 2].labels.Add(afterCast);
+                replacement.Add(new CodeInstruction(OpCodes.Ldloc, length));
+                replacement.Add(new CodeInstruction(OpCodes.Ldc_R4, 0f));
+                replacement.Add(new CodeInstruction(OpCodes.Blt, afterCast));
+            }
             // Both head/camera branches must enter the override, including a branch
             // aimed directly at the endpoint expression in optimized game builds.
             replacement[0].MoveLabelsFrom(code[start]);
             replacement[0].MoveBlocksFrom(code[start]);
+            var nativeLength = code[start + 2];
+            code[start + 2] = new CodeInstruction(OpCodes.Ldloc, length).MoveLabelsFrom(nativeLength).MoveBlocksFrom(nativeLength);
             code.InsertRange(start, replacement);
             return code;
         }
 
-        private static void OverrideRay(MyCharacterDetectorComponent detector, ref Vector3D origin, ref Vector3D direction)
+        private static bool TryHandRay(MyCharacterDetectorComponent detector, out LineD ray)
         {
-            if (detector.Character != MySession.Static?.LocalCharacter || !HandInteraction.TryDetectorRay(out LineD ray)) return;
-            origin = ray.From;
-            direction = ray.Direction;
+            ray = default(LineD);
+            var character = MySession.Static?.LocalCharacter;
+            return character != null && detector.Character == character && HandInteraction.TryDetectorRay(out ray);
         }
 
-        private static void OverrideAreaRay(MyCharacterDetectorComponent detector, ref Vector3D origin, ref Vector3 direction)
+        private static float OverrideRay(MyCharacterDetectorComponent detector, ref Vector3D origin, ref Vector3D direction)
         {
-            Vector3D preciseDirection = direction;
-            OverrideRay(detector, ref origin, ref preciseDirection);
-            direction = (Vector3)preciseDirection;
+            if (!TryHandRay(detector, out var ray)) return MyConstants.DEFAULT_INTERACTIVE_DISTANCE;
+            origin = ray.From;
+            direction = ray.Direction;
+            return (float)ray.Length;
+        }
+
+        private static float OverrideAreaRay(MyCharacterDetectorComponent detector, ref Vector3D origin, ref Vector3 direction, float radius)
+        {
+            float reach = MyConstants.DEFAULT_INTERACTIVE_DISTANCE;
+            if (!TryHandRay(detector, out var ray)) return reach;
+            origin = ray.From;
+            direction = (Vector3)ray.Direction;
+            var head = detector.Character.GetHeadMatrix(true, true, forceHeadBone: true).Translation;
+            // The entire swept sphere must fit. A negative length skips to the native empty-hit check.
+            double travel = radius < reach ? Multiplayer.HeldItemPose.ReachAlong(head, origin, ray.Direction, reach - radius) : 0;
+            return travel > 0 ? (float)(travel + radius) : -1f;
+        }
+    }
+
+    [HarmonyPatchCategory("HandInteraction")]
+    [HarmonyPatch(typeof(MyCharacterRaycastDetectorComponent), "ProcessUseObjects")]
+    internal static class InteractionHitDistancePatch
+    {
+        internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod)
+        {
+            var code = instructions.ToList();
+            var distance = AccessTools.Field(typeof(MyConstants), nameof(MyConstants.DEFAULT_INTERACTIVE_DISTANCE));
+            var args = __originalMethod.GetParameters();
+            if (args.Length < 4 || args[2].Name != "from" || args[3].Name != "to" ||
+                args[2].ParameterType != typeof(Vector3D).MakeByRefType() || args[3].ParameterType != args[2].ParameterType)
+                throw new InvalidOperationException("Unrecognized native use-object segment");
+            int index = code.FindIndex(i => i.LoadsField(distance));
+            if (index < 0 || code.FindLastIndex(i => i.LoadsField(distance)) != index ||
+                index + 1 >= code.Count || code[index + 1].opcode != OpCodes.Mul)
+                throw new InvalidOperationException("Unrecognized native use-object distance");
+            // RaycastDetectors returns a fraction of the segment. Native occlusion compares metres.
+            var loadDetector = new CodeInstruction(OpCodes.Ldarg_0).MoveLabelsFrom(code[index]).MoveBlocksFrom(code[index]);
+            code.RemoveAt(index);
+            code.InsertRange(index, new[] { loadDetector, new CodeInstruction(OpCodes.Ldarg_3),
+                CodeInstruction.LoadArgument(4), new CodeInstruction(OpCodes.Call,
+                    AccessTools.Method(typeof(InteractionHitDistancePatch), nameof(SegmentLength))) });
+            return code;
+        }
+
+        private static float SegmentLength(MyCharacterRaycastDetectorComponent detector, in Vector3D from, in Vector3D to)
+        {
+            var character = MySession.Static?.LocalCharacter;
+            return character != null && detector.Character == character && Plugin.Main.VrActive
+                ? (float)Vector3D.Distance(from, to) : MyConstants.DEFAULT_INTERACTIVE_DISTANCE;
         }
     }
 }

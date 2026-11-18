@@ -201,7 +201,7 @@ namespace SpaceEngineersVR.Player.Components
         private bool BeginPrimary(Sandbox.Game.Entities.IMyControllableEntity controlled,MyCharacter walker,bool emptyHand)
         {
             bool idlePlacer=emptyHand && walker.CurrentWeapon!=null;
-            if(emptyHand && (HandInteraction.ObserverCanUse || idlePlacer) && !HandInteraction.TryRefreshTarget())
+            if(HandInteraction.RequiresUseRay(walker) && !HandInteraction.TryRefreshTarget())
             {
                 Controls.Static.Fire.BlockUntilRelease();
                 return false;

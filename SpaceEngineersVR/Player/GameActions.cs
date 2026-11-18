@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Sandbox;
 using Sandbox.Game;
 using Sandbox.Game.Entities;
+using Sandbox.Game.Entities.Character;
 using Sandbox.Game.Gui;
 using Sandbox.Game.Screens.Helpers;
 using Sandbox.Game.Screens.Helpers.RadialMenuActions;
@@ -390,6 +391,13 @@ namespace SpaceEngineersVR.Player
             catch (Exception ex) { Logger.Warning(ex,"Native use failed; VR input continues"); }
         }
 
+        private static bool RefreshForInteract(MyCharacter character,Control.Button button)
+        {
+            if(HandInteraction.TryRefreshTarget(true) || !HandInteraction.RequiresUseRay(character)) return true;
+            button.BlockUntilRelease();
+            return false;
+        }
+
         public static void HandleButtons(bool primaryUseHeld)
         {
             var c = Controls.Static;
@@ -414,8 +422,10 @@ namespace SpaceEngineersVR.Player
             else if(dampenerHold.Tapped) Execute(Dampeners);
             HandInteraction.UpdateSupportUse();
             bool interact=c.Interact.HasPressed && !c.Unequip.RawPressed && !c.ToolbarWheel.RawPressed && !ArthurLcdBridge.Owns(Player.HandR);
-            if (interact && !PlacementControls.Painting || c.Terminal.HasPressed || c.Inventory.HasPressed)
-                HandInteraction.RefreshTarget();
+            var self=MySession.Static?.LocalCharacter;
+            if(interact && !PlacementControls.Painting && !RemoteView.Active)
+                interact=RefreshForInteract(character ? self:null,c.Interact);
+            else if(c.Terminal.HasPressed || c.Inventory.HasPressed) HandInteraction.RefreshTarget();
             if (c.Reload.HasPressed) NativeActions.Pulse(MyControlsSpace.RELOAD);
             if (interact && RemoteView.Active) { RemoteView.Exit(); InputRouter.Update(); return; }
             if (interact && !PlacementControls.Painting)
@@ -428,8 +438,10 @@ namespace SpaceEngineersVR.Player
             // Native held use repeats only on ContinuousUsage targets: life support refill and floating object pickup.
             // An empty-handed primary press is a native Use, which the game continues only while its own mouse binding is held.
             bool holdingUse=c.Interact.IsPressed && !c.Interact.HasPressed && !ArthurLcdBridge.Owns(Player.HandR) && !PlacementControls.Painting;
-            var self=MySession.Static?.LocalCharacter;
-            if (character && self!=null && (holdingUse || HandInteraction.SupportUseHeld || primaryUseHeld)) self.UseContinues();
+            if (character && self!=null && (holdingUse || HandInteraction.SupportUseHeld || primaryUseHeld) &&
+                (!HandInteraction.RequiresUseRay(self) ||
+                 self.GetDetectorComponent()?.UseObject?.ContinuousUsage==true && HandInteraction.TryRefreshTarget()))
+                self.UseContinues();
             if (c.Helmet.HasPressed) Execute(HelmetAction);
             if (c.Jetpack.HasPressed && !ToolbarWheel.QuickPending)
             {

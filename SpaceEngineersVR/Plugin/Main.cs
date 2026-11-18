@@ -324,13 +324,23 @@ namespace SpaceEngineersVR.Plugin
         internal static bool CanResumeMenu(bool worldReady,bool characterAlive,bool controlled,bool dialog,bool changed,int attempts) =>
             worldReady && characterAlive && controlled && !dialog && changed && attempts<2;
 
+        private static bool SteamVrRunning()
+        {
+            var servers=Process.GetProcessesByName("vrserver");
+            foreach(var server in servers) server.Dispose();
+            if(servers.Length>0) return true;
+            // Proton exposes the host VR client here. Its Linux vrserver is outside the Windows process list.
+            if(string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PROTON_VR_RUNTIME"))) return false;
+            var error=EVRInitError.None;
+            OpenVR.Init(ref error,EVRApplicationType.VRApplication_Background);
+            if(error!=EVRInitError.None) return false;
+            OpenVR.Shutdown();
+            return true;
+        }
+
         private bool Initialize()
         {
-            // OpenVR.Init starts SteamVR; desktop launches should leave it closed.
-            var servers=Process.GetProcessesByName("vrserver");
-            bool steamVrRunning=servers.Length>0;
-            foreach(var server in servers) server.Dispose();
-            if(!steamVrRunning)
+            if(!SteamVrRunning())
             {
                 Logger.Info("SteamVR is not running; continuing on the desktop");
                 return false;
