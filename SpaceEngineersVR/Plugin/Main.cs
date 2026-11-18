@@ -7,6 +7,7 @@ using SpaceEngineersVR.Config;
 using SpaceEngineersVR.GUI;
 using SpaceEngineersVR.Wrappers;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using Valve.VR;
@@ -325,6 +326,16 @@ namespace SpaceEngineersVR.Plugin
 
         private bool Initialize()
         {
+            // OpenVR.Init starts SteamVR; desktop launches should leave it closed.
+            var servers=Process.GetProcessesByName("vrserver");
+            bool steamVrRunning=servers.Length>0;
+            foreach(var server in servers) server.Dispose();
+            if(!steamVrRunning)
+            {
+                Logger.Info("SteamVR is not running; continuing on the desktop");
+                return false;
+            }
+
             if (!OpenVR.IsRuntimeInstalled())
             {
                 MyLog.Default.WriteLine("SpaceEngineersVR: OpenVR not found!");

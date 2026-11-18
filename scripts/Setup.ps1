@@ -64,8 +64,9 @@ New-Item -ItemType Directory -Force (Join-Path $pulsar 'Interim\Sources'), (Join
 <?xml version="1.0"?>
 <Profile><Name>SEVR Prototype</Name><GitHub /><DevFolder><LocalFolderConfig><Id>SpaceEngineersVR-source</Id><DebugBuild>false</DebugBuild></LocalFolderConfig></DevFolder><Local /><Mods /></Profile>
 '@ | Set-Content (Join-Path $pulsar 'Interim\Profiles\sevr.xml') -Encoding UTF8
-# The headset launch uses Pulsar's editable Current profile; Launch.ps1 reseeds it from sevr.xml.
-Remove-Item (Join-Path $pulsar 'Interim\Profiles\Current.xml*') -ErrorAction SilentlyContinue
+# The shortcut uses Pulsar's editable Current profile.
+((Get-Content (Join-Path $pulsar 'Interim\Profiles\sevr.xml') -Raw) -replace '<Name>[^<]*</Name>', '<Name>Current</Name>') |
+    Set-Content (Join-Path $pulsar 'Interim\Profiles\Current.xml') -Encoding UTF8
 $interimConfig = Join-Path $pulsar 'Interim\config.xml'
 if (!(Test-Path $interimConfig)) {
     @'
@@ -78,10 +79,11 @@ if (!(Test-Path $interimConfig)) {
 $desktop = [Environment]::GetFolderPath('Desktop')
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut((Join-Path $desktop 'Space Engineers VR Prototype.lnk'))
-$shortcut.TargetPath = Join-Path $PrototypeRoot 'Launch VR.cmd'
-$shortcut.WorkingDirectory = $PrototypeRoot
+$shortcut.TargetPath = Join-Path $pulsar 'Interim.exe'
+$shortcut.Arguments = '-bin64 "' + $GameBinPath + '" -noUpdate -noStats -noDiscord -sources -appdata "' + $data + '"'
+$shortcut.WorkingDirectory = $pulsar
 $shortcut.IconLocation = (Join-Path $GameBinPath 'SpaceEngineers.exe') + ',0'
-$shortcut.Description = 'Quest 3 / SteamVR experimental Space Engineers 1 plugin'
+$shortcut.Description = 'Space Engineers VR prototype'
 $shortcut.Save()
 Write-Host "Prototype staged at $PrototypeRoot"
 Write-Host 'Steam launch options and the normal game profile were not changed.'
