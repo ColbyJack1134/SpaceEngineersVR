@@ -1,12 +1,13 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using VRageMath;
 using VRageRender.Messages;
 
 namespace SpaceEngineersVR.Player
 {
     internal static class RenderFrameBridge
     {
-        private sealed class Packet { public CameraRig.Frame Rig; public RemoteView.View Remote; public SurfaceView[] Surfaces; public WorldMarkers.View Markers; public ShipCrosshair.View Crosshair; public TargetFeedback.View Selection; public HoloSight.View Holo; public SymmetryPlanes.View[] Symmetry; public VRageRender.Messages.MyRenderMessageDebugDrawSphere[] Planets; public VoiceMarkers.Talker[] Talking; public LcdCameras.View[] Lcds; public SmoothFramesBridge.Tick Trace; }
+        private sealed class Packet { public CameraRig.Frame Rig; public RemoteView.View Remote; public SurfaceView[] Surfaces; public WorldMarkers.View Markers; public ShipCrosshair.View Crosshair; public TargetFeedback.View Selection; public (Controller Hand,Vector3D Hit)? ObserverUse; public HoloSight.View Holo; public SymmetryPlanes.View[] Symmetry; public VRageRender.Messages.MyRenderMessageDebugDrawSphere[] Planets; public VoiceMarkers.Talker[] Talking; public LcdCameras.View[] Lcds; public SmoothFramesBridge.Tick Trace; }
         private static readonly ConditionalWeakTable<object, Packet> packets = new ConditionalWeakTable<object, Packet>();
         private static readonly List<Packet> pending=new List<Packet>();
         private static WorldMarkers.View latestMarkers;
@@ -16,6 +17,7 @@ namespace SpaceEngineersVR.Player
         public static WorldMarkers.View Markers { get; private set; }
         public static ShipCrosshair.View Crosshair { get; private set; }
         internal static TargetFeedback.View Selection { get; private set; }
+        internal static (Controller Hand,Vector3D Hit)? ObserverUse { get; private set; }
         internal static HoloSight.View Holo { get; private set; }
         internal static SymmetryPlanes.View[] Symmetry { get; private set; }
         internal static VRageRender.Messages.MyRenderMessageDebugDrawSphere[] Planets { get; private set; }
@@ -64,6 +66,7 @@ namespace SpaceEngineersVR.Player
                 packet.Lcds=lcds;
                 packet.Surfaces=surfaces;
                 packet.Selection=GridSelection.Feedback ?? TargetLock.Feedback;
+                if(ThirdPersonView.Character && InputRouter.Gameplay) packet.ObserverUse=HandInteraction.ObserverUse;
                 packet.Holo=HoloSight.Capture();
                 SmoothFramesBridge.Commit(packet.Trace,traceBatch,surfaces,packet.Holo);
                 packet.Planets=PlacementControls.ClipboardActive ? PlanetPreview.Current:null;
@@ -82,6 +85,7 @@ namespace SpaceEngineersVR.Player
             Markers=packet?.Markers;
             Crosshair=packet?.Crosshair;
             Selection=packet?.Selection;
+            ObserverUse=packet?.ObserverUse;
             Holo=packet?.Holo;
             Symmetry=packet?.Symmetry;
             Planets=packet?.Planets;

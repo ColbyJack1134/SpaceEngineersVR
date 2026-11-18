@@ -417,9 +417,14 @@ namespace SpaceEngineersVR.Player
             if(!s.TrackingSpace) return s;
             return s.At((s.HandLocal.HasValue ? s.HandLocal.Value*Player.HandL.RenderGripTracking:s.Pose)*(trackingToWorld ?? MatrixD.Identity));
         }
-        internal static SurfaceView RaySurface(MatrixD aim,float distance) => new SurfaceView {
-            Id="WristRay",Style=SurfaceStyle.Pointer,Width=.002f,Height=distance,
-            Pose=MatrixD.CreateWorld(aim.Translation+aim.Forward*distance*.5,aim.Forward,aim.Up) };
+        internal static SurfaceView RaySurface(MatrixD aim,float distance)
+        {
+            // The wrist hit is measured in the pointer's local meters. The billboard uses world dimensions.
+            var segment=aim.Forward*distance;
+            return new SurfaceView { Id="WristRay",Style=SurfaceStyle.Pointer,
+                Width=(float)(.002*aim.Right.Length()),Height=(float)segment.Length(),
+                Pose=MatrixD.CreateWorld(aim.Translation+segment*.5,aim.Forward,aim.Up) };
+        }
         internal static void DrawFloating(Texture2D target,MatrixD view,MatrixD projection,SurfaceView[] frame)
         {
             foreach(var surface in (frame ?? new SurfaceView[0]).Where(s=>s.WindowPose.HasValue))

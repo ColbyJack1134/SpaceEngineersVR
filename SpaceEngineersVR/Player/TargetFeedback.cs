@@ -18,6 +18,16 @@ namespace SpaceEngineersVR.Player
         private static SharpDX.Direct3D11.Device device;
         private static ShaderResourceView texture;
         private static readonly List<NativeSprite> sprites=new List<NativeSprite>();
+        internal static void DrawUse(Texture2D target,Controller hand,Vector3D hit,CameraRig.Frame rig,MatrixD view,MatrixD projection)
+        {
+            if(!hand.renderPose.isTracked) return;
+            var finger=Vector3D.Transform(MenuHands.PointerTracking(true,hand).Translation,rig.TrackingToWorld);
+            var color=hand==Player.HandL ? PhysicalSurface.LeftLaser : new Color(60,220,255).ToVector4();
+            Prepare(target);
+            sprites.Clear();
+            AddLine(finger,hit,.002*rig.UnitsPerMeter,color,MatrixD.Invert(view),view,projection);
+            NativeSprites.Draw(target,sprites,PhysicalSurface.SceneDepth());
+        }
         internal static void Draw(Texture2D target,View state,MatrixD view,MatrixD projection,ShaderResourceView depth)
         {
             if(state==null) return;

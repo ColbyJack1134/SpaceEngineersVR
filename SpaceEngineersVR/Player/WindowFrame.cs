@@ -35,7 +35,7 @@ namespace SpaceEngineersVR.Player
         // Move bar hit half-length; the drawn bar is a little shorter.
         internal static float BarHalf(float width) => MathHelper.Clamp(width*.095f,.125f,.19f);
         internal const int CloseHover=5,MonitorHover=6,SignalsHover=7,AimHover=8,PanHover=9,OpacityHover=10;
-        internal const int MinOpacity=Config.MenuWindowSetting.DefaultFaceOpacity,MaxOpacity=100;
+        internal const int MinOpacity=55,MaxOpacity=100;
         private const float OpacityHalf=.12f;
         internal static float SignalsX(float width) => width/2-.035f;
         internal static float SignalsY(float height) => height/2+.04f;

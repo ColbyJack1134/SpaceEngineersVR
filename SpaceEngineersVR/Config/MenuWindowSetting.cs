@@ -2,7 +2,7 @@ namespace SpaceEngineersVR.Config
 {
     public class MenuWindowSetting
     {
-        internal const int DefaultFaceOpacity=55;
+        internal const int DefaultFaceOpacity=100;
         public string Screen { get; set; }
         public string World { get; set; }
         public long Cockpit { get; set; }

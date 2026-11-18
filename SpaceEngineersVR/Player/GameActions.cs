@@ -390,7 +390,7 @@ namespace SpaceEngineersVR.Player
             catch (Exception ex) { Logger.Warning(ex,"Native use failed; VR input continues"); }
         }
 
-        public static void HandleButtons(bool primaryHeld)
+        public static void HandleButtons(bool primaryUseHeld)
         {
             var c = Controls.Static;
             var jump=InputRouter.Flying ? c.FlightJump:c.JumpOrClimbUp;
@@ -429,7 +429,7 @@ namespace SpaceEngineersVR.Player
             // An empty-handed primary press is a native Use, which the game continues only while its own mouse binding is held.
             bool holdingUse=c.Interact.IsPressed && !c.Interact.HasPressed && !ArthurLcdBridge.Owns(Player.HandR) && !PlacementControls.Painting;
             var self=MySession.Static?.LocalCharacter;
-            if (character && self!=null && (holdingUse || HandInteraction.SupportUseHeld || primaryHeld && self.CurrentWeapon==null)) self.UseContinues();
+            if (character && self!=null && (holdingUse || HandInteraction.SupportUseHeld || primaryUseHeld)) self.UseContinues();
             if (c.Helmet.HasPressed) Execute(HelmetAction);
             if (c.Jetpack.HasPressed && !ToolbarWheel.QuickPending)
             {

@@ -26,20 +26,27 @@ namespace SpaceEngineersVR.Diagnostics
         {
             CameraPreference(log);
             var target=new Vector3D(2e8,-3e8,4e8);
-            var origin=Matrix.CreateRotationY(.37f)*Matrix.CreateTranslation(1.2f,1.6f,-.4f);
+            var origin=Matrix.CreateFromYawPitchRoll(.1f,.27f,-.16f)*Matrix.CreateTranslation(.4f,1.65f,-.7f);
+            var inverse=VrMath.InvertTracking(origin);
             var head=Matrix.CreateRotationX(.23f)*Matrix.CreateTranslation(.1f,-.05f,.2f)*origin;
             var orientation=MatrixD.CreateFromYawPitchRoll(.7,.2,-.1);
             foreach(double scale in new[] {.1,1,25,1000,100000})
             {
                 var anchor=orientation; anchor.Translation=target;
-                var left=MatrixD.Invert(VrMath.EyeView(MatrixD.Invert(anchor),head,Matrix.Invert(origin),Matrix.CreateTranslation(-.032f,0,0),scale));
-                var right=MatrixD.Invert(VrMath.EyeView(MatrixD.Invert(anchor),head,Matrix.Invert(origin),Matrix.CreateTranslation(.032f,0,0),scale));
+                var left=MatrixD.Invert(VrMath.EyeView(MatrixD.Invert(anchor),head,inverse,Matrix.CreateTranslation(-.032f,0,0),scale));
+                var right=MatrixD.Invert(VrMath.EyeView(MatrixD.Invert(anchor),head,inverse,Matrix.CreateTranslation(.032f,0,0),scale));
                 Require(Math.Abs(Vector3D.Distance(left.Translation,right.Translation)/scale-.064)<.00002,"Miniature stereo separation changed in physical meters");
-                var local=VrMath.Affine(head*Matrix.Invert(origin));
+                var local=VrMath.Affine(head*inverse);
                 Near(((left.Translation+right.Translation)*.5-target)/scale,Vector3D.TransformNormal(local.Translation,orientation),"Scaled head movement mismatched stereo scale");
                 Near(left.Up,(local*orientation).Up,"World scaling tilted the eyes");
-                var packet=new CameraRig.Frame(anchor,Matrix.Invert(origin),-1,scale,true);
-                Near(Vector3D.Transform(head.Translation,packet.TrackingToWorld),(left.Translation+right.Translation)*.5,"Radial and eye transforms disagree",.2);
+                var packet=new CameraRig.Frame(anchor,inverse,-1,scale,true);
+                var wrist=MatrixD.CreateTranslation(.14,-.23,-.38)*head;
+                var world=wrist*packet.TrackingToWorld;
+                var eyeCenter=(left.Translation+right.Translation)*.5;
+                Near((world.Translation-eyeCenter)/scale,Vector3D.TransformNormal(new Vector3D(.14,-.23,-.38),local*orientation),
+                    "Observer glove moved relative to the eyes at a distant world anchor");
+                Near((world*MatrixD.CreateTranslation(-eyeCenter)).Translation,world.Translation-eyeCenter,
+                    "Wrist projection disagrees with the native glove's camera-relative translation",.00001);
             }
             var view=new Diorama();
             Vector3D l=new Vector3D(-.2,-.2,-.5),r=new Vector3D(.2,-.2,-.5);

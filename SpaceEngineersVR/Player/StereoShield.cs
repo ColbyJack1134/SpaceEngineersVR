@@ -18,8 +18,24 @@ namespace SpaceEngineersVR.Player
         private static string[] files;
         private static bool attempted;
 
-        internal static string Source(string original) => StereoParticles.Replace(original,Refraction,
-            "float3 refractVecProj = mul(float4(refractVec - viewVector, 0), frame_.Environment.view_projection_matrix).xyz;");
+        // Project both directions before subtracting. A screen-space bend changes its world direction when the eye turns.
+        internal const string ProjectBend=@"
+    float3 bend = refractVec - viewVector * dot(refractVec, viewVector);
+    float3 incident = world_to_view(-viewVector);
+    float3 bent = world_to_view(-viewVector + 2 * refractionDistortionStrength * bend);
+    float2 refractUv = 0;
+    if (incident.z < -0.0001 && bent.z < -0.0001)
+        refractUv = (bent.xy / -bent.z - incident.xy / -incident.z)
+                  * frame_.Environment.projection_matrix._11_22 * float2(0.5, -0.5);";
+
+        internal static string Source(string original)
+        {
+            // myRefract returns a unit direction or zero for total internal reflection.
+            string source=StereoParticles.Replace(original,"normalize(myRefract(viewVector, output.normal, refractionIor))",
+                "myRefract(viewVector, output.normal, refractionIor)");
+            source=StereoParticles.Replace(source,Refraction,ProjectBend);
+            return StereoParticles.Replace(source,"refractVecProj.xy * refractionDistortionStrength","refractUv");
+        }
 
         private static MethodBase TargetMethod() =>
             AccessTools.Method(AccessTools.TypeByName("VRage.Render11.GeometryStage2.Rendering.MyShaderBundleManager"),"GetShaderFilepath");

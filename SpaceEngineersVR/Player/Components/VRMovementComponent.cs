@@ -2,6 +2,7 @@ using Sandbox;
 using SpaceEngineersVR.Multiplayer;
 using SpaceEngineersVR.Plugin;
 using Sandbox.Game.Entities;
+using Sandbox.Game.Entities.Character;
 using Sandbox.Game.Entities.Character.Components;
 using Sandbox.Game.World;
 using System.Runtime.CompilerServices;
@@ -25,6 +26,7 @@ namespace SpaceEngineersVR.Player.Components
         private Matrix virtualStickOrigin;
         private bool hadControllerMovement;
         private bool wasShooting;
+        private MyCharacter placerUseOwner;
         private bool wasSecondary;
         // A vanilla secondary shot in progress; tracked apart from the press, which also drives targeting.
         private bool secondaryShooting;
@@ -188,12 +190,47 @@ namespace SpaceEngineersVR.Player.Components
 
         private void StopTools(Sandbox.Game.Entities.IMyControllableEntity controlled)
         {
-            if(wasShooting) controlled?.EndShoot(MyShootActionEnum.PrimaryAction);
+            EndPrimary(controlled);
             if(secondaryShooting) controlled?.EndShoot(MyShootActionEnum.SecondaryAction);
             wasShooting=wasSecondary=secondaryShooting=false;
             PaintGun.Firing=PaintGun.Deep=false;
             stickSecondary.Block();
             ClearTerrain.Shown=false;
+        }
+
+        private bool BeginPrimary(Sandbox.Game.Entities.IMyControllableEntity controlled,MyCharacter walker,bool emptyHand)
+        {
+            bool idlePlacer=emptyHand && walker.CurrentWeapon!=null;
+            if(emptyHand && (HandInteraction.ObserverCanUse || idlePlacer) && !HandInteraction.TryRefreshTarget())
+            {
+                Controls.Static.Fire.BlockUntilRelease();
+                return false;
+            }
+            if(emptyHand) ModApi.Use(HandInteraction.UseHand);
+            if(idlePlacer)
+            {
+                placerUseOwner=walker;
+                walker.Use();
+            }
+            else
+            {
+                DoubleTap(MyShootActionEnum.PrimaryAction,true,walker!=null);
+                controlled?.BeginShoot(MyShootActionEnum.PrimaryAction);
+            }
+            return true;
+        }
+
+        private void EndPrimary(Sandbox.Game.Entities.IMyControllableEntity controlled)
+        {
+            var user=placerUseOwner;
+            bool shooting=wasShooting;
+            wasShooting=false;
+            placerUseOwner=null;
+            if(user!=null)
+            {
+                if(!user.Closed && user.GetDetectorComponent()!=null) user.UseFinished();
+            }
+            else if(shooting) controlled?.EndShoot(MyShootActionEnum.PrimaryAction);
         }
 
         // MyShipController.WheelJump does nothing while a turret holds the seat's controller; WheelJumpFromOtherBlock works for both.
@@ -450,7 +487,9 @@ namespace SpaceEngineersVR.Player.Components
                 controls.Fire.BlockUntilRelease();
             }
             lockChordWas=lockChord;
-            if(controlledEntity is Sandbox.Game.Entities.Character.MyCharacter character && character.CurrentWeapon==null)
+            var walker=controlledEntity as MyCharacter;
+            bool emptyHand=WeaponHandling.EmptyHand(walker);
+            if(emptyHand)
                 secondaryPressed=false;
 
             bool paintGun=PaintGun.Equipped;
@@ -468,28 +507,22 @@ namespace SpaceEngineersVR.Player.Components
             PaintGun.Deep=paintGun && WeaponHandling.GripModifier;
             bool secondaryShoot=secondaryPressed && !turret && !NativeActions.Blocked(Sandbox.Game.MyControlsSpace.SECONDARY_TOOL_ACTION);
             // Release the previous action before starting the other half of a tool chord.
-            if(!primaryPressed && wasShooting) { controlledEntity?.EndShoot(MyShootActionEnum.PrimaryAction); DoubleTap(MyShootActionEnum.PrimaryAction,false,false); }
+            if(!primaryPressed && wasShooting) { EndPrimary(controlledEntity); DoubleTap(MyShootActionEnum.PrimaryAction,false,false); }
             if(!secondaryShoot && secondaryShooting) { controlledEntity?.EndShoot(MyShootActionEnum.SecondaryAction); secondaryShooting=false; }
             if(!secondaryPressed && wasSecondary && !turret) DoubleTap(MyShootActionEnum.SecondaryAction,false,false);
-            bool onFoot=controlledEntity is Sandbox.Game.Entities.Character.MyCharacter;
-            if (primaryPressed && !wasShooting)
-            {
-                DoubleTap(MyShootActionEnum.PrimaryAction,true,onFoot);
-                // Empty-handed BeginShoot is a native Use.
-                if(controlledEntity is Sandbox.Game.Entities.Character.MyCharacter walker && walker.CurrentWeapon==null) ModApi.Use(HandInteraction.UseHand);
-                controlledEntity?.BeginShoot(MyShootActionEnum.PrimaryAction);
-            }
+            bool onFoot=walker!=null;
+            if(primaryPressed && !wasShooting) primaryPressed=BeginPrimary(controlledEntity,walker,emptyHand);
             // BeginShoot reads the double-click flag, so it is set first.
             if(secondaryPressed && !wasSecondary) DoubleTap(MyShootActionEnum.SecondaryAction,true,onFoot);
             if(secondaryShoot && !secondaryShooting) { controlledEntity?.BeginShoot(MyShootActionEnum.SecondaryAction); secondaryShooting=true; }
             // Lock-on follows the press even when the fire control is blocked.
             if(secondaryPressed && !wasSecondary) ShipTargeting.SecondaryPressed(controlledEntity,stickSecondary.Held || CockpitControls.Held(action));
 
-            bool primaryHeld=primaryPressed && wasShooting;
+            bool primaryUseHeld=primaryPressed && wasShooting && emptyHand && (walker.CurrentWeapon==null || placerUseOwner==walker);
             wasShooting = primaryPressed;
             wasSecondary = secondaryPressed;
 
-            GameActions.HandleButtons(primaryHeld);
+            GameActions.HandleButtons(primaryUseHeld);
         }
 
         public override string ComponentTypeDebugString => "VR Movement Component";

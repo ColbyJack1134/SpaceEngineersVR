@@ -129,7 +129,7 @@ namespace SpaceEngineersVR.Player
                 VRMovementComponent.StopActive(); TrackedArms.Restore(MySession.Static.LocalCharacter);
                 CameraRig.Reset(); ThirdPersonView.Reset();
                 camera=MySession.Static.CameraController;
-                originInverse=Matrix.Invert(Player.Headset.pose.deviceToAbsolute.matrix);
+                originInverse=VrMath.InvertTracking(Player.Headset.pose.deviceToAbsolute.matrix);
                 ResetNavigation(); Controls.Static.BlockUntilRelease();
             }
             Publish();
@@ -333,13 +333,13 @@ namespace SpaceEngineersVR.Player
             if(!Active || Current==null) return;
             if(Following)
             {
-                originInverse=Matrix.Invert(newOrigin);
+                originInverse=VrMath.InvertTracking(newOrigin);
                 ResetView(); return;
             }
             var eye=CameraRig.DeviceWorld(Player.Headset.pose.deviceToAbsolute.matrix);
             MySpectatorCameraController.Static.Position=eye.Translation;
             MySpectatorCameraController.Static.SetTarget(eye.Translation+eye.Forward,eye.Up);
-            originInverse=Matrix.Invert(Player.Headset.pose.deviceToAbsolute.matrix); ResetNavigation(); Publish();
+            originInverse=VrMath.InvertTracking(Player.Headset.pose.deviceToAbsolute.matrix); ResetNavigation(); Publish();
         }
         internal static void Reset(bool forgetTracked=false)
         {

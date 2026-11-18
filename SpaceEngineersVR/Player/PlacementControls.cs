@@ -15,6 +15,7 @@ namespace SpaceEngineersVR.Player
     {
         internal static bool GridClipboardActive => MyClipboardComponent.Static?.Clipboard?.IsActive==true;
         public static bool ClipboardActive => MyClipboardComponent.Static?.IsActive == true;
+        internal static bool BuilderActive => MyCubeBuilder.Static?.IsActivated==true || VoxelTools.Active || Patches.BuildInfoBridge.MultiToolEquipped;
         internal static InputMode Mode => ToolMode(InputRouter.Mode,ClipboardActive,CockpitBuilding.Active);
         internal static InputMode ToolMode(InputMode mode,bool clipboard,bool cockpitBuilding) =>
             mode==InputMode.Spectator && clipboard ? InputMode.Clipboard : cockpitBuilding && mode==InputMode.Piloting ? InputMode.Building : mode;
@@ -160,7 +161,7 @@ namespace SpaceEngineersVR.Player
         {
             object owner = MySession.Static?.ControlledEntity;
             if (!ReferenceEquals(owner, poseOwner)) { lastPose = null; heldPose = null; poseOwner = owner; }
-            bool active = ClipboardActive || Sandbox.Game.Entities.MyCubeBuilder.Static?.IsActivated == true || VoxelTools.Active || Patches.BuildInfoBridge.MultiToolEquipped;
+            bool active = ClipboardActive || BuilderActive;
             if (!Main.VrActive || !active) { lastPose = null; heldPose = null; pose = MatrixD.Identity; return false; }
             MatrixD frame = PoseFrame(owner);
             pose = MatrixD.Identity;

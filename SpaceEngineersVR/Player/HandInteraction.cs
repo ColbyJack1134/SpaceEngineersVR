@@ -25,6 +25,9 @@ namespace SpaceEngineersVR.Player
         private static readonly RenderRecovery recovery=new RenderRecovery("Hand interaction");
         private static bool disabled => recovery.Failed;
         private static bool rayVisible;
+        internal static (Controller Hand,Vector3D Hit)? ObserverUse { get; private set; }
+        internal static bool ObserverCanUse => ThirdPersonView.Character && !ThirdPersonView.Manipulating &&
+            (InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Jetpack);
         internal static bool HoldingRight => Holding(Player.HandR);
         private static bool Holding(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Input.Surface!=null;
         internal static bool OwnsRight => hands[0].Input.Consumed;
@@ -36,6 +39,8 @@ namespace SpaceEngineersVR.Player
         internal static bool SupportUseHeld { get; private set; }
         private static readonly Control.InputGate supportUse=new Control.InputGate();
         private static Controller detectionHand;
+        [ThreadStatic] private static LineD? detectionRay;
+        private static int nextObserverScan;
         private static string supportLabel;
         private static DateTime nextSupportLabel;
         internal static Controller UseHand => SupportAiming ? Handedness.SupportHand : Handedness.ActionHand;
@@ -57,6 +62,7 @@ namespace SpaceEngineersVR.Player
         internal static bool PointingFor(Controller hand) => hands[hand==Player.HandL ? 1 : 0].Pointing;
         internal static void ResetTouch()
         {
+            nextObserverScan=0;
             foreach(var h in hands) { h.Input.Reset(); h.Hover=h.Pressed=null; h.Label=null; h.Pointing=h.PhysicalHover=false; }
             controls.Clear(); nearby.Clear(); nextDetection=DateTime.MinValue;
         }
@@ -98,7 +104,14 @@ namespace SpaceEngineersVR.Player
             ray = default(LineD);
             var character = MySession.Static?.LocalCharacter;
             if (!(InputRouter.Gameplay || MenuKeyboard.WorldHotkeys) || character == null || character.IsDead || character.IsSitting ||
-                MySession.Static.ControlledEntity != character || !TryCharacterPointerPose(hand, out MatrixD pose)) return false;
+                MySession.Static.ControlledEntity != character) return false;
+            MatrixD pose;
+            if(ObserverCanUse && WeaponHandling.EmptyHand(character))
+            {
+                if(!TryVisiblePointerPose(hand,out pose)) return false;
+                pose=VrMath.Rigid(pose);
+            }
+            else if(!TryCharacterPointerPose(hand,out pose)) return false;
             var head=character.GetHeadMatrix(true,true,forceHeadBone:true).Translation;
             if(!Multiplayer.HeldItemPose.Clear(character,head,pose.Translation) ||
                 Multiplayer.HeldItemPose.ReachAlong(head,pose.Translation,pose.Forward,MyConstants.DEFAULT_INTERACTIVE_DISTANCE)<=0) return false;
@@ -183,7 +196,7 @@ namespace SpaceEngineersVR.Player
         {
             var character=MySession.Static?.LocalCharacter;
             bool available=!disabled && character!=null && !character.IsDead && !character.IsSitting && !character.IsOnLadder &&
-                MySession.Static.ControlledEntity==character && character.CurrentWeapon==null && InputRouter.Gameplay &&
+                MySession.Static.ControlledEntity==character && WeaponHandling.EmptyHand(character) && InputRouter.Gameplay &&
                 !Main.MenuOpen && Player.Headset.pose.isTracked &&
                 !PlacementControls.OwnsTools && !TouchScreenBridge.OwnsInput && !SpatialUi.Pointing;
             var c=Controls.Static;
@@ -327,17 +340,31 @@ namespace SpaceEngineersVR.Player
             if(!TryInteract()) { character.Use(); Feedback(); }
         }
 
-        public static void RefreshTarget(bool trace=true)
+        internal static bool TryDetectorRay(out LineD ray)
         {
-            // Native hover updates run every ten ticks. Refresh on an action so a
-            // moved controller cannot activate the object highlighted on an old ray.
-            if (!TryInteractionRay(out _)) return;
+            if(!detectionRay.HasValue) return TryInteractionRay(out ray);
+            ray=detectionRay.Value;
+            return true;
+        }
+        public static void RefreshTarget(bool trace=true) => TryRefreshTarget(trace);
+        internal static bool TryRefreshTarget(bool trace=false)
+        {
+            if (!TryInteractionRay(out var ray)) return false;
             var detector = MySession.Static.LocalCharacter.GetDetectorComponent();
-            if (detector == null) return;
-            detect(detector, true);
+            if (detector == null) return false;
+            Detect(detector,ray);
             if(trace && Common.Config.DeveloperTools) Logger.Info("INTERACTION detector=" + detector.GetType().Name + "; origin=" + detector.StartPosition +
                 "; use=" + (detector.UseObject?.GetType().Name ?? "none") +
                 "; target=" + (detector.UseObject?.Owner?.DisplayName ?? "none"));
+            return true;
+        }
+        internal static void Detect(MyCharacterDetectorComponent detector,LineD ray)
+        {
+            // Both stages of the native area detector must use the same checked fingertip ray.
+            var previous=detectionRay;
+            detectionRay=ray;
+            try { detect(detector,true); }
+            finally { detectionRay=previous; }
         }
         internal static bool TryActionInteractionRay(out LineD ray)
         {
@@ -358,13 +385,16 @@ namespace SpaceEngineersVR.Player
         }
         public static void Update()
         {
+            ObserverUse=null;
             if (disabled) return;
             var action=Handedness.ActionHand;
             rayVisible=InputRouter.Gameplay && action.pose.isTracked &&
                 (ShowRay(Controls.Static.FirePressure.RawPosition.X,rayVisible) || Controls.Static.Fire.RawPressed);
             // Empty-handed, the trigger uses what the native detector highlights along this ray.
             var character=MySession.Static?.LocalCharacter;
-            bool interactable=Common.Config.InteractableLaser && character?.CurrentWeapon==null && character?.GetDetectorComponent()?.UseObject!=null;
+            var detector=character?.GetDetectorComponent();
+            bool emptyHand=WeaponHandling.EmptyHand(character);
+            bool interactable=Common.Config.InteractableLaser && emptyHand && detector?.UseObject!=null;
             try
             {
                 foreach (var hand in new[] { Player.HandL, Player.HandR })
@@ -381,13 +411,29 @@ namespace SpaceEngineersVR.Player
                     bool show = hand != action ? SupportAiming :
                         !SupportAiming && (rayVisible || interactable) && !(hand == Player.HandR && SpatialUi.RayTargeted) && !SpatialUi.Owns(hand) && !CockpitTouch.Owns(hand) &&
                         !Holding(hand) && !HandGrab.Holding(hand) && !TouchScreenBridge.Pointing && !ArthurLcdBridge.PointingFor(hand);
-                    if (show && !GridSelection.Owns(hand) && !WeaponHandling.HideUseRay && TryInteractionRay(out LineD ray))
+                    if (!show || GridSelection.Owns(hand) || WeaponHandling.HideUseRay) continue;
+                    if(CameraRig.Detached)
                     {
-                        var aim=MatrixD.CreateWorld(ray.From,ray.Direction,Vector3D.CalculatePerpendicularVector(ray.Direction));
-                        var end=ray.From+ray.Direction*ObstacleDistance(aim,(float)ray.Length);
-                        MySimpleObjectDraw.DrawLine(ray.From, end,
-                            MyStringId.GetOrCompute("Square"), ref rayColor, 0.002f);
+                        if(ObserverCanUse && hand==action && emptyHand && detector!=null &&
+                            !FloatingWindows.OwnsInput && !HelmetHud.ProtectsFire && TryInteractionRay(hand,out var observerRay))
+                        {
+                            int tick=MySession.Static.GameplayFrameCounter;
+                            if(rayVisible && tick>=nextObserverScan)
+                            {
+                                long start=FeatureTiming.Start();
+                                Detect(detector,observerRay);
+                                double ms=FeatureTiming.End(FeatureTiming.Area.ObserverDetection,start);
+                                // Spread expensive hover queries across ticks on dense grids. Presses always refresh.
+                                nextObserverScan=tick+Math.Min(10,Math.Max(1,(int)Math.Ceiling(ms)));
+                            }
+                            if(detector.UseObject!=null) ObserverUse=(hand,detector.HitPosition);
+                        }
+                        continue;
                     }
+                    if(!TryInteractionRay(out LineD ray)) continue;
+                    var aim=MatrixD.CreateWorld(ray.From,ray.Direction,Vector3D.CalculatePerpendicularVector(ray.Direction));
+                    var end=ray.From+ray.Direction*ObstacleDistance(aim,(float)ray.Length);
+                    MySimpleObjectDraw.DrawLine(ray.From,end,MyStringId.GetOrCompute("Square"),ref rayColor,.002f);
                 }
             }
             catch(Exception ex) { recovery.Fail(ex,"Hand indicators disabled"); }

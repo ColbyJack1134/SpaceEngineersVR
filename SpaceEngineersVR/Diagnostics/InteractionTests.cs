@@ -3,6 +3,15 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Xml.Serialization;
+using System.Runtime.Serialization;
+using HarmonyLib;
+using Sandbox.Game.Entities;
+using Sandbox.Game.Entities.Character;
+using Sandbox.Game.Entities.Character.Components;
+using Sandbox.Game.SessionComponents.Clipboard;
+using Sandbox.Game.World;
+using VRage.Game;
+using VRage.Library.Utils;
 using SpaceEngineersVR.Config;
 using SpaceEngineersVR.Player;
 using SpaceEngineersVR.Player.Control;
@@ -14,8 +23,68 @@ namespace SpaceEngineersVR.Diagnostics
     {
         private static void Require(bool condition,string reason) { if(!condition) throw new Exception(reason); }
         private static void Near(Vector3 a,Vector3 b,string reason) => Require(Vector3.Distance(a,b)<.0003f,reason);
+        private sealed class PointerDetector : MyCharacterRaycastDetectorComponent
+        {
+            internal LineD Sample;
+            protected override void DoDetection(bool useHead)
+            {
+                Require(HandInteraction.TryDetectorRay(out Sample),"Missing fingertip ray inside native detection");
+            }
+        }
+        private static void PlacerAndPointer(Action<string> log)
+        {
+            var detector=new PointerDetector();
+            foreach(var direction in new[] {Vector3D.Left,Vector3D.Forward,Vector3D.Right})
+            {
+                var ray=new LineD(new Vector3D(2e7,3e7,-1e7),new Vector3D(2e7,3e7,-1e7)+direction*2);
+                HandInteraction.Detect(detector,ray);
+                Require(detector.Sample.From==ray.From && detector.Sample.To==ray.To,"Detector reused an old fingertip ray");
+            }
+            var session=AccessTools.Field(typeof(MySession),"m_static");
+            var mode=AccessTools.Property(typeof(InputRouter),nameof(InputRouter.Mode));
+            var previous=MySession.Static; var previousMode=InputRouter.Mode;
+            var builder=MyCubeBuilder.Static; var clipboard=MyClipboardComponent.Static;
+            try
+            {
+                var world=(MySession)FormatterServices.GetUninitializedObject(typeof(MySession));
+                world.Settings=new MyObjectBuilder_SessionSettings { GameMode=MyGameModeEnum.Creative };
+                session.SetValue(null,world);
+                var character=(MyCharacter)FormatterServices.GetUninitializedObject(typeof(MyCharacter));
+                var held=AccessTools.Field(typeof(MyCharacter),"m_currentWeapon");
+                held.SetValue(character,FormatterServices.GetUninitializedObject(typeof(SpaceEngineers.Game.Entities.Weapons.MyCubePlacer)));
+                MyCubeBuilder.Static=(MyCubeBuilder)FormatterServices.GetUninitializedObject(typeof(MyCubeBuilder));
+                MyClipboardComponent.Static=(MyClipboardComponent)FormatterServices.GetUninitializedObject(typeof(MyClipboardComponent));
+                var active=AccessTools.Field(typeof(MyCubeBuilder),"m_blockCreationActivated");
+                foreach(InputMode input in Enum.GetValues(typeof(InputMode)))
+                {
+                    mode.SetValue(null,input);
+                    Require(WeaponHandling.EmptyHand(character)==(input==InputMode.Walking || input==InputMode.Jetpack),"Restored placer ownership in "+input);
+                }
+                mode.SetValue(null,InputMode.Walking);
+                active.SetValue(MyCubeBuilder.Static,true);
+                Require(!WeaponHandling.EmptyHand(character),"Live build lost its trigger before the input mode updated");
+                active.SetValue(MyCubeBuilder.Static,false);
+                AccessTools.Field(typeof(MyClipboardComponent),"m_activated").SetValue(MyClipboardComponent.Static,true);
+                Require(!WeaponHandling.EmptyHand(character),"Live clipboard lost its trigger");
+                MyClipboardComponent.Static=null;
+                world.Settings.GameMode=MyGameModeEnum.Survival;
+                Require(!WeaponHandling.EmptyHand(character),"Survival placer became a Use action");
+                world.Settings.GameMode=MyGameModeEnum.Creative;
+                held.SetValue(character,FormatterServices.GetUninitializedObject(typeof(Sandbox.Game.Weapons.MyWelder)));
+                Require(!WeaponHandling.EmptyHand(character),"Equipped welder became a Use action");
+                held.SetValue(character,null);
+                Require(WeaponHandling.EmptyHand(character),"Holstered character lost Use");
+            }
+            finally
+            {
+                MyCubeBuilder.Static=builder; MyClipboardComponent.Static=clipboard;
+                session.SetValue(null,previous); mode.SetValue(null,previousMode);
+            }
+            log("PASS restored creative placer, active building and clipboard, survival, real tool and holster routing; consecutive native detector samples use the current ray");
+        }
         public static void Run(Action<string> log)
         {
+            PlacerAndPointer(log);
             foreach(float aspect in new[] { .4f,.5625f,.75f,1.5f })
             {
                 var w=new MenuWindow { Aspect=aspect }; w.Place(Matrix.Identity);

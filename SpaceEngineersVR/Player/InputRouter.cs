@@ -81,7 +81,7 @@ namespace SpaceEngineersVR.Player
             else if (MySession.Static.ControlledEntity != character) next = InputMode.Blocked;
             else if (PlacementControls.ClipboardActive) next = InputMode.Clipboard;
             // Build Info's multitool keeps the cube builder equipped with block creation off; its instruments take the build trigger.
-            else if (MyCubeBuilder.Static?.IsActivated == true || VoxelTools.Active || Patches.BuildInfoBridge.MultiToolEquipped) next = InputMode.Building;
+            else if (PlacementControls.BuilderActive) next = InputMode.Building;
             else next = Flying ? InputMode.Jetpack : InputMode.Walking;
             bool handsTracked = Player.HandL.pose.isTracked && Player.HandR.pose.isTracked;
             KeyboardMouse = (!handsTracked || HeadsetAway) && IsGameplay(next) && Common.Config.EnableKeyboardAndMouseControls;

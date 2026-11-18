@@ -205,6 +205,18 @@ namespace SpaceEngineersVR.Diagnostics
                 Keys=new[] {new SurfaceKey("Action",.1f,.1f,.8f,.8f)} };
             var remotePointer=MatrixD.CreateTranslation(0,0,.4)*movingPanel;
             Require(SpatialUi.WristRayTarget(new[] {remotePanel},remotePointer,3,out int rayKey,out float rayDistance)==remotePanel && rayKey==0 && rayDistance>.3f,"Ray cannot select a tablet button outside capsule reach");
+            foreach(double scale in new[] {.1,1,30,100})
+            {
+                var basis=MatrixD.CreateScale(scale)*movingPanel;
+                var panel=remotePanel.At(basis);
+                var aim=MatrixD.CreateTranslation(0,0,.4)*basis;
+                Require(SpatialUi.WristRay(panel,aim,out float hit),"Scaled tablet missed the ray");
+                var beam=SpatialUi.RaySurface(aim,hit);
+                var half=beam.Pose.Forward*(beam.Height*.5);
+                Require(Vector3D.Distance(beam.Pose.Translation-half,aim.Translation)<.00001 &&
+                    Vector3D.Distance(beam.Pose.Translation+half,Vector3D.Transform(new Vector3D(0,0,PhysicalSurface.KeyHeight(panel)),basis))<.00001 &&
+                    Math.Abs(beam.Width/scale-.002)<1e-7,"Scaled wrist laser left the fingertip or tablet face");
+            }
             var rayPress=new CockpitTouch.Hand();
             for(int i=0;i<60;i++) rayPress.Sample(true,0,false,remotePanel.Id,rayKey,guarded:true,softCapture:false);
             Require(!rayPress.Captured && !rayPress.Consumed && !rayPress.Pressed,"Idle tablet hover captures trigger input");

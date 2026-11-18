@@ -108,6 +108,7 @@ namespace SpaceEngineersVR.Player
         {
             return body.Translation+body.Up*centre+Vector3D.TransformNormal(eyeOffset-new Vector3D(0,centre,0),view);
         }
+        internal static Matrix InvertTracking(Matrix pose) => Affine(Matrix.Invert(pose));
         public static Matrix Affine(Matrix value)
         {
             // Float matrix inversion can leave M44 at 0.99999994. Multiplying that

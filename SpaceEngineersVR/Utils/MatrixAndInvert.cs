@@ -7,7 +7,7 @@ namespace SpaceEngineersVR.Util
         public MatrixAndInvert(Matrix matrix)
         {
             this.matrix = matrix;
-            inverted = SpaceEngineersVR.Player.VrMath.Affine(Matrix.Invert(matrix));
+            inverted = SpaceEngineersVR.Player.VrMath.InvertTracking(matrix);
         }
         public MatrixAndInvert(Matrix matrix, Matrix inverted)
         {

@@ -30,8 +30,14 @@ namespace SpaceEngineersVR.Player
         // Support hand is at the held item's support grip or magazine, where a fist also pulls the trigger.
         internal static bool SupportAtItem => valid && hover!=0;
         internal static WeaponProfile Profile => valid ? profile:null;
-        internal static bool ToolEquipped => InputRouter.TrackedItems && MySession.Static?.ControlledEntity==MySession.Static?.LocalCharacter &&
-            (MySession.Static?.LocalCharacter?.CurrentWeapon is MyEngineerToolBase || MySession.Static?.LocalCharacter?.CurrentWeapon is MyHandDrill);
+        // Creative saves can restore the model-less cube placer without activating the builder.
+        internal static bool EmptyHand(MyCharacter character) => character!=null && (character.CurrentWeapon==null ||
+            character.CurrentWeapon.GetType()==typeof(SpaceEngineers.Game.Entities.Weapons.MyCubePlacer) && MySession.Static?.CreativeMode==true &&
+            (InputRouter.Mode==InputMode.Walking || InputRouter.Mode==InputMode.Jetpack) &&
+            !PlacementControls.ClipboardActive && !PlacementControls.BuilderActive);
+        internal static bool ToolEquipped => InputRouter.TrackedItems && MySession.Static?.LocalCharacter is MyCharacter character &&
+            MySession.Static.ControlledEntity==character && (character.CurrentWeapon is MyEngineerToolBase || character.CurrentWeapon is MyHandDrill) &&
+            !EmptyHand(character);
         internal static bool GripModifier => Controls.Static.ActionGripPressure.CanPress && Controls.Static.ActionGripPressure.RawPosition.X>.5f;
         internal static bool ToolModifier => ToolEquipped && GripModifier;
 

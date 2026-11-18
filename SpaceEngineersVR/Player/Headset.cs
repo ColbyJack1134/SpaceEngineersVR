@@ -181,6 +181,10 @@ namespace SpaceEngineersVR.Player
                 }
             }
             TargetFeedback.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),GridSelection.Active || TargetLock.Aiming ? RenderFrameBridge.Selection:null,view,projection,PhysicalSurface.SceneDepth());
+            var contact=RenderFrameBridge.ObserverUse;
+            if(contact.HasValue && rig?.ThirdPerson==true && rig.Epoch==RenderFrameBridge.Current?.Epoch &&
+                !Main.MenuOpen && ThirdPersonView.Character)
+                TargetFeedback.DrawUse((SharpDX.Direct3D11.Texture2D)target.GetResource(),contact.Value.Hand,contact.Value.Hit,rig,view,projection);
             if(rig?.ThirdPerson!=true) HoloSight.Draw((SharpDX.Direct3D11.Texture2D)target.GetResource(),RenderFrameBridge.Holo,view,projection,PhysicalSurface.SceneDepth());
             GpuTiming.End(uiArea);
             StereoRenderState.Record("eye",timing.Elapsed.TotalMilliseconds,world.Translation.X,world.Translation.Y,world.Translation.Z,projection.M11,projection.M22,projection.M31,projection.M32);

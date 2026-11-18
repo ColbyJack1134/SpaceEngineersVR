@@ -34,7 +34,7 @@ namespace SpaceEngineersVR.Player
             public uint Character=uint.MaxValue;
             public string[] FirstPersonMaterials;
             public bool Face;
-            public int FaceOpacity=WindowFrame.MinOpacity;
+            public int FaceOpacity=MenuWindowSetting.DefaultFaceOpacity;
             public MatrixD WorldToTracking=MatrixD.Identity;
             public float FaceDepth;
             public int AimMode=-1;
@@ -51,7 +51,7 @@ namespace SpaceEngineersVR.Player
         private static string world;
         private static bool placementDirty;
         private static bool opacityDirty;
-        private static int faceOpacity=WindowFrame.MinOpacity;
+        private static int faceOpacity=MenuWindowSetting.DefaultFaceOpacity;
         private static bool FaceScreen => source is MyLargeTurretBase && TurretHeadAim.Face;
         private static bool recenter;
         private static bool cameraPanning;
@@ -128,7 +128,7 @@ namespace SpaceEngineersVR.Player
             if(placementDirty) Save();
             SaveOpacity();
             owner=source=null; seat=null; Current=null; aimMode=0; cameraPanning=false; SeatedRig=null; OwnsInput=false;
-            faceOpacity=WindowFrame.MinOpacity;
+            faceOpacity=MenuWindowSetting.DefaultFaceOpacity;
             interaction.Reset(true); recenter=false; rayStart=rayEnd=null; lastHover=0; epoch++;
         }
         public static void Recenter() { recenter=true; }
@@ -211,7 +211,7 @@ namespace SpaceEngineersVR.Player
             if(PannableCamera==null) cameraPanning=false;
             var saved=Feed();
             aimMode=Clamp(saved?.AimMode ?? 0,2);
-            if(!opacityDirty) faceOpacity=ClampOpacity(saved?.FaceOpacity ?? WindowFrame.MinOpacity);
+            if(!opacityDirty) faceOpacity=ClampOpacity(saved?.FaceOpacity ?? MenuWindowSetting.DefaultFaceOpacity);
             Refresh();
         }
         private static bool AvailableCamera(MyCameraBlock camera) => Usable(camera) && MyGridCameraSystem.CameraIsInRangeAndPlayerHasAccessLocal(camera);
@@ -312,7 +312,7 @@ namespace SpaceEngineersVR.Player
         {
             long id=FeedId; var old=Feed();
             var saved=new MenuWindowSetting {Screen="CameraSignals",World=world,Cockpit=id,SignalMode=old?.SignalMode ?? 0,
-                AimMode=old?.AimMode ?? 0,FaceOpacity=old?.FaceOpacity ?? WindowFrame.MinOpacity};
+                AimMode=old?.AimMode ?? 0,FaceOpacity=old?.FaceOpacity ?? MenuWindowSetting.DefaultFaceOpacity};
             change(saved);
             Common.Config.MenuWindows=Common.Config.MenuWindows.Where(s=>s.Screen!=saved.Screen || s.World!=world || s.Cockpit!=id).Concat(new[] {saved}).ToArray();
             aimMode=Clamp(saved.AimMode,2);

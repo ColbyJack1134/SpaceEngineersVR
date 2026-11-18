@@ -58,8 +58,7 @@ namespace SpaceEngineersVR.Patches
 
         private static void OverrideRay(MyCharacterDetectorComponent detector, ref Vector3D origin, ref Vector3D direction)
         {
-            if (!HandInteraction.TryInteractionRay(out LineD ray) ||
-                detector.Character != MySession.Static?.LocalCharacter) return;
+            if (detector.Character != MySession.Static?.LocalCharacter || !HandInteraction.TryDetectorRay(out LineD ray)) return;
             origin = ray.From;
             direction = ray.Direction;
         }
