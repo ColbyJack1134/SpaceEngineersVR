@@ -51,15 +51,6 @@ namespace SpaceEngineersVR.Player
         private static volatile bool remoteInterior;
         public static bool Ready => verification!=null && verification.NativeHidden && Volatile.Read(ref verification.ReadyCount)==verification.Verified.Length && verification.Error==null;
         public static string Status => failed ? "Sticks unavailable: button flight" : Ready ? "Cockpit controls ready" : "Checking cockpit control renderer";
-        internal static void TracePose(out uint actor,out MatrixD pose)
-        {
-            actor=uint.MaxValue; pose=MatrixD.Identity;
-            var check=verification;
-            if(check==null) return;
-            for(int i=0;i<check.Actors.Length;i++)
-                if(check.Actors[i]!=uint.MaxValue && check.Poses[i].HasValue)
-                { actor=check.Actors[i]; pose=check.Poses[i].Value; return; }
-        }
         internal static void RefreshTransforms(MyActorUpdater updater)
         {
             var check=Volatile.Read(ref verification);

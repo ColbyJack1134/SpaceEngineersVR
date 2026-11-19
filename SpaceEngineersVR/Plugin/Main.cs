@@ -235,6 +235,7 @@ namespace SpaceEngineersVR.Plugin
             if (cleanupRequested)
             {
                 cleanupRequested = false;
+                if (!VrPresent) Player.SmoothFramesBridge.RestoreInterpolation();
                 try
                 {
                     Player.InputRouter.Reset();

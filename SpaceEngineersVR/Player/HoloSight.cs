@@ -283,7 +283,6 @@ namespace SpaceEngineersVR.Player
 
         internal static void Draw(Texture2D target,View state,MatrixD view,MatrixD projection,ShaderResourceView depth)
         {
-            SmoothFramesBridge.Holo(state,failed,view);
             if(state==null || failed) return;
             if(SmoothFramesBridge.Ready && state.RenderParent!=uint.MaxValue)
             {

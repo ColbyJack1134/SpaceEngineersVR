@@ -126,7 +126,6 @@ namespace SpaceEngineersVR.Patches
         }
         private static void AfterPresent()
         {
-            Player.SmoothFramesBridge.EndFrame();
             if(presentStart!=0) Player.FeatureTiming.End(Player.FeatureTiming.Area.DesktopPresent,presentStart);
             Player.GpuTiming.EndFrame();
             Player.RenderPerformance.Sample(Main.VrActive && drewStereo && Main.WorldAvailable && !Main.MenuOpen);

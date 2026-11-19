@@ -50,7 +50,6 @@ namespace SpaceEngineersVR.Player
             try
             {
                 rig=SmoothFrames.RenderFrame(rig);
-                SmoothFramesBridge.Eyes(rig);
                 Matrix originInverse=rig?.OriginInverse ?? Player.RenderPlayerToAbsolute.inverted;
                 double scale=rig?.UnitsPerMeter ?? 1;
                 if(rig!=null) gameView=MatrixD.Invert(rig.Anchor);
@@ -132,7 +131,6 @@ namespace SpaceEngineersVR.Player
             MatrixD gameView, SceneCamera sceneCamera, Matrix originInverse,CameraRig.Frame rig,out object ambientOcclusion)
         {
             StereoRenderState.View=(int)eye;
-            SmoothFramesBridge.Eye();
             var timing=System.Diagnostics.Stopwatch.StartNew();
             MatrixD view = VrMath.EyeView(gameView, renderPose.deviceToAbsolute.matrix,
                 originInverse, OpenVR.System.GetEyeToHeadTransform(eye).ToMatrix(),rig?.UnitsPerMeter ?? 1);

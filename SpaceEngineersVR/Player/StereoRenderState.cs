@@ -24,7 +24,7 @@ namespace SpaceEngineersVR.Player
         private static int request,remaining;
         private static readonly ConcurrentQueue<string> trace=new ConcurrentQueue<string>();
         public static bool Tracing => remaining>0;
-        public static void RequestTrace() { Interlocked.Exchange(ref request,1); SmoothFramesBridge.Request(); }
+        public static void RequestTrace() => Interlocked.Exchange(ref request,1);
         public static void CancelFrame() { Active=false; View=-1; }
         public static void Begin(MatrixD center,double near,double far)
         {

@@ -15,6 +15,8 @@ namespace SpaceEngineersVR.Diagnostics
     {
         private static void Require(bool condition,string message) { if(!condition) throw new Exception(message); }
         private static T State<T>(string name) => (T)AccessTools.Field(typeof(SmoothFramesBridge),name).GetValue(null);
+        private static SmoothFramesBridge.Tick SampledTick =>
+            (SmoothFramesBridge.Tick)AccessTools.Field(typeof(SmoothFrames),"to").GetValue(null);
         private static VRage.Render.Scene.MyScene Scene() =>
             (VRage.Render.Scene.MyScene)Activator.CreateInstance(AccessTools.TypeByName("VRage.Render11.Scene.MyScene11"),true);
         public static void Upstream(Assembly upstream,Action<string> log)
@@ -61,27 +63,26 @@ namespace SpaceEngineersVR.Diagnostics
                     shared.CurrentUpdateFrame.Enqueue(message);
                     AccessTools.Method(capture,"SnapAndDefer").Invoke(null,new object[] {camera});
                     Require(!(bool)AccessTools.Field(capture,"_hasPendingSnap").GetValue(null),"Early upstream capture was not deferred");
-                    SmoothFramesBridge.ToolUpdated();
                     afterDraw.Invoke(game,null);
                     var tick=State<SmoothFramesBridge.Tick>("captured");
-                    Require(tick.Batch>0 && tick.Snapshot>0 && tick.EntityStart>=tick.ToolUpdated,"Late entity capture did not precede native batch publication");
+                    Require(tick.Batch>0 && tick.Snapshot>0,"Late entity capture did not precede native batch publication");
                     if(i==3)
                     {
                         RenderFrameBridge.Consume(message);
                         RunUpstream(render);
-                        Require(!State<bool>("applied"),"Older published pair applied to a newer native batch");
+                        Require(SampledTick==null,"Older published pair applied to a newer native batch");
                     }
                     AccessTools.Method(capture,"PublishPendingSnap").Invoke(null,null);
                     if(i==2)
                     {
                         RunUpstream(render);
-                        Require(!State<bool>("applied"),"Future pair applied before its native batch arrived");
+                        Require(SampledTick==null,"Future pair applied before its native batch arrived");
                     }
                     RenderFrameBridge.Consume(message);
                     RunUpstream(render);
                     Require(SmoothFramesBridge.Ready,"Upstream compatibility failed: "+SmoothFramesBridge.Failure);
                     if(i==1) continue;
-                    Require(State<bool>("applied") && State<SmoothFramesBridge.Tick>("pairCurrent")==tick,"Real upstream synthetic camera did not retain the native batch");
+                    Require(SampledTick==tick,"Real upstream synthetic camera did not retain the native batch");
                     Require(ReferenceEquals(RenderFrameBridge.Current,rig),"Real upstream synthetic camera cleared the VR packet");
                     double alpha=(double)AccessTools.Property(render,"LastSmoothingAlpha").GetValue(null);
                     var blended=SmoothFrames.RenderFrame(rig);
@@ -89,10 +90,10 @@ namespace SpaceEngineersVR.Diagnostics
                     SmoothFrames.EndFrame();
                 }
                 enabled.SetValue(null,false); RunUpstream(render);
-                Require(!State<bool>("applied") && ReferenceEquals(SmoothFrames.RenderFrame((CameraRig.Frame)frame.GetValue(null)),frame.GetValue(null)),"Disabled interpolation retained a smoothed camera");
+                Require(SampledTick==null && ReferenceEquals(SmoothFrames.RenderFrame((CameraRig.Frame)frame.GetValue(null)),frame.GetValue(null)),"Disabled interpolation retained a smoothed camera");
                 enabled.SetValue(null,true);
                 AccessTools.Method(history,"Reset").Invoke(null,null); RunUpstream(render);
-                Require(!State<bool>("applied"),"Reset history retained a sample");
+                Require(SampledTick==null,"Reset history retained a sample");
                 NativeBones(log);
                 log("PASS installed SmoothFrames active snapshots: late capture, native commit, both publication race directions, exact pair/alpha, packet retention, disabled/reset fallback");
             }
@@ -207,8 +208,7 @@ namespace SpaceEngineersVR.Diagnostics
                     var a=new SmoothFramesBridge.Tick {CharacterId=23,CharacterActor=id,Character=parentA,Forearm=1,
                         Rig=new CameraRig.Frame(cameraLocal*parentA,Matrix.Identity),Bones=new SmoothFrames.Bones {Actor=id,Poses=before}};
                     var b=new SmoothFramesBridge.Tick {CharacterId=23,CharacterActor=id,Character=parentB,Forearm=1,
-                        Rig=new CameraRig.Frame(cameraLocal*parentB,Matrix.Identity),Bones=new SmoothFrames.Bones {Actor=id,Poses=current},
-                        ForearmWorld=MatrixD.CreateTranslation(.08,0,0)*current[1]*parentB};
+                        Rig=new CameraRig.Frame(cameraLocal*parentB,Matrix.Identity),Bones=new SmoothFrames.Bones {Actor=id,Poses=current}};
                     var publishedBone=(MatrixD)current[1]*parentB;
                     var panels=SpatialUi.WristViews((MatrixD)TrackedArms.WristScreenLocal*publishedBone,fold,1,null,new SurfaceKey[0]);
                     foreach(var panel in panels) panel.WristLocal=panel.Pose*MatrixD.Invert(publishedBone);
@@ -245,7 +245,6 @@ namespace SpaceEngineersVR.Diagnostics
             {
                 History.Previous=History.Current=default(Snapshot);
                 SmoothFramesBridge.Attach(harmony,typeof(Render),typeof(Capture),typeof(History),typeof(Plugin));
-                AccessTools.Field(typeof(SmoothFramesBridge),"remaining").SetValue(null,240);
                 for(int i=1;i<=3;i++)
                 {
                     RenderFrameBridge.Capture(camera,rig);
@@ -259,34 +258,28 @@ namespace SpaceEngineersVR.Diagnostics
                     RenderFrameBridge.Consume(camera);
                     RenderFrameBridge.Consume(lateCamera);
                     Require(SmoothFramesBridge.Ready,"SmoothFrames capture failed: "+SmoothFramesBridge.Failure);
-                    if(i>1) Require(State<SmoothFramesBridge.Tick>("previous")?.Snapshot==(i-1)*100,"Repeated camera upload advanced the previous batch");
+                    Require(State<SmoothFramesBridge.Tick>("current")?.Snapshot==i*100,"Repeated camera upload lost the latest native snapshot");
                     Require(ReferenceEquals(RenderFrameBridge.Current,rig),"Compatibility changed native camera consumption");
                 }
-                int pairs=State<int>("pairs");
                 History.TryGetPair(out var outsidePrevious,out var outsideCurrent);
                 Require(outsidePrevious.TimestampTicks==200 && outsideCurrent.TimestampTicks==300,"Compatibility changed out values outside RunFrame");
                 Task.Run(()=>History.TryGetPair(out _,out _)).GetAwaiter().GetResult();
-                Require(State<int>("pairs")==pairs,"Non-render history reads entered the smoothing sample");
-                Render.RunFrame();
-                Require(State<int>("pairs")==pairs+1,"Actual smoothing pair was not observed");
+                Require(State<SmoothFramesBridge.Tick>("pairCurrent")==null,"Non-render history reads entered the smoothing sample");
+                RunUpstream(typeof(Render));
                 Require(State<SmoothFramesBridge.Tick>("pairPrevious")?.Snapshot==200 && State<SmoothFramesBridge.Tick>("pairCurrent")?.Snapshot==300,
-                    "Boxed out snapshots lost their exact source tick:\n"+string.Join("\n",State<System.Collections.Generic.List<string>>("rows")));
+                    "Boxed out snapshots lost their exact source tick");
                 Require(History.Current.TimestampTicks==300 && History.Previous.TimestampTicks==200 && Render.LastSmoothingAlpha==.25 &&
                     Render.LastPrevious==200 && Render.LastCurrent==300,
                     "Compatibility changed upstream output");
                 Require(ReferenceEquals(RenderFrameBridge.Current,rig),"Synthetic camera cleared the native VR packet");
-                var latest=State<SmoothFramesBridge.Tick>("current");
-                Require(latest?.Published>0 && latest.Id!=0 && latest.Batch!=0,"Publish/camera identity was not linked");
-                Require(latest.EntityStart>0 && latest.EntityEnd>=latest.EntityStart,"Entity capture interval was not linked");
+                Require(SampledTick==State<SmoothFramesBridge.Tick>("current") && SampledTick?.Batch>0,"Published smoothing pair lost the native batch");
 
                 Plugin.InterpolationEnabled=false;
-                int synthetic=State<int>("syntheticCalls");
-                Render.RunFrame();
-                Require(State<int>("syntheticCalls")==synthetic && State<int>("pairs")==pairs+1 && !State<bool>("pairValid") &&
-                    !State<bool>("applied"),"Disabled interpolation acquired or retained a sample");
+                RunUpstream(typeof(Render));
+                Require(State<SmoothFramesBridge.Tick>("pairCurrent")==null && SampledTick==null,"Disabled interpolation acquired or retained a sample");
                 Plugin.InterpolationEnabled=true; History.Current=new Snapshot {TimestampTicks=400,Smooth=false};
-                Render.RunFrame();
-                Require(!State<bool>("pairValid") && State<int>("syntheticCalls")==synthetic,"Camera cut was reported as applied smoothing");
+                RunUpstream(typeof(Render));
+                Require(SampledTick==null,"Camera cut was reported as applied smoothing");
                 Render.Throw=true;
                 bool threw=false;
                 try { Render.RunFrame(); } catch(InvalidOperationException ex) when(ex.Message=="upstream failure") { threw=true; }
@@ -380,6 +373,7 @@ namespace SpaceEngineersVR.Diagnostics
                     }
                     finally { group.Remove(); SmoothFramesBridge.Dispose(); }
                 }
+                InterpolationRestore(harmony,mainFailed,log);
                 SmoothFramesBridge.Attach(harmony,typeof(Render),typeof(Capture),typeof(History),typeof(Plugin));
                 SmoothFrames.Sample(a,b,.5); SmoothFramesBridge.Reset();
                 Require(ReferenceEquals(SmoothFrames.RenderFrame(fallback),fallback) && State<SmoothFramesBridge.Tick>("current")==null,
@@ -397,6 +391,51 @@ namespace SpaceEngineersVR.Diagnostics
                 getter.SetValue(null,oldGetter); setter.SetValue(null,oldSetter); surfaceField.SetValue(null,oldSurfaces);
                 mainFailed.SetValue(null,oldFailed); SpaceEngineersVR.Plugin.Main.WorldAvailable=oldWorld; Plugin.InterpolationEnabled=true;
                 AccessTools.Method(tracker.GetType(),"Deregister").Invoke(tracker,null);
+            }
+        }
+        private static void InterpolationRestore(Harmony harmony,FieldInfo mainFailed,Action<string> log)
+        {
+            var cleanup=AccessTools.Field(typeof(SpaceEngineersVR.Plugin.Main),"cleanupRequested");
+            var oldCleanup=cleanup.GetValue(null);
+            var main=new SpaceEngineersVR.Plugin.Main();
+            try
+            {
+                SmoothFramesBridge.Protect(typeof(Render),typeof(Plugin));
+                foreach(bool enabled in new[] { true,false })
+                {
+                    foreach(bool dispose in new[] { false,true })
+                    foreach(bool changeSetting in new[] { false,true })
+                    {
+                        mainFailed.SetValue(null,false);
+                        SmoothFramesBridge.Attach(harmony,typeof(Render),typeof(Capture),typeof(History),typeof(Plugin));
+                        Plugin.SetInterpolationEnabled(enabled);
+                        var error=new InvalidOperationException("injected bridge failure");
+                        SmoothFramesBridge.Fail(error);
+                        SmoothFramesBridge.Fail(error);
+                        Require(!Plugin.InterpolationEnabled,"Bridge failure left interpolation enabled in VR");
+                        if(changeSetting)
+                        {
+                            Plugin.SetInterpolationEnabled(true);
+                            Plugin.SetInterpolationEnabled(!enabled);
+                        }
+                        if(dispose) SmoothFramesBridge.Dispose();
+                        else
+                        {
+                            mainFailed.SetValue(null,true);
+                            cleanup.SetValue(null,true);
+                            main.Update();
+                        }
+                        Require(Plugin.InterpolationEnabled==(changeSetting ? !enabled:enabled),"VR exit lost the latest SmoothFrames preference");
+                    }
+                }
+                log("PASS SmoothFrames interpolation setting on desktop fallback and disposal, initially enabled and disabled, including settings changed during failure");
+            }
+            finally
+            {
+                cleanup.SetValue(null,oldCleanup);
+                mainFailed.SetValue(null,false);
+                SmoothFramesBridge.Dispose();
+                foreach(var method in harmony.GetPatchedMethods().ToArray()) harmony.Unpatch(method,HarmonyPatchType.All,harmony.Id);
             }
         }
         private static FaultBones faultBones;
@@ -574,7 +613,13 @@ namespace SpaceEngineersVR.Diagnostics
             public long TimestampTicks;
             public bool Smooth;
         }
-        private static class Plugin { public static bool InterpolationEnabled=true; }
+        private sealed class PluginConfig { public bool InterpolationEnabled { get; set; } = true; }
+        private static class Plugin
+        {
+            public static bool InterpolationEnabled=true;
+            public static PluginConfig Config { get; }=new PluginConfig();
+            public static void SetInterpolationEnabled(bool enabled) { InterpolationEnabled=Config.InterpolationEnabled=enabled; }
+        }
         private static class Capture
         {
             public static Snapshot Next;
