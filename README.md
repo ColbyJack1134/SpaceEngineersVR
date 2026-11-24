@@ -23,7 +23,7 @@ Other features:
 - Optional NVIDIA DLAA and DLSS on Windows RTX GPUs
 - Stereo 3D, 6DOF and roomscale (obviously)
 
-With the 1.0 release, I consider this experience to be practically complete and stable. Of course there will always be bugs, polish, and new ideas to work on. I plan on maintaining this project until at least past the Warfare 3 update. If you run into any bugs or problems feel free to create a new [issue](https://github.com/ColbyJack1134/SpaceEngineersVR/issues) on GitHub.
+Space Engineers VR supports Warfare 3. For bugs or feature requests, open an [issue](https://github.com/ColbyJack1134/SpaceEngineersVR/issues) on GitHub.
 
 ## Installation
 
