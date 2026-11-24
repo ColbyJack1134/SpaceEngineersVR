@@ -1,6 +1,6 @@
 <img width="1280" height="640" alt="Space Engineers VR plugin banner" src="https://github.com/user-attachments/assets/cc85a7b4-460d-445f-afbd-cc008968c509" />
 
-[Trailer](https://youtu.be/UGdSjBTu-30) • [Raw Gameplay](https://www.youtube.com/watch?v=4BAt21If5LI)
+[Trailer 2](https://youtu.be/koYKR48HvFg) • [Trailer 1](https://youtu.be/UGdSjBTu-30) • [Raw Gameplay](https://www.youtube.com/watch?v=4BAt21If5LI)
 
 ## Space Engineers VR Plugin
 
@@ -11,7 +11,7 @@ Features:
 - **Tools and weapons** - two-handed holds and functional reticles
 - **VR building** - painting, symmetry and blueprints
 - **Third-person and spectator** - hand-controlled camera views
-- **Camera, turret and remote-grid views** - picture-in-picture. Inspired by [CameraLCD](https://github.com/austinvaness/CameraLCD)
+- **Camera, turret and remote-grid views** - picture-in-picture, head-aimed turrets and live camera feeds on LCDs. Inspired by [CameraLCD](https://github.com/austinvaness/CameraLCD)
 - **HUD built for VR** - maintaining base game art
 - **Multiplayer** - including vanilla servers
 
@@ -19,8 +19,8 @@ Other features:
 - Third-person diorama build mode
 - Left-handed mode
 - Wrist tablet, radial menus and VR keyboard
-- [Mod API](guides/MOD-API.md) and [programmable block API](https://github.com/ColbyJack1134/SpaceEngineersVR/blob/main/guides/MECH-SCRIPTS.md)
-- CameraLCD implementation
+- [Mod API](guides/MOD-API.md) and [programmable block API](https://github.com/ColbyJack1134/SpaceEngineersVR/blob/main/guides/MECH-SCRIPTS.md) with tracked hands and an example mech arm script
+- Optional NVIDIA DLAA and DLSS on Windows RTX GPUs
 - Stereo 3D, 6DOF and roomscale (obviously)
 
 With the 1.0 release, I consider this experience to be practically complete and stable. Of course there will always be bugs, polish, and new ideas to work on. I plan on maintaining this project until at least past the Warfare 3 update. If you run into any bugs or problems feel free to create a new [issue](https://github.com/ColbyJack1134/SpaceEngineersVR/issues) on GitHub.
